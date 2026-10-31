@@ -144,7 +144,8 @@ impl<'unit> CallAccesses<'unit> {
         }
         // An in-progress recursive closure has no proved summary yet.
         self.functions.insert(machine, None);
-        let (Some(function), Some(origins)) = (functions.get(&machine), borrowed_origins.get(&machine))
+        let (Some(function), Some(origins)) =
+            (functions.get(&machine), borrowed_origins.get(&machine))
         else {
             return;
         };

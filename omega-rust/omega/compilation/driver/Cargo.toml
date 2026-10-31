@@ -103,10 +103,10 @@ harness = false
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
-# Checked source helpers retain placed-view backing across ordinary invocations.
+# Checked source helpers retain access-view backing across ordinary invocations.
 [[test]]
-name = "placed_view_calls"
-path = "tests/placed_view_calls.rs"
+name = "access_view_calls"
+path = "tests/access_view_calls.rs"
 
 [[test]]
 name = "terminal_entry_writeback"

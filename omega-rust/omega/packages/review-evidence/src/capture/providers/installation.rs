@@ -56,7 +56,7 @@ pub(crate) fn project_selected_installation_reach(
                 .then_some(requirement.service_reach_row)
         }
         ProviderSchemaDeclaration::BoundaryRequirement(schema_symbol)
-        | ProviderSchemaDeclaration::SealedPlacedAccessor(schema_symbol) => {
+        | ProviderSchemaDeclaration::SealedAccessor(schema_symbol) => {
             let requirements = compilation
                 .machines()
                 .iter()
@@ -65,7 +65,7 @@ pub(crate) fn project_selected_installation_reach(
                         && requirement.symbol == requirement_symbol
                         && (requirement.supply_mode
                             == language_semantics::MachineSupplyMode::TopLevelRequirement
-                            || matches!(schema, ProviderSchemaDeclaration::SealedPlacedAccessor(_)))
+                            || matches!(schema, ProviderSchemaDeclaration::SealedAccessor(_)))
                 })
                 .collect::<Vec<_>>();
             let [requirement] = requirements.as_slice() else {

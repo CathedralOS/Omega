@@ -191,7 +191,7 @@ fn expression_exposes(
             inference,
         );
         // A returned reference or reference-bearing value can hand the same
-        // replacement authority to its consumer. Scalar/Unit results cannot.
+        // reaccess authority to its consumer. Scalar/Unit results cannot.
         // Keep both invocations' effects rather than hiding an opaque outer
         // call behind a pure identity helper.
         let carries_authority = super::super::machine_state_by_symbol(program, call.target_symbol)
@@ -408,16 +408,15 @@ fn call_binding_write_paths(
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     if let Some(declaration) =
-        typed_trees::typed_trees::PlacedScalarAccessorDeclaration::authenticate(program, target)
-            .ok()?
+        typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(program, target).ok()?
     {
         let state = program.state_by_symbol(declaration.state())?;
         let value = match declaration.operation() {
-            typed_trees::typed_trees::PlacedScalarAccessorOperation::Write => {
+            typed_trees::typed_trees::ScalarAccessorOperation::Write => {
                 program.state_parameters(state).get(1)?.type_reference
             }
-            typed_trees::typed_trees::PlacedScalarAccessorOperation::Read
-            | typed_trees::typed_trees::PlacedScalarAccessorOperation::Take => state.return_type,
+            typed_trees::typed_trees::ScalarAccessorOperation::Read
+            | typed_trees::typed_trees::ScalarAccessorOperation::Take => state.return_type,
         };
         // Authentication rejoins the exact generated field/access slot and
         // scalar/Unit telescope. Do not generalize this to structural/opaque

@@ -159,7 +159,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
             .chain(parents.iter().map(|parent| parent.place))
             .collect(),
         O::EstablishReference { source, .. }
-        | O::EstablishPlacedReference { source, .. }
+        | O::EstablishAccessReference { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::EstablishElementView { source, .. }

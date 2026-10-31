@@ -923,7 +923,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::PortWrite { .. } => {
             unreachable!("port envelopes use the dedicated exact decoder")
         }
-        SelectedInstructionKind::PlacedScalarAccess {
+        SelectedInstructionKind::AccessorScalarAccess {
             form, byte_offset, ..
         } => {
             let ordinary = form
@@ -2056,7 +2056,7 @@ pub(crate) fn footprint(
         SelectedInstructionKind::RegisterAccess { operation } => {
             return super::register_access::footprint(operation, operands);
         }
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
             if form.write {
                 (vec![0, 1], vec![], false)
             } else {

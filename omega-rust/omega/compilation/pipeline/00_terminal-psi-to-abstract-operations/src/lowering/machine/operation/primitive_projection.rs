@@ -17,7 +17,7 @@
 //! places that field at its declared offset inside the element; the leaf's
 //! type is rebuilt here from the same declarations. Terminal independently
 //! transported any declared invariant onto the fresh result; this geometry
-//! query grants no field equation, range evidence or replacement authority.
+//! query grants no field equation, range evidence or reaccess authority.
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};

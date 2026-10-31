@@ -2,13 +2,13 @@
 //! These are compatibility tests, not evidence of vacancy or an executed write.
 
 use crate::{
-    AccessExposure, AccessPlan, AtomicCapability, BoundaryReach, ExternalCapability,
-    PeerWritability, PlacementPlan, ResourceProfile, ResourceRegion, StableCapability,
-    ValidatedPlacementPlan, validate_initialization_resources, validate_placement_plan,
-    validate_placement_resources, validate_resource_profile,
+    AccessExposure, AccessFields, AccessPlan, AtomicCapability, BoundaryReach, ExternalCapability,
+    PeerWritability, ResourceProfile, ResourceRegion, StableCapability, ValidatedAccessPlan,
+    validate_access_plan, validate_access_resources, validate_initialization_resources,
+    validate_resource_profile,
 };
 
-fn plan(expose_read: bool) -> ValidatedPlacementPlan {
+fn plan(expose_read: bool) -> ValidatedAccessPlan {
     let layout = super::uart_layout();
     let access = if expose_read {
         super::access_plan(
@@ -19,9 +19,9 @@ fn plan(expose_read: bool) -> ValidatedPlacementPlan {
             )],
         )
     } else {
-        AccessPlan::inaccessible(&layout).expect("inaccessible access")
+        AccessFields::inaccessible(&layout).expect("inaccessible access")
     };
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         layout,
         access,
         reach: super::uart_reach(),
@@ -51,7 +51,7 @@ fn read_only_view_supply_does_not_authorize_initialization() {
         12,
     )
     .expect("readable profile");
-    validate_placement_resources(&plan, &profile).expect("view can read");
+    validate_access_resources(&plan, &profile).expect("view can read");
     let error =
         validate_initialization_resources(&plan, &profile).expect_err("initialization must write");
     assert!(error.0.contains("Stable write supply at byte 0"));
@@ -71,7 +71,7 @@ fn initialization_covers_inaccessible_fields_and_padding() {
     ] {
         let profile = validate_resource_profile(ResourceProfile { regions }, 12)
             .expect("uncovered bytes supply nothing");
-        validate_placement_resources(&plan, &profile).expect("no accessor demands");
+        validate_access_resources(&plan, &profile).expect("no accessor demands");
         let error = validate_initialization_resources(&plan, &profile)
             .expect_err("whole image needs coverage");
         assert!(error.0.contains("no resource supply at byte"));

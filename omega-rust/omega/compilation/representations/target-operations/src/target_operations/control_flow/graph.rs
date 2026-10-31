@@ -62,7 +62,7 @@ pub enum TargetControlTerminator {
         call_plan: calling_conventions::CallPlan,
         scalar_arguments: Vec<crate::TargetUnitScalarCallArgument>,
         arguments: Vec<crate::TargetStructuralArgument>,
-        placed_bindings: Vec<crate::TargetPlacedCallBinding>,
+        access_bindings: Vec<crate::TargetAccessCallBinding>,
         claim_transfers: Vec<terminal_psi::ClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<terminal_psi::CrashRouteBucket>,

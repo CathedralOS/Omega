@@ -509,12 +509,12 @@ pub(super) fn encode_structural_type(
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
-                terminal_psi::StructuralRecordStorage::PlacedView(storage) => {
+                terminal_psi::StructuralRecordStorage::AccessView(storage) => {
                     bytes.u8(14);
                     bytes.u64(storage.byte_size);
                     bytes.u64(storage.byte_alignment);
                 }
-                terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) => {
+                terminal_psi::StructuralRecordStorage::Accessor(storage) => {
                     bytes.u8(15);
                     bytes.u64(storage.byte_size);
                     bytes.u64(storage.byte_alignment);
@@ -534,8 +534,8 @@ pub(super) fn encode_structural_type(
             if matches!(
                 storage,
                 terminal_psi::StructuralRecordStorage::Authored(_)
-                    | terminal_psi::StructuralRecordStorage::PlacedView(_)
-                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_)
+                    | terminal_psi::StructuralRecordStorage::AccessView(_)
+                    | terminal_psi::StructuralRecordStorage::Accessor(_)
             ) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());

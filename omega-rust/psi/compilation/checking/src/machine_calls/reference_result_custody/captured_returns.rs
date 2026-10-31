@@ -10,7 +10,7 @@
 //! extent or equality between independently captured windows.
 //! A placed formation retains that original backing region separately from
 //! its accessor presentation. It is not a codec projection: the source-checked
-//! formation and the returned live association own its placement authority.
+//! formation and the returned live association own its access authority.
 //! Forwarded descriptors still retain their exact existing interpretation.
 
 mod descriptor_sources;
@@ -929,9 +929,9 @@ impl Captures<'_> {
         }
         let mut path = Vec::new();
         let mut extent = ReferenceOriginExtent::Projected;
-        let mut placed_backing = TypeReferenceHandle::invalid();
+        let mut access_backing = TypeReferenceHandle::invalid();
         for (ordinal, recast) in origin.recasts.iter().enumerate() {
-            if recast.root != origin.root || placed_backing.is_valid() {
+            if recast.root != origin.root || access_backing.is_valid() {
                 return None;
             }
             let selectors = if ordinal == 0 {
@@ -979,7 +979,7 @@ impl Captures<'_> {
                 // separate from the accessor presentation, just as an authored
                 // placed formation does. Completion still checks the actual
                 // returned association; this is no codec or Extent projection.
-                placed_backing = selected;
+                access_backing = selected;
                 extent = ReferenceOriginExtent::WithinRegion;
                 selected = recast.target_type;
                 continue;
@@ -1007,11 +1007,11 @@ impl Captures<'_> {
             let (formation, storage, backing_type) = formations.next()?;
             let authored =
                 crate::reference_formation_source(self.program, recast.formation.expression())?;
-            let expected_storage = if authored.interpretation.is_placed() {
+            let expected_storage = if authored.interpretation.is_access_view() {
                 let view = self.program.closed_data_definition(recast.target_type)?;
                 let mut plans = self
                     .program
-                    .placed_view_plans
+                    .access_view_plans
                     .iter()
                     .filter(|plan| plan.data_symbol == view.symbol);
                 let (Some(plan), None) = (plans.next(), plans.next()) else {
@@ -1019,7 +1019,7 @@ impl Captures<'_> {
                 };
                 authored
                     .interpretation
-                    .placed_storage(self.program, selected, plan)?
+                    .access_storage(self.program, selected, plan)?
             } else {
                 crate::reference_view_storage(self.program, selected, recast.target_type)?
             };
@@ -1036,12 +1036,12 @@ impl Captures<'_> {
             // The arena occurrence remains in its original body after a call
             // substitution. Its source identity is not the rebased caller root.
             self.program.state_by_symbol(formation.state)?;
-            if authored.interpretation.is_placed() {
-                // Placed accessors are not an ordinary structural re-view of
+            if authored.interpretation.is_access_view() {
+                // Access accessors are not an ordinary structural re-view of
                 // the backing declaration. Keep the exact original region;
                 // formation owns the placement and completion retains that
                 // association. A codec path would invent ordinary field access.
-                placed_backing = selected;
+                access_backing = selected;
                 extent = ReferenceOriginExtent::WithinRegion;
             }
             if matches!(storage, checked_trees::CheckedReferenceStorage::View { .. }) {
@@ -1068,7 +1068,7 @@ impl Captures<'_> {
         {
             return None;
         }
-        if placed_backing.is_valid() {
+        if access_backing.is_valid() {
             // Accessor projections are capabilities with their own event
             // contract, not typed subregions of the original schema.
             if !selectors.is_empty() {
@@ -1076,7 +1076,7 @@ impl Captures<'_> {
             }
             return Some(FrameOrigin {
                 path,
-                backing: placed_backing,
+                backing: access_backing,
                 presentation: selected,
                 extent,
             });

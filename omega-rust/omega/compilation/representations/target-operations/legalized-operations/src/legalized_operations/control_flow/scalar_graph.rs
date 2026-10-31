@@ -134,7 +134,7 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
-            LegalizedScalarInstructionKind::PlacementLifecycle { indices, .. } => {
+            LegalizedScalarInstructionKind::AccessLifecycle { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. }
@@ -281,7 +281,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
-            LegalizedScalarInstructionKind::EstablishPlacedReference { indices, .. } => {
+            LegalizedScalarInstructionKind::EstablishAccessReference { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::EstablishReference {
@@ -303,7 +303,7 @@ impl LegalizedScalarInstruction {
                     visit(*end);
                 }
             }
-            LegalizedScalarInstructionKind::PlacedScalarAccess {
+            LegalizedScalarInstructionKind::AccessorScalarAccess {
                 operand, indices, ..
             } => {
                 if let Some(value) = operand {
@@ -400,9 +400,9 @@ pub enum LegalizedScalarInstructionKind {
     /// Whole-value placement retains the same original operands and result as
     /// the checked boundary. Selectors are concatenated in operand/path order;
     /// the shared structural catalog owns the complete normalized image plan.
-    PlacementLifecycle {
+    AccessLifecycle {
         boundary: BoundaryMachineId,
-        operands: abstract_operations::PlacementLifecycleOperands,
+        operands: abstract_operations::AccessLifecycleOperands,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         result: terminal_psi::StructuralOperationResult,
     },
@@ -461,9 +461,9 @@ pub enum LegalizedScalarInstructionKind {
         port: u16,
         value: u8,
     },
-    PlacedScalarAccess {
+    AccessorScalarAccess {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        realization: target_operations::PlacedScalarAccessRealization,
+        realization: target_operations::AccessorScalarAccessRealization,
         location: terminal_psi::StructuralArgument,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         operand: Option<ValueId>,
@@ -560,10 +560,10 @@ pub enum LegalizedScalarInstructionKind {
     /// One verified reference carrier. `shape` describes the eight-byte
     /// address word captured from `source`, not a copy of its referent.
     /// Source identity and live permission remain independently checked.
-    EstablishPlacedReference {
+    EstablishAccessReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
-        correspondence: abstract_operations::PlacedReferenceBacking,
+        correspondence: abstract_operations::AccessReferenceBacking,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         shape: calling_conventions::ValueShape,
     },
@@ -1059,14 +1059,14 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishActivationClaim { result, .. }
             | Self::SplitActivationClaim { result, .. }
             | Self::MergeActivationClaim { result, .. }
-            | Self::PlacementLifecycle { result, .. }
+            | Self::AccessLifecycle { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishCase { result, .. }
             | Self::EstablishReference { result, .. }
-            | Self::EstablishPlacedReference { result, .. }
+            | Self::EstablishAccessReference { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }
             | Self::StructuralLeafCopy { result, .. }
             | Self::HostedReadByte { result, .. }
@@ -1090,7 +1090,7 @@ impl LegalizedScalarInstructionKind {
             | Self::PortWrite { .. }
             | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }
-            | Self::PlacedScalarAccess { .. }
+            | Self::AccessorScalarAccess { .. }
             | Self::IeeeFloatCompare { .. }
             | Self::NearestIeeeFloatArithmetic { .. }
             | Self::ReleaseReference { .. }
@@ -1211,7 +1211,7 @@ mod structural_result_tests {
         let expected = result();
         let mut call = LegalizedScalarCall {
             descriptor_origins: Vec::new(),
-            placed_bindings: Vec::new(),
+            access_bindings: Vec::new(),
             source: target_operations::NativeCallOrigin::Authored,
             target: target_operations::NativeCallTarget::Machine(MachineId::new(1).unwrap()),
             call_plan: evaluate_call_plan(
@@ -1247,9 +1247,9 @@ mod structural_result_tests {
         expected
             .qualifications
             .push(semantic_vocabulary::StructuralDomainId::new(9).expect("domain"));
-        let instruction = LegalizedScalarInstructionKind::PlacementLifecycle {
+        let instruction = LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: semantic_vocabulary::BoundaryMachineId::new(1).expect("boundary"),
-            operands: abstract_operations::PlacementLifecycleOperands::MoveOut {
+            operands: abstract_operations::AccessLifecycleOperands::MoveOut {
                 storage: StructuralArgument {
                     place: PlaceId::new(8).expect("original owner"),
                     path: vec![],
@@ -1440,7 +1440,7 @@ impl LegalizedScalarTerminator {
         };
         Some(LegalizedScalarCall {
             descriptor_origins: Vec::new(),
-            placed_bindings: Vec::new(),
+            access_bindings: Vec::new(),
             source: origin.clone(),
             target: target_operations::NativeCallTarget::Machine(*callee),
             call_plan: call_plan.clone(),
@@ -1558,7 +1558,7 @@ pub struct LegalizedScalarCall {
     /// reference leaves in an owned aggregate. This does not choose a runtime
     /// address or grant access; both remain owned by the result's contract.
     pub descriptor_origins: Vec<LegalizedDescriptorOrigin>,
-    pub placed_bindings: Vec<target_operations::TargetPlacedCallBinding>,
+    pub access_bindings: Vec<target_operations::TargetAccessCallBinding>,
     pub source: crate::NativeCallOrigin,
     pub target: target_operations::NativeCallTarget,
     pub call_plan: CallPlan,

@@ -156,7 +156,7 @@ fn resolve_projection(
                 } else {
                     // A readable prefix merely selects descriptor storage.
                     // Its reference elements need not be discardable values;
-                    // the later write-only suffix owns displacement admission.
+                    // the later write-only suffix owns disaccess admission.
                     let array = program
                         .type_reference_table
                         .unconstrained_type_reference(referee);

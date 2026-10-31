@@ -311,7 +311,7 @@ impl TerminalExecution<'_> {
     }
 
     /// One canonical owned snapshot for array arguments and structural copies.
-    /// Whole payloads clone their exact bits; placed fields and selected rows
+    /// Whole payloads clone their exact bits; access fields and selected rows
     /// read through the ordinary primitive-storage owner. The caller establishes
     /// copy permission; this method never creates source access or a loan.
     pub(crate) fn scalar_array_snapshot(

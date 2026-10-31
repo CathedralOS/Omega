@@ -55,7 +55,7 @@ terminates by fuel;
         let offset: u64 = (spread16.index * 16) as u64;
         updated[spread16.index] = FieldEntry {
             key: schema.fields[spread16.index].key,
-            placement: FieldPlan::At { offset: offset },
+            representation: FieldPlan::At { offset: offset },
         };
         spread16.index = spread16.index + 1;
         transition fuel > 1 { true -> fill(spread16, schema, fuel - 1, updated) _ -> done(schema, updated) }

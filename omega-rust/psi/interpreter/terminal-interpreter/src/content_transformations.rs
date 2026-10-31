@@ -72,7 +72,7 @@ impl TerminalExecution<'_> {
                 return Err(invalid());
             }
             let selected = ConstructorValue::resolve(self, parent)?;
-            if let ConstructorValue::Placed(value) = &selected
+            if let ConstructorValue::Access(value) = &selected
                 && (crate::custody::has_live_loan(self.reference_referents.as_map(), value)
                     || self.reference_referents.keys().any(|carrier| {
                         carrier.opaque_identity == value.opaque_identity

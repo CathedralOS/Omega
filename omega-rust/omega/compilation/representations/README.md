@@ -137,4 +137,4 @@ frame overlap.
 
 Component descriptions and installation evidence record artifact and deployment
 requirements separately from language meaning; a runtime package or Cathedral
-owns live deployment and replacement policy.
+owns live deployment and reaccess policy.

@@ -10,18 +10,17 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
+use crate::placements::access_admission::validate_access_admission;
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::placements::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
 use crate::placements::owned_resident_custody::{
     validate_provider_content_binding, validate_resident_observation,
 };
-use crate::placements::placement_admission::validate_placement_admission;
-use crate::placements::placement_authority::PlacementAuthorityRef;
-use crate::primitive_access::field_projection::project_placed_field;
+use crate::primitive_access::field_projection::project_access_field;
 use crate::{
-    AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
-    DormantOwnedAtomicResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
-    PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
-    ValidatedPlacementPlan,
+    AccessAdmissionId, AccessFieldKey, AccessFieldProjection, AccessOccurrenceId,
+    AccessPlanDiagnostic, AccessResourceCompatibility, AdmittedResourceProfile, BorrowPolarity,
+    DormantOwnedAtomicResident, ObservationModel, ResourceProfileReceiptId, ValidatedAccessPlan,
 };
 
 impl DormantOwnedAtomicResident {
@@ -30,8 +29,8 @@ impl DormantOwnedAtomicResident {
     /// by the placement; shared borrowing adds none.
     pub fn borrow_view(
         &self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedBorrowedAtomicResidentPlacement<'_>, AccessPlanDiagnostic> {
+        occurrence: AccessOccurrenceId,
+    ) -> Result<EstablishedBorrowedAtomicResidentAccess<'_>, AccessPlanDiagnostic> {
         validate_owned_atomic_resident_authority(
             &self.admission,
             &self.content,
@@ -47,9 +46,9 @@ impl DormantOwnedAtomicResident {
                     "borrowed Atomic resident whole-range loan rejected: {diagnostic}"
                 ))
             })?;
-        Ok(EstablishedBorrowedAtomicResidentPlacement {
-            plan: self.admission.placement_plan.clone(),
-            lender_plan: &self.admission.placement_plan,
+        Ok(EstablishedBorrowedAtomicResidentAccess {
+            plan: self.admission.access_plan.clone(),
+            lender_plan: &self.admission.access_plan,
             profile_receipt: self.admission.profile_receipt,
             profile: &self.admission.profile,
             resources: &self.admission.resources,
@@ -66,15 +65,15 @@ impl DormantOwnedAtomicResident {
     /// grants no Atomic operation absent from the placement.
     pub fn borrow_view_mut(
         &mut self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedBorrowedAtomicResidentPlacement<'_>, AccessPlanDiagnostic> {
+        occurrence: AccessOccurrenceId,
+    ) -> Result<EstablishedBorrowedAtomicResidentAccess<'_>, AccessPlanDiagnostic> {
         validate_owned_atomic_resident_authority(
             &self.admission,
             &self.content,
             "borrowed Atomic resident exclusive-view establishment",
         )?;
-        let plan = self.admission.placement_plan.clone();
-        let lender_plan = &self.admission.placement_plan;
+        let plan = self.admission.access_plan.clone();
+        let lender_plan = &self.admission.access_plan;
         let profile_receipt = self.admission.profile_receipt;
         let profile = &self.admission.profile;
         let resources = &self.admission.resources;
@@ -91,7 +90,7 @@ impl DormantOwnedAtomicResident {
                     "borrowed Atomic resident whole-range loan rejected: {diagnostic}"
                 ))
             })?;
-        Ok(EstablishedBorrowedAtomicResidentPlacement {
+        Ok(EstablishedBorrowedAtomicResidentAccess {
             plan,
             lender_plan,
             profile_receipt,
@@ -113,24 +112,24 @@ impl DormantOwnedAtomicResident {
 /// grant, and active occurrence until explicit retirement.
 #[derive(Debug)]
 #[must_use = "active borrowed Atomic content retains an exact resident loan"]
-pub struct EstablishedBorrowedAtomicResidentPlacement<'resident> {
-    plan: ValidatedPlacementPlan,
-    lender_plan: &'resident ValidatedPlacementPlan,
+pub struct EstablishedBorrowedAtomicResidentAccess<'resident> {
+    plan: ValidatedAccessPlan,
+    lender_plan: &'resident ValidatedAccessPlan,
     profile_receipt: ResourceProfileReceiptId,
     profile: &'resident AdmittedResourceProfile,
-    resources: &'resident PlacementResourceCompatibility,
-    admission: PlacementAdmissionId,
-    lender_admission: &'resident PlacementAdmissionId,
+    resources: &'resident AccessResourceCompatibility,
+    admission: AccessAdmissionId,
+    lender_admission: &'resident AccessAdmissionId,
     loan: ExtentLoan<'resident>,
     content: &'resident ProviderExistingContentGrant,
-    occurrence: PlacedOccurrenceId,
+    occurrence: AccessOccurrenceId,
 }
 
 /// Failed borrowed Atomic retirement returns the complete active carrier.
 /// No loan is released and no resident identity or receipt is reconstructed.
 #[derive(Debug)]
 pub struct BorrowedAtomicResidentRetirementError<'resident> {
-    established: EstablishedBorrowedAtomicResidentPlacement<'resident>,
+    established: EstablishedBorrowedAtomicResidentAccess<'resident>,
     diagnostic: AccessPlanDiagnostic,
 }
 
@@ -140,19 +139,19 @@ impl<'resident> BorrowedAtomicResidentRetirementError<'resident> {
     pub fn into_parts(
         self,
     ) -> (
-        EstablishedBorrowedAtomicResidentPlacement<'resident>,
+        EstablishedBorrowedAtomicResidentAccess<'resident>,
         AccessPlanDiagnostic,
     ) {
         (self.established, self.diagnostic)
     }
 }
 
-impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
+impl<'resident> EstablishedBorrowedAtomicResidentAccess<'resident> {
     pub(super) const fn profile(&self) -> &AdmittedResourceProfile {
         self.profile
     }
 
-    pub(super) const fn resources(&self) -> &PlacementResourceCompatibility {
+    pub(super) const fn resources(&self) -> &AccessResourceCompatibility {
         self.resources
     }
 
@@ -162,10 +161,10 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
         &'view self,
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
-    ) -> Result<PlacedFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
         self.validate_lender_binding("borrowed Atomic resident projection")?;
         let source_loan = BorrowPolarity::from(self.loan.polarity());
-        project_placed_field(
+        project_access_field(
             &self.plan,
             self.profile_receipt,
             self.resources,
@@ -175,7 +174,7 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
             current_borrow,
             source_loan,
             Some(ObservationModel::Atomic),
-            PlacementAuthorityRef::BorrowedAtomicResident(self),
+            AccessAuthorityRef::BorrowedAtomicResident(self),
         )
     }
 
@@ -187,10 +186,10 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
                     .into(),
             ));
         }
-        let replayed = validate_placement_admission(&self.loan, &self.plan, self.profile)
+        let replayed = validate_access_admission(&self.loan, &self.plan, self.profile)
             .map_err(|diagnostic| {
                 AccessPlanDiagnostic(format!(
-                    "borrowed Atomic resident retirement could not replay the retained placement authority: {diagnostic}"
+                    "borrowed Atomic resident retirement could not replay the retained access authority: {diagnostic}"
                 ))
             })?;
         if &replayed != self.resources {
@@ -243,16 +242,16 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
     #[cfg(test)]
     pub(crate) fn replace_plan_for_test(
         &mut self,
-        plan: ValidatedPlacementPlan,
-    ) -> ValidatedPlacementPlan {
+        plan: ValidatedAccessPlan,
+    ) -> ValidatedAccessPlan {
         std::mem::replace(&mut self.plan, plan)
     }
 
     #[cfg(test)]
     pub(crate) fn replace_admission_for_test(
         &mut self,
-        admission: PlacementAdmissionId,
-    ) -> PlacementAdmissionId {
+        admission: AccessAdmissionId,
+    ) -> AccessAdmissionId {
         std::mem::replace(&mut self.admission, admission)
     }
 }

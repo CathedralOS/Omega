@@ -23,7 +23,7 @@ pub(super) fn report_argument_bounds(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    report_placed_scalar_write_predicate(
+    report_accessor_scalar_write_predicate(
         program,
         current_machine,
         current_state,
@@ -367,7 +367,7 @@ fn report_referent_handback(
 /// A sealed accessor's payload is received by its exact schema field. The
 /// default data predicate constrains this delivery too; the opaque accessor
 /// carrier does not turn the owning field into an unrestricted scalar.
-fn report_placed_scalar_write_predicate(
+fn report_accessor_scalar_write_predicate(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
@@ -380,7 +380,7 @@ fn report_placed_scalar_write_predicate(
         return;
     };
     let parent = program.symbols.get(parameter.symbol).parent;
-    let mut fields = program.placed_view_plans.iter().flat_map(|plan| {
+    let mut fields = program.access_view_plans.iter().flat_map(|plan| {
         plan.fields
             .iter()
             .filter(move |field| {
@@ -420,7 +420,7 @@ fn report_placed_scalar_write_predicate(
             });
         if dependent {
             diagnostics.push(Diagnostic::error(format!(
-                "placed write to schema field `{}` requires a complete source declaration predicate guard",
+                "accessor write to schema field `{}` requires a complete source declaration predicate guard",
                 field.field_name,
             )));
         }
@@ -457,7 +457,7 @@ fn report_placed_scalar_write_predicate(
             .is_none_or(|maximum| actual.high.is_some_and(|value| value <= maximum));
     if !formation_diagnostics.is_empty() || !preserved {
         diagnostics.push(Diagnostic::error(format!(
-            "placed write to schema field `{}` does not preserve its source declaration predicate",
+            "accessor write to schema field `{}` does not preserve its source declaration predicate",
             field.field_name,
         )));
     }

@@ -133,7 +133,7 @@ pub enum StructuralEffectCustody {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectAction {
     EstablishNativeCodeLayout,
-    EstablishPlacedReference,
+    EstablishAccessReference,
     EstablishReference,
     ReleaseReference,
     EstablishPrimitiveLocal,
@@ -355,7 +355,7 @@ macro_rules! structural_effect_rows {
 
 structural_effect_rows! {
     StorageAddress => (Scalar, ExactAddressableReferent, ExposeStorageAddress, None, RequiresAndKeepsStructuralPlace),
-    EstablishPlacedReference => (Structural, ExactReferenceSource, EstablishPlacedReference, None, CapturesLoanAndAddsReferenceCarrier),
+    EstablishAccessReference => (Structural, ExactReferenceSource, EstablishAccessReference, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
     EstablishScalarArray => (Structural, ExactScalarArray, EstablishScalarArray, None, AddsUnrestrictedPlace),
@@ -424,8 +424,8 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishNativeCodeLayout => {
             OperationSemanticTag::EstablishNativeCodeLayout
         }
-        StructuralEffectAction::EstablishPlacedReference => {
-            OperationSemanticTag::EstablishPlacedReference
+        StructuralEffectAction::EstablishAccessReference => {
+            OperationSemanticTag::EstablishAccessReference
         }
         StructuralEffectAction::EstablishReference => OperationSemanticTag::EstablishReference,
         StructuralEffectAction::ReleaseReference => OperationSemanticTag::ReleaseReference,
@@ -532,7 +532,7 @@ fn validate_structural_effect_schema(
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
                 }
-                StructuralEffectAction::EstablishPlacedReference
+                StructuralEffectAction::EstablishAccessReference
                 | StructuralEffectAction::EstablishReference => {
                     schema.result == StructuralEffectResultShape::Structural
                         && schema.custody == StructuralEffectCustody::ExactReferenceSource

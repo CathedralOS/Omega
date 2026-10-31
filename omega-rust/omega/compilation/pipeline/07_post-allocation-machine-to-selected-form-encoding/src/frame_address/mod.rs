@@ -370,7 +370,7 @@ pub(super) fn resolve(
         | Address::HostedWriteByteI32 { .. }
         | Address::HostedReadByte { .. } => hosted_window_displacement(function, frame, symbolic)?,
         Address::Load8Indexed { .. } => 0,
-        Address::PlacedScalarAccess { byte_offset, .. }
+        Address::AccessorScalarAccess { byte_offset, .. }
         | Address::LoadPacked { byte_offset, .. }
         | Address::StorePacked { byte_offset, .. }
         | Address::Load64 { byte_offset, .. }
@@ -476,7 +476,7 @@ pub(super) fn validate_address(
         | Address::HostedReadByte { .. } => {
             validate_hosted_window(&candidate, function, frame, symbolic)
         }
-        Address::PlacedScalarAccess {
+        Address::AccessorScalarAccess {
             base_operand: 0,
             byte_offset,
             form,

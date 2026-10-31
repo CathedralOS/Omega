@@ -241,12 +241,12 @@ impl<'a> DescriptorAnalysis<'a> {
     }
     /// Formation provenance follows value/borrow transport, independently of
     /// ordinary reference storage address replay.
-    pub fn with_placed_origins(
+    pub fn with_access_origins(
         types: &'a [StructuralTypeDeclaration],
         machines: &'a [DescriptorMachine],
     ) -> Self {
         Self {
-            replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::PlacedOrigins),
+            replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
         }
     }
     pub(in crate::descriptor_results) fn compatibility_machines(&self) -> &[DescriptorMachine] {
@@ -451,13 +451,13 @@ impl<'a> DescriptorAnalysis<'a> {
             DescriptorSourceOrigin::Provider(_) => self
                 .replay
                 .exported(callee, &Replay::source_origin(origin)?)?,
-            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::PlacedFormation {
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::AccessFormation {
                 machine,
                 operation,
                 place,
                 carrier,
                 projection,
-            }) => DescriptorStoredOrigin::PlacedFormation {
+            }) => DescriptorStoredOrigin::AccessFormation {
                 machine: *machine,
                 operation: *operation,
                 place: *place,
@@ -891,7 +891,7 @@ impl<'a> DescriptorAnalysis<'a> {
                         | DescriptorStoredOrigin::Literal { .. }
                         | DescriptorStoredOrigin::Empty
                         | DescriptorStoredOrigin::Provider(_)
-                        | DescriptorStoredOrigin::PlacedFormation { .. } => {
+                        | DescriptorStoredOrigin::AccessFormation { .. } => {
                             continue;
                         }
                         DescriptorStoredOrigin::IncomingSlot { position, path } => {

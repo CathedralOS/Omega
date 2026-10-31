@@ -8,15 +8,15 @@ data TestMemory {}
 data Word { value: u64; }
 data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::inaccessible(&schema),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 MemorySupply satisfies ResourceProfileSupply<TestMemory> {
@@ -39,32 +39,32 @@ machine carry(storage: Extent in Granted & Resident<WordPlacement, Word>)
     -> Extent in Granted & Resident<WordPlacement, Word> { storage }
 
 machine attempt(storage: Extent in Granted & Vacant, expected_reason: u64)
-    -> PlacementReturn<Extent in Granted & Vacant, Word>
+    -> AccessReturn<Extent in Granted & Vacant, Word>
 reaches ResourceProfileSupply crashes Trap
 {
-    transition NativePlacement<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: 17 }) {
-        PlacementOutcome::Ready { view } -> extract(view)
-        PlacementOutcome::Rejected { returned, reason } -> unexpected(returned)
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: 17 }) {
+        AccessOutcome::Ready { view } -> extract(view)
+        AccessOutcome::Rejected { returned, reason } -> unexpected(returned)
     }
     machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> {
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
         let retained: Extent in Granted & Resident<WordPlacement, Word> = carry(storage);
-        transition NativePlacement<WordPlacement, Word, TestMemory>::move_out(retained) {
-            PlacementExtraction::Moved { storage, value } -> check_value(storage, value)
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
+            AccessExtraction::Moved { storage, value } -> check_value(storage, value)
         }
     }
     machine check_value(storage: Extent in Granted & Vacant, value: Word)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> {
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
         transition value.value == 17 {
             true -> done(storage, value)
-            false -> unexpected(PlacementReturn { source: storage, custody: value })
+            false -> unexpected(AccessReturn { source: storage, custody: value })
         }
     }
     machine done(storage: Extent in Granted & Vacant, value: Word)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> {
-        PlacementReturn { source: storage, custody: value }
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        AccessReturn { source: storage, custody: value }
     }
-    machine unexpected(returned: PlacementReturn<Extent in Granted & Vacant, Word>)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> { crash Trap; }
+    machine unexpected(returned: AccessReturn<Extent in Granted & Vacant, Word>)
+        -> AccessReturn<Extent in Granted & Vacant, Word> { crash Trap; }
 }
 

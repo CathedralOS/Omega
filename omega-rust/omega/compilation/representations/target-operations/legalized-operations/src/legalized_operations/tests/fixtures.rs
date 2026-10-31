@@ -179,7 +179,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     result: None,
                     kind: LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
                         descriptor_origins: Vec::new(),
-                        placed_bindings: Vec::new(),
+                        access_bindings: Vec::new(),
                         structural_result: None,
                         call_plan,
                         result_placement: None,
@@ -365,7 +365,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let call = |sources: [ValueId; 2]| {
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
             descriptor_origins: Vec::new(),
-            placed_bindings: Vec::new(),
+            access_bindings: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
             claim_transfers: Vec::new(),

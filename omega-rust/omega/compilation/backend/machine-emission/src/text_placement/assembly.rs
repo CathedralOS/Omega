@@ -62,7 +62,7 @@ fn manifest(
         target: source_manifest.target,
         semantic_entry: text_section.semantic_entry,
         semantic_entry_offset: text_section.semantic_entry_offset,
-        placement_policy: text_section.policy,
+        access_policy: text_section.policy,
         text_section: text_section.identity,
         relocation_requirements: text_section.relocation_requirements,
         statistics,

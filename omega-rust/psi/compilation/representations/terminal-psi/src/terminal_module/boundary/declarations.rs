@@ -297,20 +297,18 @@ pub struct CheckedBoundaryCallable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedBoundaryExecution {
     Provider,
-    PlacementInitialize,
-    PlacementMoveOut,
-    PlacementView,
+    AccessInitialize,
+    AccessMoveOut,
+    AccessView,
 }
 
 impl CheckedBoundaryExecution {
-    pub const fn placement_operation(self) -> Option<crate::TerminalPlacementLifecycleOperation> {
+    pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
         match self {
             Self::Provider => None,
-            Self::PlacementInitialize => {
-                Some(crate::TerminalPlacementLifecycleOperation::Initialize)
-            }
-            Self::PlacementMoveOut => Some(crate::TerminalPlacementLifecycleOperation::MoveOut),
-            Self::PlacementView => Some(crate::TerminalPlacementLifecycleOperation::View),
+            Self::AccessInitialize => Some(crate::TerminalAccessLifecycleOperation::Initialize),
+            Self::AccessMoveOut => Some(crate::TerminalAccessLifecycleOperation::MoveOut),
+            Self::AccessView => Some(crate::TerminalAccessLifecycleOperation::View),
         }
     }
 }

@@ -101,8 +101,8 @@ impl<'declaration> ScalarAggregatePlan<'declaration> {
                     StructuralTypeShape::Record { fields, storage } => {
                         if matches!(
                             storage,
-                            StructuralRecordStorage::PlacedView(_)
-                                | StructuralRecordStorage::PlacedAccessor(_)
+                            StructuralRecordStorage::AccessView(_)
+                                | StructuralRecordStorage::Accessor(_)
                         ) {
                             return Err(malformed());
                         }

@@ -6,19 +6,19 @@ use omega::language::core::layout;
 public data Word { value: u64; }
 public data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
             FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported }),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine read_existing(storage: &mut Extent in Granted & Resident<WordPlacement, Word>) -> u64 {
-    let view: &mut Placed<WordPlacement, Word> = Placed::view_resident_mut<WordPlacement, Word>(storage);
-    placed_read(&view.value)
+    let view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(storage);
+    read(&view.value)
 }

@@ -510,7 +510,7 @@ fn validate_entry_arguments(
         if recipe.terminal() != identity
             || recipe.target() != source.target_slot().owner.target_name()
             || recipe.input().machine != selected
-            || terminal_semantics::placed_view_input_parameter(terminal, recipe.input()).ok()
+            || terminal_semantics::access_view_input_parameter(terminal, recipe.input()).ok()
                 != Some(parameter)
             || actual.structural_type != parameter.structural_type
             || actual.access != parameter.access

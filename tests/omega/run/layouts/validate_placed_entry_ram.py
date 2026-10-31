@@ -14,10 +14,10 @@ CASES = [('original', '1=2900000003000000', b'41\n', bytes.fromhex('290000000900
          ('status_87', '1=57000000ff000000', b'87\n', bytes.fromhex('5700000009000000')),
          ('status_27', '1=1b00000006000000', b'27\n', bytes.fromhex('1b00000009000000'))]
 CONTROLS = [
-    ('missing', [], 'PlacedViewInputsRequireCustodyLowering'),
+    ('missing', [], 'AccessViewInputsRequireCustodyLowering'),
     ('unknown_position', ['--entry-ram', '2=2900000003000000'], 'answers no declared entry position'),
     ('context_position', ['--entry-ram', '0=2900000003000000'], 'answers no declared entry position'),
-    ('duplicate', ['--entry-ram', '1=2900000003000000', '--entry-ram', '1=2900000003000000'], 'PlacedViewEstablishmentDuplicate'),
+    ('duplicate', ['--entry-ram', '1=2900000003000000', '--entry-ram', '1=2900000003000000'], 'AccessViewEstablishmentDuplicate'),
     ('short_extent', ['--entry-ram', '1=29000000030000'], 'complete nonempty bounded schema extent'),
     ('long_extent', ['--entry-ram', '1=290000000300000000'], 'complete nonempty bounded schema extent'),
     ('noncanonical_padding', ['--entry-ram', '1=2900000003010000'], 'padding must be initialized to canonical zero'),

@@ -467,7 +467,7 @@ impl TypeReferenceTable {
 
     /// Generic-application nodes created at or after `watermark`, as
     /// (handle, base name). Accessor specialization rewrites a template's
-    /// `PlacedField<T>` self type only inside the fresh copy, never in the
+    /// `Accessor<T>` self type only inside the fresh copy, never in the
     /// authored template signature.
     pub fn generic_nodes_from(
         &self,

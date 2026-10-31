@@ -128,7 +128,7 @@ pub(super) fn lower_no_normal(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let placed_bindings = super::references::placed_call_custody(
+    let access_bindings = super::references::access_call_custody(
         function,
         declaration,
         semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
@@ -144,7 +144,7 @@ pub(super) fn lower_no_normal(
         call_plan: signature.call_plan,
         scalar_arguments,
         arguments,
-        placed_bindings,
+        access_bindings,
         claim_transfers: claim_transfers.clone(),
         requirement_obligations: requirement_obligations.clone(),
         crash_continuations: crash_continuations.clone(),
@@ -269,19 +269,19 @@ pub(super) fn lower_call(
                 .is_some_and(|formal| {
                     types
                         .catalog()
-                        .placed_views()
+                        .access_views()
                         .iter()
                         .any(|plan| plan.carrier == formal.structural_type)
                 })
         })
     {
-        return Err(LoweringError::PlacedDynamicCallRequiresBinding {
+        return Err(LoweringError::AccessDynamicCallRequiresBinding {
             caller: function.machine,
             operation: call.psi_operation,
         });
     }
-    let placed_bindings = if let Some(callee) = callee_function {
-        super::references::placed_call_custody(
+    let access_bindings = if let Some(callee) = callee_function {
+        super::references::access_call_custody(
             function,
             callee,
             call.psi_operation.into(),
@@ -388,7 +388,7 @@ pub(super) fn lower_call(
         result,
         scalar_arguments,
         arguments,
-        placed_bindings,
+        access_bindings,
         claim_transfers: call.claim_transfers.to_vec(),
         requirement_obligations: call.requirement_obligations.to_vec(),
         crash_continuations: call.crash_continuations.to_vec(),

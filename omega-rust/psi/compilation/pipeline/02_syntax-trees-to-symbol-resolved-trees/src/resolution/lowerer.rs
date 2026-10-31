@@ -349,13 +349,13 @@ impl Lowerer {
         for row in &base.authored_service_reach_rows {
             authored_by_owner.entry(row.owner).or_insert(row);
         }
-        let retained_reach = |owner: symbols::SymbolHandle,
-                              row: language_semantics::ServiceReachRowId| {
-            crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
-                row,
-                authored: authored_by_owner.get(&owner).copied().cloned(),
-            }
-        };
+        let retained_reach =
+            |owner: symbols::SymbolHandle, row: language_semantics::ServiceReachRowId| {
+                crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+                    row,
+                    authored: authored_by_owner.get(&owner).copied().cloned(),
+                }
+            };
         self.pending_machine_service_reaches = base
             .machines
             .iter()

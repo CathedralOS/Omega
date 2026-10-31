@@ -15,7 +15,7 @@ mod transition_statements;
 use crate::value_custody::locals::WritableRoots;
 use crate::{
     TopLevelSymbols, ValidatedBoundaryOperatorApplication, declarations::transitions,
-    proof_contracts::arithmetic_domains, value_custody::placed_views,
+    proof_contracts::arithmetic_domains, value_custody::access_views,
 };
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
@@ -101,7 +101,7 @@ pub(super) fn validate_state_statement_node<'p>(
 ) {
     let diagnostic_mark = diagnostics.len();
     if let Some(state) = current_state {
-        placed_views::validate_statement(program, machine, state, statement, diagnostics);
+        access_views::validate_statement(program, machine, state, statement, diagnostics);
     }
     let scope = StatementScope {
         program,

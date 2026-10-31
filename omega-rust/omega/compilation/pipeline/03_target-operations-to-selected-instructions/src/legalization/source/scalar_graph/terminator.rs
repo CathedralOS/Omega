@@ -37,7 +37,7 @@ pub(super) fn project(
                         call_plan,
                         scalar_arguments,
                         arguments: structural,
-                        placed_bindings,
+                        access_bindings,
                         claim_transfers: transfers,
                         requirement_obligations: requires,
                         crash_continuations: crashes,
@@ -46,7 +46,7 @@ pub(super) fn project(
                         call_plan,
                         scalar_arguments,
                         structural,
-                        placed_bindings,
+                        access_bindings,
                         transfers,
                         requires,
                         crashes,
@@ -116,7 +116,7 @@ pub(super) fn project(
             }
             let call = legalized_operations::LegalizedScalarCall {
                 descriptor_origins: Vec::new(),
-                placed_bindings: placed.clone(),
+                access_bindings: placed.clone(),
                 source: target_operations::NativeCallOrigin::Authored,
                 target: target_operations::NativeCallTarget::Machine(*callee),
                 call_plan: call_plan.clone(),

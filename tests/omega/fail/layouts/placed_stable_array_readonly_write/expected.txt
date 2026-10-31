@@ -1,1 +1,1 @@
-placed write application: the placement plan does not permit this operation
+accessor write application: the access plan does not permit this operation

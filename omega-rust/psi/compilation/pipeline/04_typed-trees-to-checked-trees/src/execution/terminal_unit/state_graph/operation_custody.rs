@@ -99,7 +99,7 @@ pub(super) fn admit(
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::RegisterAccess { .. } => {}
             // The window pair the sequencer itself joined — a move-out
-            // binding the displaced field value and the exact restoration
+            // binding the disaccess field value and the exact restoration
             // into the opened hole — carries no new custody across the
             // selected edges: its owned source, borrowed destination
             // window, and consumed result binding all rejoined at mint.

@@ -30,24 +30,24 @@ data EfiLoadedImage {
 }
 
 EfiLoadedImageLayout satisfies FixedLayout<EfiLoadedImage> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches
     terminates; {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
-    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
-    entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 32 } };
-    entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 40 } };
-    entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 48 } };
-    entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 56 } };
-    entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 64 } };
-    entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 72 } };
-    entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 80 } };
-    entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 84 } };
-    entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 88 } };
-    Plan { entries: entries, entry_count: 13, size_fixed: 96, size_is_dynamic: false, align: 8 }
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 24 } };
+    entries[4] = FieldEntry { key: schema.fields[4].key, representation: FieldPlan::At { offset: 32 } };
+    entries[5] = FieldEntry { key: schema.fields[5].key, representation: FieldPlan::At { offset: 40 } };
+    entries[6] = FieldEntry { key: schema.fields[6].key, representation: FieldPlan::At { offset: 48 } };
+    entries[7] = FieldEntry { key: schema.fields[7].key, representation: FieldPlan::At { offset: 56 } };
+    entries[8] = FieldEntry { key: schema.fields[8].key, representation: FieldPlan::At { offset: 64 } };
+    entries[9] = FieldEntry { key: schema.fields[9].key, representation: FieldPlan::At { offset: 72 } };
+    entries[10] = FieldEntry { key: schema.fields[10].key, representation: FieldPlan::At { offset: 80 } };
+    entries[11] = FieldEntry { key: schema.fields[11].key, representation: FieldPlan::At { offset: 84 } };
+    entries[12] = FieldEntry { key: schema.fields[12].key, representation: FieldPlan::At { offset: 88 } };
+    LayoutPlan { entries: entries, entry_count: 13, size_fixed: 96, size_is_dynamic: false, align: 8 }
 }
 }
 
@@ -94,24 +94,24 @@ data EfiSystemTableView {
 }
 
 EfiSystemTableViewLayout satisfies FixedLayout<EfiSystemTableView> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches
     terminates; {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 32 } };
-    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 40 } };
-    entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 48 } };
-    entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 56 } };
-    entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 64 } };
-    entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 72 } };
-    entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 80 } };
-    entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 88 } };
-    entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 96 } };
-    entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 104 } };
-    entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 112 } };
-    Plan { entries: entries, entry_count: 13, size_fixed: 120, size_is_dynamic: false, align: 8 }
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 24 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 40 } };
+    entries[4] = FieldEntry { key: schema.fields[4].key, representation: FieldPlan::At { offset: 48 } };
+    entries[5] = FieldEntry { key: schema.fields[5].key, representation: FieldPlan::At { offset: 56 } };
+    entries[6] = FieldEntry { key: schema.fields[6].key, representation: FieldPlan::At { offset: 64 } };
+    entries[7] = FieldEntry { key: schema.fields[7].key, representation: FieldPlan::At { offset: 72 } };
+    entries[8] = FieldEntry { key: schema.fields[8].key, representation: FieldPlan::At { offset: 80 } };
+    entries[9] = FieldEntry { key: schema.fields[9].key, representation: FieldPlan::At { offset: 88 } };
+    entries[10] = FieldEntry { key: schema.fields[10].key, representation: FieldPlan::At { offset: 96 } };
+    entries[11] = FieldEntry { key: schema.fields[11].key, representation: FieldPlan::At { offset: 104 } };
+    entries[12] = FieldEntry { key: schema.fields[12].key, representation: FieldPlan::At { offset: 112 } };
+    LayoutPlan { entries: entries, entry_count: 13, size_fixed: 120, size_is_dynamic: false, align: 8 }
 }
 }
 
@@ -121,12 +121,12 @@ data EfiBootServicesView {
 }
 
 EfiBootServicesViewLayout satisfies FixedLayout<EfiBootServicesView> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches
     terminates; {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
-    Plan { entries: entries, entry_count: 2, size_fixed: 376, size_is_dynamic: false, align: 8 }
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 24 } };
+    LayoutPlan { entries: entries, entry_count: 2, size_fixed: 376, size_is_dynamic: false, align: 8 }
 }
 }

@@ -85,7 +85,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::RegisterAccess { .. } => 247,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -283,10 +283,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
-        tag @ selected_instructions::PlacedScalarForm::FAMILY_TAG => {
-            SelectedInstructionKind::PlacedScalarAccess {
-                form: selected_instructions::PlacedScalarForm::from_machine_payload(cursor.byte()?)
-                    .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+        tag @ selected_instructions::AccessorScalarForm::FAMILY_TAG => {
+            SelectedInstructionKind::AccessorScalarAccess {
+                form: selected_instructions::AccessorScalarForm::from_machine_payload(
+                    cursor.byte()?,
+                )
+                .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
                 contract: cursor.array()?,
                 byte_offset: cursor.u32()?,
             }

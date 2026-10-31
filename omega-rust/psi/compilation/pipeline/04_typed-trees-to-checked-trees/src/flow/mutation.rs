@@ -259,7 +259,7 @@ fn call_write_places(
     // not overwrite the linear claim descriptor or establish a replacement
     // ownership identity when this call completes.
     if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol)
-        || validation::placed_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
+        || validation::access_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
     {
         return Some(Vec::new());
     }
@@ -524,7 +524,7 @@ fn shared_call_storage_regions(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol)
-        || validation::placed_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
+        || validation::access_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
     {
         return Some(Vec::new());
     }

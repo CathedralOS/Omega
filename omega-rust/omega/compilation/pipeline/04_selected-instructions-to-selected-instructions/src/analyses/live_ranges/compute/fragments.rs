@@ -374,9 +374,10 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
         }
         return pairs;
     }
-    let mut by_block =
-        std::collections::BTreeMap::<SelectedBlockId, Vec<(u32, u32, u32, VirtualRegisterId)>>::new(
-        );
+    let mut by_block = std::collections::BTreeMap::<
+        SelectedBlockId,
+        Vec<(u32, u32, u32, VirtualRegisterId)>,
+    >::new();
     for (row, range) in rows.iter().enumerate() {
         let vreg = range.virtual_register;
         for fragment in &range.fragments {

@@ -540,7 +540,7 @@ fn validate_field_storage_envelope(shape: &StructuralTypeShape) -> Result<(), Co
     if matches!(
         shape,
         StructuralTypeShape::Record {
-            storage: StructuralRecordStorage::Authored(_) | StructuralRecordStorage::PlacedView(_),
+            storage: StructuralRecordStorage::Authored(_) | StructuralRecordStorage::AccessView(_),
             ..
         }
     ) {

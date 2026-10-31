@@ -176,13 +176,13 @@ pub(super) fn validate_u64_length_result(
     Ok(())
 }
 
-pub(super) fn validate_establish_placed_reference(
+pub(super) fn validate_establish_access_reference(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::EstablishPlacedReference { source, resident } = &operation.kind else {
-        unreachable!("dispatched validate_establish_placed_reference")
+    let OperationKind::EstablishAccessReference { source, resident } = &operation.kind else {
+        unreachable!("dispatched validate_establish_access_reference")
     };
     let Some(result) = operation.result.structural() else {
         return malformed("placed establishment requires a structural reference result");
@@ -209,13 +209,13 @@ pub(super) fn validate_establish_placed_reference(
         .map(|_| ())
         .map_err(CodecError::MalformedStructuralFoundation);
     }
-    if let Err(reason) = terminal_semantics::placed_reference_correspondence(
+    if let Err(reason) = terminal_semantics::access_reference_correspondence(
         module,
         source_type,
         result.structural_type,
         source.access,
     ) {
-        return Err(CodecError::PlacedRamCorrespondence(reason));
+        return Err(CodecError::AccessRamCorrespondence(reason));
     }
     Ok(())
 }

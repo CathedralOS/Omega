@@ -7,7 +7,7 @@
 
 use super::projection::{self, ServiceRequirementSource};
 use super::{ProjectedServiceSurface, ProviderSchemaDeclaration};
-use crate::PlacedScalarAccessorDeclaration;
+use crate::ScalarAccessorDeclaration;
 use crate::provider_declarations::ProviderPlanningContext;
 use crate::trait_definition::AppliedTraitScope;
 use crate::type_identity::TypeIdentityId;
@@ -93,7 +93,7 @@ impl Default for ServiceRecord {
 
 struct SealedDeclaration {
     symbol: SymbolHandle,
-    declaration: Result<Option<PlacedScalarAccessorDeclaration>, Diagnostic>,
+    declaration: Result<Option<ScalarAccessorDeclaration>, Diagnostic>,
 }
 
 impl Default for SealedDeclaration {
@@ -364,7 +364,7 @@ impl<'catalog> ServiceCatalog<'catalog> {
     pub fn sealed_accessor(
         self,
         symbol: SymbolHandle,
-    ) -> Result<Option<&'catalog PlacedScalarAccessorDeclaration>, Diagnostic> {
+    ) -> Result<Option<&'catalog ScalarAccessorDeclaration>, Diagnostic> {
         let Some((_, record)) = self
             .catalog
             .sealed
@@ -511,7 +511,7 @@ impl PreparedServiceCatalog {
     fn retain_sealed(&mut self, context: ProviderPlanningContext<'_>) {
         let program = context.typed;
         let mut symbols = Vec::new();
-        for view in &program.placed_view_plans {
+        for view in &program.access_view_plans {
             for field in &view.fields {
                 for target in &field.accessor_targets {
                     for symbol in [target.machine_symbol, target.state_symbol] {
@@ -524,11 +524,11 @@ impl PreparedServiceCatalog {
         }
         for symbol in symbols {
             let declaration =
-                PlacedScalarAccessorDeclaration::authenticate(program, symbol).map(|declaration| {
+                ScalarAccessorDeclaration::authenticate(program, symbol).map(|declaration| {
                     declaration.filter(|declaration| context.contains(declaration.machine()))
                 });
             if let Ok(Some(declaration)) = &declaration {
-                let schema = ProviderSchemaDeclaration::SealedPlacedAccessor(declaration.machine());
+                let schema = ProviderSchemaDeclaration::SealedAccessor(declaration.machine());
                 if !self.has_origin(ServiceOrigin::Declaration(schema)) {
                     let projected = program.machine(declaration.machine()).and_then(|machine| {
                         projection::project_boundary_machine_schema(context, machine, schema)

@@ -30,15 +30,15 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Whole-value transfer within existing qualified storage. The exact plan,
     /// selected profile completion and original allocation are separately
     /// required; this intrinsic creates no external allocation or host power.
-    PlacementLifecycle(terminal_psi::TerminalPlacementLifecycleOperation),
+    AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
     /// Parameter-rooted scalar access to an exact sealed placed declaration.
     /// This describes the execution child; actual RAM custody is separately
     /// required at each occurrence and every activation boundary.
-    PlacedScalarAccess {
+    AccessorScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
         access_slot: u32,
-        operation: CompilerPlacedScalarOperation,
+        operation: CompilerAccessorScalarOperation,
     },
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
@@ -67,7 +67,7 @@ pub enum CompilerIntrinsicExecutionIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompilerPlacedScalarOperation {
+pub enum CompilerAccessorScalarOperation {
     Read,
     Take,
     Write,
@@ -182,11 +182,11 @@ impl CompilerIntrinsicExecutionIdentity {
 /// Portable identity of one sealed scalar requirement's complete schema and
 /// normalized placement operation. Both declaration derivation and receiving
 /// native admission have these axes; no source spelling or backing is inferred.
-pub fn compiler_placed_scalar_contract_identity(
+pub fn compiler_accessor_scalar_contract_identity(
     schema: crate::provider_plan::ServiceSchemaDigest,
     placement_commitment: [u8; 32],
     access_slot: u32,
-    operation: CompilerPlacedScalarOperation,
+    operation: CompilerAccessorScalarOperation,
 ) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let mut hash = Sha256::new();
@@ -195,9 +195,9 @@ pub fn compiler_placed_scalar_contract_identity(
     hash.update(placement_commitment);
     hash.update(access_slot.to_be_bytes());
     hash.update([match operation {
-        CompilerPlacedScalarOperation::Read => 0,
-        CompilerPlacedScalarOperation::Take => 1,
-        CompilerPlacedScalarOperation::Write => 2,
+        CompilerAccessorScalarOperation::Read => 0,
+        CompilerAccessorScalarOperation::Take => 1,
+        CompilerAccessorScalarOperation::Write => 2,
     }]);
     hash.finalize().into()
 }
@@ -215,15 +215,15 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => bytes[0] = 10,
-        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation) => {
+        CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             bytes[0] = 11;
             bytes[1] = match operation {
-                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
-                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
-                terminal_psi::TerminalPlacementLifecycleOperation::View => 2,
+                terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
+                terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
+                terminal_psi::TerminalAccessLifecycleOperation::View => 2,
             };
         }
-        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
@@ -231,9 +231,9 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         } => {
             bytes[0] = 8;
             bytes[1] = match operation {
-                CompilerPlacedScalarOperation::Read => 0,
-                CompilerPlacedScalarOperation::Take => 1,
-                CompilerPlacedScalarOperation::Write => 2,
+                CompilerAccessorScalarOperation::Read => 0,
+                CompilerAccessorScalarOperation::Take => 1,
+                CompilerAccessorScalarOperation::Write => 2,
             };
             bytes.extend_from_slice(&contract);
             bytes.extend_from_slice(&placement_commitment);

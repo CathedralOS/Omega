@@ -47,7 +47,7 @@ impl AbstractOperation {
             // Every invocation form hands its structural arguments over, and a
             // non-invocation carries none, so one delegation covers the roster.
             Self::EstablishReference { source, .. }
-            | Self::EstablishPlacedReference { source, .. }
+            | Self::EstablishAccessReference { source, .. }
             | Self::EstablishElementView { source, .. } => exclusive(std::slice::from_ref(source)),
             Self::PrimitiveLocalStore { destination, .. }
             | Self::ByteSequenceWrite { destination, .. }

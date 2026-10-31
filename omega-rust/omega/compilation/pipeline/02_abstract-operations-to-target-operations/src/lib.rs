@@ -8,8 +8,8 @@
 //! beside those inputs. Provider installation identity is joined while the
 //! program is produced; translation replay belongs to the independent audit,
 //! not this producer's default route. Stage 00 owns the admitted settlement
-//! facts. The `placed_view_inputs` route is the in-progress direct-entry
-//! placed-view slice (TASKS.md PLAN-LAID-VIEWS).
+//! facts. The `access_view_inputs` route is the in-progress direct-entry
+//! access-view slice (TASKS.md PLAN-LAID-VIEWS).
 //!
 //! Operation dispatch does not preflight borrow legality, and calls transport
 //! the existing descriptor leaves of owned operands rather than reconstructing
@@ -27,6 +27,7 @@ mod structural_shapes;
 // The referent root a descriptor's storage is named by. The stage-03 custody
 // replay resolves the same three cases, so it consumes this shape rather than
 // declaring a second one.
+pub use lowering::access_view_inputs;
 pub use lowering::control_flow::references::ReferenceRoot;
 pub use lowering::descriptor_input_guard::{
     DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
@@ -39,7 +40,6 @@ pub use lowering::optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations,
 };
-pub use lowering::placed_view_inputs;
 
 // Receiving stages reconstruct ABI classes from their own declaration inputs,
 // using the same boundary classification rather than a second type roster.

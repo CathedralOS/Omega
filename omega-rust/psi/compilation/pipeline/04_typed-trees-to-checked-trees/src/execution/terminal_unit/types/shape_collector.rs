@@ -326,7 +326,7 @@ impl<'program> ShapeCollector<'program> {
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        if let Some(identity) = self.add_placed_accessor_attachment(data, binders) {
+        if let Some(identity) = self.add_accessor_attachment(data, binders) {
             return Some(identity);
         }
         if !self.program.data_type_parameters(data).is_empty() {
@@ -339,14 +339,14 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data.clone(), binders, Vec::new())
     }
 
-    /// A placed-view plan's generated accessor shell stays `BoundaryOpaque`
+    /// A access-view plan's generated accessor shell stays `BoundaryOpaque`
     /// to source construction, yet each cloned `read`/`take`/`write` target
     /// still attaches to it. Admit that attachment through the exact plan
     /// row — not the generated name — as the empty nominal record the layout
     /// catalog already assigns the same definition. The shell keeps no
     /// members a source carrier could construct; this only publishes the
     /// attachment identity its boundary operations and their callers join.
-    fn add_placed_accessor_attachment(
+    fn add_accessor_attachment(
         &mut self,
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
@@ -354,14 +354,14 @@ impl<'program> ShapeCollector<'program> {
         if data.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
             || !self
                 .program
-                .placed_view_plans
+                .access_view_plans
                 .iter()
                 .flat_map(|view| view.fields.iter())
                 .any(|field| field.accessor_data_symbol == data.symbol)
         {
             return None;
         }
-        let (view, field) = self.program.placed_view_plans.iter().find_map(|view| {
+        let (view, field) = self.program.access_view_plans.iter().find_map(|view| {
             view.fields
                 .iter()
                 .find(|field| field.accessor_data_symbol == data.symbol)
@@ -399,7 +399,7 @@ impl<'program> ShapeCollector<'program> {
             descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
-                storage: checked_trees::CheckedUnitRecordStorage::PlacedAccessor(storage),
+                storage: checked_trees::CheckedUnitRecordStorage::Accessor(storage),
                 fields: Vec::new(),
             },
         };
@@ -1046,7 +1046,7 @@ impl<'program> ShapeCollector<'program> {
         // opaque representation or a quotient's cloned physical carrier.
         let copyable =
             data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted;
-        if let Some(accessor) = self.add_placed_accessor_attachment(&data, binders) {
+        if let Some(accessor) = self.add_accessor_attachment(&data, binders) {
             return (accessor == identity).then_some(identity);
         }
         if self.types.contains_key(&identity) {
@@ -1251,14 +1251,14 @@ impl<'program> ShapeCollector<'program> {
             .plan_laid_layouts
             .iter()
             .find(|plan| program.normalized_type_identity(plan.application) == identity);
-        let placed_view = program.placed_view_plans.iter().find_map(|view| {
+        let access_view = program.access_view_plans.iter().find_map(|view| {
             let definition = program.data_definition_by_symbol(view.data_symbol)?;
             (closed_data_identity(program, definition, binders) == identity).then_some(view)
         });
-        let record_storage = if let Some(view) = placed_view {
+        let record_storage = if let Some(view) = access_view {
             let schema_symbol = view.schema_symbol;
             let schema = program.data_definition_by_symbol(schema_symbol)?.clone();
-            checked_trees::CheckedUnitRecordStorage::PlacedView {
+            checked_trees::CheckedUnitRecordStorage::AccessView {
                 schema_type_identity: self.add_attached_data(&schema, binders)?,
                 storage: semantic_vocabulary::AuthoredRecordStorage {
                     byte_size: view.placement.layout().size?,
@@ -1310,8 +1310,8 @@ impl<'program> ShapeCollector<'program> {
                     )?);
                 }
             }
-            if let Some(view) = placed_view {
-                let placed_field = view
+            if let Some(view) = access_view {
+                let access_field = view
                     .fields
                     .iter()
                     .find(|candidate| candidate.view_field_symbol == field.symbol)?;
@@ -1320,7 +1320,7 @@ impl<'program> ShapeCollector<'program> {
                     .access()
                     .field_descriptors()
                     .iter()
-                    .find(|descriptor| descriptor.key() == placed_field.access_key)
+                    .find(|descriptor| descriptor.key() == access_field.access_key)
                 {
                     field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: descriptor.container_byte_offset(),
@@ -1328,7 +1328,7 @@ impl<'program> ShapeCollector<'program> {
                 } else if let Some(region) = view
                     .placement
                     .access()
-                    .field_region(placed_field.access_key)
+                    .field_region(access_field.access_key)
                 {
                     field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: region.byte_offset(),
@@ -1627,7 +1627,7 @@ impl<'program> ShapeCollector<'program> {
                             schema_type_identity,
                             ..
                         }
-                        | checked_trees::CheckedUnitRecordStorage::PlacedView {
+                        | checked_trees::CheckedUnitRecordStorage::AccessView {
                             schema_type_identity,
                             ..
                         } = storage

@@ -8,102 +8,102 @@ data TestMemory {}
 public data Word { value: u64; }
 public data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
-    let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan {
+    let layout: LayoutPlan = LayoutPlan {
             entries: entries, entry_count: 1, size_fixed: 8,
             size_is_dynamic: false, align: 8,
-        },
-        access: AccessPlan::inaccessible(&schema),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine initialize<P, T>(storage: Extent in Granted & Vacant, value: T)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<P, T>,
-        PlacementReturn<Extent in Granted & Vacant, T>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, T>,
+        AccessInitializationFailure
     >
-reaches PlacementLifecycle + ResourceProfileSupply
+reaches AccessLifecycle + ResourceProfileSupply
 {
-    Placed::initialize_owned<P, T>(storage, value)
+    Access::initialize_owned<P, T>(storage, value)
 }
 
 machine wrapped(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
-reaches PlacementLifecycle + ResourceProfileSupply
+reaches AccessLifecycle + ResourceProfileSupply
 {
     initialize<WordPlacement, Word>(storage, value)
 }
 
 machine direct(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
-reaches PlacementLifecycle + ResourceProfileSupply
+reaches AccessLifecycle + ResourceProfileSupply
 {
-    PlacementLifecycle<WordPlacement, Word>::initialize(storage, value)
+    AccessLifecycle<WordPlacement, Word>::initialize(storage, value)
 }
 
 machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
-    -> PlacementReturn<Extent in Granted & Vacant, Word>
-reaches PlacementLifecycle + ResourceProfileSupply
+    -> AccessReturn<Extent in Granted & Vacant, Word>
+reaches AccessLifecycle + ResourceProfileSupply
 {
-    Placed::move_out_owned<WordPlacement, Word>(storage)
+    Access::move_out_owned<WordPlacement, Word>(storage)
 }
 
 machine native_provider(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
 reaches ResourceProfileSupply
 {
-    NativePlacement<WordPlacement, Word, TestMemory>::initialize(storage, value)
+    NativeAccess<WordPlacement, Word, TestMemory>::initialize(storage, value)
 }
 
 machine decline(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
 {
-    PlacementOutcome::Rejected {
-        returned: PlacementReturn { source: storage, custody: value },
-        reason: PlacementInitializationFailure::IncompatibleSupply,
+    AccessOutcome::Rejected {
+        returned: AccessReturn { source: storage, custody: value },
+        reason: AccessInitializationFailure::IncompatibleSupply,
     }
 }
 
 boundary machine uncalled_extraction(storage: Extent in Granted & Resident<WordPlacement, Word>)
-    -> PlacementExtraction<Extent in Granted & Vacant, Word>;
+    -> AccessExtraction<Extent in Granted & Vacant, Word>;
 
-Selected satisfies PlacementLifecycle<WordPlacement, Word> {
-    PlacementLifecycle::initialize = decline;
-    PlacementLifecycle::move_out = uncalled_extraction;
+Selected satisfies AccessLifecycle<WordPlacement, Word> {
+    AccessLifecycle::initialize = decline;
+    AccessLifecycle::move_out = uncalled_extraction;
 }
 
 machine selected(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
-reaches PlacementLifecycle + ResourceProfileSupply
+reaches AccessLifecycle + ResourceProfileSupply
 {
     Selected::initialize(storage, value)
 }
@@ -111,12 +111,12 @@ reaches PlacementLifecycle + ResourceProfileSupply
 // The false branch exercises ordinary owned forwarding through helper calls
 // and nested result construction without pretending initialization executed.
 machine transport(storage: Extent in Granted & Vacant, value: Word, initialize: bool)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
-reaches PlacementLifecycle + ResourceProfileSupply
+reaches AccessLifecycle + ResourceProfileSupply
 {
     transition initialize {
         true -> wrapped(storage, value)

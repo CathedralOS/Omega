@@ -6,37 +6,37 @@ use omega_language_std::console;
 
 
 SparseBits satisfies FixedLayout<PackedFlags> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[2].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 299, container_width: 24,
             destination_lsb: 16, source_lsb: 2, width: 2,
         },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 299, container_width: 24,
             destination_lsb: 19, source_lsb: 0, width: 3,
         },
     };
     entries[2] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0, container_width: 8,
             destination_lsb: 7, source_lsb: 0, width: 1,
         },
     };
     entries[3] = FieldEntry {
         key: schema.fields[2].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0, container_width: 8,
             destination_lsb: 4, source_lsb: 0, width: 2,
         },
     };
-    Plan {
+    LayoutPlan {
         entries: entries, entry_count: 4,
         size_fixed: 302, size_is_dynamic: false, align: 1,
     }

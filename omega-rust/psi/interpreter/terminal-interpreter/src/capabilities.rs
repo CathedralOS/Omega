@@ -95,13 +95,13 @@ pub(crate) fn check_with_private_entry_ram(
     if private_entry_ram.iter().any(|recipe| {
         recipe.terminal() != program.identity.semantic()
             || recipe.input().machine != entry
-            || !program.catalogs.placed_view_inputs.contains(recipe.input())
+            || !program.catalogs.access_view_inputs.contains(recipe.input())
     }) {
         return Err(crate::errors::malformed());
     }
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
-    let mut placed_candidates = Vec::new();
+    let mut access_candidates = Vec::new();
     let mut selected_calls = Vec::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
@@ -293,7 +293,7 @@ pub(crate) fn check_with_private_entry_ram(
                                 ..
                             } = &operation.kind
                         {
-                            placed_candidates.push((
+                            access_candidates.push((
                                 machine_id,
                                 (
                                     block.id,
@@ -392,13 +392,13 @@ pub(crate) fn check_with_private_entry_ram(
     // Keep installed-provider selection first. Only a complete entry-relative
     // formation proof discharges the adapter obligation for an internal RAM
     // handler. Host, mixed and unresolved alternatives remain in the roster.
-    if !placed_candidates.is_empty() {
-        let graph = terminal_semantics::descriptor_results::terminal_placed_origin_graph(
+    if !access_candidates.is_empty() {
+        let graph = terminal_semantics::descriptor_results::terminal_access_origin_graph(
             &program.catalogs,
             &selected_calls,
         );
         if let Some(graph) = graph {
-            let mut origins = terminal_semantics::PlacedRamOriginAnalysis::new(
+            let mut origins = terminal_semantics::AccessRamOriginAnalysis::new(
                 &program.catalogs,
                 &graph,
                 &visited,
@@ -411,7 +411,7 @@ pub(crate) fn check_with_private_entry_ram(
             );
             let mut internally_bound = BTreeSet::new();
             let mut unresolved = BTreeSet::new();
-            for (machine, position, boundary, arguments) in placed_candidates {
+            for (machine, position, boundary, arguments) in access_candidates {
                 let formations =
                     origins.boundary_formations(machine, position, boundary, &arguments);
                 if formations.is_some() {

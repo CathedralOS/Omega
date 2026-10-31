@@ -1,7 +1,7 @@
 //! Constructor operands have one storage transaction, regardless of their
 //! producer's payload representation. Array results retain packed values
 //! rather than opaque homes; nesting publishes their contents in
-//! the parent's typed subtree storage. Placed operands relocate that same
+//! the parent's typed subtree storage. Access operands relocate that same
 //! storage. No child mutates or publishes until the whole constructor's type,
 //! qualification and custody checks succeed.
 use crate::byte_sequences::ByteSequenceView;
@@ -21,7 +21,7 @@ use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 mod aggregate;
 
 pub(crate) enum ConstructorValue<'execution> {
-    Placed(TerminalStructuralValue),
+    Access(TerminalStructuralValue),
     PackedScalars {
         structural_type: StructuralTypeId,
         elements: &'execution [crate::scalar_storage::ScalarCell],
@@ -79,12 +79,12 @@ impl<'execution> ConstructorValue<'execution> {
             &execution.structural_values,
             argument,
         )
-        .map(Self::Placed)
+        .map(Self::Access)
     }
 
     pub(crate) fn structural_type(&self) -> StructuralTypeId {
         match self {
-            Self::Placed(value) => value.structural_type,
+            Self::Access(value) => value.structural_type,
             Self::PackedScalars {
                 structural_type, ..
             } => *structural_type,
@@ -187,7 +187,7 @@ impl<'execution> ConstructorValue<'execution> {
                     .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
                     .ok_or_else(malformed)?
                     .read()?,
-                Self::Placed(value) => {
+                Self::Access(value) => {
                     execution.read_primitive_argument(source, value, &path, scalar_type)?
                 }
             };
@@ -206,7 +206,7 @@ impl<'execution> ConstructorValue<'execution> {
         &[terminal_psi::StructuralPathQualification],
     ) {
         match self {
-            Self::Placed(value) => (&value.qualifications, &value.projected_qualifications),
+            Self::Access(value) => (&value.qualifications, &value.projected_qualifications),
             Self::PackedScalars {
                 qualifications,
                 projected_qualifications,
@@ -700,8 +700,8 @@ impl ConstructorStorage {
         transfers_custody: bool,
     ) -> Result<(), TerminalInterpretError> {
         match child {
-            ConstructorValue::Placed(value) => {
-                self.stage_placed(execution, argument, value, destination, transfers_custody)
+            ConstructorValue::Access(value) => {
+                self.stage_access(execution, argument, value, destination, transfers_custody)
             }
             ConstructorValue::PackedScalars {
                 structural_type,
@@ -836,7 +836,7 @@ impl ConstructorStorage {
         Ok(())
     }
 
-    fn stage_placed(
+    fn stage_access(
         &mut self,
         execution: &TerminalExecution,
         argument: &terminal_psi::StructuralArgument,

@@ -386,13 +386,13 @@ fn lower_terminal_selection(
     phase_profile::scope(
         "05.06_placed_and_suspension",
         || -> Result<_, LoweringError> {
-            crate::retention::placed_view_plans::retain(
+            crate::retention::access_view_plans::retain(
                 identities,
                 checked,
                 exact_toolchain_sources,
                 &mut lowered.semantic_module,
             )?;
-            crate::retention::placement_lifecycles::retain(
+            crate::retention::access_lifecycles::retain(
                 identities,
                 checked,
                 exact_toolchain_sources,

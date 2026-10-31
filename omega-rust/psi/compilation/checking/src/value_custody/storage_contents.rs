@@ -414,7 +414,7 @@ fn resolve(
                 let atomic = match program.symbols.builtin_type_atom(*symbol) {
                     Some(atom) => atom.is_atomic(),
                     None => program
-                        .placed_field_plan_for_type_reference(reference)
+                        .access_field_plan_for_type_reference(reference)
                         .is_some_and(|field| {
                             matches!(field.access, access_plans::FieldAccess::Atomic { .. })
                         }),

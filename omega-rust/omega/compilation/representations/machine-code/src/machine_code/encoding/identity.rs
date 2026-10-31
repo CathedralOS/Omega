@@ -71,7 +71,7 @@ fn encode_encoding_row(
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
             match address.symbolic {
-                Address::PlacedScalarAccess {
+                Address::AccessorScalarAccess {
                     base_operand,
                     byte_offset,
                     form,

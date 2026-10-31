@@ -286,15 +286,15 @@ impl<'program> LayoutBuilder<'program> {
         symbol: SymbolHandle,
         name: &str,
     ) -> Result<TypeLayout, Diagnostic> {
-        // Atomic placed accessors retain their underlying primitive class for
+        // Atomic accessors retain their underlying primitive class for
         // operation typing, so their generated name parses as primitive here.
         // The exact typed placed-plan row wins for runtime representation:
         // this is an address carrier, not an inline atomic resident.
-        let compiler_placed_accessor = self
+        let compiler_accessor = self
             .data_definition_by_symbol(symbol)
             .ok()
-            .is_some_and(|definition| self.is_compiler_placed_accessor_definition(definition));
-        if compiler_placed_accessor {
+            .is_some_and(|definition| self.is_compiler_accessor_definition(definition));
+        if compiler_accessor {
             return self.layout_data_definition(symbol);
         }
 

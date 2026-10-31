@@ -5,7 +5,7 @@ Requirement>` — a compiler-known relationship whose
 second trait argument is a MACHINE
 (`WindowProcedure::call`). Named implementations are
 inert until a layout policy cites them through
-`Plan::place_private<Implementation>(plan, offset)`;
+`LayoutPlan::place_private<Implementation>(plan, offset)`;
 runtime code receives no slot identity.
 
 Compile-checked only: no standard-library dependency and

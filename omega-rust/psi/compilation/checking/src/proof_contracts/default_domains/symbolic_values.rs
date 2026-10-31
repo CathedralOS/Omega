@@ -251,9 +251,7 @@ pub(super) fn fold(
                 None => None,
             }
         }
-        ExpressionNode::Member(member)
-            if subject_field(program, definition, member.receiver) =>
-        {
+        ExpressionNode::Member(member) if subject_field(program, definition, member.receiver) => {
             match valuation
                 .iter()
                 .find(|(name, _)| *name == member.member.as_str())

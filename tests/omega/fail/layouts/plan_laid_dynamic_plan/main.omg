@@ -6,16 +6,16 @@ use omega_language_std::console;
 
 
 Streamy satisfies FixedLayout<Pairish> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     // Distinct offsets so placement VALIDATION passes; the plan is rejected
     // in type position purely for being dynamic.
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
     transition { _ -> done(schema, entries) }
 
-    machine done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
-        Plan {
+    machine done(schema: Schema, entries: [FieldEntry; 64]) -> LayoutPlan {
+        LayoutPlan {
             entries: entries,
             entry_count: schema.field_count,
             size_fixed: 0,

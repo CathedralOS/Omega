@@ -29,10 +29,10 @@ pub struct ExecutableImageOutput {
     pub imports: usize,
     pub relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
-    /// Placed initialized-data custody: compiler data plus any writer-owned
+    /// Access initialized-data custody: compiler data plus any writer-owned
     /// binding slots. The complete final data must classify or be refused.
     pub data_regions: crate::PlacedDataRegionInventory,
-    /// Placed custody over `final_import_data_bytes` — the bound pointer
+    /// Access custody over `final_import_data_bytes` — the bound pointer
     /// slots a closed thunk form decodes to. The canonical empty inventory
     /// when the target emits no import-data extent.
     pub import_data_regions: crate::PlacedDataRegionInventory,
@@ -63,7 +63,7 @@ pub struct EmittedImageOutput {
     pub final_image_relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub data_regions: crate::PlacedDataRegionInventory,
-    /// Placed custody over `final_import_data_bytes`, as on
+    /// Access custody over `final_import_data_bytes`, as on
     /// [`ExecutableImageOutput`].
     pub import_data_regions: crate::PlacedDataRegionInventory,
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,

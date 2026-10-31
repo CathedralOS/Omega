@@ -552,7 +552,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | MachineSemanticKind::InterruptControl
             | MachineSemanticKind::AtomicFence
             | MachineSemanticKind::AtomicAccess(_)
-            | MachineSemanticKind::PlacedScalarAccess(_) => MachineBarrier::ExternalEffect,
+            | MachineSemanticKind::AccessorScalarAccess(_) => MachineBarrier::ExternalEffect,
             // A checked float-to-integer conversion and a float result policy
             // that can trap are ordered like a trapping integer; saturating
             // and exact forms only compute their result.

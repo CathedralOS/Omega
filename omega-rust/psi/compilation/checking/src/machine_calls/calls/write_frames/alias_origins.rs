@@ -208,7 +208,7 @@ pub(crate) fn stable_alias_initializer_origins(
     }
 
     if let Some(formation) = crate::reference_formation_source(program, expression)
-        && formation.interpretation.is_placed()
+        && formation.interpretation.is_access_view()
     {
         let mut origins = alias_origins!(inference, formation.source)?;
         for origin in &mut origins {

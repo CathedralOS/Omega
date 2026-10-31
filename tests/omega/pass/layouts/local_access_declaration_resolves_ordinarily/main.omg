@@ -1,0 +1,26 @@
+// `Access`, `Accessor`, `AccessPolicy`, `AccessPlan` and `LayoutPlan` are core
+// library names, not keywords. A program that does not import the core layout
+// module may declare and use its own `Access` under ordinary name resolution;
+// no rule reserves the spelling. Importing the layout module beside such a
+// declaration is the ordinary duplicate-name collision pinned by the fail
+// twin `local_access_declaration_shadows_core_view`.
+
+data Access {
+    level: u32;
+}
+
+machine granted(access: &Access) -> u32 {
+    access.level
+}
+
+machine main() {
+    let local: Access = Access { level: 3 };
+    transition granted(&local) == 3 {
+        true -> done()
+        _ -> bad()
+    }
+
+    machine done() {}
+
+    machine bad() { crash Trap; }
+}

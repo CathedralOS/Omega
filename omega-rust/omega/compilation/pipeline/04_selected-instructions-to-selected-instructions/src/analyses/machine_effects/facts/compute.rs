@@ -137,8 +137,8 @@ fn terminal_selected_keys(
             interrupt_control: keys.interrupt_control,
             memory_fence: keys.memory_fence,
             atomic_fence: keys.atomic_fence,
-            placed_read: keys.placed_read,
-            placed_write: keys.placed_write,
+            access_read: keys.access_read,
+            access_write: keys.access_write,
             atomic_load: keys.atomic_load,
             atomic_store: keys.atomic_store,
             atomic_update: keys.atomic_update,
@@ -373,8 +373,8 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
                 MachineSemanticKind::InterruptControl
             }
         },
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
-            MachineSemanticKind::PlacedScalarAccess(form)
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
+            MachineSemanticKind::AccessorScalarAccess(form)
         }
         SelectedInstructionKind::PortWrite { .. } => MachineSemanticKind::PortWrite,
         SelectedInstructionKind::AtomicFence => MachineSemanticKind::AtomicFence,

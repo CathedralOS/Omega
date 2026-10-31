@@ -17,11 +17,11 @@ mod adapters;
 mod callable_authority;
 pub(crate) use adapters::retain_selected_provider_adapters;
 pub use callable_authority::AdmittedNativeCallableAuthority;
+mod access_lifecycles;
 mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;
 mod installation;
-mod placement_lifecycles;
 mod provider_supply;
 mod request;
 mod settlements;
@@ -115,7 +115,7 @@ pub(crate) fn admit_native_providers<'request>(
     )?;
     let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     let (lifecycle_settlements, lifecycle_mechanisms) =
-        placement_lifecycles::settle_native_lifecycles(
+        access_lifecycles::settle_native_lifecycles(
             input,
             installation.as_ref(),
             request.terminal_authority_policy,

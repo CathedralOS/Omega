@@ -18,7 +18,7 @@
 //! another prepared-program copy. Matching dependency-body entailments remain
 //! independently reusable during fresh checking; pending checks supply none.
 //! Reuse conveys no authority: preparation admits wire demands, completeness
-//! and asm, and the source facade rejoins declaration and placement authority
+//! and asm, and the source facade rejoins declaration and access authority
 //! for each request. No process-global memo supplies an implicit judgment.
 
 pub(crate) mod call_acknowledgements;

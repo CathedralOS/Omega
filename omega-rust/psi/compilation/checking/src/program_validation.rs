@@ -34,11 +34,11 @@ use crate::{
     proof_contracts::float_projection_invocations, proof_contracts::proof_embeddings,
     proof_contracts::proof_only_faces, proof_contracts::properties,
     proof_contracts::proposition_entailment, proof_contracts::qualification_evidence,
-    proof_contracts::quotients, proof_contracts::relevance, value_custody::cleanup,
-    value_custody::constants, value_custody::content_conservation,
+    proof_contracts::quotients, proof_contracts::relevance, value_custody::access_views,
+    value_custody::cleanup, value_custody::constants, value_custody::content_conservation,
     value_custody::content_projections, value_custody::destructure, value_custody::literals,
-    value_custody::placed_views, value_custody::plan_laid, value_custody::recasts,
-    value_custody::struct_literals, value_custody::wire, value_custody::write_only_borrows,
+    value_custody::plan_laid, value_custody::recasts, value_custody::struct_literals,
+    value_custody::wire, value_custody::write_only_borrows,
 };
 use diagnostics::Diagnostic;
 use rayon::prelude::*;
@@ -407,7 +407,7 @@ fn validate<'program>(
             &mut formation_obligations,
         );
         plan_laid::validate_plans(program, &mut diagnostics);
-        placed_views::validate_plans(program, &mut diagnostics);
+        access_views::validate_plans(program, &mut diagnostics);
         relevance::validate_relevance(program, &mut diagnostics);
         // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
         // spelled); every runtime consumption face refuses with the

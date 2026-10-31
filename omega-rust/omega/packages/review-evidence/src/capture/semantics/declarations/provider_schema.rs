@@ -14,13 +14,13 @@ pub(crate) fn provider_requirement_schema(
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
 ) -> Result<ProviderSchemaDeclaration, Vec<Diagnostic>> {
-    if let ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) = schema {
+    if let ProviderSchemaDeclaration::SealedAccessor(symbol) = schema {
         let context = provider_planning::ProviderPlanningContext::new(
             compilation.checking_input,
             source::DependencyScope::Product,
         );
         if symbol != requirement
-            || provider_planning::SealedPlacedAccessor::authenticate(context, symbol)
+            || provider_planning::SealedAccessor::authenticate(context, symbol)
                 .map_err(|error| vec![error])?
                 .is_none()
         {

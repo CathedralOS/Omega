@@ -3,7 +3,7 @@
 // implementation of `FixedLayout<T>`. Its exact `plan(schema, target)` call
 // runs through semantic-evaluation admission with no effects and a termination
 // guarantee. The compiler supplies the exact `Schema` and immutable target,
-// validates the returned `Plan` (a bad plan is a compile error, never
+// validates the returned `LayoutPlan` (a bad plan is a compile error, never
 // unsafety), and derives codecs / projections / value types from it.
 //
 // v1 SHAPES: plan entries carry compiler-issued field keys rather than using
@@ -74,9 +74,9 @@ public data Schema where field_count <= 32, retired_field_identity_count <= 32,
     retired_case_identity_count: u64;
 }
 
-// One field's PLACEMENT -- the closed vocabulary the compiler knows how to
-// read and lower (wiki/spec/layouts/plans.md). Policies CHOOSE placements from
-// this sum; a new placement KIND is a compiler release, never user-invented.
+// One field's REPRESENTATION -- the closed vocabulary the compiler knows how to
+// read and lower (wiki/spec/layouts/plans.md). Policies CHOOSE representations from
+// this sum; a new representation KIND is a compiler release, never user-invented.
 // The validator walks `At`, `Bits`, and `IntegerAt`. `stored_width` is a bit
 // width; `offset` remains byte-denominated. `At` or a complete repeated `Bits`
 // tiling has live direct plan-laid projection. A fixed primitive array admits
@@ -113,19 +113,19 @@ public data FieldPlan {
 
 public data FieldEntry {
     key: u64;
-    placement: FieldPlan;
+    representation: FieldPlan;
 }
 
-// A validated placement plan. Entries may appear in any order; `key` names
+// A validated layout plan. Entries may appear in any order; `key` names
 // the schema field and may repeat only for `Bits` fragments. Positions past
 // `entry_count` are meaningless. The compiler checks field coverage, exact
 // source tiling for fragments, destination bounds/overlap, and fixed-plan
 // size/alignment before anything trusts the plan. Native layout evaluation
 // retains a compiler-private demand catalog beside this semantic value; each
-// entry comes from an executed `Plan::place_private` call citing one exact
+// entry comes from an executed `LayoutPlan::place_private` call citing one exact
 // named `PrivateCallbackSlot<T, Layout, Requirement>` implementation. Neither raw
 // slot identities nor callback addresses enter this record.
-public data Plan {
+public data LayoutPlan {
     entries: [FieldEntry; 64];
     entry_count: u64;
     size_fixed: u64;
@@ -139,7 +139,7 @@ public data Plan {
 // named implementation such as
 // `CallbackSlot satisfies PrivateCallbackSlot<Record, Spread, Callback::call> { }` is
 // inert until that layout policy explicitly cites it through
-// `Plan::place_private<Implementation>`; another policy cannot place it. A
+// `LayoutPlan::place_private<Implementation>`; another policy cannot place it. A
 // callback occupying a whole foreign ABI parameter is instead declared once in
 // its registrar requirement's native telescope; it is not a layout slot and
 // does not use this relationship.
@@ -147,19 +147,21 @@ public trait PrivateCallbackSlot<T, Layout satisfies FixedLayout<T>, machine Req
 }
 
 // The ordinary value signature is an identity operation so helpers can compose
-// plans without exposing a private field in `Plan`. The one authored static
+// plans without exposing a private field in `LayoutPlan`. The one authored static
 // argument is sealed compiler metadata, not a generic parameter of this
 // machine: typed lowering records the exact conformance separately and build-
 // time evaluation emits a private-placement receipt while returning `plan`
 // unchanged. Runtime code receives no slot identity or callback address.
-public machine Plan::place_private(plan: Plan, offset: u64) -> Plan {
+public machine LayoutPlan::place_private(plan: LayoutPlan, offset: u64) -> LayoutPlan {
     plan
 }
 
-// Placed-access policy vocabulary (chapter 20). `Plan` above is the current
-// source spelling of LayoutPlan. These records are ordinary library data: the
-// compiler evaluates policy machines and validates their returned values, but
-// source code cannot construct lowering authority from the records alone.
+// Access-policy vocabulary (wiki/spec/resources/access.md). `LayoutPlan` owns
+// representation and geometry with no access rights; `AccessPlan` contains one
+// `LayoutPlan`, per-field operation decisions and required boundary reach.
+// These records are ordinary library data: the compiler evaluates policy
+// machines and independently validates their returned values, but source code
+// cannot construct lowering authority from the records alone.
 
 public data Exposure {
     case Exported;
@@ -254,64 +256,133 @@ public data AccessFieldEntry {
     access: FieldAccess;
 }
 
-// Fixed capacity is a bootstrap carrier only. The compiler requires exactly
-// `field_count` canonical schema decisions and ignores the zero tail.
+// A normalized static set of boundary-service keys. Suspension and blocking
+// are independent contract axes and never enter this record.
+public data BoundaryReach where service_count <= 32 {
+    services: [u64; 32];
+    service_count: u64;
+}
+
+// One access plan contains its layout plan, exactly one decision per
+// runtime-relevant schema field, and the static boundary reach its admitted
+// operations require. Fixed capacity is a bootstrap carrier only: the compiler
+// requires exactly `field_count` canonical schema decisions and ignores the
+// zero tail. Constructing this record grants no reach, backing or authority.
 public data AccessPlan where field_count <= 32 {
-    entries: [AccessFieldEntry; 32];
+    layout: LayoutPlan;
+    fields: [AccessFieldEntry; 32];
     field_count: u64;
+    reach: BoundaryReach;
 }
 
 // The inaccessible seed is the only source constructor for a fresh access
-// decision set. Every live slot copies its compiler-issued Schema key; the
-// fixed-capacity tail is semantically absent because field_count excludes it.
-// The seed only observes keys, so it borrows: Schema is affine, and a policy
-// still owns its schema for the grant states that follow the seed.
-public machine AccessPlan::inaccessible(schema: &Schema) -> AccessPlan {
-    AccessPlan {
-        entries: [
-            AccessFieldEntry { key: schema.fields[0].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[1].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[2].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[3].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[4].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[5].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[6].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[7].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[8].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[9].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[10].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[11].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[12].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[13].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[14].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[15].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[16].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[17].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[18].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[19].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[20].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[21].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[22].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[23].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[24].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[25].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[26].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[27].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[28].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[29].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[30].key, access: FieldAccess::Inaccessible },
-            AccessFieldEntry { key: schema.fields[31].key, access: FieldAccess::Inaccessible }
-        ],
-        field_count: schema.field_count
+// decision set. It retains the supplied layout, starts with empty required
+// reach, and seeds one inaccessible decision for each distinct schema-field
+// key appearing in the layout's entries, so several fragments of one field
+// seed one decision and erased bindings (which have no entries) seed none.
+// The seed observes keys only; the compiler's final validator independently
+// requires complete schema coverage, so a field omitted by both the layout
+// and this seed is rejected rather than silently absent.
+public machine AccessPlan::inaccessible(layout: LayoutPlan) -> AccessPlan {
+    let mut fields: [AccessFieldEntry; 32];
+    let mut reach: BoundaryReach;
+    AccessPlan::seed_bounded(
+        AccessPlan { layout: layout, fields: fields, field_count: 0, reach: reach },
+        0,
+        4096
+    )
+}
+
+// The helper makes the finite entry walk's ordinary termination witness
+// explicit. Fuel is library policy, not part of the public access-plan
+// surface; 64 entries times a 32-slot duplicate search never exhausts it, and
+// an exhausted walk returns the partial seed for final validation to reject.
+machine AccessPlan::seed_bounded(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
+terminates by fuel;
+requires index <= 64 && fuel >= 1 && fuel <= 4096
+{
+    transition { _ -> seed(plan, index, fuel) }
+
+    machine seed(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
+    requires index <= 64 && fuel >= 1 && fuel <= 4096
+    {
+        transition fuel > 1 && index < plan.layout.entry_count && index < 64 {
+            true -> examine(plan, index, fuel - 1)
+            _ -> (plan)
+        }
+    }
+
+    machine examine(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
+    requires index <= 63 && fuel >= 1 && fuel <= 4096
+    {
+        let key: u64 = plan.layout.entries[index].key;
+        transition { _ -> search(plan, index, key, 0, fuel) }
+    }
+
+    machine search(
+        plan: AccessPlan,
+        index: u64,
+        key: u64,
+        slot: u64,
+        fuel: u64
+    ) -> AccessPlan
+    requires index <= 63 && slot <= 32 && fuel >= 1 && fuel <= 4096
+    {
+        let field_count: u64 = plan.field_count;
+        transition {
+            fuel > 1 && slot < field_count && slot < 32 -> compare(plan, index, key, slot, fuel - 1)
+            fuel > 1 && field_count < 32 -> append(plan, index, key, field_count, fuel - 1)
+            _ -> (plan)
+        }
+    }
+
+    machine compare(
+        plan: AccessPlan,
+        index: u64,
+        key: u64,
+        slot: u64,
+        fuel: u64
+    ) -> AccessPlan
+    requires index <= 63 && slot <= 31 && fuel >= 1 && fuel <= 4096
+    {
+        transition {
+            fuel > 1 && plan.fields[slot].key == key -> seed(plan, index + 1, fuel - 1)
+            fuel > 1 -> search(plan, index, key, slot + 1, fuel - 1)
+            _ -> (plan)
+        }
+    }
+
+    machine append(
+        plan: AccessPlan,
+        index: u64,
+        key: u64,
+        field_count: u64,
+        fuel: u64
+    ) -> AccessPlan
+    requires index <= 63 && field_count <= 31 && fuel >= 1 && fuel <= 4096
+    {
+        let mut updated: AccessPlan = plan;
+        updated.fields[field_count] = AccessFieldEntry { key: key, access: FieldAccess::Inaccessible };
+        updated.field_count = field_count + 1;
+        transition { _ -> seed(updated, index + 1, fuel) }
     }
 }
 
-// Functional replacement keeps policy construction expression-oriented.
-// A key outside the seed is deliberately retained as an extra/overwriting
-// entry so compiler validation rejects it rather than silently ignoring an
-// authored mistake.
+// Functional replacement keeps policy construction expression-oriented. It
+// changes the decision for an existing key; it does not authorize an unknown
+// field. A key outside the seed is deliberately retained as an extra entry so
+// compiler validation rejects it rather than silently ignoring an authored
+// mistake.
 public machine AccessPlan::with(plan: AccessPlan, key: u64, access: FieldAccess) -> AccessPlan {
     AccessPlan::with_bounded(plan, key, access, 128)
+}
+
+// Required static boundary reach for the plan's admitted operations. Naming a
+// service here demands it; it never grants reach or edits a machine's reach row.
+public machine AccessPlan::with_reach(plan: AccessPlan, reach: BoundaryReach) -> AccessPlan {
+    let mut updated: AccessPlan = plan;
+    updated.reach = reach;
+    updated
 }
 
 // The helper makes the finite search's ordinary termination witness explicit.
@@ -352,7 +423,7 @@ requires fuel >= 1 && fuel <= 128
     requires index <= 31 && fuel >= 1 && fuel <= 128
     {
         transition {
-            fuel > 1 && plan.entries[index].key == key -> replace(plan, key, access, index)
+            fuel > 1 && plan.fields[index].key == key -> replace(plan, key, access, index)
             fuel > 1 -> advance(plan, key, access, index, fuel - 1)
             _ -> invalid(plan, key, access)
         }
@@ -367,7 +438,7 @@ requires fuel >= 1 && fuel <= 128
     requires index <= 31
     {
         let mut updated: AccessPlan = plan;
-        updated.entries[index] = AccessFieldEntry { key: key, access: access };
+        updated.fields[index] = AccessFieldEntry { key: key, access: access };
         updated
     }
 
@@ -392,7 +463,7 @@ requires fuel >= 1 && fuel <= 128
         access: FieldAccess
     ) -> AccessPlan {
         let mut rejected: AccessPlan = plan;
-        rejected.entries[0] = AccessFieldEntry { key: key, access: access };
+        rejected.fields[0] = AccessFieldEntry { key: key, access: access };
         let field_count: u64 = rejected.field_count;
         transition field_count < 32 {
             true -> grow_invalid(rejected, field_count)
@@ -410,19 +481,6 @@ requires fuel >= 1 && fuel <= 128
         rejected.field_count = field_count + 1;
         rejected
     }
-}
-
-// A normalized static set of boundary-service keys. Suspension and blocking
-// are independent contract axes and never enter this record.
-public data BoundaryReach where service_count <= 32 {
-    services: [u64; 32];
-    service_count: u64;
-}
-
-public data PlacementPlan {
-    layout: Plan;
-    access: AccessPlan;
-    reach: BoundaryReach;
 }
 
 public data RelativeRange [copy] {
@@ -507,89 +565,90 @@ public boundary trait ResourceProfileSupply<Role> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile reaches;
 }
 
-// Settled placement identity and recovery vocabulary. `Placed<P, T>` is an
-// opaque compiler-derived view; these ordinary result carriers add no access,
-// storage, provider, or domain authority. Declaration order is the canonical
-// runtime tag and payload order. Resident content remains owned by its exact
-// qualified Extent; a borrowed placed view retains only a loan of that owner.
-public boundary data Placed<P, T>;
+// Settled access-view identity and recovery vocabulary. `Access<P, T>` is an
+// opaque compiler-derived view of `T` under access policy `P`; it narrows and
+// never grants. These ordinary result carriers add no access, storage,
+// provider, or domain authority. Declaration order is the canonical runtime
+// tag and payload order. Resident content remains owned by its exact qualified
+// Extent; a borrowed access view retains only a loan of that owner.
+public boundary data Access<P, T>;
 
 // Borrowed View over already initialized ordinary RAM. The compiler checks the
 // exact applied P/T geometry and content relation and retains the original
 // source loan. Neither declaration supplies an extent, device capability,
 // resource profile or stronger access than the source borrow.
-public boundary machine Placed::view<P, T>(source: &T) -> &Placed<P, T>;
-public boundary machine Placed::view_mut<P, T>(source: &mut T) -> &mut Placed<P, T>;
+public boundary machine Access::view<P, T>(source: &T) -> &Access<P, T>;
+public boundary machine Access::view_mut<P, T>(source: &mut T) -> &mut Access<P, T>;
 
 // This view interprets existing resident content rather than the Extent's two
 // geometry fields. It retains the exact P/T claim, backing and profile receipt;
 // ending the view releases its loan, not the resident or its storage grant.
-public boundary machine Placed::view_resident_mut<P, T>(
+public boundary machine Access::view_resident_mut<P, T>(
     storage: &mut Extent in Granted & Resident<P, T>
-) -> &mut Placed<P, T>;
+) -> &mut Access<P, T>;
 
-public data PlacementOutcome<View, Returned, Reason> {
+public data AccessOutcome<View, Returned, Reason> {
     case Ready(view: View);
     case Rejected(returned: Returned, reason: Reason);
 }
 
-public data PlacementReturn<Source, Custody> {
+public data AccessReturn<Source, Custody> {
     source: Source;
     custody: Custody;
 }
 
 // A borrowed view moves no storage into the operation. Rejection releases its
 // loan; this ordinary empty record carries no grant or content qualification.
-public data PlacementBorrowReturn {}
+public data AccessBorrowReturn {}
 
 // View already-established external content without manufacturing Resident or
 // Vacant. The selected call supplies compatibility for this exact qualified
 // range, while the result retains the original storage loan. A numeric address
 // or a constructed ResourceProfile is not a substitute for either input.
-public machine Placed::view_extent<'storage, P, T, Role>(
+public machine Access::view_extent<'storage, P, T, Role>(
     storage: &'storage Extent in Granted
-) -> PlacementOutcome<
-    &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+) -> AccessOutcome<
+    &'storage Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply;
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    Placed::view_from_profile<P, T, Role>(storage, &profile)
+    Access::view_from_profile<P, T, Role>(storage, &profile)
 }
 
-boundary machine Placed::view_from_profile<'storage, P, T, Role>(
+boundary machine Access::view_from_profile<'storage, P, T, Role>(
     storage: &'storage Extent in Granted,
     profile: &ResourceProfile
-) -> PlacementOutcome<
-    &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+) -> AccessOutcome<
+    &'storage Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
 >;
 
 // The exclusive counterpart carries the same interpretation and original
 // profile occurrence. Its reference ceiling, not a second lifecycle or a
 // geometry-based permission, allows the placement's admitted writes.
-public machine Placed::view_extent_mut<'storage, P, T, Role>(
+public machine Access::view_extent_mut<'storage, P, T, Role>(
     storage: &'storage mut Extent in Granted
-) -> PlacementOutcome<
-    &'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+) -> AccessOutcome<
+    &'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply;
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    Placed::view_mut_from_profile<P, T, Role>(storage, &profile)
+    Access::view_mut_from_profile<P, T, Role>(storage, &profile)
 }
 
-boundary machine Placed::view_mut_from_profile<'storage, P, T, Role>(
+boundary machine Access::view_mut_from_profile<'storage, P, T, Role>(
     storage: &'storage mut Extent in Granted,
     profile: &ResourceProfile
-) -> PlacementOutcome<
-    &'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+) -> AccessOutcome<
+    &'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
 >;
 
 // Dynamic incompatibility is ordinary data. Malformed admitted assertions,
 // physical faults and missing static custody are not recoverable cases here.
-public data PlacementInitializationFailure {
+public data AccessInitializationFailure {
     case RangeTooSmall(required: u64, available: u64);
     case Misaligned(modulus: u64, residue: u64);
     case IncompatibleSupply;
@@ -597,8 +656,8 @@ public data PlacementInitializationFailure {
 
 // A successful extraction has a selected owned case, so the boundary's exact
 // storage payload is the vacancy issuance subject. The public wrapper below
-// forwards that evidence into PlacementReturn; it is not another issuer.
-public data PlacementExtraction<Storage, Value> {
+// forwards that evidence into AccessReturn; it is not another issuer.
+public data AccessExtraction<Storage, Value> {
     case Moved(storage: Storage, value: Value);
 }
 
@@ -608,19 +667,19 @@ public data PlacementExtraction<Storage, Value> {
 // move before publishing the corresponding case. An ordinary call to a provider
 // implementation is not the admitted requirement occurrence named by Extent's
 // protected establishment routes.
-public boundary trait PlacementLifecycle<P, T> {
+public boundary trait AccessLifecycle<P, T> {
     machine initialize(
         storage: Extent in Granted & Vacant,
         value: T
-    ) -> PlacementOutcome<
+    ) -> AccessOutcome<
         Extent in Granted & Resident<P, T>,
-        PlacementReturn<Extent in Granted & Vacant, T>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, T>,
+        AccessInitializationFailure
     >
     reaches ResourceProfileSupply;
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
-        -> PlacementExtraction<Extent in Granted & Vacant, T>
+        -> AccessExtraction<Extent in Granted & Vacant, T>
     reaches ResourceProfileSupply;
 }
 
@@ -631,25 +690,25 @@ public boundary trait PlacementLifecycle<P, T> {
 // result before treating the profile as admitted supply. The private operation
 // borrows that result: passing plain profile data by value would make an
 // independent copy, which carries no selected-call origin.
-public NativePlacement<P, T, Role> satisfies PlacementLifecycle<P, T> {
+public NativeAccess<P, T, Role> satisfies AccessLifecycle<P, T> {
     machine initialize(
         storage: Extent in Granted & Vacant,
         value: T
-    ) -> PlacementOutcome<
+    ) -> AccessOutcome<
         Extent in Granted & Resident<P, T>,
-        PlacementReturn<Extent in Granted & Vacant, T>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, T>,
+        AccessInitializationFailure
     >
     reaches ResourceProfileSupply
     {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Placed::initialize_from_profile<P, T, Role>(storage, value, &profile)
+        Access::initialize_from_profile<P, T, Role>(storage, value, &profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
-        -> PlacementExtraction<Extent in Granted & Vacant, T>
+        -> AccessExtraction<Extent in Granted & Vacant, T>
     reaches ResourceProfileSupply
     {
         // Resident preserves the value and backing, not permission to read
@@ -657,7 +716,7 @@ public NativePlacement<P, T, Role> satisfies PlacementLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Placed::extract_resident<P, T, Role>(storage, &profile)
+        Access::extract_resident<P, T, Role>(storage, &profile)
     }
 }
 
@@ -665,99 +724,99 @@ public NativePlacement<P, T, Role> satisfies PlacementLifecycle<P, T> {
 // Privacy supplies no profile or backing authority: compiler realization still
 // requires the exact admitted call, live claim and actual allocation. They
 // cannot interpret a constructed profile or an Extent's descriptor as bytes.
-boundary machine Placed::initialize_from_profile<P, T, Role>(
+boundary machine Access::initialize_from_profile<P, T, Role>(
     storage: Extent in Granted & Vacant,
     value: T,
     profile: &ResourceProfile
-) -> PlacementOutcome<
+) -> AccessOutcome<
     Extent in Granted & Resident<P, T>,
-    PlacementReturn<Extent in Granted & Vacant, T>,
-    PlacementInitializationFailure
+    AccessReturn<Extent in Granted & Vacant, T>,
+    AccessInitializationFailure
 >;
 
-boundary machine Placed::extract_resident<P, T, Role>(
+boundary machine Access::extract_resident<P, T, Role>(
     storage: Extent in Granted & Resident<P, T>,
     profile: &ResourceProfile
-) -> PlacementExtraction<Extent in Granted & Vacant, T>;
+) -> AccessExtraction<Extent in Granted & Vacant, T>;
 
 // The owned operation captures both inputs before its ordinary selected supply
 // call. Ready retains the original range and the complete value's custody;
 // rejection returns both unchanged. Only an executed complete encoding write
 // can establish resident content. The compiler's lifecycle operation, not a
 // caller-provided profile or the return annotation, discharges that obligation.
-public machine Placed::initialize_owned<P, T>(
+public machine Access::initialize_owned<P, T>(
     storage: Extent in Granted & Vacant,
     value: T
-) -> PlacementOutcome<
+) -> AccessOutcome<
     Extent in Granted & Resident<P, T>,
-    PlacementReturn<Extent in Granted & Vacant, T>,
-    PlacementInitializationFailure
+    AccessReturn<Extent in Granted & Vacant, T>,
+    AccessInitializationFailure
 >
-reaches PlacementLifecycle + ResourceProfileSupply
-invokes PlacementLifecycle;
+reaches AccessLifecycle + ResourceProfileSupply
+invokes AccessLifecycle;
 {
-    PlacementLifecycle<P, T>::initialize(storage, value)
+    AccessLifecycle<P, T>::initialize(storage, value)
 }
 
 // Whole-value extraction ends this exact resident occurrence. Active loans or
 // unresolved partial moves forbid it; success returns the owned value and the
 // original storage with vacancy restored, rather than a new numeric root.
-public machine Placed::move_out_owned<P, T>(
+public machine Access::move_out_owned<P, T>(
     storage: Extent in Granted & Resident<P, T>
 )
-    -> PlacementReturn<Extent in Granted & Vacant, T>
-reaches PlacementLifecycle + ResourceProfileSupply
-invokes PlacementLifecycle;
+    -> AccessReturn<Extent in Granted & Vacant, T>
+reaches AccessLifecycle + ResourceProfileSupply
+invokes AccessLifecycle;
 {
-    transition PlacementLifecycle<P, T>::move_out(storage) {
-        PlacementExtraction::Moved { storage, value } ->
-            PlacementReturn { source: storage, custody: value }
+    transition AccessLifecycle<P, T>::move_out(storage) {
+        AccessExtraction::Moved { storage, value } ->
+            AccessReturn { source: storage, custody: value }
     }
 }
 
 // `C` is the authored custody record for the non-runtime fields of `T` under
-// placement `P`; a named implementation of this exact application is the
+// access policy `P`; a named implementation of this exact application is the
 // agreement the compiler checks. The custody record is an ordinary argument,
 // never a subject that owns the implementation.
-public trait PlacementCustody<C, P, T> {
+public trait AccessCustody<C, P, T> {
 }
 
-// Granular placed-field requirements. These are ordinary generic contracts so
-// helpers can accept one accessor without receiving the whole placed view.
-// The compiler derives conforming accessor types from a normalized placement;
-// source cannot construct the opaque template or use it as placement evidence.
+// Granular accessor requirements. These are ordinary generic contracts so
+// helpers can accept one accessor without receiving the whole access view.
+// The compiler derives conforming accessor types from a normalized access plan;
+// source cannot construct the opaque template or use it as access evidence.
 public trait Readable<Field, T> {
-    machine read(placed_field: &Field) -> T;
+    machine read(accessor: &Field) -> T;
 }
 
 public trait DestructiveRead<Field, T> {
-    machine take(placed_field: &mut Field) -> T;
+    machine take(accessor: &mut Field) -> T;
 }
 
 public trait Writable<Field, T> {
-    machine write(placed_field: &mut Field, value: T);
+    machine write(accessor: &mut Field, value: T);
 }
 
 // Exact compiler-supplied primitives, not blanket conformance evidence. The
 // compiler closes these applications only for a field accessor issued by the
-// selected placement plan, with its exact value type and operation permission.
+// selected access plan, with its exact value type and operation permission.
 // Ordinary generic helpers must declare an explicit operation requirement;
-// an unconstrained type parameter cannot acquire placed access by forwarding.
-public boundary machine placed_read<Accessor, Value>(field: &Accessor) -> Value
+// an unconstrained type parameter cannot acquire field access by forwarding.
+public boundary machine read<Accessor, Value>(field: &Accessor) -> Value
 satisfies Readable<Accessor, Value>::read;
-public boundary machine placed_write<Accessor, Value>(field: &mut Accessor, value: Value)
+public boundary machine write<Accessor, Value>(field: &mut Accessor, value: Value)
 satisfies Writable<Accessor, Value>::write;
 
-public boundary data PlacedField<T>;
+public boundary data Accessor<T>;
 
-boundary machine PlacedField::read<T>(placed_field: &PlacedField<T>) -> T
-satisfies Readable<PlacedField<T>, T>::read;
+boundary machine Accessor::read<T>(accessor: &Accessor<T>) -> T
+satisfies Readable<Accessor<T>, T>::read;
 
-boundary machine PlacedField::take<T>(placed_field: &mut PlacedField<T>) -> T
-satisfies DestructiveRead<PlacedField<T>, T>::take;
+boundary machine Accessor::take<T>(accessor: &mut Accessor<T>) -> T
+satisfies DestructiveRead<Accessor<T>, T>::take;
 
-boundary machine PlacedField::write<T>(placed_field: &mut PlacedField<T>, value: T)
-satisfies Writable<PlacedField<T>, T>::write;
+boundary machine Accessor::write<T>(accessor: &mut Accessor<T>, value: T)
+satisfies Writable<Accessor<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
@@ -788,15 +847,15 @@ terminates;
 public boundary data LayoutStorage<T, Policy satisfies FixedLayout<T>>;
 
 public trait FixedLayout<T> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches
     terminates;
 }
 
-public trait Access {
-    machine plan(schema: Schema, layout: Plan) -> AccessPlan;
-}
-
-public trait Placement {
-    machine plan(schema: Schema) -> PlacementPlan;
+// An access policy evaluates one complete `AccessPlan` from the reflected
+// schema. It may call ordinary layout policies and helpers; such a call returns
+// plan data, not a validation certificate. The compiler independently validates
+// layout, field coverage, operations and reach of the returned plan.
+public trait AccessPolicy {
+    machine plan(schema: Schema) -> AccessPlan;
 }

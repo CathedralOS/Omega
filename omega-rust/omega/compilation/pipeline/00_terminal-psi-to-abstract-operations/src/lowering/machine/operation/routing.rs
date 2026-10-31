@@ -21,7 +21,7 @@ pub(super) fn lower(
     module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
-    placed_view_plans: &[terminal_psi::TerminalPlacedViewPlan],
+    access_view_plans: &[terminal_psi::TerminalAccessViewPlan],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
@@ -98,7 +98,7 @@ pub(super) fn lower(
                 rejected_case: *rejected_case,
             })
         }
-        OperationKind::EstablishPlacedReference { source, resident } => {
+        OperationKind::EstablishAccessReference { source, resident } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
             };
@@ -110,7 +110,7 @@ pub(super) fn lower(
             else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
             };
-            let mut selected = placed_view_plans
+            let mut selected = access_view_plans
                 .iter()
                 .filter(|plan| plan.carrier == *referent);
             let (Some(plan), None) = (selected.next(), selected.next()) else {
@@ -132,7 +132,7 @@ pub(super) fn lower(
                     &source.path,
                 )
                 .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
-                abstract_operations::PlacedReferenceBacking::Resident(
+                abstract_operations::AccessReferenceBacking::Resident(
                     abstract_operations::ResidentReferenceBacking {
                         owner: owner.id,
                         schema: plan.schema,
@@ -142,17 +142,17 @@ pub(super) fn lower(
                     },
                 )
             } else {
-                abstract_operations::PlacedReferenceBacking::OrdinaryRam(
-                    terminal_semantics::placed_ram_plan_correspondence(
+                abstract_operations::AccessReferenceBacking::OrdinaryRam(
+                    terminal_semantics::access_ram_plan_correspondence(
                         structural_types,
-                        placed_view_plans,
+                        access_view_plans,
                         plan,
                         plan.schema,
                     )
                     .map_err(|_| LoweringError::UnsupportedReferenceCustody(operation.id))?,
                 )
             };
-            Ok(AbstractOperation::EstablishPlacedReference {
+            Ok(AbstractOperation::EstablishAccessReference {
                 psi_operation: operation.id,
                 result,
                 source: source.clone(),

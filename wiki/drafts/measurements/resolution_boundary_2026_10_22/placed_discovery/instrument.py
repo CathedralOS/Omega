@@ -9,7 +9,7 @@ assert not subprocess.check_output(['git', 'diff', 'HEAD', '--', 'omega-rust'])
 subprocess.run(['git', 'apply', str(parent/'instrumentation.patch')], check=True)
 paths = json.loads((parent/'instrumented-paths.json').read_text())
 
-path = Path('omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs')
+path = Path('omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs')
 text = path.read_text()
 needle = '    if !syntax.expressions.iter_expressions().any(|(_, node)| {'
 assert text.count(needle) == 1
@@ -42,7 +42,7 @@ text = text.replace(needle, '''    if let Some(started) = started {
 path.write_text(text)
 paths.append(str(path))
 
-path = Path('omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs')
+path = Path('omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs')
 text = path.read_text()
 needle = '    if applications.is_empty() {'
 assert text.count(needle) == 1

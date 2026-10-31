@@ -428,7 +428,7 @@ impl<'a> Replay<'a> {
                 return value.clone();
             }
         }
-        if self.slot_kind == DescriptorSlotKind::PlacedOrigins {
+        if self.slot_kind == DescriptorSlotKind::AccessOrigins {
             // The most specific current descriptor/placed borrow supplies its
             // interpretation token. It does not supply a physical address.
             let prefix = state
@@ -444,7 +444,7 @@ impl<'a> Replay<'a> {
                     origin,
                     Origin::Incoming(_)
                         | Origin::IncomingContents(_, _)
-                        | Origin::Backing(DescriptorCallOrigin::PlacedFormation { .. })
+                        | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
                 )
             }) {
                 return Some(origins.clone());
@@ -607,13 +607,13 @@ impl<'a> Replay<'a> {
                     source,
                     projection: prefix.then(projection),
                 })),
-                Origin::Backing(DescriptorCallOrigin::PlacedFormation {
+                Origin::Backing(DescriptorCallOrigin::AccessFormation {
                     machine,
                     operation,
                     place,
                     carrier,
                     projection: prefix,
-                }) => Some(Origin::Backing(DescriptorCallOrigin::PlacedFormation {
+                }) => Some(Origin::Backing(DescriptorCallOrigin::AccessFormation {
                     machine,
                     operation,
                     place,
@@ -826,8 +826,8 @@ impl<'a> Replay<'a> {
                     shape,
                     StructuralTypeShape::Reference { .. }
                         | StructuralTypeShape::Record {
-                            storage: terminal_psi::StructuralRecordStorage::PlacedView(_)
-                                | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                            storage: terminal_psi::StructuralRecordStorage::AccessView(_)
+                                | terminal_psi::StructuralRecordStorage::Accessor(_),
                             ..
                         }
                 )
@@ -1165,14 +1165,14 @@ impl<'a> Replay<'a> {
             DescriptorStoredOrigin::Provider(provider) => {
                 self.substitute_provider(machine, state, call, provider)
             }
-            DescriptorStoredOrigin::PlacedFormation {
+            DescriptorStoredOrigin::AccessFormation {
                 machine,
                 operation,
                 place,
                 carrier,
                 projection,
             } => Some(BTreeSet::from([Origin::Backing(
-                DescriptorCallOrigin::PlacedFormation {
+                DescriptorCallOrigin::AccessFormation {
                     machine: *machine,
                     operation: *operation,
                     place: *place,
@@ -1242,13 +1242,13 @@ impl<'a> Replay<'a> {
             Origin::Provider(provider) => Some(DescriptorStoredOrigin::Provider(
                 provider.map_dependencies(|dependency| self.exported(machine, dependency))?,
             )),
-            Origin::Backing(DescriptorCallOrigin::PlacedFormation {
+            Origin::Backing(DescriptorCallOrigin::AccessFormation {
                 machine,
                 operation,
                 place,
                 carrier,
                 projection,
-            }) => Some(DescriptorStoredOrigin::PlacedFormation {
+            }) => Some(DescriptorStoredOrigin::AccessFormation {
                 machine: *machine,
                 operation: *operation,
                 place: *place,

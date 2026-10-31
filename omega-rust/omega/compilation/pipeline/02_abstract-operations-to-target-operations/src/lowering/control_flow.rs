@@ -18,6 +18,8 @@ use target_operations::{
     TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction};
+mod access_lifecycles;
+mod accessor_scalar_access;
 mod aggregate_borrows;
 pub(super) mod aggregate_results;
 mod atomic_access;
@@ -35,8 +37,6 @@ mod leaf_copy;
 mod observations;
 mod operations;
 mod owned_arguments;
-mod placed_scalar_access;
-mod placement_lifecycles;
 mod primitive_storage;
 mod program_image;
 mod records;
@@ -68,7 +68,7 @@ struct LiveDefinitions {
     stored_reference_effects: references::StoredEffectCatalog,
     reference_position: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
     /// Invocation obligations, never captured backing or permission leaves.
-    placed_formals: BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>,
+    access_formals: BTreeMap<PlaceId, terminal_psi::TerminalAccessViewInput>,
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
@@ -344,7 +344,7 @@ pub(super) fn lower(
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
-            | AbstractOperation::EstablishPlacedReference { result, .. }
+            | AbstractOperation::EstablishAccessReference { result, .. }
             | AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -491,7 +491,7 @@ pub(super) fn lower(
         borrowed_reference_sources,
         stored_reference_effects,
         reference_position: (entries[entry_position].block, 0),
-        placed_formals: references::placed_formals(function, structural_types)?,
+        access_formals: references::access_formals(function, structural_types)?,
         structural_homes: BTreeMap::new(),
         integers: super::function_signature::integer_parameters(
             function.machine,

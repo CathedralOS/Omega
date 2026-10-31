@@ -81,9 +81,11 @@ fn family_and_operand_count(
             operation.input_carriers().len() + usize::from(operation.produces_value()),
             0..=0,
         ),
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
-            (MachineAlternativeFamily::PlacedScalarAccess(form), 2, 0..=0)
-        }
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => (
+            MachineAlternativeFamily::AccessorScalarAccess(form),
+            2,
+            0..=0,
+        ),
         SelectedInstructionKind::FloatResultPolicy { form } => (
             MachineAlternativeFamily::FloatResultPolicy(form),
             form.operand_count() + 1,

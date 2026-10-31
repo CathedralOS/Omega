@@ -4,12 +4,12 @@
 use omega::language::core::layout;
 public data Pair [copy] { payload: u8; neighbor: u8; }
 Swapped satisfies FixedLayout<Pair> {
- machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+ machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
   let mut entries: [FieldEntry; 64];
-  entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 4, source_lsb: 0, width: 4 } };
-  entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 0, source_lsb: 4, width: 4 } };
-  entries[2] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 1 } };
-  Plan { entries: entries, entry_count: 3, size_fixed: 2, size_is_dynamic: false, align: 1 }
+  entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 4, source_lsb: 0, width: 4 } };
+  entries[1] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 0, source_lsb: 4, width: 4 } };
+  entries[2] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 1 } };
+  LayoutPlan { entries: entries, entry_count: 3, size_fixed: 2, size_is_dynamic: false, align: 1 }
  }
 }
 machine change(bytes: &mut [u8; 2]) { bytes[0] = 165u8; }

@@ -1186,7 +1186,7 @@ impl TerminalExecution<'_> {
             let mut storage = ConstructorStorage::new(self.account.as_ref());
             storage.stage(self, value, &child, &hole, !copies_storage)?;
             let source = match child {
-                ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
+                ConstructorValue::Access(child) => Some(StructuralRuntimePlace::from(&child)),
                 ConstructorValue::PackedScalars { .. } => None,
             };
             storage.preserve_replaced_residents(self, &hole)?;
@@ -1608,7 +1608,7 @@ impl TerminalExecution<'_> {
             let value = if self.scalar_array_values.contains_key(source) {
                 ConstructorValue::resolve(self, &argument)?
             } else {
-                ConstructorValue::Placed(
+                ConstructorValue::Access(
                     self.resolve_live_leaf_copy(*source, path, result.structural_type)?
                         .0,
                 )

@@ -1,9 +1,9 @@
 //! Type reference queries: display, placed plans, multiplicities and
 //! arithmetic domains.
 
-use crate::typed_trees::placed_plans::named_type_reference_through_shells;
+use crate::typed_trees::access_views::named_type_reference_through_shells;
 use crate::typed_trees::{
-    PlacedFieldPlan, PlacedViewPlan, TypedTrees, static_const_argument_spelling,
+    AccessFieldPlan, AccessViewPlan, TypedTrees, static_const_argument_spelling,
     static_const_identity_from_spelling,
 };
 use crate::{expression, name, types};
@@ -238,51 +238,51 @@ impl TypedTrees {
         }
     }
 
-    pub fn placed_field_plan_for_type_reference(
+    pub fn access_field_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> Option<&PlacedFieldPlan> {
-        self.placed_view_field_plan_for_type_reference(type_reference)
+    ) -> Option<&AccessFieldPlan> {
+        self.access_view_field_plan_for_type_reference(type_reference)
             .map(|(_, field)| field)
     }
 
-    pub fn placed_view_plan_for_type_reference(
+    pub fn access_view_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> Option<&PlacedViewPlan> {
+    ) -> Option<&AccessViewPlan> {
         let view_symbol = self.type_reference_table.type_symbol(type_reference);
         if !view_symbol.is_valid() {
             return None;
         }
-        self.placed_view_plans
+        self.access_view_plans
             .iter()
             .find(|view| view.data_symbol == view_symbol)
     }
 
-    /// The placed view plan when `type_reference` is a reference to
-    /// `Placed<P, T>` — the shape a machine parameter takes when it declares
-    /// a placed-view custody input rather than a carried data argument. This
-    /// mirrors the criterion checked placed-view input collection applies:
+    /// The access view plan when `type_reference` is a reference to
+    /// `Access<P, T>` — the shape a machine parameter takes when it declares
+    /// a access-view custody input rather than a carried data argument. This
+    /// mirrors the criterion checked access-view input collection applies:
     /// the outer node must be a reference whose referee resolves the view.
-    pub fn placed_view_plan_for_input_type_reference(
+    pub fn access_view_plan_for_input_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> Option<&PlacedViewPlan> {
+    ) -> Option<&AccessViewPlan> {
         let types::TypeReferenceNode::Reference { referee, .. } =
             self.type_reference_table.type_reference(type_reference)
         else {
             return None;
         };
-        self.placed_view_plan_for_type_reference(*referee)
+        self.access_view_plan_for_type_reference(*referee)
     }
 
-    pub fn placed_view_field_plan_for_type_reference(
+    pub fn access_view_field_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> Option<(&PlacedViewPlan, &PlacedFieldPlan)> {
+    ) -> Option<(&AccessViewPlan, &AccessFieldPlan)> {
         let accessor_type =
             named_type_reference_through_shells(&self.type_reference_table, type_reference)?;
-        self.placed_view_plans.iter().find_map(|view| {
+        self.access_view_plans.iter().find_map(|view| {
             view.fields
                 .iter()
                 .find(|field| {

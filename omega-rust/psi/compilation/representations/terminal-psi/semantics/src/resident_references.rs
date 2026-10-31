@@ -7,8 +7,8 @@
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ResidentReferenceSource, StructuralAccess, StructuralTypeShape, TerminalModule,
-    TerminalPlacedViewPlan,
+    ResidentReferenceSource, StructuralAccess, StructuralTypeShape, TerminalAccessViewPlan,
+    TerminalModule,
 };
 
 pub fn resident_reference_plan(
@@ -17,7 +17,7 @@ pub fn resident_reference_plan(
     result_type: StructuralTypeId,
     access: StructuralAccess,
     resident: ResidentReferenceSource,
-) -> Result<&TerminalPlacedViewPlan, &'static str> {
+) -> Result<&TerminalAccessViewPlan, &'static str> {
     validate_resident_owner_geometry(module, source_type, resident.base, resident.length)?;
     let Some(StructuralTypeShape::Reference {
         referent,
@@ -48,7 +48,7 @@ pub fn resident_reference_plan(
         return Err("resident interpretation lost distinct source-owner qualification roles");
     }
     let mut plans = module
-        .placed_view_plans
+        .access_view_plans
         .iter()
         .filter(|plan| plan.carrier == *referent);
     let (Some(plan), None) = (plans.next(), plans.next()) else {

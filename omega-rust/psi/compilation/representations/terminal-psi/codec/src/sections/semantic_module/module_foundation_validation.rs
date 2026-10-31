@@ -134,19 +134,19 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
         .map_err(|reason| CodecError::MalformedStructuralFoundation(reason))?;
     let mut placed_coordinates = BTreeSet::new();
-    for row in &module.placed_view_inputs {
+    for row in &module.access_view_inputs {
         if !placed_coordinates.insert((
             row.machine,
             row.source_state_identity,
             row.runtime_position,
         )) {
-            return malformed("placed-view inputs repeat one structural formal");
+            return malformed("access-view inputs repeat one structural formal");
         }
-        terminal_semantics::placed_view_input_parameter(module, row)
-            .map_err(CodecError::PlacedViewInput)?;
+        terminal_semantics::access_view_input_parameter(module, row)
+            .map_err(CodecError::AccessViewInput)?;
     }
-    terminal_semantics::validate_placed_view_plans(module).map_err(CodecError::PlacedPlan)?;
-    terminal_semantics::validate_placement_lifecycle_plans(module)
+    terminal_semantics::validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
+    terminal_semantics::validate_access_lifecycle_plans(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
@@ -728,7 +728,7 @@ fn validate_structural_parameters(
             return malformed("structural parameter references an unknown type");
         }
         if parameter.access == terminal_psi::StructuralAccess::Owned
-            && terminal_semantics::contains_placed_carrier(module, parameter.structural_type)
+            && terminal_semantics::contains_access_carrier(module, parameter.structural_type)
         {
             return malformed("ordinary owned parameters cannot receive placed custody");
         }
@@ -808,7 +808,7 @@ fn validate_operation_foundation(
         return malformed("returned-origin interpretation is not an executable projection");
     }
     if let Some(result) = operation.result.structural() {
-        if terminal_semantics::contains_placed_carrier(module, result.structural_type) {
+        if terminal_semantics::contains_access_carrier(module, result.structural_type) {
             return malformed("ordinary value production cannot establish placed custody");
         }
         validate_structural_qualifications(
@@ -819,8 +819,8 @@ fn validate_operation_foundation(
         )?;
     }
     match &operation.kind {
-        OperationKind::EstablishPlacedReference { .. } => {
-            storage_foundations::validate_establish_placed_reference(module, machine, operation)?
+        OperationKind::EstablishAccessReference { .. } => {
+            storage_foundations::validate_establish_access_reference(module, machine, operation)?
         }
         OperationKind::EstablishReference { .. } => {
             storage_foundations::validate_establish_reference(module, machine, operation)?
@@ -1286,7 +1286,7 @@ fn validate_structural_arguments(
             expected.access,
         )?;
         if expected.access == terminal_psi::StructuralAccess::Owned
-            && terminal_semantics::contains_placed_carrier(module, expected.structural_type)
+            && terminal_semantics::contains_access_carrier(module, expected.structural_type)
         {
             return malformed("ordinary owned call transport cannot carry placed custody");
         }

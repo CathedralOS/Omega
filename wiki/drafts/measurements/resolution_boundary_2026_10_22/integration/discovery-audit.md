@@ -14,7 +14,7 @@ produced six/nine selection records and four/seven invocation locations. Those
 historical counts remain bound to their recorded producer; this audit does not
 relabel them as measurements of the integrated compiler.
 
-`compile-time/src/layouts/placed_views/applied_results.rs::retain_applied_results`
+`compile-time/src/layouts/access_views/applied_results.rs::retain_applied_results`
 uses `resolve_numeric_probe`, scans resolved calls, validates sealed borrowed
 View prototypes, substitutes exact type actuals into declared return types, and
 writes selected policy/schema/template references back into syntax. Its downstream

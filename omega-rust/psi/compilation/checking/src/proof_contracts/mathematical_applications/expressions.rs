@@ -124,7 +124,7 @@ pub fn erased_initializer_nodes(
         program,
         |memos| &memos.erased_initializers,
         || {
-            let mut placements = InitializerPlacements::default();
+            let mut placements = InitializerAccesss::default();
             for machine in program.machines() {
                 for data in program.machine_owned_data(machine) {
                     placements.visit(program, data.initial_value, false);
@@ -226,13 +226,13 @@ fn erased_parameter(
 }
 
 #[derive(Default)]
-struct InitializerPlacements {
+struct InitializerAccesss {
     erased: Vec<ExpressionHandle>,
     erased_seen: HashSet<ExpressionHandle>,
     runtime_seen: HashSet<ExpressionHandle>,
 }
 
-impl InitializerPlacements {
+impl InitializerAccesss {
     fn visit(
         &mut self,
         program: &dyn crate::CheckingInput,

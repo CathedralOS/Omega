@@ -4,12 +4,12 @@ use omega::language::core::layout;
 data Payload { bytes: [u8; 65536]; }
 
 Packed satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
-        key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 },
+        key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 },
     };
-    Plan {
+    LayoutPlan {
         entries: entries, entry_count: 1,
         size_fixed: 4096, size_is_dynamic: false, align: 1,
     }

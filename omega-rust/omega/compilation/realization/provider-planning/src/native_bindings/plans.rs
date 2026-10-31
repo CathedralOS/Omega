@@ -117,7 +117,7 @@ pub(crate) fn derive(
                         row_requirements: Vec::new(),
                         row_realizations: Vec::new(),
                         row_target_machine_origins: Vec::new(),
-                        row_placed_accessors: Vec::new(),
+                        row_accessors: Vec::new(),
                     },
                 });
                 plans.len() - 1
@@ -167,7 +167,7 @@ pub(crate) fn derive(
                 },
             )));
         candidate.provenance.row_target_machine_origins.push(None);
-        candidate.provenance.row_placed_accessors.push(None);
+        candidate.provenance.row_accessors.push(None);
     }
     for candidate in &plans {
         let errors = candidate.plan.validate_candidate_against_schema();

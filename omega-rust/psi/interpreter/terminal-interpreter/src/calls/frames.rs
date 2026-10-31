@@ -114,7 +114,7 @@ impl TerminalExecution<'_> {
             }
         };
         self.call_stack.push(SuspendedCall {
-            placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
+            access_view_occurrences: std::mem::take(&mut self.access_view_occurrences),
             loan_completions,
             values: self.values.take(),
             structural_values: self.structural_values.take(),
@@ -365,8 +365,8 @@ impl TerminalExecution<'_> {
         prepared_arguments
             .validate_carrier_partition(&callee.structural_parameters)
             .map_err(|error| error.in_argument_preparation("join callee carrier partition"))?;
-        let placed_view_occurrences = self
-            .bind_call_placed_views(callee_id, structural_arguments, &prepared_arguments.values)
+        let access_view_occurrences = self
+            .bind_call_access_views(callee_id, structural_arguments, &prepared_arguments.values)
             .map_err(|error| error.in_argument_preparation("bind placed argument views"))?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
@@ -383,7 +383,7 @@ impl TerminalExecution<'_> {
                     &prepared_arguments.aggregate_backings,
                     &prepared_arguments.primitive_loans,
                     &prepared_arguments.element_views,
-                    &placed_view_occurrences,
+                    &access_view_occurrences,
                 )
                 .map_err(|error| {
                     error.in_argument_preparation("capture reference result backings")
@@ -467,7 +467,7 @@ impl TerminalExecution<'_> {
         )?;
         caller.live_affine_frontier = caller_affine_frontier;
         caller.live_claims = remaining_claims;
-        self.placed_view_occurrences = placed_view_occurrences;
+        self.access_view_occurrences = access_view_occurrences;
         self.values = values;
         self.structural_values = structural_values;
         self.aggregate_argument_backings = prepared_arguments.aggregate_backings;

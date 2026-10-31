@@ -48,7 +48,7 @@ fn source_place(
             if matches!(
                 validation::reference_formation_source(program, recast.formation.expression())?
                     .interpretation,
-                validation::ReferenceFormationInterpretation::ResidentPlaced { .. }
+                validation::ReferenceFormationInterpretation::ResidentAccess { .. }
             ) {
                 // A resident's Extent descriptor is its loan anchor, not the
                 // bytes being written. Until backing identity is available,
@@ -108,14 +108,14 @@ pub(in crate::flow::mutation) fn write_source_region(
     for recast in &source.recasts {
         if let validation::ReferenceViewFormation::ExtentView(declaration) = recast.formation {
             if recast.representation.is_some()
-                || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+                || typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
                     program,
                     declaration.machine(),
                 )
                 .ok()??
                     != declaration
                 || declaration.operation()
-                    != typed_trees::typed_trees::PlacementLifecycleOperation::View
+                    != typed_trees::typed_trees::AccessLifecycleOperation::View
             {
                 return None;
             }
@@ -139,7 +139,7 @@ pub(in crate::flow::mutation) fn write_source_region(
             validation::reference_formation_source(program, recast.formation.expression())?;
         if !matches!(
             formation.interpretation,
-            validation::ReferenceFormationInterpretation::ResidentPlaced { .. }
+            validation::ReferenceFormationInterpretation::ResidentAccess { .. }
         ) {
             continue;
         }
@@ -169,17 +169,17 @@ pub(in crate::flow::mutation) fn write_source_region(
             return None;
         };
         let mut plans = program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .filter(|plan| plan.data_symbol == *symbol);
         let (Some(plan), None) = (plans.next(), plans.next()) else {
             return None;
         };
-        let checked_trees::CheckedReferenceStorage::ResidentPlaced {
+        let checked_trees::CheckedReferenceStorage::ResidentAccess {
             granted, resident, ..
         } = formation
             .interpretation
-            .placed_storage(program, endpoint, plan)?
+            .access_storage(program, endpoint, plan)?
         else {
             return None;
         };

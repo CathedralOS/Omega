@@ -255,9 +255,10 @@ impl SelectedFunctions {
             page.digest_bytes.take();
         }
         let mut pages = self.pages.iter_mut();
-        let current_front = pages
-            .next()
-            .map_or_else(|| [].iter_mut(), |page| Arc::make_mut(page).entries.iter_mut());
+        let current_front = pages.next().map_or_else(
+            || [].iter_mut(),
+            |page| Arc::make_mut(page).entries.iter_mut(),
+        );
         IterMut {
             pages,
             current_front,

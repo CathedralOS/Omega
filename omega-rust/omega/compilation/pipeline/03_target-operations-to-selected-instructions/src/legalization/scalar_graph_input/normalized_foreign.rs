@@ -205,18 +205,18 @@ pub(in crate::legalization) fn native_callbacks_at<'a>(
     for (index, callback) in matching.iter().enumerate() {
         let ordinal = usize::try_from(callback.application.native_ordinal)
             .map_err(|_| LegalizationError::custody())?;
-        let placed_root = boundary_entry_plan.call.parameters.get(ordinal)
+        let access_root = boundary_entry_plan.call.parameters.get(ordinal)
             == Some(&callback.application.placement);
         let destination_admitted = match &callback.destination {
             calling_conventions::NativePlace::Parameter(parameter) => {
                 *parameter == callback.application.parameter
                     && callback.field_byte_offset.is_none()
-                    && placed_root
+                    && access_root
             }
             calling_conventions::NativePlace::Field { parameter, .. } => {
                 *parameter == callback.application.parameter
                     && callback.field_byte_offset.is_some()
-                    && placed_root
+                    && access_root
             }
         };
         if callback.registrar_boundary_entry_plan != *boundary_entry_plan

@@ -149,7 +149,7 @@ pub(super) fn establishment(
             indices,
             shape,
         } => (result, source, *storage, indices, shape, None),
-        LegalizedScalarInstructionKind::EstablishPlacedReference {
+        LegalizedScalarInstructionKind::EstablishAccessReference {
             result,
             source,
             correspondence,
@@ -298,7 +298,7 @@ pub(super) fn establishment(
     };
     (if let Some(correspondence) = placed {
         let mut plans = declarations
-            .placed_views()
+            .access_views()
             .iter()
             .filter(|plan| plan.carrier == referent);
         match (plans.next(), plans.next()) {
@@ -306,9 +306,9 @@ pub(super) fn establishment(
                 owner == Some(correspondence.source_type())
                     && (correspondence.resident_source().is_some()
                         || actual == Some(correspondence.schema()))
-                    && optimization_unit_semantics::placed_references::validate_backing(
+                    && optimization_unit_semantics::access_references::validate_backing(
                         declarations.as_slice(),
-                        declarations.placed_views(),
+                        declarations.access_views(),
                         plan,
                         correspondence.source_type(),
                         correspondence,

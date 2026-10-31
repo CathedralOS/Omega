@@ -8,24 +8,30 @@ public data Registers where transmit <= 10 {
 
 public data RegPlacement {}
 
-machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+machine RegPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 4 },
+        representation: FieldPlan::At { offset: 4 },
     };
-    let access: AccessPlan = AccessPlan::inaccessible(&schema);
-    transition { _ -> place_status(schema, access, entries) }
+    let layout: LayoutPlan = LayoutPlan {
+            entries: entries,
+            entry_count: 2,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4,
+        };
+    let access: AccessPlan = AccessPlan::inaccessible(layout);
+    transition { _ -> place_status(schema, access) }
 
     machine place_status(
         schema: Schema,
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         let status_key: u64 = schema.fields[0].key;
         transition { _ -> place_transmit(
             schema,
@@ -37,16 +43,13 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                     write: false,
                     exposure: Exposure::Exported,
                 },
-            ),
-            entries
-        ) }
+            )) }
     }
 
     machine place_transmit(
         schema: Schema,
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         transition { _ -> finish(
             AccessPlan::with(
                 access,
@@ -56,45 +59,35 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                     write: true,
                     exposure: Exposure::Exported,
                 },
-            ),
-            entries
-        ) }
+            )) }
     }
 
     machine finish(
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         let mut services: [u64; 32];
         services[0] = 7;
-        PlacementPlan {
-            layout: Plan {
-                entries: entries,
-                entry_count: 2,
-                size_fixed: 8,
-                size_is_dynamic: false,
-                align: 4,
-            },
-            access: access,
-            reach: BoundaryReach {
+        AccessPlan::with_reach(
+            access,
+            BoundaryReach {
                 services: services,
                 service_count: 0,
-            },
-        }
+            }
+        )
     }
 }
 
 
-machine mutate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+machine mutate(view: &mut Access<RegPlacement, Registers>) -> u32 {
     transition { _ -> access(view) }
-    machine access(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    machine access(view: &mut Access<RegPlacement, Registers>) -> u32 {
         view.transmit.write(&mut view.transmit, 9);
         view.status.read(&view.status)
     }
 }
-machine choose<'a>(left: &'a mut Placed<RegPlacement, Registers>,
-                   right: &'a mut Placed<RegPlacement, Registers>,
-                   first: bool) -> &'a mut Placed<RegPlacement, Registers> {
+machine choose<'a>(left: &'a mut Access<RegPlacement, Registers>,
+                   right: &'a mut Access<RegPlacement, Registers>,
+                   first: bool) -> &'a mut Access<RegPlacement, Registers> {
     transition first {
         true -> left
         _ -> right
@@ -104,9 +97,9 @@ machine choose<'a>(left: &'a mut Placed<RegPlacement, Registers>,
 machine exercise(first: bool) crashes Trap {
     let mut left: Registers = Registers { status: 41, transmit: 3 };
     let mut right: Registers = Registers { status: 73, transmit: 5 };
-    let left_view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut left);
-    let right_view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut right);
-    let selected: &mut Placed<RegPlacement, Registers> = choose(left_view, right_view, first);
+    let left_view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut left);
+    let right_view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut right);
+    let selected: &mut Access<RegPlacement, Registers> = choose(left_view, right_view, first);
     let observed: u32 = mutate(selected);
     transition first {
         true -> check(observed == 41 && left.transmit == 9 && right.transmit == 5)
@@ -123,7 +116,7 @@ machine main() crashes Trap {
     exercise(true);
     exercise(false);
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers);
     let observed: u32 = mutate(view);
     transition observed == 41 && registers.transmit == 9 {
         true -> done()

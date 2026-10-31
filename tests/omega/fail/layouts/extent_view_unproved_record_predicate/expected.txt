@@ -1,1 +1,1 @@
-nonresident placement View cannot establish record predicates
+nonresident access View cannot establish record predicates

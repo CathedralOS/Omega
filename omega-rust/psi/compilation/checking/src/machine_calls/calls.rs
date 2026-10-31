@@ -915,7 +915,7 @@ pub use topology::{
     normal_completion_possible, terminal_callable_target, unique_dispatched_entry,
 };
 mod receiver_topology;
-pub(crate) use receiver_topology::placed_accessor_target;
+pub(crate) use receiver_topology::accessor_target;
 pub use receiver_topology::{
     call_receiver_parts, machine_parameter_signature_symbol, receiver_can_dispatch_to_machine,
     resolve_name_path_member_symbol, resolve_state_call_target,

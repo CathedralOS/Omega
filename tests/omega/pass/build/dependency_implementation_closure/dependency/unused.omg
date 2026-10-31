@@ -59,13 +59,13 @@ public data InnerRegisters { status: u32; }
 
 
 public InnerPlacement satisfies FixedLayout<InnerRegisters> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
-    Plan {
+    LayoutPlan {
         entries: entries,
         entry_count: 1,
         size_fixed: 4,
@@ -79,36 +79,36 @@ public InnerPlacement satisfies FixedLayout<InnerRegisters> {
 data UnselectedLayout { value: LayoutStorage<InnerRegisters, InvalidPlacement>; }
 
 InvalidPlacement satisfies FixedLayout<InnerRegisters> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let invalid: u64 = abs(1, 2);
-    Plan {}
+    LayoutPlan {}
 }
 }
 
 public data UnusedPlacement {}
 
-machine UnusedPlacement::plan(schema: Schema) -> PlacementPlan {
+machine UnusedPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 8 },
+        representation: FieldPlan::At { offset: 8 },
     };
-    let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan {
+    let layout: LayoutPlan = LayoutPlan {
             entries: entries,
             entry_count: 2,
             size_fixed: 12,
             size_is_dynamic: false,
             align: 4,
-        },
-        access: AccessPlan::inaccessible(&schema),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
-machine unused_placed(view: &mut Placed<UnusedPlacement, UnusedRegisters>) -> u64 { 0 }
+machine unused_placed(view: &mut Access<UnusedPlacement, UnusedRegisters>) -> u64 { 0 }

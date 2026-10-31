@@ -23,18 +23,18 @@ mod pointer_tests;
 mod replay_battery;
 
 /// Resolves a placed-scalar access to the ordinary memory form it aliases.
-fn placed_scalar_target(
+fn accessor_scalar_target(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
 ) -> Result<Option<(SelectedInstructionKind, MachineAlternativeKey)>, X86_64SelectedFormEncodingError>
 {
-    let SelectedInstructionKind::PlacedScalarAccess {
+    let SelectedInstructionKind::AccessorScalarAccess {
         form, byte_offset, ..
     } = kind
     else {
         return Ok(None);
     };
-    if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
+    if alternative.family != MachineAlternativeFamily::AccessorScalarAccess(form)
         || alternative.variant != 0
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -59,7 +59,7 @@ pub fn encode_x86_64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    if let Some((ordinary, alternative)) = placed_scalar_target(kind, alternative)? {
+    if let Some((ordinary, alternative)) = accessor_scalar_target(kind, alternative)? {
         return encode_x86_64_selected_memory_form(
             physical,
             ordinary,
@@ -141,7 +141,7 @@ pub fn validate_x86_64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    if let Some((ordinary, alternative)) = placed_scalar_target(kind, alternative)? {
+    if let Some((ordinary, alternative)) = accessor_scalar_target(kind, alternative)? {
         return validate_x86_64_selected_memory_form(
             physical,
             ordinary,

@@ -47,10 +47,10 @@ use super::{
     allocate_dense, boundary_machine_id, content_conservation, contract_id, dense_identity,
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression, lookup_claim_id,
     lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes,
-    lower_checked_crash_route_buckets, lower_placed_view_input,
-    lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
-    terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
+    lower_access_view_input, lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, machine_id,
+    obligation_id, place_id, terminal_scalar_type, unsupported, validate_direct_parameter_types,
+    value_id,
 };
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
@@ -417,9 +417,9 @@ pub(crate) fn lower_unit_closure(
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut placed_view_inputs = checked
+    let mut access_view_inputs = checked
         .facts
-        .placed_view_inputs
+        .access_view_inputs
         .iter()
         .filter(|input| {
             machine_ids
@@ -433,7 +433,7 @@ pub(crate) fn lower_unit_closure(
                     .is_some_and(|entry| entry.state == input.state)
         })
         .map(|input| {
-            lower_placed_view_input(
+            lower_access_view_input(
                 identities,
                 checked,
                 exact_toolchain_sources,
@@ -442,7 +442,7 @@ pub(crate) fn lower_unit_closure(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    placed_view_inputs.sort();
+    access_view_inputs.sort();
     // A call owes one obligation per row of its callee's Terminal `requires`
     // roster: a Unit or composed callee publishes one row per authored clause.
     let scalar_requirement_counts = machine_signatures
@@ -715,9 +715,9 @@ pub(crate) fn lower_unit_closure(
             structural_domains,
             services,
             root_service_reach,
-            placed_view_inputs,
-            placed_view_plans: Vec::new(),
-            placement_lifecycle_plans: Vec::new(),
+            access_view_inputs,
+            access_view_plans: Vec::new(),
+            access_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
             external_providers: Vec::new(),

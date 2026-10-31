@@ -42,12 +42,12 @@
 mod lowerer;
 
 // The route, in the order `lower_symbol_resolved_trees` runs it.
+mod access_borrow_factory;
 mod contracts;
 mod declarations;
 mod expressions;
-mod placed_borrow_factory;
 mod type_reference;
-pub use placed_borrow_factory::placed_borrow_factory;
+pub use access_borrow_factory::access_borrow_factory;
 
 // Beneath `declarations`, not a step: the interface vocabulary every
 // declaration form binds through.

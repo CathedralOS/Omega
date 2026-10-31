@@ -2,36 +2,35 @@ use extents::ExtentLoan;
 
 use crate::AdmittedResourceProfile;
 use crate::ResourceProfileReceiptId;
-use crate::placements::placement_admission::validate_placement_admission;
-use crate::placements::placement_authority::PlacementAuthorityRef;
-use crate::primitive_access::field_projection::project_placed_field;
+use crate::placements::access_admission::validate_access_admission;
+use crate::placements::access_authority::AccessAuthorityRef;
+use crate::primitive_access::field_projection::project_access_field;
 use crate::{
-    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, PlacedFieldProjection,
-    PlacementAdmissionId,
+    AccessAdmissionId, AccessFieldKey, AccessFieldProjection, AccessPlanDiagnostic, BorrowPolarity,
 };
-use crate::{PlacementResourceCompatibility, ValidatedPlacementPlan};
+use crate::{AccessResourceCompatibility, ValidatedAccessPlan};
 
 /// A plan-qualified interpretation of one borrowed concrete range.
 #[derive(Debug)]
-pub struct PlacedView<'extent> {
+pub struct AccessView<'extent> {
     pub(crate) loan: ExtentLoan<'extent>,
-    pub(crate) plan: ValidatedPlacementPlan,
+    pub(crate) plan: ValidatedAccessPlan,
     pub(crate) profile_receipt: ResourceProfileReceiptId,
     pub(crate) profile: AdmittedResourceProfile,
-    pub(crate) resources: PlacementResourceCompatibility,
-    pub(crate) admission: PlacementAdmissionId,
+    pub(crate) resources: AccessResourceCompatibility,
+    pub(crate) admission: AccessAdmissionId,
 }
 
 /// Failed ordinary borrowed-view retirement preserves the complete
 /// loan-bearing view for corrected retry.
 #[derive(Debug)]
-pub struct PlacedViewRetirementError<'extent> {
-    view: PlacedView<'extent>,
+pub struct AccessViewRetirementError<'extent> {
+    view: AccessView<'extent>,
     diagnostic: AccessPlanDiagnostic,
 }
 
-impl<'extent> PlacedView<'extent> {
-    pub const fn admission(&self) -> PlacementAdmissionId {
+impl<'extent> AccessView<'extent> {
+    pub const fn admission(&self) -> AccessAdmissionId {
         self.admission
     }
 
@@ -47,9 +46,9 @@ impl<'extent> PlacedView<'extent> {
     /// loan, placement, admitted profile, receipt, and resource compatibility.
     /// Success returns the original loan; rejection returns this complete view
     /// for repair and retry. No content, vacancy, or destruction is claimed.
-    pub fn retire(self) -> Result<ExtentLoan<'extent>, PlacedViewRetirementError<'extent>> {
-        if let Err(diagnostic) = self.validate_authority("borrowed placed-view retirement") {
-            return Err(PlacedViewRetirementError {
+    pub fn retire(self) -> Result<ExtentLoan<'extent>, AccessViewRetirementError<'extent>> {
+        if let Err(diagnostic) = self.validate_authority("borrowed access-view retirement") {
+            return Err(AccessViewRetirementError {
                 view: self,
                 diagnostic,
             });
@@ -63,9 +62,9 @@ impl<'extent> PlacedView<'extent> {
         &'view self,
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
-    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
         let source_loan = BorrowPolarity::from(self.loan.polarity());
-        project_placed_field(
+        project_access_field(
             &self.plan,
             self.profile_receipt,
             &self.resources,
@@ -75,7 +74,7 @@ impl<'extent> PlacedView<'extent> {
             current_borrow,
             source_loan,
             None,
-            PlacementAuthorityRef::Borrowed(self),
+            AccessAuthorityRef::Borrowed(self),
         )
     }
 
@@ -85,12 +84,13 @@ impl<'extent> PlacedView<'extent> {
                 "{transition} could not replay the exact admitted resource-profile receipt"
             )));
         }
-        let replayed = validate_placement_admission(&self.loan, &self.plan, &self.profile)
-            .map_err(|diagnostic| {
+        let replayed = validate_access_admission(&self.loan, &self.plan, &self.profile).map_err(
+            |diagnostic| {
                 AccessPlanDiagnostic(format!(
-                    "{transition} could not replay the retained placement authority: {diagnostic}"
+                    "{transition} could not replay the retained access authority: {diagnostic}"
                 ))
-            })?;
+            },
+        )?;
         if replayed != self.resources {
             return Err(AccessPlanDiagnostic(format!(
                 "{transition} replayed resource compatibility differs from the retained view"
@@ -100,10 +100,10 @@ impl<'extent> PlacedView<'extent> {
     }
 }
 
-impl<'extent> PlacedViewRetirementError<'extent> {
+impl<'extent> AccessViewRetirementError<'extent> {
     diagnostic_accessor!();
 
-    pub fn into_parts(self) -> (PlacedView<'extent>, AccessPlanDiagnostic) {
+    pub fn into_parts(self) -> (AccessView<'extent>, AccessPlanDiagnostic) {
         (self.view, self.diagnostic)
     }
 }

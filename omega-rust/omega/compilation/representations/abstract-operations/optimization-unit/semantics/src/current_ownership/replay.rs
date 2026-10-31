@@ -331,7 +331,7 @@ pub(super) fn validate_current_ownership_cfg(
             // before the ordinary custody roster is consumed.
             let moved_reference_owner = match &node.operation {
                 O::EstablishReference { source, .. }
-                | O::EstablishPlacedReference { source, .. } => {
+                | O::EstablishAccessReference { source, .. } => {
                     super::references::transferred_ingress_leaf(
                         function,
                         structural_types,

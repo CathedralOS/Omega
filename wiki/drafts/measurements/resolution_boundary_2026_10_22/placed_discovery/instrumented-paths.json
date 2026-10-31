@@ -16,6 +16,6 @@
   "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees.rs",
   "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs",
   "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs",
-  "omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs",
-  "omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs"
+  "omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs",
+  "omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs"
 ]

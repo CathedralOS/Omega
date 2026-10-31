@@ -164,7 +164,7 @@ impl RangeRelations {
                     // call or actual write invalidates potentially aliased
                     // storage through the common mutation inventory below.
                     O::EstablishReference { .. }
-                    | O::EstablishPlacedReference { .. }
+                    | O::EstablishAccessReference { .. }
                     | O::EstablishElementView { .. } => Effect::None,
                     abstract_operations::call_or_call_structural_pattern!(..)
                     | O::BoundaryCall { .. }

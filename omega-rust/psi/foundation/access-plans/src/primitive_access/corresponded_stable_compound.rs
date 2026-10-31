@@ -9,7 +9,7 @@
 //! lowering.
 
 #[cfg(test)]
-use crate::PlacementPlanId;
+use crate::AccessPlanId;
 use crate::{
     AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, StableCompoundMutationAccessRequest,
 };

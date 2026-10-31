@@ -18,9 +18,9 @@ pub enum StructuralRecordStorage {
     Packed,
     /// A placed interpretation has no ordinary owned record storage.
     /// Its catalog describes the backing geometry; establishment lends it.
-    PlacedView(AuthoredRecordStorage),
+    AccessView(AuthoredRecordStorage),
     /// One projected transfer container, still incapable of ordinary ownership.
-    PlacedAccessor(AuthoredRecordStorage),
+    Accessor(AuthoredRecordStorage),
     Authored(AuthoredRecordStorage),
     TargetLayout(LayoutApplicationId),
 }

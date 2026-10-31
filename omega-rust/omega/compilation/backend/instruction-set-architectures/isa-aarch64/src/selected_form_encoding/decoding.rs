@@ -659,7 +659,7 @@ pub(crate) fn validate_decoded(
                 if operation == *actual && operand == actual_operand)
         }
         SelectedInstructionKind::PortWrite { .. } => false,
-        SelectedInstructionKind::PlacedScalarAccess {
+        SelectedInstructionKind::AccessorScalarAccess {
             form, byte_offset, ..
         } => {
             let ordinary = form
@@ -1020,7 +1020,7 @@ pub(crate) fn footprint(
     // Classify operand indices once. Both physical views and encoded effects
     // must describe the same slots, including when two slots share a register.
     let (read_indices, write_indices, writes_nzcv) = match kind {
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
             if form.write {
                 (vec![0, 1], vec![], false)
             } else {

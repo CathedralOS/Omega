@@ -89,11 +89,11 @@ impl FunctionFragmentTextSectionManifest {
         let semantic_entry = MachineId::new(semantic_entry_raw)
             .ok_or(FunctionFragmentTextSectionManifestDecodeError::InvalidSemanticEntry)?;
         let semantic_entry_offset = cursor.u64()?;
-        let placement_policy = match cursor.byte()? {
+        let access_policy = match cursor.byte()? {
             1 => TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
             tag => {
                 return Err(
-                    FunctionFragmentTextSectionManifestDecodeError::UnknownPlacementPolicy(tag),
+                    FunctionFragmentTextSectionManifestDecodeError::UnknownAccessPolicy(tag),
                 );
             }
         };
@@ -152,7 +152,7 @@ impl FunctionFragmentTextSectionManifest {
             target,
             semantic_entry,
             semantic_entry_offset,
-            placement_policy,
+            access_policy,
             text_section,
             relocation_requirements,
             statistics,
@@ -194,7 +194,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry.get().to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry_offset.to_le_bytes());
-    bytes.push(match record.placement_policy {
+    bytes.push(match record.access_policy {
         TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1 => 1,
     });
     bytes.extend_from_slice(&record.text_section.bytes());

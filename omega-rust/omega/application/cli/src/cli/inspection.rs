@@ -115,8 +115,8 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
         )
         .expect("writing to a String cannot fail");
     }
-    for input in &module.placed_view_inputs {
-        writeln!(output, "placed_input {input:?}").expect("writing to a String cannot fail");
+    for input in &module.access_view_inputs {
+        writeln!(output, "access_input {input:?}").expect("writing to a String cannot fail");
     }
     for declaration in &module.structural_types {
         writeln!(

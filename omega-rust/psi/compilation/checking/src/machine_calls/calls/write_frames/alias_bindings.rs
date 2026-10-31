@@ -1,4 +1,4 @@
-//! Reference-binding replacement admission for write-frame inference.
+//! Reference-binding reaccess admission for write-frame inference.
 //!
 //! This leaf owns rebinding admission and the mutation of an already-known
 //! alias slot, while untracked carrier replacements remain opaque.
@@ -312,7 +312,7 @@ where
 
 /// Check whether a reborrow expression can replace an established local alias
 /// without mutating it. The origin callback runs only after exact target and
-/// reference-shaped replacement admission, preserving fail-closed ordering.
+/// reference-shaped reaccess admission, preserving fail-closed ordering.
 pub(super) fn stable_local_mutable_alias_rebinding_is_representable<ResolveOrigin>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

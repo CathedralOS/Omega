@@ -384,12 +384,13 @@ pub fn prepare_const_qualification_selection<'authored>(
         retained_base,
     } = request;
     preparation::target_families::normalize(&mut syntax, sources.as_deref())?;
-    let constant_selection = preparation::declaration_selection::ConstantSelection::with_shared_base(
-        &syntax,
-        sources.clone(),
-        top_level_bindings.clone(),
-        retained_base.clone(),
-    )?;
+    let constant_selection =
+        preparation::declaration_selection::ConstantSelection::with_shared_base(
+            &syntax,
+            sources.clone(),
+            top_level_bindings.clone(),
+            retained_base.clone(),
+        )?;
     preparation::generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     let mut demanded = false;
     for definition in destinations {

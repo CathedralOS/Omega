@@ -93,10 +93,10 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
-    PlacementLifecycle {
+    AccessLifecycle {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        operands: abstract_operations::PlacementLifecycleOperands,
+        operands: abstract_operations::AccessLifecycleOperands,
         result_home: TargetStructuralHomeRequirement,
     },
     EstablishActivationClaim {
@@ -140,10 +140,10 @@ pub enum TargetUnitOperation {
     },
     /// One observable non-atomic scalar event through the current accessor.
     /// Its location already includes the placement's container displacement.
-    PlacedScalarAccess {
+    AccessorScalarAccess {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        realization: crate::PlacedScalarAccessRealization,
+        realization: crate::AccessorScalarAccessRealization,
         location: StructuralArgument,
         operand: Option<TargetUnitScalarArgumentSource>,
         result_home: Option<TargetUnitScalarHomeRequirement>,
@@ -527,11 +527,11 @@ pub enum TargetUnitOperation {
     /// loans retain the backing address; scalar loans additionally retain the
     /// storage codec. Custody identities constrain authority, while `source`
     /// forms the actual address once without copying referent contents.
-    EstablishPlacedReference {
+    EstablishAccessReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
-        correspondence: abstract_operations::PlacedReferenceBacking,
+        correspondence: abstract_operations::AccessReferenceBacking,
     },
     EstablishReference {
         psi_operation: OperationId,
@@ -569,7 +569,7 @@ pub enum TargetUnitOperation {
         arguments: Vec<TargetStructuralArgument>,
         /// Complete exact formal-demand bindings in argument order. Pointer
         /// transport remains owned by the referenced ordinary argument row.
-        placed_bindings: Vec<crate::TargetPlacedCallBinding>,
+        access_bindings: Vec<crate::TargetAccessCallBinding>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
@@ -637,7 +637,7 @@ pub enum TargetUnitOperation {
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,
         /// Returning compiler-builtin scalar inputs retain the same exact
-        /// source and ABI-placement custody as evaluated native calls.
+        /// source and ABI-access custody as evaluated native calls.
         runtime_scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<StructuralArgument>,
         byte_sequence_arguments: Vec<BoundaryByteSequenceArgument>,
@@ -789,7 +789,7 @@ impl TargetUnitOperation {
                 result_home,
                 ..
             }
-            | Self::EstablishPlacedReference {
+            | Self::EstablishAccessReference {
                 psi_operation,
                 result_home,
                 ..
@@ -799,7 +799,7 @@ impl TargetUnitOperation {
                 result_home,
                 ..
             }
-            | Self::PlacementLifecycle {
+            | Self::AccessLifecycle {
                 psi_operation,
                 result_home,
                 ..

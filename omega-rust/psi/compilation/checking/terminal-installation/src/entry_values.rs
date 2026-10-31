@@ -3,7 +3,7 @@
 use semantic_vocabulary::{
     IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralDomainId, StructuralTypeId,
 };
-use terminal_psi::{StructuralPathSegment, TerminalPlacedViewInput};
+use terminal_psi::{StructuralPathSegment, TerminalAccessViewInput};
 
 /// A finite scalar exchanged with an execution engine. It carries no proof,
 /// artifact identity or target admission by itself.
@@ -88,7 +88,7 @@ impl TerminalStructuralValue {
     }
 }
 
-/// One established placed-view input supplied beside the ordinary structural
+/// One established access-view input supplied beside the ordinary structural
 /// arguments.
 ///
 /// `input` must equal its entry roster row exactly — machine, position, every
@@ -100,7 +100,7 @@ impl TerminalStructuralValue {
 /// installation, the same as on structural arguments; Psi treats the carrier
 /// as an opaque occurrence root, never an address.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacedViewEstablishment {
-    pub input: TerminalPlacedViewInput,
+pub struct TerminalAccessViewEstablishment {
+    pub input: TerminalAccessViewInput,
     pub referent: TerminalStructuralValue,
 }

@@ -20,7 +20,7 @@ pub(super) fn classify_compiler_intrinsic(
             // own transitive demands remain in the executable closure.
             empty_disposition()
         }
-        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(_) => {
+        CompilerIntrinsicExecutionIdentity::AccessLifecycle(_) => {
             // Read/write authority comes only from the existing live extent
             // and admitted profile. Executing its lifecycle adds no host class.
             empty_disposition()
@@ -38,7 +38,7 @@ pub(super) fn classify_compiler_intrinsic(
             // Address observation is not memory access or an ownership grant.
             empty_disposition()
         }
-        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess { .. } => {
+        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess { .. } => {
             // This child can only execute against an independently proved live
             // caller RAM loan. It reaches no host/device resource; this empty
             // classification supplies no backing, placement or access grant.

@@ -3,10 +3,10 @@ use omega::language::core::layout;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 public PairLayout<const Marker: u64> satisfies FixedLayout<Pair> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
         let mut entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
-        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };
-        Plan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 8 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }

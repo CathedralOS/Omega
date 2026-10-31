@@ -160,12 +160,12 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
 
 
 public Aligned satisfies FixedLayout<OwnedRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
-    Plan { entries: entries, entry_count: 3, size_fixed: 32, size_is_dynamic: false, align: 32 }
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
+    LayoutPlan { entries: entries, entry_count: 3, size_fixed: 32, size_is_dynamic: false, align: 32 }
 }
 }
 

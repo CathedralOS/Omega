@@ -19,9 +19,9 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
     let instruction = LegalizedScalarInstruction {
         operation: id(400),
         result: None,
-        kind: LegalizedScalarInstructionKind::PlacementLifecycle {
+        kind: LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: id(401),
-            operands: abstract_operations::PlacementLifecycleOperands::MoveOut {
+            operands: abstract_operations::AccessLifecycleOperands::MoveOut {
                 storage: terminal_psi::StructuralArgument {
                     place: id(402),
                     path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
@@ -70,7 +70,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
     let original = legalized_operation_plan_identity(&plan);
     for mutation in 0..7 {
         let mut changed = plan.clone();
-        let LegalizedScalarInstructionKind::PlacementLifecycle {
+        let LegalizedScalarInstructionKind::AccessLifecycle {
             boundary,
             operands,
             indices,
@@ -82,7 +82,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
         match mutation {
             0 => *boundary = id(407),
             1 => {
-                let abstract_operations::PlacementLifecycleOperands::MoveOut { storage, .. } =
+                let abstract_operations::AccessLifecycleOperands::MoveOut { storage, .. } =
                     operands
                 else {
                     panic!("extraction fixture");

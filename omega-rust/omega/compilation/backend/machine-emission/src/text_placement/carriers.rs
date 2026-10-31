@@ -19,7 +19,6 @@ impl ValidatedFunctionFragmentTextSectionManifest {
     pub fn record(&self) -> &FunctionFragmentTextSectionManifest {
         &self.record
     }
-
 }
 
 #[derive(Debug)]

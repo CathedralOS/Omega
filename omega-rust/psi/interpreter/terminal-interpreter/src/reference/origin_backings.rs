@@ -87,7 +87,7 @@ impl TerminalExecution<'_> {
                     );
                 }
                 if let Some(ram) = &selected.placed {
-                    self.validate_placed_backing(ram)?;
+                    self.validate_access_backing(ram)?;
                     selected.value = ram.source.clone();
                 }
                 return Ok(Some(selected));
@@ -244,7 +244,7 @@ impl TerminalExecution<'_> {
         index: u64,
         access: StructuralAccess,
         interpretation: Option<AggregateViewRegion>,
-        placed: Option<PlacedReference>,
+        placed: Option<AccessReference>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let logical_path = [StructuralPathSegment::FixedIndex(index)];
@@ -308,7 +308,7 @@ impl TerminalExecution<'_> {
         // joining it requires complete source equality, not equal addresses or
         // merely an input lifetime. Partial inline regions continue below.
         if let Some(captured) = &actual.placed {
-            self.retain_returned_placed_interpretation(
+            self.retain_returned_access_interpretation(
                 &mut region,
                 actual,
                 captured.carrier(),

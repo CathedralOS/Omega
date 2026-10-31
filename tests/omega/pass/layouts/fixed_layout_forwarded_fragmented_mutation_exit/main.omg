@@ -1,11 +1,11 @@
 // Expected exit: 0
 use omega::language::core::layout;
 CompactBits satisfies FixedLayout<PackedFlags> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 0,
@@ -15,7 +15,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 1,
@@ -25,7 +25,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
     };
     entries[2] = FieldEntry {
         key: schema.fields[2].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 4,
@@ -35,7 +35,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
     };
     entries[3] = FieldEntry {
         key: schema.fields[2].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 6,
@@ -43,7 +43,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
             width: 2,
         },
     };
-    Plan {
+    LayoutPlan {
         entries: entries,
         entry_count: 4,
         size_fixed: 1,

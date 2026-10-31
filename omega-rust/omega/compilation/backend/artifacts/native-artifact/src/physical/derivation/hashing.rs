@@ -144,8 +144,8 @@ pub(crate) fn hash_boundary_settlement_record(
             digest.byte(compiler_builtin_execution_tag(execution));
             if matches!(
                 execution,
-                CompilerBuiltinExecution::PlacedScalarAccess { .. }
-                    | CompilerBuiltinExecution::PlacementLifecycle { .. }
+                CompilerBuiltinExecution::AccessorScalarAccess { .. }
+                    | CompilerBuiltinExecution::AccessLifecycle { .. }
             ) {
                 let mut bytes = Vec::new();
                 legalized_operations::legalized_operations::identity::encode_boundary_execution_identity(&mut bytes, target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution));
@@ -225,8 +225,8 @@ pub(crate) fn hash_boundary_settlement_record(
 
 const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> u8 {
     match execution {
-        CompilerBuiltinExecution::PlacementLifecycle { .. } => 253,
-        CompilerBuiltinExecution::PlacedScalarAccess { .. } => 250,
+        CompilerBuiltinExecution::AccessLifecycle { .. } => 253,
+        CompilerBuiltinExecution::AccessorScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
         CompilerBuiltinExecution::ProgramStorageEntry => 252,
         CompilerBuiltinExecution::HostedExitProcessI32 => 1,
@@ -255,16 +255,16 @@ fn hash_boundary_realization(
     realization: &BoundaryRealization,
 ) {
     match realization {
-        BoundaryRealization::PlacementLifecycle { boundary } => {
+        BoundaryRealization::AccessLifecycle { boundary } => {
             digest.byte(11);
             digest.raw(&boundary.get().to_le_bytes());
         }
         BoundaryRealization::ProgramImageRetainedSuffixStart => digest.byte(10),
-        BoundaryRealization::PlacedScalarAccess(access) => {
+        BoundaryRealization::AccessorScalarAccess(access) => {
             digest.byte(9);
             digest.raw(&access.contract);
             let mut bytes = Vec::new();
-            legalized_operations::legalized_operations::identity::encode_placed_scalar_demand(
+            legalized_operations::legalized_operations::identity::encode_accessor_scalar_demand(
                 &mut bytes,
                 access.demand,
             );

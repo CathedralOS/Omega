@@ -86,17 +86,17 @@ fn report_bodyless_boundary_symbol_call(
 ) {
     // Only installed accessor targets have a compiler-owned realization.
     // An authored generic data's generated spelling is never such evidence.
-    let compiler_placed_accessor = program
-        .placed_view_plans
+    let compiler_accessor = program
+        .access_view_plans
         .iter()
         .flat_map(|view| &view.fields)
         .flat_map(|field| &field.accessor_targets)
         .any(|target| target.machine_symbol == callee_machine.symbol);
-    let compiler_placed_factory = program
-        .placed_borrow_factory(callee_machine.symbol)
+    let compiler_access_factory = program
+        .access_borrow_factory(callee_machine.symbol)
         .is_some();
-    let compiler_placement_execution =
-        match typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+    let compiler_access_execution =
+        match typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
             program,
             callee_machine.symbol,
         ) {
@@ -130,9 +130,9 @@ fn report_bodyless_boundary_symbol_call(
         callee_machine.supply_mode,
         language_semantics::MachineSupplyMode::Boundary
             | language_semantics::MachineSupplyMode::TopLevelRequirement
-    ) && !compiler_placed_accessor
-        && !compiler_placed_factory
-        && !compiler_placement_execution
+    ) && !compiler_accessor
+        && !compiler_access_factory
+        && !compiler_access_execution
         && !activation_realization
         && !compiler_layout_snapshot
         && !callee_machine.body_is_present

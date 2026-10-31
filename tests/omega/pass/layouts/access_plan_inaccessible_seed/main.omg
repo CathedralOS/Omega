@@ -1,6 +1,8 @@
-// Source access policies start from one compiler-keyed inaccessible decision
-// per reflected field and functionally replace only the permissions they mean
-// to expose.
+// Source access policies seed one compiler-keyed inaccessible decision per
+// distinct layout field key and functionally replace only the permissions they
+// mean to expose. An access policy composes an ordinary layout helper by
+// calling it; that call returns plan data, and the compiler validates the
+// complete returned plan independently.
 
 use omega::language::core::layout;
 
@@ -11,10 +13,17 @@ data Pair {
 
 data PairAccess {}
 
-machine PairAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
-satisfies Access::plan
+machine PairAccess::layout(schema: &Schema) -> LayoutPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
+    LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+
+machine PairAccess::plan(schema: Schema) -> AccessPlan
+satisfies AccessPolicy::plan
 {
-    let plan: AccessPlan = AccessPlan::inaccessible(&schema);
+    let plan: AccessPlan = AccessPlan::inaccessible(PairAccess::layout(&schema));
     transition { _ -> expose(schema, plan) }
 
     machine expose(schema: Schema, plan: AccessPlan) -> AccessPlan {

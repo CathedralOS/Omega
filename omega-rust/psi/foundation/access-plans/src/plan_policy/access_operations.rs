@@ -1,4 +1,4 @@
-//! The borrow polarities and access operations a placed field can be asked
+//! The borrow polarities and access operations a access field can be asked
 //! to perform.
 
 use language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};

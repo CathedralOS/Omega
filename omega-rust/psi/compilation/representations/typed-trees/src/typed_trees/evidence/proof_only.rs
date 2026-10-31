@@ -146,7 +146,7 @@ impl ProofOnlyClassification {
                 .iter()
                 .any(|plan| plan.data_symbol == definition.symbol)
             || program
-                .placed_view_plans
+                .access_view_plans
                 .iter()
                 .any(|plan| plan.data_symbol == definition.symbol)
             || program

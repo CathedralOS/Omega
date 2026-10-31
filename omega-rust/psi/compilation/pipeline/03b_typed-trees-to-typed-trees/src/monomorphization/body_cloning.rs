@@ -79,7 +79,7 @@ pub(super) fn clone_specialized_machine(
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
-    if let Some(states) = super::placed_primitives::select(source, program, candidate)? {
+    if let Some(states) = super::accessor_primitives::select(source, program, candidate)? {
         return Ok(states);
     }
     super::target_families::clone_specialization(

@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use access_plans::{
-    AccessExposure, AccessPermissions, AccessPlan, AtomicPermissions, BoundaryReach,
-    BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, PlacementPlan,
-    ValidatedAccessPlan, ValidatedPlacementPlan, validate_access_plan, validate_placement_plan,
+    AccessExposure, AccessFields, AccessPermissions, AccessPlan, AtomicPermissions, BoundaryReach,
+    BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, ValidatedAccessFields,
+    ValidatedAccessPlan, validate_access_fields, validate_access_plan,
 };
 use build_time_values::BuildTimeValue;
 use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
@@ -21,18 +21,20 @@ const BOUNDARY_REACH_CAPACITY: usize = 32;
 
 /// Exact selected declarations are the inputs; names remain diagnostics and
 /// policy-local field labels. No global name lookup can change their custody.
-pub(crate) fn compute_selected_placement_plan(
+pub(crate) fn compute_selected_access_plan(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     schema: &typed_trees::data::DataDefinition,
     accounting: &crate::evaluation_accounting::EvaluationAccounting,
-) -> Result<ValidatedPlacementPlan, String> {
+) -> Result<ValidatedAccessPlan, String> {
     let policy_machine = machine.name.as_str();
     let (schema_fields, schema_report_fingerprint) = schema_fields_for(typed, schema)?;
     let schema_value = build_selected_schema_value(typed, schema, &schema_fields)?;
-    let plan =
-        evaluate_selected_policy(typed, machine, vec![schema_value], "placement", accounting)?;
+    let plan = evaluate_selected_policy(typed, machine, vec![schema_value], "access", accounting)?;
     let fields = struct_fields(&plan).map_err(|reason| invalid(policy_machine, reason))?;
+    // The returned `AccessPlan { layout, fields, field_count, reach }` is plan
+    // data, not a validation certificate: every part is established here
+    // independently of whatever the policy computed to produce it.
     let layout_value =
         named_field(fields, "layout").map_err(|reason| invalid(policy_machine, reason))?;
     let layout = validate_plan(
@@ -41,9 +43,7 @@ pub(crate) fn compute_selected_placement_plan(
         schema_report_fingerprint,
         policy_machine,
     )?;
-    let access_value =
-        named_field(fields, "access").map_err(|reason| invalid(policy_machine, reason))?;
-    let access = validate_access_value(access_value, &schema_fields, &layout, policy_machine)?;
+    let access = validate_access_value(fields, &schema_fields, &layout, policy_machine)?;
     let reach_value =
         named_field(fields, "reach").map_err(|reason| invalid(policy_machine, reason))?;
     let reach =
@@ -51,7 +51,7 @@ pub(crate) fn compute_selected_placement_plan(
 
     // Reuse the exact source decisions retained by the validated access plan;
     // only the normalizer can seal them into a placement identity.
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         layout,
         access: access.plan().clone(),
         reach,
@@ -59,13 +59,14 @@ pub(crate) fn compute_selected_placement_plan(
     .map_err(|diagnostic| invalid(policy_machine, diagnostic.to_string()))
 }
 
+/// `fields` are the struct fields of the evaluated `AccessPlan` value; the
+/// decisions live beside its layout and reach as `fields`/`field_count`.
 pub(super) fn validate_access_value(
-    value: &BuildTimeValue,
+    fields: &[(String, BuildTimeValue)],
     schema_fields: &[SchemaFieldInfo],
     layout: &LayoutPlanReport,
     policy_machine: &str,
-) -> Result<ValidatedAccessPlan, String> {
-    let fields = struct_fields(value).map_err(|reason| invalid(policy_machine, reason))?;
+) -> Result<ValidatedAccessFields, String> {
     let field_count = uint_value(
         named_field(fields, "field_count").map_err(|reason| invalid(policy_machine, reason))?,
         "field_count",
@@ -89,22 +90,22 @@ pub(super) fn validate_access_value(
         ));
     }
     let entries = array_value(
-        named_field(fields, "entries").map_err(|reason| invalid(policy_machine, reason))?,
-        "entries",
+        named_field(fields, "fields").map_err(|reason| invalid(policy_machine, reason))?,
+        "fields",
     )
     .map_err(|reason| invalid(policy_machine, reason))?;
     if entries.len() < field_count as usize {
         return Err(invalid(
             policy_machine,
             format!(
-                "access field_count is {field_count}, but the plan carries only {} entries",
+                "access field_count is {field_count}, but the plan carries only {} field decisions",
                 entries.len()
             ),
         ));
     }
 
     let mut normalized =
-        AccessPlan::inaccessible(layout).map_err(|diagnostic| diagnostic.to_string())?;
+        AccessFields::inaccessible(layout).map_err(|diagnostic| diagnostic.to_string())?;
     let mut seen = BTreeSet::new();
     for (entry_index, value) in entries.iter().take(field_count as usize).enumerate() {
         let entry_fields = struct_fields(value).map_err(|reason| {
@@ -168,7 +169,7 @@ pub(super) fn validate_access_value(
         ));
     }
 
-    validate_access_plan(normalized, layout)
+    validate_access_fields(normalized, layout)
         .map_err(|diagnostic| invalid(policy_machine, diagnostic.to_string()))
 }
 

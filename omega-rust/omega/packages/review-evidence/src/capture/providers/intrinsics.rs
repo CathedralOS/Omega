@@ -64,8 +64,8 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
-        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation) => {
-            PackageReviewCompilerIntrinsicExecution::PlacementLifecycle(operation)
+        CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
+            PackageReviewCompilerIntrinsicExecution::AccessLifecycle(operation)
         }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
             PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry
@@ -82,12 +82,12 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             PackageReviewCompilerIntrinsicExecution::HostedReadByte
         }
-        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
             operation,
-        } => PackageReviewCompilerIntrinsicExecution::PlacedScalarAccess {
+        } => PackageReviewCompilerIntrinsicExecution::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
@@ -123,9 +123,9 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
-        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation) => {
+        CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             format!(
-                "Compiler-owned whole-value placement lifecycle {operation:?} within an existing admitted extent"
+                "Compiler-owned whole-value access lifecycle {operation:?} within an existing admitted extent"
             )
         }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
@@ -143,7 +143,7 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             "Hosted read-byte returning `ByteRead`".to_owned()
         }
-        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
             access_slot,
             operation,
             ..

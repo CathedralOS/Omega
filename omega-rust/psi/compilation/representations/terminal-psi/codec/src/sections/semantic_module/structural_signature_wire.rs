@@ -48,9 +48,9 @@ pub(crate) fn encode_boundary_machine(
         }
         writer.u8(match checked.execution {
             terminal_psi::CheckedBoundaryExecution::Provider => 0,
-            terminal_psi::CheckedBoundaryExecution::PlacementInitialize => 1,
-            terminal_psi::CheckedBoundaryExecution::PlacementMoveOut => 2,
-            terminal_psi::CheckedBoundaryExecution::PlacementView => 3,
+            terminal_psi::CheckedBoundaryExecution::AccessInitialize => 1,
+            terminal_psi::CheckedBoundaryExecution::AccessMoveOut => 2,
+            terminal_psi::CheckedBoundaryExecution::AccessView => 3,
         });
     }
     writer.boolean(declaration.numeric_intrinsic.is_some());
@@ -286,9 +286,9 @@ pub(crate) fn decode_boundary_machine(
                 )?,
                 execution: match reader.u8()? {
                     0 => terminal_psi::CheckedBoundaryExecution::Provider,
-                    1 => terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
-                    2 => terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
-                    3 => terminal_psi::CheckedBoundaryExecution::PlacementView,
+                    1 => terminal_psi::CheckedBoundaryExecution::AccessInitialize,
+                    2 => terminal_psi::CheckedBoundaryExecution::AccessMoveOut,
+                    3 => terminal_psi::CheckedBoundaryExecution::AccessView,
                     tag => return Err(CodecError::InvalidTag("checked boundary execution", tag)),
                 },
             })

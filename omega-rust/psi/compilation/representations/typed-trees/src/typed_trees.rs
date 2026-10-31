@@ -6,7 +6,7 @@
 //! This file owns the typed trees carrier, its roots and tables.
 //! `declaration_tables.rs`, `trait_and_machine_tables.rs` and
 //! `wire_schema_queries.rs` hold the table accessors,
-//! `type_reference_queries.rs` answers type reference queries, `placed_plans.rs`
+//! `type_reference_queries.rs` answers type reference queries, `access_views.rs`
 //! holds placed and plan-laid plans and `commitments.rs` the commitments.
 
 macro_rules! typed_tree_table {
@@ -123,11 +123,11 @@ mod data_definitions;
 pub mod declaration_index;
 mod declaration_tables;
 pub use data_definitions::DataDefinitionTable;
+mod access_views;
 pub mod declarations;
 pub mod evidence;
 pub mod inspection;
 pub mod names;
-mod placed_plans;
 mod selection_exclusions;
 pub use selection_exclusions::AuthoredSelectionExclusions;
 mod trait_and_machine_tables;
@@ -137,6 +137,15 @@ pub mod type_system;
 pub mod values;
 mod wire_schema_queries;
 
+pub use access_views::{
+    AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessExecutionDeclaration,
+    AccessFieldPlan, AccessLifecycleOperation, AccessLifecyclePlan, AccessViewPlan,
+    AccessorPrimitive, AccessorTarget, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
+    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
+    PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ScalarAccessorDeclaration,
+    ScalarAccessorOperation,
+};
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
@@ -144,15 +153,6 @@ pub use commitments::{
     MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
     StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
-};
-pub use placed_plans::{
-    PlacedAccessPrimitive, PlacedAccessorTarget, PlacedAtomicObservingResultContract,
-    PlacedAtomicResidentContract, PlacedFieldPlan, PlacedScalarAccessorDeclaration,
-    PlacedScalarAccessorOperation, PlacedViewPlan, PlacementExecutionDeclaration,
-    PlacementLifecycleOperation, PlacementLifecyclePlan, PlanLaidBitField, PlanLaidBitFragment,
-    PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
-    PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
-    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
 };
 
 use crate::{
@@ -246,17 +246,17 @@ pub struct TypedTrees {
     /// Exact active Schema argument rows retained by family applications.
     pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
     pub plan_laid_retired_field_identities: Arena<PlanLaidRetiredFieldIdentity>,
-    /// Canonical source `Placed<P, T>` derivations. Each record binds the
-    /// synthetic view/accessor types to the validated placement plan that
+    /// Canonical source `Access<P, T>` derivations. Each record binds the
+    /// synthetic view/accessor types to the validated access plan that
     /// selected them, so checking and lowering never reconstruct permissions
     /// from generated names.
-    pub placed_view_plans: Vec<PlacedViewPlan>,
+    pub access_view_plans: Vec<AccessViewPlan>,
     /// Whole-value lifecycle geometry, independently of temporary view types.
-    pub placement_lifecycle_plans: Arena<PlacementLifecyclePlan>,
-    pub placement_policy_invocations: Arena<source::SourceSpan>,
+    pub access_lifecycle_plans: Arena<AccessLifecyclePlan>,
+    pub access_policy_invocations: Arena<source::SourceSpan>,
     /// Exact sealed borrowed-view prototypes selected during typing. These
     /// declaration rows supply no memory, resource profile or loan authority.
-    pub placed_borrow_factories: Vec<expression::PlacedBorrowOperationRequest>,
+    pub access_borrow_factories: Vec<expression::AccessBorrowOperationRequest>,
     /// Derived wire placements (mint arc rung 2a): one arena for every
     /// schema's placements, referenced by span from `wire_schema_plans` --
     /// arena-backed storage, HandleSpan ownership.
@@ -605,10 +605,10 @@ impl TypedTrees {
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
             plan_laid_retired_field_identities: Arena::new(),
-            placed_view_plans: Vec::new(),
-            placement_lifecycle_plans: Arena::new(),
-            placement_policy_invocations: Arena::new(),
-            placed_borrow_factories: Vec::new(),
+            access_view_plans: Vec::new(),
+            access_lifecycle_plans: Arena::new(),
+            access_policy_invocations: Arena::new(),
+            access_borrow_factories: Vec::new(),
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),

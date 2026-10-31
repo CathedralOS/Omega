@@ -49,7 +49,7 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   neither it nor the compiler reconstructs the admission sequence.
 - [artifact_admission.rs](src/artifact_admission.rs): canonical preparation,
   optional obligation-ledger replay, and distinct ordinary/optimizer/native
-  admission. Every admitted result retains the exact placed-view input roster.
+  admission. Every admitted result retains the exact access-view input roster.
   Extraction into a consumer without roster custody rejects nonempty inputs;
   this check follows verification and lowering, not canonical decode.
   [Native preparation](src/artifact_admission/native.rs) receives target,

@@ -1,1 +1,1 @@
-resident placed view with destructive read requires tracked content restoration before loan return
+resident access view with destructive read requires tracked content restoration before loan return

@@ -1202,8 +1202,8 @@ fn subject_declared_type(
                 // `member_symbol` is not yet bound on this stage's copies;
                 // read the field by name through the receiver's declared data.
                 let receiver = subject_declared_type(scope, member.receiver)?;
-                let definition = &scope.program.data_definitions
-                    [data_index_for_type(scope.program, &receiver)?];
+                let definition =
+                    &scope.program.data_definitions[data_index_for_type(scope.program, &receiver)?];
                 scope
                     .program
                     .data_members(definition.members)
@@ -1219,11 +1219,13 @@ fn subject_declared_type(
             })
         }
         ExpressionNode::Name(path) => name_declared_type(scope, path),
-        ExpressionNode::Call(call) if call.target_symbol.is_valid() => crate::expressions::call_results::declared_call_return(
-            scope.program,
-            call.target_symbol,
-        )
-        .cloned(),
+        ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
+            crate::expressions::call_results::declared_call_return(
+                scope.program,
+                call.target_symbol,
+            )
+            .cloned()
+        }
         ExpressionNode::SavedSubject(saved) => {
             subject_declared_type(scope, expressions.match_subject(saved.capture).subject)
         }
@@ -1328,29 +1330,24 @@ fn data_index_for_type(
             .data_definitions
             .iter()
             .position(|definition| definition.symbol == *symbol),
-        TypeReference::Generic(generic) => program
-            .data_definitions
-            .iter()
-            .position(|definition| {
-                matches!(
-                    &definition.generic_instance,
-                    Some(TypeReference::Generic(instance))
-                        if instance.base_symbol == generic.base_symbol
-                            && type_arguments_equal(
-                                program,
-                                instance.arguments,
-                                generic.arguments,
-                            )
-                )
-            }),
-        TypeReference::Reference(reference) => data_index_for_type(
-            program,
-            program.child_type_reference(reference.referee),
-        ),
-        TypeReference::Constrained(constrained) => data_index_for_type(
-            program,
-            program.child_type_reference(constrained.base_type),
-        ),
+        TypeReference::Generic(generic) => program.data_definitions.iter().position(|definition| {
+            matches!(
+                &definition.generic_instance,
+                Some(TypeReference::Generic(instance))
+                    if instance.base_symbol == generic.base_symbol
+                        && type_arguments_equal(
+                            program,
+                            instance.arguments,
+                            generic.arguments,
+                        )
+            )
+        }),
+        TypeReference::Reference(reference) => {
+            data_index_for_type(program, program.child_type_reference(reference.referee))
+        }
+        TypeReference::Constrained(constrained) => {
+            data_index_for_type(program, program.child_type_reference(constrained.base_type))
+        }
         _ => None,
     }
 }
@@ -1388,25 +1385,18 @@ fn type_references_equal(
     right: &TypeReference,
 ) -> bool {
     match (left, right) {
-        (
-            TypeReference::Named {
-                symbol: left, ..
-            },
-            TypeReference::Named {
-                symbol: right, ..
-            },
-        ) => left == right,
+        (TypeReference::Named { symbol: left, .. }, TypeReference::Named { symbol: right, .. }) => {
+            left == right
+        }
         (TypeReference::Generic(left), TypeReference::Generic(right)) => {
             left.base_symbol == right.base_symbol
                 && type_arguments_equal(program, left.arguments, right.arguments)
         }
-        (TypeReference::Reference(left), TypeReference::Reference(right)) => {
-            type_references_equal(
-                program,
-                program.child_type_reference(left.referee),
-                program.child_type_reference(right.referee),
-            )
-        }
+        (TypeReference::Reference(left), TypeReference::Reference(right)) => type_references_equal(
+            program,
+            program.child_type_reference(left.referee),
+            program.child_type_reference(right.referee),
+        ),
         (TypeReference::Constrained(left), TypeReference::Constrained(right)) => {
             type_references_equal(
                 program,

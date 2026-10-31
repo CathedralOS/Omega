@@ -128,9 +128,9 @@ pub use results::{
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use scalar_operations::float_result_policy;
 pub use scalar_storage::TerminalScalarBacking;
+pub use structural_inputs::access_views::TerminalAccessViewEstablishment;
 pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
-pub use structural_inputs::placed_views::TerminalPlacedViewEstablishment;
 pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 pub use structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
 pub use terminal_installation::{

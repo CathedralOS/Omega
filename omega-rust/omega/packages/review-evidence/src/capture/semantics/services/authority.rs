@@ -44,7 +44,7 @@ pub(super) fn project(
             )
         }
         ProviderSchemaDeclaration::BoundaryRequirement(symbol)
-        | ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
+        | ProviderSchemaDeclaration::SealedAccessor(symbol) => {
             let machines = compilation
                 .machines()
                 .iter()

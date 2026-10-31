@@ -65,7 +65,7 @@ pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), Termi
                 .iter()
                 .any(|array| overlaps(array.argument_index, &array.path))
             || inputs
-                .placed_view_establishments
+                .access_view_establishments
                 .iter()
                 .any(|establishment| {
                     root.opaque_identity == establishment.referent.opaque_identity

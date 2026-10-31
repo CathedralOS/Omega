@@ -116,7 +116,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
         }
     }
     match instruction.address {
-        Some(crate::PhysicalAddressOperation::PlacedScalarAccess {
+        Some(crate::PhysicalAddressOperation::AccessorScalarAccess {
             base_operand,
             byte_offset,
             form,

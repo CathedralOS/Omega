@@ -71,13 +71,13 @@ impl<'a> Reviewer<'a> {
             .input
             .context()
             .module()
-            .placement_lifecycle_plans
+            .access_lifecycle_plans
             .iter()
             .find(|plan| {
                 plan.boundary == boundary
                     && matches!(
                         plan.execution,
-                        terminal_psi::TerminalPlacementLifecycleExecution::CompilerPrimitive { .. }
+                        terminal_psi::TerminalAccessLifecycleExecution::CompilerPrimitive { .. }
                     )
             })
         {
@@ -86,7 +86,7 @@ impl<'a> Reviewer<'a> {
             // call and is reviewed separately. Do not invent a provider/service
             // identity for the primitive, or silently skip a missing settlement.
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(
-                effects::CompilerIntrinsicExecutionIdentity::PlacementLifecycle(plan.operation),
+                effects::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation),
             );
             if self.context.mechanisms.get(&boundary) != Some(&expected) {
                 return Err(format!(

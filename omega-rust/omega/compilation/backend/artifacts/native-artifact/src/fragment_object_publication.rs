@@ -85,9 +85,9 @@ pub fn publish_fragment_object(
     if let Some(entry) = request.program_entry {
         // Every bound loan needs its exact initialized recipe and an implemented
         // target-owned lender; unsupported entry families still fail closed.
-        if entry.placed_view_establishments().len() != entry.private_entry_ram().len()
+        if entry.access_view_establishments().len() != entry.private_entry_ram().len()
             || entry
-                .placed_view_establishments()
+                .access_view_establishments()
                 .iter()
                 .zip(entry.private_entry_ram())
                 .any(|(loan, recipe)| {
@@ -107,8 +107,8 @@ pub fn publish_fragment_object(
                         && entry.source().target_slot().owner == target::TargetProfile::WindowsX64)
         {
             return Err(crate::native_artifact_error(
-                "ProgramEntry placed-view custody",
-                "bound placed-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
+                "ProgramEntry access-view custody",
+                "bound access-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
             ));
         }
         if entry.source().target_slot().owner == target::TargetProfile::UefiX64 {

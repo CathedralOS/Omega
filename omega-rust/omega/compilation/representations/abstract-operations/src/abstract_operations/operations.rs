@@ -781,11 +781,11 @@ pub enum AbstractOperation {
     /// Establish one placed reference carrier. The source operand retains the
     /// loan's owner independently of address derivation: ordinary RAM lends its
     /// storage home, whereas a resident lends the backing named by its owner.
-    EstablishPlacedReference {
+    EstablishAccessReference {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         source: StructuralArgument,
-        correspondence: super::PlacedReferenceBacking,
+        correspondence: super::AccessReferenceBacking,
     },
     EstablishReference {
         psi_operation: OperationId,
@@ -1109,7 +1109,7 @@ impl AbstractOperation {
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishReference { result, .. }
-            | Self::EstablishPlacedReference { result, .. }
+            | Self::EstablishAccessReference { result, .. }
             | Self::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -1226,7 +1226,7 @@ impl AbstractOperation {
                 }))
                 .collect(),
             Self::EstablishReference { source, .. }
-            | Self::EstablishPlacedReference { source, .. }
+            | Self::EstablishAccessReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::ElementViewLength { source, .. }
             | Self::ByteSequenceLength { source, .. }
@@ -1299,7 +1299,7 @@ impl AbstractOperation {
             | Self::EstablishNativeCodeLayout { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
-            | Self::EstablishPlacedReference { psi_operation, .. }
+            | Self::EstablishAccessReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }
             | Self::AtomicEvent { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }

@@ -728,7 +728,7 @@ fn selected_intrinsic_settlement_borrows_original_row_declarations() {
         &[
             "CheckedTrees",
             "ProviderPlanningContext",
-            "SealedPlacedAccessor::rejoin_plan",
+            "SealedAccessor::rejoin_plan",
             "row_execution_identity(",
             "accepted_binding_matches_exit_process_row(",
         ],
@@ -903,7 +903,7 @@ fn provider_derivation_consumes_the_prepared_service_census() {
         for forbidden in [
             "projection::from_typed",
             "service_schema::from_typed",
-            "service_schema::from_sealed_placed_accessor",
+            "service_schema::from_sealed_accessor",
         ] {
             assert!(
                 !consumer.contains(forbidden),

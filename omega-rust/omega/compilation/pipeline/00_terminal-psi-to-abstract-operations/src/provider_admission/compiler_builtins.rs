@@ -16,7 +16,7 @@
 //! selected for another format, carrier or
 //! shape cannot stand in.
 
-mod placed_schema;
+mod access_schema;
 mod proposals;
 mod retained;
 
@@ -127,9 +127,9 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
-            CompilerBuiltinExecution::PlacementLifecycle { .. } => {
+            CompilerBuiltinExecution::AccessLifecycle { .. } => {
                 return Err(vec![Diagnostic::error(
-                    "private placement lifecycle cannot be selected through a provider proposal",
+                    "private access lifecycle cannot be selected through a provider proposal",
                 )]);
             }
             CompilerBuiltinExecution::ProgramStorageEntry => {
@@ -168,22 +168,22 @@ pub(super) fn settle_compiler_builtins<'request>(
                 }
                 target_operations::BoundaryRealization::ProgramImageRetainedSuffixStart
             }
-            CompilerBuiltinExecution::PlacedScalarAccess {
+            CompilerBuiltinExecution::AccessorScalarAccess {
                 contract,
                 placement_commitment,
                 access_slot,
                 operation,
             } => {
                 let module = input.context().module();
-                let demand = terminal_semantics::placed_scalar_boundary_demand(
+                let demand = terminal_semantics::accessor_scalar_boundary_demand(
                     &module.structural_types,
                     &module.identities,
-                    &module.placed_view_plans,
+                    &module.access_view_plans,
                     &module.boundary_machines,
                     boundary.id,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                placed_schema::validate(
+                access_schema::validate(
                     module,
                     boundary,
                     proposal.provider_plan,
@@ -191,14 +191,14 @@ pub(super) fn settle_compiler_builtins<'request>(
                     &demand,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                require_placed_backing_origins(input, boundary.id)
+                require_access_backing_origins(input, boundary.id)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                let compiler_operation = placed_operation(operation);
+                let compiler_operation = access_operation(operation);
                 if demand.placement_commitment != placement_commitment
                     || demand.access_slot != access_slot
                     || demand.operation != operation
-                    || operation == terminal_psi::TerminalPlacedAccessorKind::Take
-                    || effects::compiler_placed_scalar_contract_identity(
+                    || operation == terminal_psi::TerminalAccessorKind::Take
+                    || effects::compiler_accessor_scalar_contract_identity(
                         // Direct callable selection projects a lookup schema;
                         // the sealed operation binds the satisfied contract.
                         proposal.semantic_schema.identity_digest(),
@@ -211,7 +211,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                         "placed scalar execution substituted its sealed operation or requested unsupported destructive take",
                     )]);
                 }
-                target_operations::PlacedScalarAccessRealization { contract, demand }.into()
+                target_operations::AccessorScalarAccessRealization { contract, demand }.into()
             }
 
             CompilerBuiltinExecution::HostedExitProcessI32
@@ -377,9 +377,9 @@ fn compiler_builtin_completion(
         | CompilerBuiltinExecution::HostedReadByte
         | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
         | CompilerBuiltinExecution::ProgramStorageEntry
-        | CompilerBuiltinExecution::PlacementLifecycle { .. }
+        | CompilerBuiltinExecution::AccessLifecycle { .. }
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
-        | CompilerBuiltinExecution::PlacedScalarAccess { .. } => {
+        | CompilerBuiltinExecution::AccessorScalarAccess { .. } => {
             semantic_vocabulary::BoundaryCompletion::NormalReturn
         }
     }
@@ -439,23 +439,19 @@ fn float_arithmetic_realization(
     Ok(realization)
 }
 
-fn placed_operation(
-    operation: terminal_psi::TerminalPlacedAccessorKind,
-) -> effects::CompilerPlacedScalarOperation {
+fn access_operation(
+    operation: terminal_psi::TerminalAccessorKind,
+) -> effects::CompilerAccessorScalarOperation {
     match operation {
-        terminal_psi::TerminalPlacedAccessorKind::Read => {
-            effects::CompilerPlacedScalarOperation::Read
-        }
-        terminal_psi::TerminalPlacedAccessorKind::Take => {
-            effects::CompilerPlacedScalarOperation::Take
-        }
-        terminal_psi::TerminalPlacedAccessorKind::Write => {
-            effects::CompilerPlacedScalarOperation::Write
+        terminal_psi::TerminalAccessorKind::Read => effects::CompilerAccessorScalarOperation::Read,
+        terminal_psi::TerminalAccessorKind::Take => effects::CompilerAccessorScalarOperation::Take,
+        terminal_psi::TerminalAccessorKind::Write => {
+            effects::CompilerAccessorScalarOperation::Write
         }
     }
 }
 
-fn require_placed_backing_origins(
+fn require_access_backing_origins(
     input: &NativeRealizationInput,
     boundary: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<(), String> {
@@ -488,12 +484,12 @@ fn require_placed_backing_origins(
             selected_calls.push((*head, member));
         }
     }
-    let graph = terminal_semantics::descriptor_results::terminal_placed_origin_graph(
+    let graph = terminal_semantics::descriptor_results::terminal_access_origin_graph(
         module,
         &selected_calls,
     )
     .ok_or_else(|| "placed RAM origin graph is incomplete".to_owned())?;
-    let mut origins = terminal_semantics::PlacedRamOriginAnalysis::new(
+    let mut origins = terminal_semantics::AccessRamOriginAnalysis::new(
         module,
         &graph,
         &reachable,

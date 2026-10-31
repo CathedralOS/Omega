@@ -9,24 +9,30 @@ public data Registers where transmit <= 5 {
 
 public data RegPlacement {}
 
-machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+machine RegPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 4 },
+        representation: FieldPlan::At { offset: 4 },
     };
-    let access: AccessPlan = AccessPlan::inaccessible(&schema);
-    transition { _ -> place_status(schema, access, entries) }
+    let layout: LayoutPlan = LayoutPlan {
+            entries: entries,
+            entry_count: 2,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4,
+        };
+    let access: AccessPlan = AccessPlan::inaccessible(layout);
+    transition { _ -> place_status(schema, access) }
 
     machine place_status(
         schema: Schema,
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         // Read the first field key before `schema` is transferred into the next
         // state; a named machine call evaluates its arguments left to right.
         let first_key: u64 = schema.fields[0].key;
@@ -40,16 +46,13 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                     write: false,
                     exposure: Exposure::Exported,
                 },
-            ),
-            entries
-        ) }
+            )) }
     }
 
     machine place_transmit(
         schema: Schema,
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         transition { _ -> finish(
             AccessPlan::with(
                 access,
@@ -59,40 +62,30 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                     write: true,
                     exposure: Exposure::Exported,
                 },
-            ),
-            entries
-        ) }
+            )) }
     }
 
     machine finish(
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         let mut services: [u64; 32];
         services[0] = 7;
-        PlacementPlan {
-            layout: Plan {
-                entries: entries,
-                entry_count: 2,
-                size_fixed: 8,
-                size_is_dynamic: false,
-                align: 4,
-            },
-            access: access,
-            reach: BoundaryReach {
+        AccessPlan::with_reach(
+            access,
+            BoundaryReach {
                 services: services,
                 service_count: 0,
-            },
-        }
+            }
+        )
     }
 }
 
 
-machine mutate<Marker>(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+machine mutate<Marker>(view: &mut Access<RegPlacement, Registers>) -> u32 {
     view.transmit.write(&mut view.transmit, 9);
     view.status.read(&view.status)
 }
 machine bad(registers: &mut Registers) -> u32 {
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(registers);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(registers);
     mutate<RegPlacement>(view)
 }

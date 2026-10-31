@@ -1,4 +1,4 @@
-//! Placed interpretation of initialized RAM or retained provider storage.
+//! Access interpretation of initialized RAM or retained provider storage.
 //!
 //! The allocation's declared layout models an aligned arena allocation, never
 //! a host address. Captured subregions retain that allocation and its live frame
@@ -22,8 +22,8 @@ use terminal_psi::{
 mod view;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlacedReference {
-    storage: PlacedStorage,
+pub(crate) struct AccessReference {
+    storage: AccessStorage,
     pub(crate) presentation: TerminalStructuralValue,
     pub(crate) access: StructuralAccess,
     pub(crate) selected_field: Option<u32>,
@@ -39,10 +39,10 @@ pub(crate) struct PlacedReference {
 /// Ordinary initialized objects and resident provider allocations have distinct
 /// backing. In particular, an Extent's two descriptor fields are not T's bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum PlacedStorage {
+enum AccessStorage {
     Ram {
-        correspondence: terminal_semantics::PlacedRamCorrespondence,
-        home: PlacedRamHome,
+        correspondence: terminal_semantics::AccessRamCorrespondence,
+        home: AccessRamHome,
         byte_offset: u64,
     },
     Resident {
@@ -54,15 +54,15 @@ enum PlacedStorage {
         carrier: semantic_vocabulary::StructuralTypeId,
         owner: StructuralRuntimePlace,
         binding: crate::provider_storage::ProviderStorageBinding,
-        compatibility: access_plans::PlacementResourceCompatibility,
+        compatibility: access_plans::AccessResourceCompatibility,
     },
 }
 
-impl PlacedReference {
+impl AccessReference {
     pub(crate) fn carrier(&self) -> semantic_vocabulary::StructuralTypeId {
         match &self.storage {
-            PlacedStorage::Ram { correspondence, .. } => correspondence.carrier,
-            PlacedStorage::Resident { carrier, .. } | PlacedStorage::External { carrier, .. } => {
+            AccessStorage::Ram { correspondence, .. } => correspondence.carrier,
+            AccessStorage::Resident { carrier, .. } | AccessStorage::External { carrier, .. } => {
                 *carrier
             }
         }
@@ -70,7 +70,7 @@ impl PlacedReference {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum PlacedRamHome {
+enum AccessRamHome {
     Frame {
         depth: usize,
         machine: MachineId,
@@ -94,7 +94,7 @@ impl TerminalExecution<'_> {
     /// public origin bound. Retain the actual live formation, not an association
     /// reconstructed from the result type. A previously captured interpretation
     /// must still match exactly; it cannot be replaced by a different view.
-    pub(super) fn retain_returned_placed_interpretation(
+    pub(super) fn retain_returned_access_interpretation(
         &self,
         projected: &mut super::ResolvedStructuralProjection,
         actual: &super::ReferenceReferent,
@@ -104,7 +104,7 @@ impl TerminalExecution<'_> {
         let Some(captured) = &actual.placed else {
             return Ok(());
         };
-        self.validate_placed_backing(captured)?;
+        self.validate_access_backing(captured)?;
         if projected.placed.is_some() {
             return Ok(());
         }
@@ -122,14 +122,14 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    pub(crate) fn validate_placed_backing(
+    pub(crate) fn validate_access_backing(
         &self,
-        captured: &PlacedReference,
+        captured: &AccessReference,
     ) -> Result<(), TerminalInterpretError> {
         let home = match &captured.storage {
-            PlacedStorage::Ram { home, .. } => home,
-            PlacedStorage::Resident { owner, binding, .. }
-            | PlacedStorage::External { owner, binding, .. } => {
+            AccessStorage::Ram { home, .. } => home,
+            AccessStorage::Resident { owner, binding, .. }
+            | AccessStorage::External { owner, binding, .. } => {
                 return if self.provider_storage.descriptors.get(owner) == Some(binding)
                     && self.is_live_provider_descriptor(owner, binding)
                 {
@@ -142,7 +142,7 @@ impl TerminalExecution<'_> {
             }
         };
         match home {
-            PlacedRamHome::Frame {
+            AccessRamHome::Frame {
                 depth,
                 machine,
                 place,
@@ -158,7 +158,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
             }
-            PlacedRamHome::PrivateEntry { recipe, allocation } => {
+            AccessRamHome::PrivateEntry { recipe, allocation } => {
                 if self.result.is_some()
                     || !self.private_entry_ram.iter().any(|original| {
                         original.recipe == *recipe && original.allocation == *allocation
@@ -176,7 +176,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn establish_private_entry_ram(
         &mut self,
         recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
-        establishments: &[terminal_installation::TerminalPlacedViewEstablishment],
+        establishments: &[terminal_installation::TerminalAccessViewEstablishment],
     ) -> Result<(), TerminalInterpretError> {
         for recipe in recipes {
             if recipe.terminal() != self.program.identity.semantic()
@@ -223,19 +223,19 @@ impl TerminalExecution<'_> {
                 }
             }
             let occurrence = self
-                .placed_view_occurrences
+                .access_view_occurrences
                 .get_mut(recipe.input())
                 .ok_or_else(malformed)?;
-            let parameter = terminal_semantics::placed_view_input_parameter(
+            let parameter = terminal_semantics::access_view_input_parameter(
                 &self.program.catalogs,
                 recipe.input(),
             )
             .map_err(|_| malformed())?;
             let presentation = self.structural_values.require(&parameter.place)?.clone();
-            occurrence.ram = Some(PlacedReference {
-                storage: PlacedStorage::Ram {
+            occurrence.ram = Some(AccessReference {
+                storage: AccessStorage::Ram {
                     correspondence: recipe.correspondence().clone(),
-                    home: PlacedRamHome::PrivateEntry {
+                    home: AccessRamHome::PrivateEntry {
                         recipe: recipe.clone(),
                         allocation: allocation.clone(),
                     },
@@ -309,18 +309,18 @@ impl TerminalExecution<'_> {
             .collect()
     }
 
-    fn capture_placed_ram_home(
+    fn capture_access_ram_home(
         &self,
         source: TerminalStructuralValue,
         access: StructuralAccess,
-        correspondence: terminal_semantics::PlacedRamCorrespondence,
-    ) -> Result<PlacedReference, TerminalInterpretError> {
+        correspondence: terminal_semantics::AccessRamCorrespondence,
+    ) -> Result<AccessReference, TerminalInterpretError> {
         let original = self.original_owned_allocation(&source)?;
         let depth = original.depth;
         let machine = original.machine;
         let place = original.place;
         let allocation = original.value;
-        if terminal_semantics::contains_placed_carrier(
+        if terminal_semantics::contains_access_carrier(
             &self.program.catalogs,
             allocation.structural_type,
         ) {
@@ -365,10 +365,10 @@ impl TerminalExecution<'_> {
         presentation.structural_type = correspondence.carrier;
         presentation.qualifications.clear();
         presentation.projected_qualifications.clear();
-        let captured = PlacedReference {
-            storage: PlacedStorage::Ram {
+        let captured = AccessReference {
+            storage: AccessStorage::Ram {
                 correspondence,
-                home: PlacedRamHome::Frame {
+                home: AccessRamHome::Frame {
                     depth,
                     machine,
                     place,
@@ -401,9 +401,9 @@ impl TerminalExecution<'_> {
                 .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
                     "placed RAM initialization requires a supported scalar storage tree",
                 ))?;
-                let PlacedStorage::Ram {
+                let AccessStorage::Ram {
                     home:
-                        PlacedRamHome::Frame {
+                        AccessRamHome::Frame {
                             depth,
                             machine,
                             place,
@@ -454,7 +454,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        self.validate_placed_backing(&captured)?;
+        self.validate_access_backing(&captured)?;
         Ok(captured)
     }
 
@@ -464,7 +464,7 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
         result_type: semantic_vocabulary::StructuralTypeId,
         roles: terminal_psi::ResidentReferenceSource,
-    ) -> Result<PlacedReference, TerminalInterpretError> {
+    ) -> Result<AccessReference, TerminalInterpretError> {
         let plan = terminal_semantics::resident_reference_plan(
             &self.program.catalogs,
             source.structural_type,
@@ -532,8 +532,8 @@ impl TerminalExecution<'_> {
         // Keep that result ceiling in the captured backing as well as in the
         // ordinary reference descriptor; a later projection cannot restore it.
         let (_, result_access) = self.reference_contract(result_type)?;
-        Ok(PlacedReference {
-            storage: PlacedStorage::Resident {
+        Ok(AccessReference {
+            storage: AccessStorage::Resident {
                 carrier: plan.carrier,
                 owner,
                 binding,
@@ -546,7 +546,7 @@ impl TerminalExecution<'_> {
         })
     }
 
-    pub(crate) fn establish_placed_reference(
+    pub(crate) fn establish_access_reference(
         &mut self,
         operation: &Operation,
         source: &StructuralArgument,
@@ -566,7 +566,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (_, access) = self.reference_contract(result.structural_type)?;
-        let terminal_psi::OperationKind::EstablishPlacedReference { resident, .. } = operation.kind
+        let terminal_psi::OperationKind::EstablishAccessReference { resident, .. } = operation.kind
         else {
             return Err(malformed());
         };
@@ -578,14 +578,14 @@ impl TerminalExecution<'_> {
                 resident,
             )?
         } else {
-            let correspondence = terminal_semantics::placed_reference_correspondence(
+            let correspondence = terminal_semantics::access_reference_correspondence(
                 &self.program.catalogs,
                 backing.structural_type,
                 result.structural_type,
                 source.access,
             )
-            .map_err(TerminalInterpretError::PlacedReference)?;
-            self.capture_placed_ram_home(backing.clone(), access, correspondence)?
+            .map_err(TerminalInterpretError::AccessReference)?;
+            self.capture_access_ram_home(backing.clone(), access, correspondence)?
         };
         let carrier = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
@@ -609,18 +609,18 @@ impl TerminalExecution<'_> {
             .insert(whole_path_discard(result.place, result.structural_type));
         Ok(())
     }
-    pub(crate) fn project_placed_presentation(
+    pub(crate) fn project_access_presentation(
         &self,
-        captured: &mut PlacedReference,
+        captured: &mut AccessReference,
         prefix: &[terminal_psi::StructuralPathSegment],
         presentation: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        self.validate_placed_backing(captured)?;
+        self.validate_access_backing(captured)?;
         if !prefix.is_empty() {
             let plan = self
                 .program
                 .catalogs
-                .placed_view_plans
+                .access_view_plans
                 .iter()
                 .find(|plan| plan.carrier == captured.carrier())
                 .ok_or_else(malformed)?;
@@ -669,7 +669,7 @@ impl TerminalExecution<'_> {
     /// The sealed accessor consumes a live placed interpretation. This is
     /// an ordered boundary operation over the retained encoding, never an
     /// ordinary structural field read/store on the opaque accessor carrier.
-    pub(crate) fn execute_placed_boundary(
+    pub(crate) fn execute_access_boundary(
         &mut self,
         operation: &Operation,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
@@ -677,7 +677,7 @@ impl TerminalExecution<'_> {
         structural_arguments: &[StructuralArgument],
     ) -> Result<bool, TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
-        let mut operations = program.catalogs.placed_view_plans.iter().flat_map(|plan| {
+        let mut operations = program.catalogs.access_view_plans.iter().flat_map(|plan| {
             plan.fields.iter().flat_map(move |field| {
                 field
                     .operations
@@ -695,11 +695,11 @@ impl TerminalExecution<'_> {
         let [argument] = structural_arguments else {
             return Err(malformed());
         };
-        let (presentation, Some(ram)) = self.resolve_live_placed_projection(argument)? else {
+        let (presentation, Some(ram)) = self.resolve_live_access_projection(argument)? else {
             // A host-established occurrence still uses its admitted adapter.
             return Ok(false);
         };
-        self.validate_placed_backing(&ram)?;
+        self.validate_access_backing(&ram)?;
         let terminal_psi::OperationKind::BoundaryCall {
             completion_receipts,
             ..
@@ -711,9 +711,9 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let required = match kind {
-            terminal_psi::TerminalPlacedAccessorKind::Read => StructuralAccess::SharedBorrow,
-            terminal_psi::TerminalPlacedAccessorKind::Write => StructuralAccess::MutableBorrow,
-            terminal_psi::TerminalPlacedAccessorKind::Take => {
+            terminal_psi::TerminalAccessorKind::Read => StructuralAccess::SharedBorrow,
+            terminal_psi::TerminalAccessorKind::Write => StructuralAccess::MutableBorrow,
+            terminal_psi::TerminalAccessorKind::Take => {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "ordinary RAM does not establish destructive External supply",
                 ));
@@ -739,14 +739,14 @@ impl TerminalExecution<'_> {
             (index == 0).then_some(&presentation)
         })?;
         self.preflight_boundary_result(declaration, &operation.result)?;
-        if kind == terminal_psi::TerminalPlacedAccessorKind::Write
+        if kind == terminal_psi::TerminalAccessorKind::Write
             && (declaration.result != terminal_psi::BoundaryMachineResult::Unit
                 || operation.result != terminal_psi::OperationResult::Unit)
         {
             return Err(malformed());
         }
         let returned = match &ram.storage {
-            PlacedStorage::Resident { binding, .. } => self.execute_provider_field(
+            AccessStorage::Resident { binding, .. } => self.execute_provider_field(
                 *binding,
                 crate::provider_storage::field_access::ProviderFieldContent::Resident,
                 plan,
@@ -756,7 +756,7 @@ impl TerminalExecution<'_> {
                 ram.access,
                 arguments,
             )?,
-            PlacedStorage::External {
+            AccessStorage::External {
                 binding,
                 compatibility,
                 ..
@@ -772,7 +772,7 @@ impl TerminalExecution<'_> {
                 ram.access,
                 arguments,
             )?,
-            PlacedStorage::Ram {
+            AccessStorage::Ram {
                 correspondence,
                 byte_offset,
                 home,
@@ -789,13 +789,13 @@ impl TerminalExecution<'_> {
                         stored_scalar: source.stored_scalar,
                     }
                 } else {
-                    terminal_semantics::placed_region_projection(
+                    terminal_semantics::access_region_projection(
                         &program.catalogs.structural_types,
                         plan,
                         field,
                         &ram.projection,
                     )
-                    .map_err(TerminalInterpretError::PlacedReference)?
+                    .map_err(TerminalInterpretError::AccessReference)?
                 };
                 let width = u64::from(source.transfer_width_bits)
                     .checked_div(8)
@@ -823,7 +823,7 @@ impl TerminalExecution<'_> {
                     .find(|field| field.id == source.source_field)
                     .ok_or_else(malformed)?;
                 let storage = if !ram.projection.is_empty() {
-                    let PlacedRamHome::Frame {
+                    let AccessRamHome::Frame {
                         depth,
                         machine,
                         place,
@@ -844,7 +844,7 @@ impl TerminalExecution<'_> {
                             *place,
                             allocation.structural_type,
                         ),
-                        kind == terminal_psi::TerminalPlacedAccessorKind::Write,
+                        kind == terminal_psi::TerminalAccessorKind::Write,
                         &path,
                     )?;
                     if scalar != selected_projection.logical_scalar {
@@ -875,8 +875,8 @@ impl TerminalExecution<'_> {
                     terminal_psi::StructuralFieldType::Scalar(selected_projection.logical_scalar)
                 };
                 let write = match (kind, arguments) {
-                    (terminal_psi::TerminalPlacedAccessorKind::Read, []) => None,
-                    (terminal_psi::TerminalPlacedAccessorKind::Write, [value])
+                    (terminal_psi::TerminalAccessorKind::Read, []) => None,
+                    (terminal_psi::TerminalAccessorKind::Write, [value])
                         if value.scalar_type() == source.logical_scalar
                             && value.satisfies_field(&value_type) =>
                     {

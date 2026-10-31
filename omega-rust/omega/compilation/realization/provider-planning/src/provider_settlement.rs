@@ -204,7 +204,7 @@ fn mint_toolchain_settled_plan(
         row_requirements: requirement_symbols,
         row_realizations: vec![crate::ProviderRowRealization::Toolchain; plan.rows.len()],
         row_target_machine_origins: vec![None; plan.rows.len()],
-        row_placed_accessors: vec![None; plan.rows.len()],
+        row_accessors: vec![None; plan.rows.len()],
     };
     Ok(Some(crate::DerivedProviderPlan { plan, provenance }))
 }

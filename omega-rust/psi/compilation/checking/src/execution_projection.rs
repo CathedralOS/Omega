@@ -529,17 +529,17 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
         .plan_laid_layouts
         .retain(|row| !owner_removed(row.data_symbol));
     program
-        .placed_view_plans
+        .access_view_plans
         .retain(|row| !owner_removed(row.data_symbol));
     // Closed requirement identities may be generated roots. Rejoin their
     // declaration owner before removing that application table. An unknown
     // row remains an obligation; missing metadata cannot erase evidence.
     let lifecycle_plans = program
-        .placement_lifecycle_plans
+        .access_lifecycle_plans
         .iter()
         .filter(|(_, row)| match row {
-            typed_trees::typed_trees::PlacementLifecyclePlan::Absent => false,
-            typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated { callable, .. } => {
+            typed_trees::typed_trees::AccessLifecyclePlan::Absent => false,
+            typed_trees::typed_trees::AccessLifecyclePlan::Evaluated { callable, .. } => {
                 !owner_removed(*callable)
                     && !program
                         .closed_requirement_application(*callable)
@@ -558,7 +558,7 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
     // Its invocation spans still refer to the preserved backing arena.
     let mut lifecycle_catalog = arena::Arena::default();
     lifecycle_catalog.insert_many(lifecycle_plans);
-    program.placement_lifecycle_plans = lifecycle_catalog;
+    program.access_lifecycle_plans = lifecycle_catalog;
     program
         .wire_schema_plans
         .retain(|row| !owner_removed(row.schema));
@@ -584,7 +584,7 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
-    use typed_trees::typed_trees::{PlacementLifecycleOperation, PlacementLifecyclePlan};
+    use typed_trees::typed_trees::{AccessLifecycleOperation, AccessLifecyclePlan};
 
     #[test]
     fn lifecycle_projection_removes_known_owners_but_preserves_orphan_obligations() {
@@ -617,22 +617,22 @@ mod lifecycle_projection_tests {
             size: Some(0),
             align: 1,
         };
-        let access = access_plans::AccessPlan::inaccessible(&layout).unwrap();
-        let placement = access_plans::validate_placement_plan(access_plans::PlacementPlan {
+        let access = access_plans::AccessFields::inaccessible(&layout).unwrap();
+        let placement = access_plans::validate_access_plan(access_plans::AccessPlan {
             layout,
             access,
             reach: Default::default(),
         })
         .unwrap();
         let invocations = program
-            .placement_policy_invocations
+            .access_policy_invocations
             .insert_many([source::SourceSpan::default()]);
         for requirement in [requirement, orphan] {
             program
-                .placement_lifecycle_plans
-                .append(PlacementLifecyclePlan::Evaluated {
+                .access_lifecycle_plans
+                .append(AccessLifecyclePlan::Evaluated {
                     callable: requirement,
-                    operation: PlacementLifecycleOperation::Initialize,
+                    operation: AccessLifecycleOperation::Initialize,
                     policy: Default::default(),
                     schema: Default::default(),
                     policy_machine: Default::default(),
@@ -642,17 +642,17 @@ mod lifecycle_projection_tests {
         }
         apply_declaration_sidecar_pruning(&mut program, &HashSet::from([owner]));
         let retained = program
-            .placement_lifecycle_plans
+            .access_lifecycle_plans
             .iter()
             .filter_map(|(_, row)| match row {
-                PlacementLifecyclePlan::Evaluated { callable, .. } => Some(*callable),
-                PlacementLifecyclePlan::Absent => None,
+                AccessLifecyclePlan::Evaluated { callable, .. } => Some(*callable),
+                AccessLifecyclePlan::Absent => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(retained, vec![orphan]);
         assert_eq!(
             program
-                .placement_policy_invocations
+                .access_policy_invocations
                 .span_or_empty(invocations)
                 .len(),
             1

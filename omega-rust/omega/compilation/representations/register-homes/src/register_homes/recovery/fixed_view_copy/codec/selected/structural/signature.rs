@@ -32,12 +32,12 @@ pub(super) fn encode_signature(
     // Recovery must preserve the same complete catalog as normal selection.
     // Storage declarations alone cannot reconstruct demands or lifecycle plans.
     for catalog in [
-        terminal_codec::encode_placed_view_catalog(value.structural_types.placed_views())?,
-        terminal_codec::encode_placed_view_input_catalog(
-            value.structural_types.placed_view_inputs(),
+        terminal_codec::encode_access_view_catalog(value.structural_types.access_views())?,
+        terminal_codec::encode_access_view_input_catalog(
+            value.structural_types.access_view_inputs(),
         )?,
-        terminal_codec::encode_placement_lifecycle_catalog(
-            value.structural_types.placement_lifecycles(),
+        terminal_codec::encode_access_lifecycle_catalog(
+            value.structural_types.access_lifecycles(),
         )?,
     ] {
         length(bytes, catalog.len());
@@ -127,24 +127,28 @@ pub(super) fn decode_signature(
     terminal_semantics::quotients::validate_quotient_representations(&structural_types, &quotients)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
     let count = cursor.length()?;
-    let placed_views =
-        terminal_codec::decode_placed_view_catalog(cursor.take(count)?).map_err(|cause| {
-            FixedViewCopyDecodeError::InvalidPlacementCatalog {
-                catalog: "placed views",
+    let access_views =
+        terminal_codec::decode_access_view_catalog(cursor.take(count)?).map_err(|cause| {
+            FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
+                catalog: "access views",
                 cause,
             }
         })?;
     let count = cursor.length()?;
-    let placed_inputs = terminal_codec::decode_placed_view_input_catalog(cursor.take(count)?)
-        .map_err(|cause| FixedViewCopyDecodeError::InvalidPlacementCatalog {
-            catalog: "placed inputs",
-            cause,
-        })?;
+    let access_inputs = terminal_codec::decode_access_view_input_catalog(cursor.take(count)?)
+        .map_err(
+            |cause| FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
+                catalog: "placed inputs",
+                cause,
+            },
+        )?;
     let count = cursor.length()?;
-    let lifecycles = terminal_codec::decode_placement_lifecycle_catalog(cursor.take(count)?)
-        .map_err(|cause| FixedViewCopyDecodeError::InvalidPlacementCatalog {
-            catalog: "placement lifecycles",
-            cause,
+    let lifecycles =
+        terminal_codec::decode_access_lifecycle_catalog(cursor.take(count)?).map_err(|cause| {
+            FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
+                catalog: "access lifecycles",
+                cause,
+            }
         })?;
     let parameters = decode_list(cursor, |cursor| decode_parameter(cursor, true))?;
     let result = crate::cursor::optional(
@@ -231,13 +235,15 @@ pub(super) fn decode_signature(
             structural_types,
             referents,
         )
-        .with_placed_views(placed_views)
-        .with_placed_view_inputs(placed_inputs)
-        .with_placement_lifecycles(lifecycles)
-        .map_err(|cause| FixedViewCopyDecodeError::InvalidPlacementCatalog {
-            catalog: "placement lifecycles",
-            cause,
-        })?
+        .with_access_views(access_views)
+        .with_access_view_inputs(access_inputs)
+        .with_access_lifecycles(lifecycles)
+        .map_err(
+            |cause| FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
+                catalog: "access lifecycles",
+                cause,
+            },
+        )?
         .with_quotients(quotients)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?,
         parameters,
@@ -254,10 +260,10 @@ mod tests {
 
     #[test]
     fn recovery_signature_retains_placed_input_demand() {
-        use terminal_psi::{StructuralAccess, TerminalIdentityIndex, TerminalPlacedViewInput};
+        use terminal_psi::{StructuralAccess, TerminalAccessViewInput, TerminalIdentityIndex};
         let signature = LegalizedStructuralContract {
             structural_types: abstract_operations::StructuralTypeCatalog::default()
-                .with_placed_view_inputs(vec![TerminalPlacedViewInput {
+                .with_access_view_inputs(vec![TerminalAccessViewInput {
                     machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                     position: 2,
                     runtime_position: 1,

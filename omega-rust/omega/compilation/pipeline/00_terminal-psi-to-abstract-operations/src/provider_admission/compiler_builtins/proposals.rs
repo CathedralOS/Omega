@@ -333,7 +333,7 @@ fn compiler_builtin_execution(
         // A private compiler operation is not a selectable implementation of
         // an authored provider requirement. It is bound from its own retained
         // declaration and lifecycle contract, never from a Build intrinsic row.
-        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(_) => return None,
+        CompilerIntrinsicExecutionIdentity::AccessLifecycle(_) => return None,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             return Some(CompilerBuiltinExecution::ProgramImageRetainedSuffixStart);
         }
@@ -346,25 +346,25 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             return Some(CompilerBuiltinExecution::HostedWriteByteI32);
         }
-        CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
             operation,
         } => {
-            return Some(CompilerBuiltinExecution::PlacedScalarAccess {
+            return Some(CompilerBuiltinExecution::AccessorScalarAccess {
                 contract,
                 placement_commitment,
                 access_slot,
                 operation: match operation {
-                    effects::CompilerPlacedScalarOperation::Read => {
-                        terminal_psi::TerminalPlacedAccessorKind::Read
+                    effects::CompilerAccessorScalarOperation::Read => {
+                        terminal_psi::TerminalAccessorKind::Read
                     }
-                    effects::CompilerPlacedScalarOperation::Take => {
-                        terminal_psi::TerminalPlacedAccessorKind::Take
+                    effects::CompilerAccessorScalarOperation::Take => {
+                        terminal_psi::TerminalAccessorKind::Take
                     }
-                    effects::CompilerPlacedScalarOperation::Write => {
-                        terminal_psi::TerminalPlacedAccessorKind::Write
+                    effects::CompilerAccessorScalarOperation::Write => {
+                        terminal_psi::TerminalAccessorKind::Write
                     }
                 },
             });

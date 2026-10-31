@@ -601,7 +601,7 @@ pub fn resolve_selected_dynamic_call_targets(
                         )
                     });
                     let target = dynamic_target.or_else(|| {
-                        crate::value_custody::placed_views::statement_call_target(
+                        crate::value_custody::access_views::statement_call_target(
                             program, machine, state, call,
                         )
                     });

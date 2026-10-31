@@ -26,11 +26,11 @@ pub(super) fn validate_erased_field_shapes(
             ));
         }
         if program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .any(|plan| plan.data_symbol == definition.symbol)
         {
-            diagnostics.push(unsupported(definition, &field_names, "placed-view data"));
+            diagnostics.push(unsupported(definition, &field_names, "access-view data"));
         }
         let has_attached_machines = program
             .machines()
@@ -201,7 +201,7 @@ fn erased_attached_machine_record_is_admitted(
         )
         || program.plan_laid_layout_for_data(definition).is_some()
         || program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .any(|plan| plan.data_symbol == definition.symbol)
         || program

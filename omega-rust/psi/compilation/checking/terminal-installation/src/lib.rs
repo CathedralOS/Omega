@@ -24,7 +24,7 @@ pub use synchronous_calls::{SynchronousCallClosure, SynchronousCallGraph};
 
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{
-    TerminalPlacedViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
+    TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
 };
 pub use private_entry_ram::{
     CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,

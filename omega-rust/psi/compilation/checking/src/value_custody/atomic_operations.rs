@@ -21,7 +21,7 @@
 //! - a direct `self.value = v` on an atomic field is not a carrier and keeps
 //!   the exclusive demand; ordinary assignment never becomes atomic.
 //!
-//! Placed atomic fields are the sibling case owned by `placed_views`, whose
+//! Access atomic fields are the sibling case owned by `access_views`, whose
 //! per-operation permission rows already authorize the carrier.
 
 use access_plans::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
@@ -394,7 +394,7 @@ pub fn atomic_resident_type_reference(
     cell: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let cell = program.type_reference_table.peeled_type_reference(cell);
-    if let Some((_, field)) = program.placed_view_field_plan_for_type_reference(cell)
+    if let Some((_, field)) = program.access_view_field_plan_for_type_reference(cell)
         && matches!(field.access, access_plans::FieldAccess::Atomic { .. })
     {
         return Some(field.value_type);

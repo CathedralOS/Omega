@@ -3,12 +3,12 @@ use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 data Payload [copy] { first: u64; value: u64; }
 Policy<const Marker: u64> satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
         let mut entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
         let selected_align: u64 = match Marker == 11u64 { true -> 0u64, _ -> 8u64 };
-        Plan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: selected_align }
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: selected_align }
     }
 }
 boundary trait ReadValue {

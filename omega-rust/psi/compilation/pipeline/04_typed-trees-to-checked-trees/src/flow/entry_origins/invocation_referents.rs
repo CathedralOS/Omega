@@ -105,14 +105,13 @@ pub(in crate::flow) fn nonresident_content_region(
                 .segments
                 .iter()
                 .any(|segment| !crate::flow::place_segment_has_static_identity(segment))
-            || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+            || typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
                 program,
                 declaration.machine(),
             )
             .ok()??
                 != declaration
-            || declaration.operation()
-                != typed_trees::typed_trees::PlacementLifecycleOperation::View
+            || declaration.operation() != typed_trees::typed_trees::AccessLifecycleOperation::View
         {
             return None;
         }

@@ -13,7 +13,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
-use terminal_psi::{StructuralAccess, StructuralArgument, TerminalPlacementLifecycleExecution};
+use terminal_psi::{StructuralAccess, StructuralArgument, TerminalAccessLifecycleExecution};
 
 pub(crate) struct PendingResourceProfile {
     boundary: BoundaryMachineId,
@@ -38,7 +38,7 @@ impl TerminalExecution<'_> {
     /// Normalization produces compatibility data, not permission to write.
     pub(crate) fn lifecycle_profile(
         &self,
-        plan: &terminal_psi::TerminalPlacementLifecyclePlan,
+        plan: &terminal_psi::TerminalAccessLifecyclePlan,
         storage: &TerminalStructuralValue,
         profile: &TerminalStructuralValue,
     ) -> Result<
@@ -48,7 +48,7 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
-        let TerminalPlacementLifecycleExecution::CompilerPrimitive {
+        let TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: Some(profile_type),
             profile_requirement: Some(requirement),
         } = &plan.execution
@@ -63,19 +63,19 @@ impl TerminalExecution<'_> {
                 "placement profile is not an unchanged selected-provider result",
             ))?;
         let content = match plan.operation {
-            terminal_psi::TerminalPlacementLifecycleOperation::Initialize => Some(
+            terminal_psi::TerminalAccessLifecycleOperation::Initialize => Some(
                 plan.storage
                     .owned_content()
                     .map_err(TerminalInterpretError::ContentTransformationMismatch)?
                     .0,
             ),
-            terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => Some(
+            terminal_psi::TerminalAccessLifecycleOperation::MoveOut => Some(
                 plan.storage
                     .owned_content()
                     .map_err(TerminalInterpretError::ContentTransformationMismatch)?
                     .1,
             ),
-            terminal_psi::TerminalPlacementLifecycleOperation::View => None,
+            terminal_psi::TerminalAccessLifecycleOperation::View => None,
         };
         if profile.structural_type != *profile_type
             || completion.result_type != *profile_type
@@ -103,13 +103,13 @@ impl TerminalExecution<'_> {
             ))?;
         if completion.backing != Some(binding)
             || match plan.operation {
-                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
+                terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
                     binding.resident != arena::Handle::default()
                 }
-                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
+                terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
                     binding.resident == arena::Handle::default()
                 }
-                terminal_psi::TerminalPlacementLifecycleOperation::View => false,
+                terminal_psi::TerminalAccessLifecycleOperation::View => false,
             }
             || !self.is_live_provider_descriptor(&home, &binding)
         {
@@ -144,10 +144,10 @@ impl TerminalExecution<'_> {
         let Some((plan, result_type)) = self
             .program
             .catalogs
-            .placement_lifecycle_plans
+            .access_lifecycle_plans
             .iter()
             .find_map(|plan| match &plan.execution {
-                TerminalPlacementLifecycleExecution::CompilerPrimitive {
+                TerminalAccessLifecycleExecution::CompilerPrimitive {
                     profile_type: Some(result_type),
                     profile_requirement: Some(requirement),
                 } if requirement.boundary == boundary => Some((plan, *result_type)),

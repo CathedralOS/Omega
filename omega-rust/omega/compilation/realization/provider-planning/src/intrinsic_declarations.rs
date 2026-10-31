@@ -34,7 +34,7 @@ pub struct IntrinsicDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum IntrinsicDeclarationKind {
     Unsupported,
-    Placed(Result<CompilerIntrinsicExecutionIdentity, Diagnostic>),
+    Access(Result<CompilerIntrinsicExecutionIdentity, Diagnostic>),
     Fixed(Result<Option<CompilerIntrinsicExecutionIdentity>, Diagnostic>),
     Hosted {
         subject: HostedSubject,
@@ -141,12 +141,12 @@ impl IntrinsicDeclaration {
         realization: SymbolHandle,
         declaration_identity: Result<String, Diagnostic>,
     ) -> IntrinsicDeclarationKind {
-        if let crate::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) = schema {
+        if let crate::ProviderSchemaDeclaration::SealedAccessor(symbol) = schema {
             let result = (|| {
                 let context =
                     crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-                let accessor = crate::SealedPlacedAccessor::rejoin_plan(context, plan)?
-                    .ok_or_else(|| {
+                let accessor =
+                    crate::SealedAccessor::rejoin_plan(context, plan)?.ok_or_else(|| {
                         Diagnostic::error("sealed placed row has no exact catalog plan")
                     })?;
                 if symbol != requirement
@@ -159,24 +159,24 @@ impl IntrinsicDeclaration {
                     ));
                 }
                 let operation = match accessor.operation() {
-                    crate::SealedPlacedScalarOperation::Read => {
-                        effects::CompilerPlacedScalarOperation::Read
+                    crate::SealedAccessorScalarOperation::Read => {
+                        effects::CompilerAccessorScalarOperation::Read
                     }
-                    crate::SealedPlacedScalarOperation::Take => {
-                        effects::CompilerPlacedScalarOperation::Take
+                    crate::SealedAccessorScalarOperation::Take => {
+                        effects::CompilerAccessorScalarOperation::Take
                     }
-                    crate::SealedPlacedScalarOperation::Write => {
-                        effects::CompilerPlacedScalarOperation::Write
+                    crate::SealedAccessorScalarOperation::Write => {
+                        effects::CompilerAccessorScalarOperation::Write
                     }
                 };
-                Ok(CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
+                Ok(CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
                     contract: accessor.execution_contract(context)?,
                     placement_commitment: accessor.placement_commitment(),
                     access_slot: accessor.access_slot(),
                     operation,
                 })
             })();
-            return IntrinsicDeclarationKind::Placed(result);
+            return IntrinsicDeclarationKind::Access(result);
         }
         let crate::ProviderSchemaDeclaration::BoundaryTrait(service) = schema else {
             return IntrinsicDeclarationKind::Unsupported;
@@ -276,7 +276,7 @@ impl IntrinsicDeclaration {
         console: Option<AcceptedIntrinsicBinding<'_>>,
         process_exit: Option<AcceptedIntrinsicBinding<'_>>,
     ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, Diagnostic> {
-        if let IntrinsicDeclarationKind::Placed(result) = &self.kind {
+        if let IntrinsicDeclarationKind::Access(result) = &self.kind {
             let execution = *result.as_ref().map_err(Clone::clone)?;
             if target != Some(self.target.as_str()) {
                 return Err(Diagnostic::error(
@@ -290,7 +290,7 @@ impl IntrinsicDeclaration {
         }
         match &self.kind {
             IntrinsicDeclarationKind::Unsupported => Ok(None),
-            IntrinsicDeclarationKind::Placed(_) => Ok(None),
+            IntrinsicDeclarationKind::Access(_) => Ok(None),
             IntrinsicDeclarationKind::Fixed(result) => result.clone(),
             IntrinsicDeclarationKind::Hosted {
                 subject,

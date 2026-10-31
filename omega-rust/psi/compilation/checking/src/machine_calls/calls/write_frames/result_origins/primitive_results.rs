@@ -1,7 +1,7 @@
 //! Sealed primitive result relations join the same ordinary argument and state
 //! substitution as checked bodies. Authentication permits describing an
 //! operation's exact loan relation; it supplies neither a grant, a profile,
-//! placement admission nor independent permission to use the returned view.
+//! access admission nor independent permission to use the returned view.
 
 use super::{
     AggregateOrigins, FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf,
@@ -14,7 +14,7 @@ use crate::machine_calls::calls::write_frames::{
     FrameSourcePlace, RecastSource, ReferenceViewFormation,
 };
 use symbols::SymbolHandle;
-use typed_trees::typed_trees::{PlacementExecutionDeclaration, PlacementLifecycleOperation};
+use typed_trees::typed_trees::{AccessExecutionDeclaration, AccessLifecycleOperation};
 
 pub(super) fn result_origins(
     program: &dyn crate::CheckingInput,
@@ -24,7 +24,7 @@ pub(super) fn result_origins(
     include_shared: bool,
 ) -> Option<AggregateOrigins> {
     let mut result = activation_borrow_result_origins(program, machine, state, expected)
-        .or_else(|| placement_view_result_origins(program, machine, state, expected))?;
+        .or_else(|| access_view_result_origins(program, machine, state, expected))?;
     if !include_shared {
         result.references.retain(|leaf| {
             !matches!(leaf.kind, StoredOriginKind::Reference(access) if !access.is_exclusive())
@@ -34,17 +34,17 @@ pub(super) fn result_origins(
 }
 
 /// Recover both ends of the same sealed result relation for coordinate
-/// consumers. This is type correspondence only, never placement admission.
+/// consumers. This is type correspondence only, never access admission.
 pub(in crate::machine_calls::calls::write_frames) fn extent_view_types(
     program: &dyn crate::CheckingInput,
-    declaration: PlacementExecutionDeclaration,
+    declaration: AccessExecutionDeclaration,
 ) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
     let machine = program.machine_by_symbol(declaration.machine())?;
     let state = program
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == declaration.state())?;
-    let relation = placement_view_result_origins(program, machine, state, state.return_type)?;
+    let relation = access_view_result_origins(program, machine, state, state.return_type)?;
     let [leaf] = relation.references.as_slice() else {
         return None;
     };
@@ -67,15 +67,14 @@ pub(in crate::machine_calls::calls::write_frames) fn extent_view_types(
 /// formal's content region. The result type supplies only the declared case
 /// and field roster; the sealed operation supplies this origin relationship.
 /// No lifetime, spelling or coincident numeric address supplies that relation.
-fn placement_view_result_origins(
+fn access_view_result_origins(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expected: TypeReferenceHandle,
 ) -> Option<AggregateOrigins> {
-    let declaration =
-        PlacementExecutionDeclaration::authenticate(program, machine.symbol).ok()??;
-    if declaration.operation() != PlacementLifecycleOperation::View
+    let declaration = AccessExecutionDeclaration::authenticate(program, machine.symbol).ok()??;
+    if declaration.operation() != AccessLifecycleOperation::View
         || declaration.state() != state.symbol
         || !super::super::isolation::aggregate_storage_types_match(
             program,
@@ -106,7 +105,7 @@ fn placement_view_result_origins(
     let view = crate::reference_shell(program, result_type)?;
     let definition = program.closed_data_definition(view.referee)?;
     let mut plans = program
-        .placed_view_plans
+        .access_view_plans
         .iter()
         .filter(|plan| plan.data_symbol == definition.symbol);
     let (Some(_), None) = (plans.next(), plans.next()) else {

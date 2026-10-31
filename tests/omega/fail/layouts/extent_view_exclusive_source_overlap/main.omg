@@ -5,11 +5,11 @@ use omega::language::core::layout;
 data TestMemory {}
 
 machine overlap<'storage, P, T>(storage: &'storage mut Extent in Granted)
-    -> PlacementOutcome<&'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure>
+    -> AccessOutcome<&'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure>
 reaches ResourceProfileSupply
 {
-    let outcome: PlacementOutcome<&'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure> =
-        Placed::view_extent_mut<P, T, TestMemory>(storage);
+    let outcome: AccessOutcome<&'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure> =
+        Access::view_extent_mut<P, T, TestMemory>(storage);
     let observed: u64 = storage.length;
     outcome
 }

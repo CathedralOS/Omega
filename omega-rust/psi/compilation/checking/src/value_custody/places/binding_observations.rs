@@ -52,7 +52,7 @@ pub fn stable_slice_descriptor_place(
 /// The scan is deliberately state-wide -- the caller's obligation order is
 /// not the statement order -- and covers every carrier that can hold an
 /// expression. Ordinary borrows and representation recasts use the same
-/// formation source. Placed factory views interpret separate backing, not the
+/// formation source. Access factory views interpret separate backing, not the
 /// source owner's descriptor bytes.
 pub(crate) fn binding_is_exclusively_exposed(
     program: &dyn crate::CheckingInput,
@@ -76,7 +76,7 @@ fn binding_has_exclusive_exposure(
     nodes.iter().any(|node| {
         crate::value_custody::recasts::reference_formation_source(program, *node).is_some_and(
             |formation| {
-                !formation.interpretation.is_placed()
+                !formation.interpretation.is_access_view()
                     && formation.access.is_exclusive()
                     && borrow_root_symbol(program, formation.source) == Some(symbol)
                     && (observation == BindingObservation::WholeValue

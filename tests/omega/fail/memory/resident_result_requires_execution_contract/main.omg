@@ -10,20 +10,20 @@ boundary machine initialize_from_profile(
     storage: Extent in Granted & Vacant,
     value: Word,
     profile: ResourceProfile
-) -> PlacementOutcome<
+) -> AccessOutcome<
     Extent in Granted & Resident<Policy, Word>,
-    PlacementReturn<Extent in Granted & Vacant, Word>,
-    PlacementInitializationFailure
+    AccessReturn<Extent in Granted & Vacant, Word>,
+    AccessInitializationFailure
 >;
 
 machine exercise(
     storage: Extent in Granted & Vacant,
     value: Word,
     profile: ResourceProfile
-) -> PlacementOutcome<
+) -> AccessOutcome<
     Extent in Granted & Resident<Policy, Word>,
-    PlacementReturn<Extent in Granted & Vacant, Word>,
-    PlacementInitializationFailure
+    AccessReturn<Extent in Granted & Vacant, Word>,
+    AccessInitializationFailure
 > {
     initialize_from_profile(storage, value, profile)
 }

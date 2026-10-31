@@ -1,16 +1,14 @@
 use super::{
-    access_plan, extent_rights, reach, uart_extent, uart_extent_with_lineage,
-    uart_extent_with_root, uart_layout, uart_placement_plan, uart_reach,
-    uart_resource_profile_data,
+    access_plan, extent_rights, reach, uart_access_plan, uart_extent, uart_extent_with_lineage,
+    uart_extent_with_root, uart_layout, uart_reach, uart_resource_profile_data,
 };
 use crate::{
-    AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
-    AtomicTransferRule, BoundaryReach, BoundaryServiceReachId, EffectFootprint,
-    EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    PeerWritability, PlacementAdmissionId, PlacementPlan, ResourceProfile, ResourceProfileGrant,
-    ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule, admit_placement,
-    effect_footprints_conflict, place, validate_placement_plan, validate_placement_resources,
-    validate_resource_profile,
+    AccessAdmissionId, AccessExposure, AccessOperation, AccessPlan, AtomicAccessOperation,
+    AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach, BoundaryServiceReachId,
+    EffectFootprint, EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior,
+    FieldAccess, PeerWritability, ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId,
+    ResourceRegion, StableCapability, TransferRule, admit_access, effect_footprints_conflict,
+    place, validate_access_plan, validate_access_resources, validate_resource_profile,
 };
 use language_core::atomic::MemoryOrdering;
 use layout_plans::test_support::layout_field_entry;
@@ -103,7 +101,7 @@ fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
 
 #[test]
 fn resource_compatibility_joins_observation_operations_width_and_reach() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let stable_profile = validate_resource_profile(
         ResourceProfile {
             regions: vec![ResourceRegion {
@@ -119,7 +117,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         12,
     )
     .expect("stable profile");
-    let compatibility = validate_placement_resources(&plan, &stable_profile)
+    let compatibility = validate_access_resources(&plan, &stable_profile)
         .expect("stable supply may conservatively satisfy external demand");
     assert!(
         compatibility
@@ -145,7 +143,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         12,
     )
     .expect("read-only external profile");
-    let error = validate_placement_resources(&plan, &read_only_external)
+    let error = validate_access_resources(&plan, &read_only_external)
         .expect_err("read-only external supply cannot satisfy UART writes");
     assert!(
         error.0.contains("transmit") && error.0.contains("incompatible External"),
@@ -174,14 +172,14 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         12,
     )
     .expect("wrong-width profile remains structurally valid");
-    let error = validate_placement_resources(&plan, &wrong_width)
+    let error = validate_access_resources(&plan, &wrong_width)
         .expect_err("transfer width must match exactly");
     assert!(
         error.0.contains("control") && error.0.contains("32-bit"),
         "canonical field order reports the first width mismatch: {error}"
     );
 
-    let stable_demand = validate_placement_plan(PlacementPlan {
+    let stable_demand = validate_access_plan(AccessPlan {
         layout: uart_layout(),
         access: access_plan(
             &uart_layout(),
@@ -193,11 +191,11 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         reach: uart_reach(),
     })
     .expect("stable demand");
-    let error = validate_placement_resources(&stable_demand, &read_only_external)
+    let error = validate_access_resources(&stable_demand, &read_only_external)
         .expect_err("external supply cannot satisfy Stable demand");
     assert!(error.0.contains("requests Stable"));
 
-    let destructive_demand = validate_placement_plan(PlacementPlan {
+    let destructive_demand = validate_access_plan(AccessPlan {
         layout: uart_layout(),
         access: access_plan(
             &uart_layout(),
@@ -214,7 +212,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         reach: uart_reach(),
     })
     .expect("destructive external demand");
-    let error = validate_placement_resources(&destructive_demand, &read_only_external)
+    let error = validate_access_resources(&destructive_demand, &read_only_external)
         .expect_err("repeatable reads cannot satisfy destructive observation");
     assert!(
         error.0.contains("status") && error.0.contains("Take"),
@@ -231,7 +229,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         size: Some(4),
         align: 4,
     };
-    let atomic_demand = validate_placement_plan(PlacementPlan {
+    let atomic_demand = validate_access_plan(AccessPlan {
         access: access_plan(
             &atomic_layout,
             &[(
@@ -277,7 +275,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
         4,
     )
     .expect("load-only atomic profile");
-    let error = validate_placement_resources(&atomic_demand, &load_only)
+    let error = validate_access_resources(&atomic_demand, &load_only)
         .expect_err("atomic operation demand must be an exact supply subset");
     assert!(
         error.0.contains("head") && error.0.contains("operation families"),
@@ -297,7 +295,7 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
         size: Some(4),
         align: 4,
     };
-    let placement = validate_placement_plan(PlacementPlan {
+    let placement = validate_access_plan(AccessPlan {
         access: access_plan(
             &layout,
             &[(
@@ -337,21 +335,21 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
 
     {
         let loan = extent.loan(4, 4).expect("covered subrange loan");
-        let admission = admit_placement(
-            PlacementAdmissionId::from_normalized_identity(42).expect("admission"),
+        let admission = admit_access(
+            AccessAdmissionId::from_normalized_identity(42).expect("admission"),
             loan,
             &placement,
             &profile,
         )
         .expect("resource region must rebase to the subrange loan");
         assert_eq!(admission.resources().fields()[0].offset(), 0);
-        let view = place(admission).expect("split placed-view establishment");
+        let view = place(admission).expect("split access-view establishment");
         assert_eq!(view.base(), 0x4004);
     }
 
     let loan = extent.loan(0, 4).expect("uncovered subrange loan");
-    let rejection = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(43).expect("admission"),
+    let rejection = admit_access(
+        AccessAdmissionId::from_normalized_identity(43).expect("admission"),
         loan,
         &placement,
         &profile,
@@ -371,14 +369,14 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
             .selected()
             .loan(0, 4)
             .expect("selected split loan");
-        let admission = admit_placement(
-            PlacementAdmissionId::from_normalized_identity(44).expect("admission"),
+        let admission = admit_access(
+            AccessAdmissionId::from_normalized_identity(44).expect("admission"),
             loan,
             &placement,
             &profile,
         )
         .expect("a conserved split must retain its root profile binding");
-        let view = place(admission).expect("split placed-view establishment");
+        let view = place(admission).expect("split access-view establishment");
         assert_eq!(view.base(), 0x4004);
     }
     let restored = partition.rejoin();
@@ -388,7 +386,7 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
 
 #[test]
 fn admitted_profile_rejects_coincident_independent_extent_root() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let admitted_root = uart_extent_with_lineage(0x6000, 12, 61);
     let profile = ResourceProfileGrant::from_admitted_provider(
         ResourceProfileReceiptId::from_normalized_identity(62).expect("profile receipt"),
@@ -406,8 +404,8 @@ fn admitted_profile_rejects_coincident_independent_extent_root() {
     let loan = foreign_origin
         .loan(0, 12)
         .expect("coincident foreign-origin loan");
-    let rejection = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(63).expect("admission"),
+    let rejection = admit_access(
+        AccessAdmissionId::from_normalized_identity(63).expect("admission"),
         loan,
         &plan,
         &profile,
@@ -424,8 +422,8 @@ fn admitted_profile_rejects_coincident_independent_extent_root() {
     let loan = coincident_root
         .loan(0, 12)
         .expect("coincident independent loan");
-    let rejection = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(64).expect("admission"),
+    let rejection = admit_access(
+        AccessAdmissionId::from_normalized_identity(64).expect("admission"),
         loan,
         &plan,
         &profile,
@@ -449,7 +447,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
         size: Some(8),
         align: 2,
     };
-    let conflicting = validate_placement_plan(PlacementPlan {
+    let conflicting = validate_access_plan(AccessPlan {
         access: access_plan(
             &conflicting_layout,
             &[
@@ -492,7 +490,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
         8,
     )
     .expect("alignment profile");
-    let error = validate_placement_resources(&conflicting, &profile)
+    let error = validate_access_resources(&conflicting, &profile)
         .expect_err("inconsistent field congruences must reject before admission");
     assert!(
         error.0.contains("right") && error.0.contains("offset 2") && error.0.contains("conflicts")
@@ -508,7 +506,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
         size: Some(4),
         align: 1,
     };
-    let placement = validate_placement_plan(PlacementPlan {
+    let placement = validate_access_plan(AccessPlan {
         access: access_plan(
             &layout,
             &[(
@@ -546,8 +544,8 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
         }],
     })
     .expect("admitted profile");
-    let rejection = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(23).expect("admission"),
+    let rejection = admit_access(
+        AccessAdmissionId::from_normalized_identity(23).expect("admission"),
         loan,
         &placement,
         &resources,
@@ -558,7 +556,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
 
 #[test]
 fn admitted_profile_binds_rights_provenance_era_and_returns_rejected_loan() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent(0x3000, 12);
     let profile = ResourceProfileGrant::from_admitted_provider(
         ResourceProfileReceiptId::from_normalized_identity(31).expect("profile receipt"),
@@ -583,8 +581,8 @@ fn admitted_profile_binds_rights_provenance_era_and_returns_rejected_loan() {
         .attenuate(extent_rights(&[3]))
         .expect("attenuated extent");
     let loan = extent.loan(0, 12).expect("UART loan");
-    let rejection = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(32).expect("admission"),
+    let rejection = admit_access(
+        AccessAdmissionId::from_normalized_identity(32).expect("admission"),
         loan,
         &plan,
         &profile,

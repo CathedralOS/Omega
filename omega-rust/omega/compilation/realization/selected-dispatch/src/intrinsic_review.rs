@@ -109,7 +109,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
         if retained.plan != *plan
             || retained.provider.row_requirements.len() != plan.rows.len()
             || retained.provider.row_realizations.len() != plan.rows.len()
-            || retained.provider.row_placed_accessors.len() != plan.rows.len()
+            || retained.provider.row_accessors.len() != plan.rows.len()
             || retained.row_external_completion_leaves.len() != plan.rows.len()
             || !retained.row_compiler_intrinsic_executions.is_empty()
         {
@@ -134,7 +134,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 continue;
             }
         };
-        let expected_placed = match candidate.placed_accessor() {
+        let expected_access = match candidate.accessor() {
             Ok(witness) => witness,
             Err(error) => {
                 diagnostics.push(error);
@@ -143,20 +143,16 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             }
         };
         let catalog_role_matches = match retained.provider.schema {
-            provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
-                expected_placed
+            provider_planning::ProviderSchemaDeclaration::SealedAccessor(symbol) => {
+                expected_access
                     .as_ref()
                     .is_some_and(|witness| witness.machine() == symbol)
-                    && retained.provider.row_placed_accessors.as_slice()
-                        == std::slice::from_ref(&expected_placed.cloned())
+                    && retained.provider.row_accessors.as_slice()
+                        == std::slice::from_ref(&expected_access.cloned())
             }
             _ => {
-                expected_placed.is_none()
-                    && retained
-                        .provider
-                        .row_placed_accessors
-                        .iter()
-                        .all(Option::is_none)
+                expected_access.is_none()
+                    && retained.provider.row_accessors.iter().all(Option::is_none)
             }
         };
         if !catalog_role_matches {

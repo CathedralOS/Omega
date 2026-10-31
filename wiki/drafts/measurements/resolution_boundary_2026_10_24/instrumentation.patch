@@ -22,10 +22,10 @@ index b4e933b0c38..700df8a8b21 100644
      let BuildTimeEvaluationRequest {
          syntax_trees,
          source_context,
-diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
+diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs b/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs
 index a61254cac62..4a9b2027cef 100644
---- a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
-+++ b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
+--- a/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs
++++ b/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs
 @@ -22,6 +22,7 @@ pub(super) fn retain_applied_results(
      sources: Option<Arc<source::SourceMap>>,
      bindings: &[symbols::SourceScopedTopLevelBinding],

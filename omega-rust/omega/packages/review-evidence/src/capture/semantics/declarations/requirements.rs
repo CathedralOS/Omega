@@ -89,7 +89,7 @@ pub(crate) fn provider_requirement_identity(
             };
             top_level_requirement_identity(compilation, requirement)
         }
-        provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
+        provider_planning::ProviderSchemaDeclaration::SealedAccessor(symbol) => {
             let machine = compilation.machine(symbol).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "placed catalog review lost its exact callable",

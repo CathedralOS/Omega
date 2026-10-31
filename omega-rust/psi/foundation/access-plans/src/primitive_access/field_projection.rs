@@ -3,30 +3,30 @@
 use extents::ResidentClaimId;
 use language_core::atomic::MemoryOrdering;
 
-use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::plan_policy::authorization::authorize_descriptor;
 use crate::{
-    AccessFieldKey, AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
+    AccessAdmissionId, AccessFieldKey, AccessOccurrenceId, AccessOperation, AccessPlanDiagnostic,
+    AccessPlanId, AccessResourceCompatibility, AdmittedSchemaDeviceCorrespondence,
     AtomicAccessOperation, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach, EffectFootprint,
-    EffectiveFieldSupply, ObservationModel, PlacedOccurrenceId, PlacementAdmissionId,
-    PlacementPlanId, PlacementResourceCompatibility, PrimitiveAccessRequest,
-    ResourceProfileReceiptId, ValidatedPlacementPlan,
+    EffectiveFieldSupply, ObservationModel, PrimitiveAccessRequest, ResourceProfileReceiptId,
+    ValidatedAccessPlan,
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn project_placed_field<'view, 'extent>(
-    plan: &ValidatedPlacementPlan,
+pub(crate) fn project_access_field<'view, 'extent>(
+    plan: &ValidatedAccessPlan,
     profile_receipt: ResourceProfileReceiptId,
-    resources: &PlacementResourceCompatibility,
-    admission: PlacementAdmissionId,
+    resources: &AccessResourceCompatibility,
+    admission: AccessAdmissionId,
     base: u64,
     key: AccessFieldKey,
     current_borrow: BorrowPolarity,
     source_loan: BorrowPolarity,
     required_observation: Option<ObservationModel>,
-    authority: PlacementAuthorityRef<'view, 'extent>,
-) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-    if authority.placement_plan() != plan
+    authority: AccessAuthorityRef<'view, 'extent>,
+) -> Result<AccessFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+    if authority.access_plan() != plan
         || authority.profile_receipt() != profile_receipt
         || authority.resources() != resources
         || authority.admission() != admission
@@ -34,32 +34,31 @@ pub(crate) fn project_placed_field<'view, 'extent>(
         || authority.source_loan() != source_loan
     {
         return Err(AccessPlanDiagnostic(
-            "placed field projection arguments do not match the retained placement authority"
-                .into(),
+            "access field projection arguments do not match the retained access authority".into(),
         ));
     }
     if authority.profile().receipt() != profile_receipt {
         return Err(AccessPlanDiagnostic(
-            "placed field projection profile receipt differs from its retained admitted profile"
+            "access field projection profile receipt differs from its retained admitted profile"
                 .into(),
         ));
     }
     let replayed_resources = authority.replay_resources().map_err(|diagnostic| {
         AccessPlanDiagnostic(format!(
-            "placed field projection could not replay the retained placement authority: {diagnostic}"
+            "access field projection could not replay the retained access authority: {diagnostic}"
         ))
     })?;
     if &replayed_resources != resources {
         return Err(AccessPlanDiagnostic(
-            "placed field projection replayed resource compatibility differs from the retained authority"
+            "access field projection replayed resource compatibility differs from the retained authority"
                 .into(),
         ));
     }
-    authority.replay_correspondence("placed field projection")?;
-    authority.replay_resident_content("placed field projection")?;
+    authority.replay_correspondence("access field projection")?;
+    authority.replay_resident_content("access field projection")?;
     let descriptor = plan.access.field_descriptor(key).cloned().ok_or_else(|| {
         AccessPlanDiagnostic(format!(
-            "field key in canonical slot {} does not expose a placed accessor",
+            "field key in canonical slot {} does not expose a accessor",
             key.slot()
         ))
     })?;
@@ -86,7 +85,7 @@ pub(crate) fn project_placed_field<'view, 'extent>(
                 descriptor.field()
             ))
         })?;
-    Ok(PlacedFieldProjection {
+    Ok(AccessFieldProjection {
         descriptor,
         current_borrow,
         source_loan,
@@ -97,33 +96,33 @@ pub(crate) fn project_placed_field<'view, 'extent>(
         reach: plan.reach.clone(),
         admission,
         resident_claim: authority.resident_claim(),
-        placed_occurrence: authority.placed_occurrence(),
+        access_occurrence: authority.access_occurrence(),
         _authority: authority,
     })
 }
 
-/// Pure field projection from one placed view.
+/// Pure field projection from one access view.
 ///
 /// This carrier is deliberately not `Clone`: re-projecting is the explicit
 /// route to another accessor. Named operation methods are the only route from
 /// this pure projection to a sealed memory event.
 #[derive(Debug)]
-pub struct PlacedFieldProjection<'view, 'extent> {
-    descriptor: crate::access_plan::FieldAccessDescriptor,
+pub struct AccessFieldProjection<'view, 'extent> {
+    descriptor: crate::access_fields::FieldAccessDescriptor,
     current_borrow: BorrowPolarity,
     source_loan: BorrowPolarity,
     pub(crate) primitive_address: u64,
-    pub(crate) plan: PlacementPlanId,
+    pub(crate) plan: AccessPlanId,
     profile_receipt: ResourceProfileReceiptId,
     pub(crate) supply: EffectiveFieldSupply,
     reach: BoundaryReach,
-    admission: PlacementAdmissionId,
+    admission: AccessAdmissionId,
     pub(crate) resident_claim: Option<ResidentClaimId>,
-    pub(crate) placed_occurrence: Option<PlacedOccurrenceId>,
-    pub(crate) _authority: PlacementAuthorityRef<'view, 'extent>,
+    pub(crate) access_occurrence: Option<AccessOccurrenceId>,
+    pub(crate) _authority: AccessAuthorityRef<'view, 'extent>,
 }
 
-impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
+impl<'view, 'extent> AccessFieldProjection<'view, 'extent> {
     pub fn field(&self) -> &str {
         self.descriptor.field()
     }
@@ -140,36 +139,36 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         self.descriptor.observation()
     }
 
-    placed_authority_accessors!();
+    authority_accessors!();
 
     pub fn read<'access>(
         &'access self,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Read)
     }
 
     pub fn take<'access>(
         &'access mut self,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Take)
     }
 
     pub fn write<'access>(
         &'access mut self,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Write)
     }
 
     pub fn compound_mutation<'access>(
         &'access mut self,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::CompoundMutation)
     }
 
     pub fn atomic_load<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Load(
             ordering,
         )))
@@ -178,7 +177,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_store<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Store(
             ordering,
         )))
@@ -187,7 +186,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_fetch_add<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(
             ordering,
         )))
@@ -196,7 +195,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_fetch_sub<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchSub(
             ordering,
         )))
@@ -205,7 +204,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_fetch_xor<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchXor(
             ordering,
         )))
@@ -214,7 +213,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_fetch_or<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchOr(
             ordering,
         )))
@@ -223,7 +222,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_fetch_and<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchAnd(
             ordering,
         )))
@@ -232,7 +231,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     pub fn atomic_swap<'access>(
         &'access self,
         ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Swap(
             ordering,
         )))
@@ -242,7 +241,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         &'access self,
         success: MemoryOrdering,
         failure: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(
             AtomicAccessOperation::CompareExchange { success, failure },
         ))
@@ -252,7 +251,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         &'access self,
         success: MemoryOrdering,
         failure: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.authorize(AccessOperation::Atomic(
             AtomicAccessOperation::CompareExchangeOnce { success, failure },
         ))
@@ -260,7 +259,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
 
     fn validate_authority_binding(&self) -> Result<(), AccessPlanDiagnostic> {
         let authority = self._authority;
-        let placement = authority.placement_plan();
+        let placement = authority.access_plan();
         if placement.identity() != self.plan
             || authority.profile_receipt() != self.profile_receipt
             || authority.profile().receipt() != self.profile_receipt
@@ -268,17 +267,17 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             || placement.reach() != &self.reach
             || authority.source_loan() != self.source_loan
             || authority.resident_claim() != self.resident_claim
-            || authority.placed_occurrence() != self.placed_occurrence
+            || authority.access_occurrence() != self.access_occurrence
         {
             return Err(AccessPlanDiagnostic(
-                "placed field authorization requires copied placement, profile, admission, reach, loan, and resident identities to match the retained authority"
+                "access field authorization requires copied placement, profile, admission, reach, loan, and resident identities to match the retained authority"
                     .into(),
             ));
         }
 
         let replayed_resources = authority.replay_resources().map_err(|diagnostic| {
             AccessPlanDiagnostic(format!(
-                "placed field authorization could not replay the retained placement authority: {diagnostic}"
+                "access field authorization could not replay the retained access authority: {diagnostic}"
             ))
         })?;
         if &replayed_resources != authority.resources()
@@ -287,19 +286,19 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             || placement.access().field_descriptor(self.descriptor.key()) != Some(&self.descriptor)
         {
             return Err(AccessPlanDiagnostic(
-                "placed field authorization requires the exact replayed resource row and descriptor from the retained placement authority"
+                "access field authorization requires the exact replayed resource row and descriptor from the retained access authority"
                     .into(),
             ));
         }
-        authority.replay_correspondence("placed field authorization")?;
-        authority.replay_resident_content("placed field authorization")?;
+        authority.replay_correspondence("access field authorization")?;
+        authority.replay_resident_content("access field authorization")?;
 
         let descriptor_address = authority
             .base()
             .checked_add(self.descriptor.container_byte_offset())
             .ok_or_else(|| {
                 AccessPlanDiagnostic(
-                    "placed field authorization descriptor address overflows the retained authority base"
+                    "access field authorization descriptor address overflows the retained authority base"
                         .into(),
                 )
             })?;
@@ -308,14 +307,14 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             .checked_add(self.supply.offset())
             .ok_or_else(|| {
                 AccessPlanDiagnostic(
-                    "placed field authorization supply address overflows the retained authority base"
+                    "access field authorization supply address overflows the retained authority base"
                         .into(),
                 )
             })?;
         if descriptor_address != self.primitive_address || supply_address != self.primitive_address
         {
             return Err(AccessPlanDiagnostic(
-                "placed field authorization requires descriptor and supply geometry to reproduce the projected primitive address"
+                "access field authorization requires descriptor and supply geometry to reproduce the projected primitive address"
                     .into(),
             ));
         }
@@ -325,7 +324,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
     fn authorize<'access>(
         &'access self,
         operation: AccessOperation,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
         self.validate_authority_binding()?;
         authorize_descriptor(
             &self.descriptor,
@@ -333,7 +332,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             self.source_loan,
             operation,
         )?;
-        Ok(PlacedFieldAccess {
+        Ok(AccessFieldAccess {
             access: AuthorizedFieldAccess {
                 descriptor: self.descriptor.clone(),
                 current_borrow: self.current_borrow,
@@ -347,7 +346,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             reach: self.reach.clone(),
             admission: self.admission,
             resident_claim: self.resident_claim,
-            placed_occurrence: self.placed_occurrence,
+            access_occurrence: self.access_occurrence,
             _authority: self._authority,
         })
     }
@@ -357,20 +356,20 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
 /// exact borrowed or established-owned authority from which its polarity was
 /// derived.
 #[derive(Debug)]
-pub struct PlacedFieldAccess<'view, 'extent> {
+pub struct AccessFieldAccess<'view, 'extent> {
     access: AuthorizedFieldAccess,
     primitive_address: u64,
-    plan: PlacementPlanId,
+    plan: AccessPlanId,
     profile_receipt: ResourceProfileReceiptId,
     supply: EffectiveFieldSupply,
     reach: BoundaryReach,
-    admission: PlacementAdmissionId,
+    admission: AccessAdmissionId,
     resident_claim: Option<ResidentClaimId>,
-    placed_occurrence: Option<PlacedOccurrenceId>,
-    _authority: PlacementAuthorityRef<'view, 'extent>,
+    access_occurrence: Option<AccessOccurrenceId>,
+    _authority: AccessAuthorityRef<'view, 'extent>,
 }
 
-impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
+impl<'view, 'extent> AccessFieldAccess<'view, 'extent> {
     pub const fn access(&self) -> &AuthorizedFieldAccess {
         &self.access
     }
@@ -379,7 +378,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
         self.primitive_address
     }
 
-    placed_authority_accessors!();
+    authority_accessors!();
 
     /// Consume one authorized access event into the only request primitive
     /// lowering accepts.
@@ -410,7 +409,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             operation: self.access.operation,
             reach: self.reach,
             resident_claim: self.resident_claim,
-            placed_occurrence: self.placed_occurrence,
+            access_occurrence: self.access_occurrence,
             descriptor,
             authorization: self.access,
             _authority: self._authority,

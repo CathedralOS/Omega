@@ -99,7 +99,7 @@ impl DescriptorAnalysis<'_> {
                             // nor spatial containment relative to this demand.
                             DescriptorSourceOrigin::Provider(_) => return Err(failure()),
                             DescriptorSourceOrigin::Backing(
-                                DescriptorCallOrigin::PlacedFormation { .. }
+                                DescriptorCallOrigin::AccessFormation { .. }
                                 | DescriptorCallOrigin::Invocation { .. },
                             ) => return Err(failure()),
                             DescriptorSourceOrigin::Backing(

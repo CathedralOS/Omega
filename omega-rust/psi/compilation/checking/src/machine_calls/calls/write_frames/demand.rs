@@ -1766,7 +1766,7 @@ pub(crate) fn statement_value_expression_roots(
     program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
-    crate::value_custody::placed_views::statement_expression_roots(program, statement, true)
+    crate::value_custody::access_views::statement_expression_roots(program, statement, true)
 }
 
 #[allow(clippy::too_many_arguments)]

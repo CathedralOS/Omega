@@ -265,7 +265,7 @@ pub fn arrival_requirement_contract(
     })
 }
 
-/// Schema arrival parameters exclude separately installed placed-view loans.
+/// Schema arrival parameters exclude separately installed access-view loans.
 /// An ordinary reference remains visible and must be supplied by the schema.
 pub fn visible_entry_parameters<'program>(
     typed: &TypedTrees,
@@ -275,7 +275,7 @@ pub fn visible_entry_parameters<'program>(
         .iter()
         .filter(|parameter| {
             typed
-                .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                .access_view_plan_for_input_type_reference(parameter.type_reference)
                 .is_none()
         })
         .collect::<Vec<_>>()

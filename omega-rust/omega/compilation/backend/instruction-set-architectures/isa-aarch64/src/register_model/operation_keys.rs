@@ -366,8 +366,8 @@ pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 
     AARCH64_STORE_ENCODED_SCALAR,
     AARCH64_MEMORY_FENCE,
     AARCH64_ATOMIC_FENCE,
-    AARCH64_PLACED_READ,
-    AARCH64_PLACED_WRITE,
+    AARCH64_ACCESSOR_READ,
+    AARCH64_ACCESSOR_WRITE,
     AARCH64_SYSTEM_REGISTER_READ,
     AARCH64_SYSTEM_REGISTER_WRITE,
 ];
@@ -378,6 +378,6 @@ pub const AARCH64_SYSTEM_REGISTER_READ: RegisterConstraintKey =
 pub const AARCH64_SYSTEM_REGISTER_WRITE: RegisterConstraintKey =
     RegisterConstraintKey::instruction(903);
 
-pub const AARCH64_PLACED_READ: RegisterConstraintKey = RegisterConstraintKey::instruction(900);
+pub const AARCH64_ACCESSOR_READ: RegisterConstraintKey = RegisterConstraintKey::instruction(900);
 
-pub const AARCH64_PLACED_WRITE: RegisterConstraintKey = RegisterConstraintKey::instruction(901);
+pub const AARCH64_ACCESSOR_WRITE: RegisterConstraintKey = RegisterConstraintKey::instruction(901);

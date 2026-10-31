@@ -36,7 +36,7 @@ use terminal_psi::{Operation, StructuralResultDeclaration};
 #[derive(Clone)]
 pub(crate) struct ReferenceReferent {
     /// Explicit placed interpretation retains its initialized original RAM.
-    pub(crate) placed: Option<PlacedReference>,
+    pub(crate) placed: Option<AccessReference>,
     pub(crate) view: TerminalStructuralValue,
     pub(crate) primitive_loan: Option<crate::primitive_storage::PrimitiveLoan>,
     /// Fixed-array references retain the ordinary collection loan's activation
@@ -83,7 +83,7 @@ pub(crate) enum AggregateViewTip {
 #[derive(Clone)]
 pub(crate) struct ResolvedStructuralProjection {
     pub(crate) array_loan: Option<crate::element_views::ElementView>,
-    placed: Option<PlacedReference>,
+    placed: Option<AccessReference>,
     pub(crate) value: TerminalStructuralValue,
     pub(crate) view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
@@ -97,7 +97,7 @@ pub(crate) struct ResolvedStructuralProjection {
 #[derive(Clone)]
 pub(crate) struct ReferenceBacking {
     array_loan: Option<crate::element_views::ElementView>,
-    placed: Option<PlacedReference>,
+    placed: Option<AccessReference>,
     pub(crate) value: TerminalStructuralValue,
     aggregate_view: Option<AggregateViewRegion>,
     primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
@@ -114,7 +114,7 @@ pub(crate) use aggregate_views::{
     AggregateBacking, AggregateViewRegion, backing_scalar_path, scalar_storage_fragments,
     translate_aggregate_view_field, translate_aggregate_view_path,
 };
-pub(crate) use placed::PlacedReference;
+pub(crate) use placed::AccessReference;
 
 /// An aggregate view retains its captured byte endpoint and complete extent.
 /// Projecting a child applies catalog geometry, never the formation expression.
@@ -746,14 +746,14 @@ impl TerminalExecution<'_> {
             None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
             None => {
                 let (view, captured) = self
-                    .resolve_live_placed_projection(source)
+                    .resolve_live_access_projection(source)
                     .map_err(|error| error.in_reference_formation("resolve source storage"))?;
                 placed = captured;
                 view
             }
         };
         if let Some(ram) = &mut placed {
-            self.validate_placed_backing(ram)?;
+            self.validate_access_backing(ram)?;
             if !access_covers(ram.access, access) {
                 return Err(malformed());
             }
@@ -994,7 +994,7 @@ impl TerminalExecution<'_> {
             .get(&key)
             .and_then(|reference| reference.placed.as_ref())
         {
-            self.validate_placed_backing(ram)?;
+            self.validate_access_backing(ram)?;
         }
         // Release consumes the descriptor's ordinary owned projection, leaving
         // exactly the same affine complement as transfer. It never removes the
@@ -1054,10 +1054,10 @@ impl TerminalExecution<'_> {
             .collect()
     }
 
-    pub(crate) fn resolve_live_placed_projection(
+    pub(crate) fn resolve_live_access_projection(
         &self,
         argument: &StructuralArgument,
-    ) -> Result<(TerminalStructuralValue, Option<PlacedReference>), TerminalInterpretError> {
+    ) -> Result<(TerminalStructuralValue, Option<AccessReference>), TerminalInterpretError> {
         let projected = self.resolve_live_projection_with_leaf_type(
             argument.place,
             &argument.path,
@@ -1150,7 +1150,7 @@ impl TerminalExecution<'_> {
         }
         let mut placed = projected.placed;
         if let Some(ram) = &mut placed {
-            self.validate_placed_backing(ram)?;
+            self.validate_access_backing(ram)?;
             if argument.access == StructuralAccess::Owned
                 || !access_covers(ram.access, argument.access)
                 || ram.presentation != value
@@ -1433,7 +1433,7 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>
         + Copy,
         initial_view: Option<AggregateViewRegion>,
-        initial_placed: Option<PlacedReference>,
+        initial_access: Option<AccessReference>,
         initial_array: Option<crate::element_views::ElementView>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
@@ -1446,8 +1446,8 @@ impl TerminalExecution<'_> {
             &[StructuralPathSegment],
         )> = None;
         let mut array_loan = initial_array;
-        let mut placed = initial_placed.or_else(|| {
-            self.placed_view_occurrences
+        let mut placed = initial_access.or_else(|| {
+            self.access_view_occurrences
                 .values()
                 .find(|occurrence| occurrence.view == StructuralRuntimePlace::from(owner))
                 .and_then(|occurrence| occurrence.ram.clone())
@@ -1616,7 +1616,7 @@ impl TerminalExecution<'_> {
                 }
             }
             if let Some(captured) = &mut placed {
-                self.project_placed_presentation(captured, prefix, &value)?;
+                self.project_access_presentation(captured, prefix, &value)?;
             }
             if let Some(boundary) = boundary {
                 if matches!(remaining[boundary], StructuralPathSegment::FixedIndex(_)) {
@@ -1718,7 +1718,7 @@ impl TerminalExecution<'_> {
                 }
                 placed = captured.placed.clone();
                 if let Some(ram) = &placed {
-                    self.validate_placed_backing(ram)?;
+                    self.validate_access_backing(ram)?;
                     if ram.presentation.structural_type != referent_type
                         || !access_covers(ram.access, authority)
                     {
@@ -1857,9 +1857,9 @@ impl TerminalExecution<'_> {
         aggregate_backings: &RuntimeRows<PlaceId, AggregateBacking>,
         primitive_loans: &RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
         array_loans: &RuntimeRows<PlaceId, crate::element_views::ElementView>,
-        placed_occurrences: &BTreeMap<
-            terminal_psi::TerminalPlacedViewInput,
-            crate::structural_inputs::placed_views::PlacedViewOccurrence,
+        access_occurrences: &BTreeMap<
+            terminal_psi::TerminalAccessViewInput,
+            crate::structural_inputs::access_views::AccessViewOccurrence,
         >,
     ) -> Result<Vec<Vec<ReferenceBacking>>, TerminalInterpretError> {
         signature
@@ -1919,7 +1919,7 @@ impl TerminalExecution<'_> {
                         terminal_psi::StructuralFieldType::canonical_leaf_type,
                         view,
                         placed.or_else(|| {
-                            placed_occurrences
+                            access_occurrences
                                 .values()
                                 .find(|occurrence| {
                                     occurrence.view == StructuralRuntimePlace::from(owner)
@@ -1937,7 +1937,7 @@ impl TerminalExecution<'_> {
                     };
                     let mut placed = projected.placed;
                     if let Some(ram) = &mut placed {
-                        self.validate_placed_backing(ram)?;
+                        self.validate_access_backing(ram)?;
                         if !access_covers(ram.access, access) {
                             return Err(malformed());
                         }
@@ -2125,7 +2125,7 @@ impl TerminalExecution<'_> {
                 ),
             )?;
             if let Some(ram) = &actual.placed {
-                self.validate_placed_backing(ram)?;
+                self.validate_access_backing(ram)?;
             }
             if origin.sources.is_empty()
                 || origin
@@ -2138,7 +2138,7 @@ impl TerminalExecution<'_> {
             let mut matched = false;
             for backing in expected {
                 if let Some(mut projected) = self.resolve_return_origin(backing, actual)? {
-                    self.retain_returned_placed_interpretation(
+                    self.retain_returned_access_interpretation(
                         &mut projected,
                         actual,
                         referent_type,

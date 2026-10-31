@@ -37,7 +37,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                         | AbstractOperation::EstablishNativeCodeLayout { .. }
                         | AbstractOperation::EstablishRecord { .. }
                         | AbstractOperation::EstablishReference { .. }
-                        | AbstractOperation::EstablishPlacedReference { .. }
+                        | AbstractOperation::EstablishAccessReference { .. }
                         | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }

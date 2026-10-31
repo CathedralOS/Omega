@@ -2,14 +2,14 @@
 
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::{
-    NativeProgramEntrySettlement, TerminalPlacedViewEstablishment,
+    NativeProgramEntrySettlement, TerminalAccessViewEstablishment,
     ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
     validate_native_program_entry_settlement,
 };
 
 /// Admit the entry boundary required by an executable image. The complete
 /// native input keeps the lowered entry, verified Terminal declaration, and
-/// placed-view loans together; none can be supplied as an unrelated sidecar.
+/// access-view loans together; none can be supplied as an unrelated sidecar.
 ///
 /// A source receiver erased from the executable still needs initialization
 /// and cleanup custody. A retained receiver also needs a supported target
@@ -69,7 +69,7 @@ pub fn admit_executable_entry(
             "native entry lost its exact source-selected Terminal member",
         ));
     }
-    let placed_view_establishments = input.placed_view_establishments();
+    let access_view_establishments = input.access_view_establishments();
     // The provider establishments bound into the input are loans the emitted
     // entry boundary must carry for the invocation's duration. Only the
     // hosted receiver bridge is such a boundary: an admission that retains
@@ -103,7 +103,7 @@ pub fn admit_executable_entry(
         == target::ProgramEntrySchema::ProgramStorageApplication;
     let requires_installed_storage = !input.private_entry_ram().is_empty();
     if !requires_installed_storage && !requires_semantic_bridge {
-        return entry_boundary_without_receiver(placed_view_establishments);
+        return entry_boundary_without_receiver(access_view_establishments);
     }
     let checked_entry = program_entry.checked_entry.ok_or_else(|| {
         crate::native_artifact_error(
@@ -125,28 +125,28 @@ pub fn admit_executable_entry(
     // selected.
     // This only permits physical construction to begin. The validated
     // settlement is the demand the object binder must satisfy exactly — the
-    // bound placed-view establishments ride on it so the emitted entry
+    // bound access-view establishments ride on it so the emitted entry
     // boundary is what must lend each referent — and the final image replay
     // must still prove the disjoint backing, exact entry pointer, stack
     // switch, and normal-return continuation before publication.
     Ok(Some(
         settled
-            .with_placed_view_establishments(placed_view_establishments)
+            .with_access_view_establishments(access_view_establishments)
             .with_private_entry_ram(input.private_entry_ram()),
     ))
 }
 
 /// An admission that retains no hosted receiver boundary emits no shim that
-/// can lend a placed-view referent; bound establishments reaching it reject
+/// can lend a access-view referent; bound establishments reaching it reject
 /// rather than publishing an entry whose custody was never supplied.
 fn entry_boundary_without_receiver(
-    placed_view_establishments: &[TerminalPlacedViewEstablishment],
+    access_view_establishments: &[TerminalAccessViewEstablishment],
 ) -> Result<Option<ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
-    if placed_view_establishments.is_empty() {
+    if access_view_establishments.is_empty() {
         return Ok(None);
     }
     Err(crate::native_artifact_error(
-        "ProgramEntry placed-view custody",
-        "bound placed-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
+        "ProgramEntry access-view custody",
+        "bound access-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
     ))
 }

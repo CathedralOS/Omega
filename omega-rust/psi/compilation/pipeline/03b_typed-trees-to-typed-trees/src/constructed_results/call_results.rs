@@ -94,13 +94,13 @@ pub(super) fn retain(
         returned,
         &lifetimes,
     )?;
-    Ok(Some(retain_placed_result_type(program, returned)))
+    Ok(Some(retain_access_result_type(program, returned)))
 }
 
 /// A closed source family application rejoins its installed nominal view.
 /// The exact template/P/T symbols supply this vocabulary; no receiving type,
 /// byte geometry, custody, or permission is inferred from this association.
-fn retain_placed_result_type(
+fn retain_access_result_type(
     program: &mut TypedTrees,
     returned: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
@@ -115,7 +115,7 @@ fn retain_placed_result_type(
             access,
             lifetime,
         } => {
-            let applied = retain_placed_result_type(program, referee);
+            let applied = retain_access_result_type(program, referee);
             if applied == referee {
                 return returned;
             }
@@ -152,7 +152,7 @@ fn retain_placed_result_type(
             else {
                 return returned;
             };
-            let Some(view) = program.placed_view_plans.iter().find(|view| {
+            let Some(view) = program.access_view_plans.iter().find(|view| {
                 view.template_symbol.is_valid()
                     && view.template_symbol == base_symbol
                     && view.policy_symbol == *policy

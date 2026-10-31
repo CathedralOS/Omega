@@ -30,7 +30,7 @@ fn placed_reference_wire_preserves_owner_roles_and_backing_kind() {
         }),
     ] {
         let mut writer = Writer::default();
-        super::storage_operations::encode_establish_placed_reference(
+        super::storage_operations::encode_establish_access_reference(
             &mut writer,
             source.clone(),
             roles,
@@ -40,11 +40,11 @@ fn placed_reference_wire_preserves_owner_roles_and_backing_kind() {
         let mut reader = Reader::new(&bytes);
         assert_eq!(
             reader.u8().unwrap(),
-            super::operation_tags::ESTABLISH_PLACED_REFERENCE
+            super::operation_tags::ESTABLISH_ACCESS_REFERENCE
         );
         assert_eq!(
-            super::storage_operations::decode_establish_placed_reference(&mut reader).unwrap(),
-            OperationKind::EstablishPlacedReference {
+            super::storage_operations::decode_establish_access_reference(&mut reader).unwrap(),
+            OperationKind::EstablishAccessReference {
                 source: source.clone(),
                 resident: roles
             }

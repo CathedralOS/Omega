@@ -1239,7 +1239,7 @@ mod placed_geometry_tests {
             scalar_restriction: None,
             shape: StructuralTypeShape::Record {
                 fields: vec![],
-                storage: StructuralRecordStorage::PlacedAccessor(AuthoredRecordStorage {
+                storage: StructuralRecordStorage::Accessor(AuthoredRecordStorage {
                     byte_size: 4,
                     byte_alignment: 1,
                 }),
@@ -1262,7 +1262,7 @@ mod placed_geometry_tests {
                     field_type: StructuralFieldType::Structural(accessor),
                     storage: Some(AuthoredFieldStorage::Direct { byte_offset: 4 }),
                 }],
-                storage: StructuralRecordStorage::PlacedView(AuthoredRecordStorage {
+                storage: StructuralRecordStorage::AccessView(AuthoredRecordStorage {
                     byte_size: 8,
                     byte_alignment: 4,
                 }),

@@ -31,7 +31,7 @@ machine CompactBits::plan(compact_bits: &mut CompactBits, schema: Schema) -> Pla
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
     Plan {
         entries: entries,

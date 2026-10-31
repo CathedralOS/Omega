@@ -36,7 +36,7 @@ replacement before its caller may execute effects. Omega consumes that verdict
 when constructing the build argument; target configuration stays Omega-owned.
 
 Within `layouts`, `layout_plans.rs` produces validated policy plans,
-`plan_laid/`, `placed_views/`, `access_plans.rs` and `wire_plans.rs` install
+`plan_laid/`, `access_views/`, `access_plans.rs` and `wire_plans.rs` install
 their results into the typed program, and `schema_reflection.rs` owns the typed
 geometry and Schema ABI all of them consume.
 

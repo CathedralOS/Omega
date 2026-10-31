@@ -7,19 +7,19 @@ data TestMemory {}
 public data Inner [copy] where value == 17 { value: u64; }
 public data Word { inner: [Inner; 1]; }
 public data WordPlacement {}
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut fields: [FieldEntry; 64];
-    fields[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    fields[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: fields, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: fields, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::inaccessible(&schema),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 machine attempt(storage: &Extent in Granted) -> u64 reaches ResourceProfileSupply {
-    transition Placed::view_extent<WordPlacement, Word, TestMemory>(storage) {
-        PlacementOutcome::Ready { view } -> 1
-        PlacementOutcome::Rejected { returned, reason } -> 0
+    transition Access::view_extent<WordPlacement, Word, TestMemory>(storage) {
+        AccessOutcome::Ready { view } -> 1
+        AccessOutcome::Rejected { returned, reason } -> 0
     }
 }

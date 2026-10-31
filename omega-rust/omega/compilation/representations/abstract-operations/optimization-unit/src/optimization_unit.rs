@@ -58,7 +58,7 @@ pub use graph::{
 };
 
 pub use identity::{
-    placed_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
+    access_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
     scalar_refinement_identity_bytes,
 };
 pub use ledger::{

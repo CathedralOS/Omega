@@ -174,7 +174,7 @@ pub fn resolve_state_call_target(
             .iter()
             .map(|member| member.as_str().to_owned())
             .collect::<Vec<_>>();
-        if let Some(target) = placed_accessor_target(
+        if let Some(target) = accessor_target(
             program,
             machine,
             state,
@@ -470,9 +470,9 @@ fn resolve_state_symbol_in_machine(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-/// The placement plan selects the same exact generated accessor for checking,
+/// The access plan selects the same exact generated accessor for checking,
 /// flow, loans and execution. An already-resolved target may not be substituted.
-pub(crate) fn placed_accessor_target(
+pub(crate) fn accessor_target(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -486,7 +486,7 @@ pub(crate) fn placed_accessor_target(
         Some(state),
         members,
     )?;
-    let (_, field) = program.placed_view_field_plan_for_type_reference(reference)?;
+    let (_, field) = program.access_view_field_plan_for_type_reference(reference)?;
     field
         .accessor_targets
         .iter()

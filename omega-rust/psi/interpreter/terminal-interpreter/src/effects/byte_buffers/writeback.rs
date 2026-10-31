@@ -54,7 +54,7 @@ impl TerminalBoundaryByteBuffer {
     pub fn replace(&mut self, bytes: &[u8]) -> Result<(), TerminalEffectRejection> {
         if self.scope != BoundaryByteWriteScope::Owner {
             return Err(TerminalEffectRejection::new(
-                "boundary byte view grants no whole-field replacement authority",
+                "boundary byte view grants no whole-field reaccess authority",
             ));
         }
         if bytes.len() as u128 > u128::from(self.capacity) {

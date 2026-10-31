@@ -1,9 +1,9 @@
-//! Native callback and placed-view inputs, retained with their exact application.
+//! Native callback and access-view inputs, retained with their exact application.
 
 use crate::TargetOperationPlan;
 use calling_conventions::{BoundaryEntryPlan, CallPlan, NativePlace, ValuePlacement};
 use semantic_vocabulary::OperationId;
-use terminal_psi::TerminalPlacedViewInput;
+use terminal_psi::TerminalAccessViewInput;
 
 /// One target-owned native-only callback argument joined to an exact
 /// Terminal boundary-call occurrence.
@@ -41,8 +41,8 @@ pub struct TargetNativeCallbackArgument {
 /// The referent geometry remains explicit audit data. The pointer placement
 /// carries no backing, lifetime, or access-event authority by itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetPlacedViewInput {
-    pub terminal: TerminalPlacedViewInput,
+pub struct TargetAccessViewInput {
+    pub terminal: TerminalAccessViewInput,
     pub abi_parameter_ordinal: u32,
     pub referent_byte_size: u64,
     pub referent_alignment: u64,
@@ -56,8 +56,8 @@ pub struct TargetPlacedViewInput {
 /// mistaken for the placed-input-aware entry without explicitly unwrapping
 /// this type.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetOperationPlanWithPlacedViewInputs {
+pub struct TargetOperationPlanWithAccessViewInputs {
     pub plan: TargetOperationPlan,
     pub entry_call_plan: CallPlan,
-    pub placed_view_inputs: Vec<TargetPlacedViewInput>,
+    pub access_view_inputs: Vec<TargetAccessViewInput>,
 }

@@ -6,19 +6,17 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
-        PackageReviewCompilerIntrinsicExecution::PlacementLifecycle(operation) => {
-            encoder.tag("placement_lifecycle", 11);
+        PackageReviewCompilerIntrinsicExecution::AccessLifecycle(operation) => {
+            encoder.tag("access_lifecycle", 11);
             encoder.field("operation", |encoder| {
                 match operation {
-                    terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
+                    terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
                         encoder.tag("initialize", 0)
                     }
-                    terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
+                    terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
                         encoder.tag("move_out", 1)
                     }
-                    terminal_psi::TerminalPlacementLifecycleOperation::View => {
-                        encoder.tag("view", 2)
-                    }
+                    terminal_psi::TerminalAccessLifecycleOperation::View => encoder.tag("view", 2),
                 }
                 Ok(())
             })?;
@@ -38,21 +36,21 @@ pub(crate) fn encode_compiler_intrinsic_execution(
         PackageReviewCompilerIntrinsicExecution::HostedReadByte => {
             encoder.tag("hosted_read_byte", 6);
         }
-        PackageReviewCompilerIntrinsicExecution::PlacedScalarAccess {
+        PackageReviewCompilerIntrinsicExecution::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
             operation,
         } => {
-            encoder.tag("placed_scalar_access", 8);
+            encoder.tag("accessor_scalar_access", 8);
             encoder.fixed_bytes_field("contract", contract)?;
             encoder.fixed_bytes_field("placement_commitment", placement_commitment)?;
             encoder.u32_field("access_slot", *access_slot)?;
             encoder.field("operation", |encoder| {
                 match operation {
-                    effects::CompilerPlacedScalarOperation::Read => encoder.tag("read", 0),
-                    effects::CompilerPlacedScalarOperation::Take => encoder.tag("take", 1),
-                    effects::CompilerPlacedScalarOperation::Write => encoder.tag("write", 2),
+                    effects::CompilerAccessorScalarOperation::Read => encoder.tag("read", 0),
+                    effects::CompilerAccessorScalarOperation::Take => encoder.tag("take", 1),
+                    effects::CompilerAccessorScalarOperation::Write => encoder.tag("write", 2),
                 }
                 Ok(())
             })?;

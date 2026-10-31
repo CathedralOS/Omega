@@ -158,15 +158,15 @@ fn both_linux_targets_emit_exact_non_runnable_envelopes() {
             u32::from_le_bytes(name_table_header[4..8].try_into().unwrap()),
             SHT_STRTAB,
         );
-        let placed_name_table =
+        let access_name_table =
             &load_layout(envelope.resolved_dynamic_table()).sections()[name_table_index];
         assert_eq!(
-            placed_name_table.kind(),
+            access_name_table.kind(),
             crate::ElfPlacedDynamicSectionKind::SectionNameTable,
         );
         assert_eq!(
             u64::from_le_bytes(name_table_header[24..32].try_into().unwrap()),
-            placed_name_table.file_offset(),
+            access_name_table.file_offset(),
         );
         assert_eq!(header.entry, envelope.entry_address());
         assert_eq!(

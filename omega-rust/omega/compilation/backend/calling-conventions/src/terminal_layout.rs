@@ -119,8 +119,8 @@ fn resolve_structural_shape(
                     return Err(TerminalLayoutError::UnclosedTargetLayout(structural_type));
                 }
                 if let terminal_psi::StructuralRecordStorage::Authored(storage)
-                | terminal_psi::StructuralRecordStorage::PlacedView(storage)
-                | terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) = storage
+                | terminal_psi::StructuralRecordStorage::AccessView(storage)
+                | terminal_psi::StructuralRecordStorage::Accessor(storage) = storage
                 {
                     return Ok(Some(ValueShape::integer(
                         u32::try_from(storage.byte_size).map_err(|_| {

@@ -57,7 +57,7 @@ impl ResourceProfileGrant {
     }
 
     /// Bind provider supply directly to the exact qualified subrange loan
-    /// that will feed placement admission.
+    /// that will feed access admission.
     pub fn from_admitted_provider_loan(
         receipt: ResourceProfileReceiptId,
         loan: &ExtentLoan<'_>,
@@ -206,7 +206,7 @@ impl AdmittedResourceProfile {
     pub fn initialization_compatibility(
         &self,
         loan: &ExtentLoan<'_>,
-        plan: &crate::ValidatedPlacementPlan,
+        plan: &crate::ValidatedAccessPlan,
     ) -> Result<crate::InitializationResourceCompatibility, AccessPlanDiagnostic> {
         if loan.polarity() != extents::LoanPolarity::Exclusive {
             return Err(AccessPlanDiagnostic(

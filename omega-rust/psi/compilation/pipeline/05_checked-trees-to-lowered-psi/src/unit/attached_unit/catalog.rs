@@ -492,8 +492,8 @@ pub(super) fn lower_unit_structural_types(
     }
     for (boundary, _) in boundaries {
         roots.extend(boundary.attachment_type_identity);
-        for (_, operation) in checked.typed.placement_lifecycle_plans.iter() {
-            if matches!(operation, typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated { callable, .. }
+        for (_, operation) in checked.typed.access_lifecycle_plans.iter() {
+            if matches!(operation, typed_trees::typed_trees::AccessLifecyclePlan::Evaluated { callable, .. }
                 if *callable == boundary.machine || *callable == boundary.state)
             {
                 for definition in operation
@@ -711,7 +711,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     schema_type_identity,
                     ..
                 }
-                | checked_trees::CheckedUnitRecordStorage::PlacedView {
+                | checked_trees::CheckedUnitRecordStorage::AccessView {
                     schema_type_identity,
                     ..
                 } = storage
@@ -896,11 +896,11 @@ pub(crate) fn lower_unit_structural_type_roots(
                 StructuralTypeShape::Record {
                     fields,
                     storage: match storage {
-                        checked_trees::CheckedUnitRecordStorage::PlacedView { storage, .. } => {
-                            terminal_psi::StructuralRecordStorage::PlacedView(*storage)
+                        checked_trees::CheckedUnitRecordStorage::AccessView { storage, .. } => {
+                            terminal_psi::StructuralRecordStorage::AccessView(*storage)
                         }
-                        checked_trees::CheckedUnitRecordStorage::PlacedAccessor(storage) => {
-                            terminal_psi::StructuralRecordStorage::PlacedAccessor(*storage)
+                        checked_trees::CheckedUnitRecordStorage::Accessor(storage) => {
+                            terminal_psi::StructuralRecordStorage::Accessor(*storage)
                         }
                         checked_trees::CheckedUnitRecordStorage::Packed => {
                             terminal_psi::StructuralRecordStorage::Packed

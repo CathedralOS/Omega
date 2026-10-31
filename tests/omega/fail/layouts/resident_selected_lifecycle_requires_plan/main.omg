@@ -6,50 +6,50 @@ use omega::language::core::layout;
 public data Word { value: u64; }
 public data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 8 },
+        representation: FieldPlan::At { offset: 8 },
     };
-    let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan {
+    let layout: LayoutPlan = LayoutPlan {
             entries: entries, entry_count: 1, size_fixed: 8,
             size_is_dynamic: false, align: 8,
-        },
-        access: AccessPlan::inaccessible(&schema),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine initialize(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
 {
-    PlacementOutcome::Rejected {
-        returned: PlacementReturn { source: storage, custody: value },
-        reason: PlacementInitializationFailure::IncompatibleSupply,
+    AccessOutcome::Rejected {
+        returned: AccessReturn { source: storage, custody: value },
+        reason: AccessInitializationFailure::IncompatibleSupply,
     }
 }
 boundary machine move_out(storage: Extent in Granted & Resident<WordPlacement, Word>)
-    -> PlacementExtraction<Extent in Granted & Vacant, Word>;
+    -> AccessExtraction<Extent in Granted & Vacant, Word>;
 
-Selected satisfies PlacementLifecycle<WordPlacement, Word> {
-    PlacementLifecycle::initialize = initialize;
-    PlacementLifecycle::move_out = move_out;
+Selected satisfies AccessLifecycle<WordPlacement, Word> {
+    AccessLifecycle::initialize = initialize;
+    AccessLifecycle::move_out = move_out;
 }
 
 machine exercise(storage: Extent in Granted & Vacant, value: Word)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<WordPlacement, Word>,
-        PlacementReturn<Extent in Granted & Vacant, Word>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Word>,
+        AccessInitializationFailure
     >
-reaches PlacementLifecycle + ResourceProfileSupply
+reaches AccessLifecycle + ResourceProfileSupply
 {
     Selected::initialize(storage, value)
 }

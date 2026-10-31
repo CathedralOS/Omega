@@ -97,7 +97,7 @@ fn selected_family_realizations(
         if provider.row_realizations.len() != plan.rows.len()
             || provider.row_requirements.len() != plan.rows.len()
             || provider.row_target_machine_origins.len() != plan.rows.len()
-            || provider.row_placed_accessors.len() != plan.rows.len()
+            || provider.row_accessors.len() != plan.rows.len()
         {
             return Err(vec![Diagnostic::error(
                 "selected family realization has incomplete provider row custody",

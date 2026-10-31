@@ -53,7 +53,7 @@ profile receipts. Temporary probes are removed before capture.
 The initial suspicion included repeated const-generic evaluation probes. These
 three inputs instead show exactly one early `resolve_numeric_probe` call. Its
 sole source call site at this base is
-[`retain_applied_results`](../../../../omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs),
+[`retain_applied_results`](../../../../omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs),
 which clones the syntax forest and resolves it to discover applied call-result
 placement. Its early guard asks whether any call has machine arguments; the
 measurement does not yet count how many useful placement demands this produces.

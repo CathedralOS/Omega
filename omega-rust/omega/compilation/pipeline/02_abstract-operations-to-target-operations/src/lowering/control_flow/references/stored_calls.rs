@@ -27,9 +27,9 @@ pub(in crate::lowering) struct StoredEffects {
     provider_outputs: BTreeMap<(BoundaryMachineId, u32), (StructuralTypeId, StructuralAccess)>,
     pub(super) observations:
         BTreeMap<MachineId, terminal_semantics::descriptor_results::DescriptorSourceObservations>,
-    pub(super) placed_results: BTreeMap<
+    pub(super) access_results: BTreeMap<
         MachineId,
-        Option<Vec<optimization_unit_semantics::descriptor_results::placed_results::ResultSlot>>,
+        Option<Vec<optimization_unit_semantics::descriptor_results::access_results::ResultSlot>>,
     >,
 }
 pub(in crate::lowering) type StoredEffectCatalog = std::sync::Arc<StoredEffects>;
@@ -106,7 +106,7 @@ pub(in crate::lowering) fn catalog(
     let mut effects = StoredEffects {
         provider_outputs: BTreeMap::new(),
         observations: BTreeMap::new(),
-        placed_results: BTreeMap::new(),
+        access_results: BTreeMap::new(),
         machines: candidates
             .iter()
             .map(|function| (function.machine, None))
@@ -188,17 +188,17 @@ pub(in crate::lowering) fn catalog(
         return std::sync::Arc::new(effects);
     };
     let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
-    let has_placed_views = !types.catalog().placed_views().is_empty();
+    let has_access_views = !types.catalog().access_views().is_empty();
     // Read-only functions also observe nested reference contents. Restricting
     // this roster to functions with write effects loses those observations.
     for machine in &graph {
         effects
             .observations
             .insert(machine.id, analysis.source_observations(machine.id));
-        let result = if has_placed_views {
+        let result = if has_access_views {
             functions.get(&machine.id).and_then(|function| {
                 let result = function.result.structural()?;
-                optimization_unit_semantics::descriptor_results::placed_results::summarize(
+                optimization_unit_semantics::descriptor_results::access_results::summarize(
                     types.catalog(),
                     boundaries,
                     &function.structural_parameters,
@@ -216,7 +216,7 @@ pub(in crate::lowering) fn catalog(
         } else {
             None
         };
-        effects.placed_results.insert(machine.id, result);
+        effects.access_results.insert(machine.id, result);
     }
     for function in candidates {
         let summary = analysis.stored_effects(function.machine).and_then(|rows| {
@@ -282,7 +282,7 @@ pub(in crate::lowering) fn catalog(
                             DescriptorStoredOrigin::Invocation { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. }
                             | DescriptorStoredOrigin::Literal { .. }
-                            | DescriptorStoredOrigin::PlacedFormation { .. } => return None,
+                            | DescriptorStoredOrigin::AccessFormation { .. } => return None,
                         }
                     }
                     sources.sort();
@@ -391,7 +391,7 @@ pub(in super::super) fn stage(
                         root: normalized_source(function, live, types, &source)?,
                         carrier_type,
                         referent,
-                        placed: super::placed_source(function, live, types, &source),
+                        placed: super::access_source(function, live, types, &source),
                     }
                 }
                 Source::Provider(origin) => {

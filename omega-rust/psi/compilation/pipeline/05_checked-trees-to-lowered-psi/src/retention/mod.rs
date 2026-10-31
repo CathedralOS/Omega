@@ -3,7 +3,7 @@
 //! After the selected machines exist, machine lowering installs the checked
 //! custody that must survive discarding source companions: reborrow root
 //! handoffs and restored call uses, foreign borrow custody, suspension call
-//! plans, placed-view inputs, operation-level crash contracts for selected
+//! plans, access-view inputs, operation-level crash contracts for selected
 //! operator invocations, and closed reach or conformance applications.
 
 use checked_trees::CheckedTrees;
@@ -20,14 +20,14 @@ use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::{content_conservation, evidence_lowering};
 use crate::unit::attached_unit::checked_unit_boundary_identity;
 
+pub(crate) mod access_lifecycles;
+pub(crate) mod access_view_inputs;
+pub(crate) mod access_view_plans;
 pub(crate) mod closed_reach_applications;
 pub(crate) mod conformance_applications;
 pub(crate) mod external_providers;
 pub(crate) mod operation_crash_contracts;
 pub(crate) mod payload_memberships;
-pub(crate) mod placed_view_inputs;
-pub(crate) mod placed_view_plans;
-pub(crate) mod placement_lifecycles;
 pub(crate) mod reborrow_restored_call_use;
 pub(crate) mod retained_borrow_custody;
 pub(crate) mod suspension_call_plan;

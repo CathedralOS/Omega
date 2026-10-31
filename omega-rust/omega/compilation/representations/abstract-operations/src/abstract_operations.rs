@@ -67,13 +67,13 @@ impl AbstractOperationPlan {
     }
 }
 
+mod access_lifecycles;
+mod access_references;
 pub mod ownership;
-mod placed_references;
-mod placement_lifecycles;
-pub use placed_references::{
-    BorrowedExtentBacking, PlacedReferenceBacking, ResidentReferenceBacking,
+pub use access_lifecycles::AccessLifecycleOperands;
+pub use access_references::{
+    AccessReferenceBacking, BorrowedExtentBacking, ResidentReferenceBacking,
 };
-pub use placement_lifecycles::PlacementLifecycleOperands;
 mod structural_type_catalog;
 pub use ownership::CompletionClaimSource;
 pub use structural_type_catalog::StructuralTypeCatalog;
@@ -85,7 +85,7 @@ pub use atomic::{
 pub mod calls;
 pub use calls::{
     AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
-    AbstractOperationPlanWithPlacedViewInputs, AbstractStructuralCallResult, StructuralCallFormal,
+    AbstractOperationPlanWithAccessViewInputs, AbstractStructuralCallResult, StructuralCallFormal,
     StructuralCallResult, call_source,
 };
 pub mod control_flow;

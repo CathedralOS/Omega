@@ -1,15 +1,15 @@
 //! Structural permissions cover repeated storage, never authorize a giant scalar
 //! operation. These pure judgments are prerequisites, not executed access.
 use crate::{
-    AccessExposure, AccessOperation, AccessPlan, AtomicCapability, BorrowPolarity, BoundaryReach,
-    ExternalCapability, FieldAccess, PeerWritability, PlacementPlan, ResourceProfile,
-    ResourceRegion, StableCapability, ValidatedPlacementPlan, validate_placement_plan,
-    validate_placement_resources, validate_resource_profile,
+    AccessExposure, AccessFields, AccessOperation, AccessPlan, AtomicCapability, BorrowPolarity,
+    BoundaryReach, ExternalCapability, FieldAccess, PeerWritability, ResourceProfile,
+    ResourceRegion, StableCapability, ValidatedAccessPlan, validate_access_plan,
+    validate_access_resources, validate_resource_profile,
 };
 use layout_plans::LayoutPlacementReport;
 use layout_plans::test_support::{layout_field_entry, layout_report};
 
-fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedPlacementPlan {
+fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedAccessPlan {
     region_plan(FieldAccess::Region {
         byte_length,
         byte_alignment: 8,
@@ -24,7 +24,7 @@ fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedPlacementPla
     })
 }
 
-fn region_plan(demand: FieldAccess) -> ValidatedPlacementPlan {
+fn region_plan(demand: FieldAccess) -> ValidatedAccessPlan {
     let layout = layout_report(
         vec![layout_field_entry(
             "words".into(),
@@ -34,10 +34,10 @@ fn region_plan(demand: FieldAccess) -> ValidatedPlacementPlan {
         Some(4104),
         8,
     );
-    let mut access = AccessPlan::inaccessible(&layout).expect("schema slots");
+    let mut access = AccessFields::inaccessible(&layout).expect("schema slots");
     let key = access.key_at(0).expect("one field");
     access.set(key, demand).expect("exact field key");
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         layout,
         access,
         reach: BoundaryReach::default(),
@@ -140,7 +140,7 @@ fn external_region_requires_complete_exact_leaf_supply() {
     ];
     for (name, accepted, regions) in cases {
         let profile = validate_resource_profile(ResourceProfile { regions }, 4104).expect(name);
-        let result = validate_placement_resources(&plan, &profile);
+        let result = validate_access_resources(&plan, &profile);
         assert_eq!(result.is_ok(), accepted, "{name}: {result:?}");
         if let Ok(compatible) = result {
             assert!(compatible.base_congruence().admits(4096), "{name}");
@@ -255,10 +255,10 @@ fn field_region_supply_covers_all_bytes_and_requested_operations() {
         4104,
     )
     .expect("adjacent different supply");
-    let compatible = validate_placement_resources(&plan, &profile).expect("complete read supply");
+    let compatible = validate_access_resources(&plan, &profile).expect("complete read supply");
     assert!(compatible.base_congruence().admits(4096));
     assert!(!compatible.base_congruence().admits(4097));
-    assert!(validate_placement_resources(&page_plan(true, true, 4096), &profile).is_err());
+    assert!(validate_access_resources(&page_plan(true, true, 4096), &profile).is_err());
     for regions in [
         vec![region(8, 4095, StableCapability::Read)],
         vec![
@@ -269,7 +269,7 @@ fn field_region_supply_covers_all_bytes_and_requested_operations() {
     ] {
         let profile = validate_resource_profile(ResourceProfile { regions }, 4104)
             .expect("valid incomplete supply");
-        assert!(validate_placement_resources(&plan, &profile).is_err());
+        assert!(validate_access_resources(&plan, &profile).is_err());
     }
 }
 
@@ -300,7 +300,7 @@ fn structural_permission_does_not_relax_scalar_transfer_limits() {
             },
         )
         .expect("exact field");
-    assert!(crate::validate_access_plan(scalar, plan.layout()).is_err());
+    assert!(crate::validate_access_fields(scalar, plan.layout()).is_err());
 }
 
 #[test]
@@ -412,7 +412,7 @@ fn destructive_region_cannot_overlap_another_accessible_field() {
             Some(32),
             8,
         );
-        let mut access = AccessPlan::inaccessible(&layout).unwrap();
+        let mut access = AccessFields::inaccessible(&layout).unwrap();
         access
             .set(
                 access.key_at(0).unwrap(),
@@ -449,7 +449,7 @@ fn destructive_region_cannot_overlap_another_accessible_field() {
             },
         ] {
             access.set(access.key_at(1).unwrap(), other).unwrap();
-            let result = validate_placement_plan(PlacementPlan {
+            let result = validate_access_plan(AccessPlan {
                 layout: layout.clone(),
                 access: access.clone(),
                 reach: BoundaryReach::default(),

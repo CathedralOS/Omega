@@ -241,7 +241,7 @@ pub(super) fn check_call_result_qualifications(
             // execution engines refuse generic provider/handler fallback.
             // In particular Granted still follows conservation below: these
             // private routes authorize content transition, not fresh storage.
-            match private_placement_result_contract(program, &invocation, domain, semantic_domain, path) {
+            match private_access_result_contract(program, &invocation, domain, semantic_domain, path) {
                 Ok(true) => {
                     if result_claim(program, facts, &invocation, path).is_none() {
                         primitive_error = Some(Diagnostic::error(
@@ -515,7 +515,7 @@ pub(super) fn check_call_result_qualifications(
 /// Recognize only an authenticated closed lifecycle operation whose exact
 /// result subject and evaluated P/T plan survive preparation. An arbitrary
 /// bodyless exact-machine route is not a compiler implementation.
-fn private_placement_result_contract(
+fn private_access_result_contract(
     program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     domain: &typed_trees::domain::DomainDefinition,
@@ -524,7 +524,7 @@ fn private_placement_result_contract(
 ) -> Result<bool, Diagnostic> {
     let callable = invocation.target_symbol(program);
     let Some(declaration) =
-        typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, callable)?
+        typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(program, callable)?
     else {
         return Ok(false);
     };

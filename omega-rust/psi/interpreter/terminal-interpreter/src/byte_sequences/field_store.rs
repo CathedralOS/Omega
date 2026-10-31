@@ -142,7 +142,7 @@ impl TerminalExecution<'_> {
 
     /// Dispatch charges fuel first. The verifier admitted a readable shared
     /// descriptor source, whose immutable bytes the slot now shares: the
-    /// descriptor is replaced whole and the displaced view's backing is left
+    /// descriptor is replaced whole and the disaccess view's backing is left
     /// untouched. A field slot lives below its record's current home; the
     /// whole slot of a declared descriptor local is that home's own binding.
     pub(crate) fn execute_structural_byte_view_field_store(

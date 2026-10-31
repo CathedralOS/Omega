@@ -526,7 +526,7 @@ ProgramEntry or executable lowering to review its uncalled supplied declarations
 Private checking-only coordinates remain invocation-local, never portable owners.
 The selected row no longer duplicates numeric execution identity: review and
 native settlement consume the checked meaning through the shared source-free
-external-satisfaction join. Host/placement authority remains independent.
+external-satisfaction join. Host/access authority remains independent.
 Psi also retains the requirement's exact schema, method and owner coordinates.
 Numeric settlement checks these against the selected whole plan through the
 same source-free join; early typed Build planning adapts the source-owned view
@@ -691,7 +691,7 @@ directly lowered comparisons retain the same relation. It retains requirement,
 realization and selecting-owner
 declarations, authored target membership, package identities and structural binding mechanisms independently
 of target selection. Native retention omits the duplicate numeric execution
-sidecar; host and placement authority judgments remain separate. Portable
+sidecar; host and access authority judgments remain separate. Portable
 decoding validates declaration coordinates and the complete numeric signature.
 This meaning does not select or authorize a provider. Review-only
 products still use checked source custody: moving their complete conformance

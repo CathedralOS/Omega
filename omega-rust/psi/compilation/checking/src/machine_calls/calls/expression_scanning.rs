@@ -690,21 +690,18 @@ fn validate_expression_call_bounds(
     }
 
     let namespace = traversal::is_declaration_namespace(program, call.receiver);
-    // A placed accessor is selected by its compiler-owned plan, not by methods
+    // A accessor is selected by its compiler-owned plan, not by methods
     // on a data type. Preserve this memory operation without retaining general
     // data-receiver dispatch or inferring an implicit operand.
-    let placed_accessor = receiver_type_reference
-        .and_then(|reference| program.placed_view_field_plan_for_type_reference(reference))
+    let accessor = receiver_type_reference
+        .and_then(|reference| program.access_view_field_plan_for_type_reference(reference))
         .is_some_and(|(_, field)| {
             field.accessor_targets.iter().any(|target| {
                 target.state_symbol == call.target_symbol
                     && target.operation == call.target.as_str()
             })
         });
-    if !namespace
-        && !placed_accessor
-        && machine_state_by_symbol(program, call.target_symbol).is_some()
-    {
+    if !namespace && !accessor && machine_state_by_symbol(program, call.target_symbol).is_some() {
         if program
             .expression_table
             .name_path_node(call.receiver)

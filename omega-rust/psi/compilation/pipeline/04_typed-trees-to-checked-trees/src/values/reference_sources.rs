@@ -118,7 +118,7 @@ pub(crate) fn capture_source(
         return None;
     }
     let is_view = formation.view_type.is_valid();
-    let is_placed = formation.interpretation.is_placed();
+    let is_access_view = formation.interpretation.is_access_view();
     if is_view
         && program.normalized_type_identity(formation.view_type)
             != program.normalized_type_identity(referent)
@@ -218,7 +218,7 @@ pub(crate) fn capture_source(
     {
         return None;
     }
-    let placed_storage = if is_placed {
+    let access_storage = if is_access_view {
         let named_symbol = |reference| {
             let reference = program
                 .type_reference_table
@@ -230,7 +230,7 @@ pub(crate) fn capture_source(
         };
         let view = named_symbol(referent)?;
         let mut plans = program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .filter(|plan| plan.data_symbol == view);
         let (Some(plan), None) = (plans.next(), plans.next()) else {
@@ -239,7 +239,7 @@ pub(crate) fn capture_source(
         Some(
             formation
                 .interpretation
-                .placed_storage(program, endpoint, plan)?,
+                .access_storage(program, endpoint, plan)?,
         )
     } else {
         None
@@ -370,7 +370,7 @@ pub(crate) fn capture_source(
         }
         _ => return None,
     };
-    let storage = if let Some(storage) = placed_storage {
+    let storage = if let Some(storage) = access_storage {
         storage
     } else if is_view {
         validation::reference_view_storage(program, endpoint, referent)?

@@ -577,7 +577,7 @@ impl TerminalExecution<'_> {
         }
         // Reuse the ordinary call's exact initialized-array binding. It can
         // enter a checked provider and be forwarded again. External staging
-        // lends its exact range, never field-replacement authority.
+        // lends its exact range, never field-reaccess authority.
         if let Some(prepared) = self.prepare_array_view_argument_staged(
             parameter,
             argument,
@@ -911,7 +911,7 @@ impl TerminalExecution<'_> {
     /// Read a bounded owner's current bytes at its exact storage coordinate.
     /// This source join supplies no destination type or domain. Whole owners
     /// and owner fields use their existing live bindings; neither replays a
-    /// constructor or lends field-replacement authority to the shared snapshot.
+    /// constructor or lends field-reaccess authority to the shared snapshot.
     pub(crate) fn bounded_owner_snapshot(
         &self,
         argument: &StructuralArgument,

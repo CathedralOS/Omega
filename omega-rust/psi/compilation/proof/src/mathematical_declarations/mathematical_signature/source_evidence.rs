@@ -696,8 +696,7 @@ impl Elaborator<'_> {
     /// Retain each exact immutable erased local use from its checked initializer.
     /// A use cannot acquire evidence merely from its receiving destination.
     pub(super) fn retain_source_evidence_aliases(&mut self) -> Result<(), Vec<Diagnostic>> {
-        if self.prepared.source_evidence.is_empty()
-            && self.prepared.source_constructors.is_empty()
+        if self.prepared.source_evidence.is_empty() && self.prepared.source_constructors.is_empty()
         {
             return Ok(());
         }

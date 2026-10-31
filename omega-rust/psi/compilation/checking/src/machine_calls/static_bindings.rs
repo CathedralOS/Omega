@@ -6,8 +6,8 @@
 //! closure still requires a closed tuple. Runtime Value carriers keep ordinary
 //! value checking.
 
+mod accessor_primitives;
 mod forwarded_evidence;
-mod placed_primitives;
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -347,7 +347,7 @@ pub fn validate_static_machine_bindings(
         let lifetimes = program
             .expression_table
             .static_machine_application_lifetimes(handle);
-        if let Err(diagnostic) = placed_primitives::validate(
+        if let Err(diagnostic) = accessor_primitives::validate(
             program,
             application,
             bindings,

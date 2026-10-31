@@ -1,24 +1,23 @@
 use super::{
-    admit_uart, field_key, primitive_request_snapshot, uart_extent_with_lineage,
-    uart_placement_plan, uart_reach, uart_resource_profile,
+    admit_uart, field_key, primitive_request_snapshot, uart_access_plan, uart_extent_with_lineage,
+    uart_reach, uart_resource_profile,
 };
 use crate::{
-    PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
-    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
-    StableDeviceInstanceId, admit_placement, bind_schema_correspondence_to_placement, place,
+    AccessAdmissionId, AccessPlanId, ResourceProfileReceiptId, SchemaCorrespondenceProviderId,
+    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableDeviceInstanceId,
+    admit_access, bind_schema_correspondence_to_access_plan, place,
 };
 use extents::LoanPolarity;
 
 #[test]
 fn correspondence_binding_replays_placement_and_returns_both_inputs_for_retry() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0x7190, 12, 242);
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let profile = uart_resource_profile(&loan, &uart_reach());
-    let admission_id =
-        PlacementAdmissionId::from_normalized_identity(243).expect("placement admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(243).expect("access admission");
     let mut admission =
-        admit_placement(admission_id, loan, &plan, &profile).expect("borrowed placement admission");
+        admit_access(admission_id, loan, &plan, &profile).expect("borrowed access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(244)
         .expect("correspondence provider");
     let device = StableDeviceInstanceId::from_normalized_identity(245).expect("stable device");
@@ -35,32 +34,32 @@ fn correspondence_binding_replays_placement_and_returns_both_inputs_for_retry() 
         .admit(&plan, &profile)
         .expect("schema correspondence admission");
 
-    admission.placement_plan.layout.schema_report_fingerprint ^= 1;
-    assert_eq!(admission.placement_plan.identity(), plan.identity());
-    let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
+    admission.access_plan.layout.schema_report_fingerprint ^= 1;
+    assert_eq!(admission.access_plan.identity(), plan.identity());
+    let rejection = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect_err("same compact identity cannot hide placement structure drift");
     assert!(rejection.diagnostic().0.contains("exact plan"));
     let (mut admission, mut correspondence, _) = rejection.into_parts();
-    admission.placement_plan.layout.schema_report_fingerprint =
+    admission.access_plan.layout.schema_report_fingerprint =
         plan.layout().schema_report_fingerprint;
 
-    correspondence.replace_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
-    let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
+    correspondence.replace_access_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
+    let rejection = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect_err("placement identity drift must reject");
     assert!(rejection.diagnostic().0.contains("exact plan"));
     let (mut admission, mut correspondence, _) = rejection.into_parts();
     assert_eq!(admission.identity(), admission_id);
-    correspondence.replace_placement_for_test(plan.identity());
+    correspondence.replace_access_plan_for_test(plan.identity());
 
     admission.profile_receipt =
         ResourceProfileReceiptId::from_normalized_identity(999).expect("drifted receipt");
-    let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
+    let rejection = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect_err("admission receipt drift must reject");
     assert!(rejection.diagnostic().0.contains("exact plan"));
     let (mut admission, correspondence, _) = rejection.into_parts();
     admission.profile_receipt = profile.receipt();
 
-    let bound = bind_schema_correspondence_to_placement(admission, correspondence)
+    let bound = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("repaired inputs remain valid for retry");
     assert_eq!(bound.admission(), admission_id);
     assert_eq!(bound.correspondence().provider(), provider);
@@ -73,14 +72,13 @@ fn correspondence_binding_replays_placement_and_returns_both_inputs_for_retry() 
 
 #[test]
 fn corresponded_view_establishment_replays_both_inputs_and_preserves_retry() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0x71a0, 12, 247);
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let profile = uart_resource_profile(&loan, &uart_reach());
-    let admission_id =
-        PlacementAdmissionId::from_normalized_identity(248).expect("placement admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(248).expect("access admission");
     let admission =
-        admit_placement(admission_id, loan, &plan, &profile).expect("borrowed placement admission");
+        admit_access(admission_id, loan, &plan, &profile).expect("borrowed access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(249)
         .expect("correspondence provider");
     let device = StableDeviceInstanceId::from_normalized_identity(250).expect("stable device");
@@ -96,17 +94,17 @@ fn corresponded_view_establishment_replays_both_inputs_and_preserves_retry() {
     let correspondence = grant
         .admit(&plan, &profile)
         .expect("schema correspondence admission");
-    let mut bound = bind_schema_correspondence_to_placement(admission, correspondence)
+    let mut bound = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("correspondence placement binding");
 
-    bound.replace_correspondence_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    bound.replace_correspondence_access_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let rejection = bound
         .establish_view()
         .expect_err("establishment must independently replay correspondence");
     assert!(rejection.diagnostic().0.contains("exact plan"));
     let (mut bound, _) = rejection.into_parts();
     assert_eq!(bound.admission(), admission_id);
-    bound.replace_correspondence_placement_for_test(plan.identity());
+    bound.replace_correspondence_access_plan_for_test(plan.identity());
 
     let view = bound
         .establish_view()
@@ -121,19 +119,19 @@ fn corresponded_view_establishment_replays_both_inputs_and_preserves_retry() {
 
 #[test]
 fn corresponded_view_retirement_replays_both_authorities_and_returns_exact_inputs() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0x71a8, 12, 259);
     let origin = extent.origin();
     let lineage = extent.lineage_root();
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let profile = uart_resource_profile(&loan, &uart_reach());
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(260).expect("placement admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(260).expect("access admission"),
         loan,
         &plan,
         &profile,
     )
-    .expect("borrowed placement admission");
+    .expect("borrowed access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(261)
         .expect("correspondence provider");
     let device =
@@ -149,7 +147,7 @@ fn corresponded_view_retirement_replays_both_authorities_and_returns_exact_input
     .expect("provider correspondence grant")
     .admit(&plan, &profile)
     .expect("schema correspondence admission");
-    let mut view = bind_schema_correspondence_to_placement(admission, correspondence)
+    let mut view = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("correspondence placement binding")
         .establish_view()
         .expect("corresponded view establishment");
@@ -171,13 +169,13 @@ fn corresponded_view_retirement_replays_both_authorities_and_returns_exact_input
     view.replace_view_profile_receipt_for_test(profile.receipt());
     view.replace_correspondence_profile_receipt_for_test(profile.receipt());
 
-    view.replace_correspondence_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    view.replace_correspondence_access_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let rejection = view
         .retire()
         .expect_err("physical correspondence drift must reject retirement");
     assert!(rejection.diagnostic().0.contains("exact placement"));
     let (mut view, _) = rejection.into_parts();
-    view.replace_correspondence_placement_for_test(plan.identity());
+    view.replace_correspondence_access_plan_for_test(plan.identity());
 
     let (loan, correspondence) = view
         .retire()
@@ -195,17 +193,17 @@ fn corresponded_view_retirement_replays_both_authorities_and_returns_exact_input
 
 #[test]
 fn corresponded_view_retains_and_replays_evidence_through_primitive_specialization() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0x71b0, 12, 252);
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let profile = uart_resource_profile(&loan, &uart_reach());
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(253).expect("placement admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(253).expect("access admission"),
         loan,
         &plan,
         &profile,
     )
-    .expect("borrowed placement admission");
+    .expect("borrowed access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(254)
         .expect("correspondence provider");
     let device = StableDeviceInstanceId::from_normalized_identity(255).expect("stable device");
@@ -220,18 +218,18 @@ fn corresponded_view_retains_and_replays_evidence_through_primitive_specializati
     .expect("provider correspondence grant")
     .admit(&plan, &profile)
     .expect("schema correspondence admission");
-    let mut view = bind_schema_correspondence_to_placement(admission, correspondence)
+    let mut view = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("correspondence placement binding")
         .establish_view()
         .expect("corresponded view establishment");
     let status = field_key(plan.access(), "status");
 
-    view.replace_correspondence_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    view.replace_correspondence_access_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let rejection = view
         .project(status)
         .expect_err("projection must replay retained correspondence");
     assert!(rejection.0.contains("schema/device correspondence"));
-    view.replace_correspondence_placement_for_test(plan.identity());
+    view.replace_correspondence_access_plan_for_test(plan.identity());
 
     let projection = view
         .project(status)
@@ -311,7 +309,7 @@ fn corresponded_view_retains_and_replays_evidence_through_primitive_specializati
         .validate_for_provider_lowering()
         .expect("restoring the exact correspondence carrier permits retry");
 
-    corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    corresponded.replace_request_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let rejection = corresponded
         .validate_for_provider_lowering()
         .expect_err("provider/device preflight must replay the retained placement");
@@ -319,7 +317,7 @@ fn corresponded_view_retains_and_replays_evidence_through_primitive_specializati
     assert_eq!(corresponded.correspondence().provider(), provider);
     assert_eq!(
         corresponded.external_access().primitive_request().plan(),
-        PlacementPlanId(plan.identity().0 ^ 1),
+        AccessPlanId(plan.identity().0 ^ 1),
         "borrowed request inspection reflects the still-retained drifted carrier"
     );
     corresponded.replace_request_plan_for_test(plan.identity());
@@ -342,7 +340,7 @@ fn corresponded_view_retains_and_replays_evidence_through_primitive_specializati
     let ordinary_extent = uart_extent_with_lineage(0x71c0, 12, 257);
     let ordinary_loan = ordinary_extent.loan(0, 12).expect("ordinary shared loan");
     let ordinary = place(
-        admit_uart(258, ordinary_loan, &plan, &uart_reach()).expect("ordinary placement admission"),
+        admit_uart(258, ordinary_loan, &plan, &uart_reach()).expect("ordinary access admission"),
     )
     .expect("ordinary view establishment");
     let ordinary_projection = ordinary.project(status).expect("ordinary projection");

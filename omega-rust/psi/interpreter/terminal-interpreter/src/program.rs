@@ -298,17 +298,17 @@ pub struct TerminalProgramEntry<'program> {
     pub machine: MachineId,
     pub scalar_parameters: &'program [terminal_psi::ValueDeclaration],
     pub structural_parameters: &'program [terminal_psi::StructuralParameterDeclaration],
-    placed_view_inputs: &'program [terminal_psi::TerminalPlacedViewInput],
+    access_view_inputs: &'program [terminal_psi::TerminalAccessViewInput],
     pub result: &'program terminal_psi::TerminalMachineResult,
 }
 
 impl TerminalProgramEntry<'_> {
-    /// Borrow only this exact executable entry's placed-view custody demands.
+    /// Borrow only this exact executable entry's access-view custody demands.
     /// Other retained target bodies are not this invocation's input contract.
-    pub fn placed_view_inputs(
+    pub fn access_view_inputs(
         &self,
-    ) -> impl Iterator<Item = &terminal_psi::TerminalPlacedViewInput> {
-        self.placed_view_inputs
+    ) -> impl Iterator<Item = &terminal_psi::TerminalAccessViewInput> {
+        self.access_view_inputs
             .iter()
             .filter(move |row| row.machine == self.machine)
     }
@@ -350,7 +350,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             machine: entry,
             scalar_parameters: &machine.parameters,
             structural_parameters: &machine.structural_parameters,
-            placed_view_inputs: &self.program.catalogs.placed_view_inputs,
+            access_view_inputs: &self.program.catalogs.access_view_inputs,
             result: &machine.result,
         })
     }
@@ -844,7 +844,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             structural_inputs.arguments,
             scalar_fields,
             structural_inputs.primitive_values,
-            structural_inputs.placed_view_establishments,
+            structural_inputs.access_view_establishments,
             structural_inputs.private_entry_ram,
             structural_inputs.zero_initialized_arguments,
             structural_inputs.established_erased_fields,
@@ -1023,7 +1023,7 @@ mod private_entry_target_tests {
         };
         let row = artifact
             .semantic_module()
-            .placed_view_inputs
+            .access_view_inputs
             .iter()
             .find(|row| row.machine == entry)
             .expect("actual direct placed row")

@@ -3,7 +3,7 @@
 /// its compact compatibility fingerprint is not semantic authority. Symbol
 /// handles remain private joins and never cross the Terminal boundary.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedPlacedViewInput {
+pub struct CheckedAccessViewInput {
     pub machine: symbols::SymbolHandle,
     pub state: symbols::SymbolHandle,
     pub position: u32,
@@ -15,5 +15,5 @@ pub struct CheckedPlacedViewInput {
     pub policy: symbols::SymbolHandle,
     pub policy_plan_machine: symbols::SymbolHandle,
     pub schema: symbols::SymbolHandle,
-    pub placement: access_plans::ValidatedPlacementPlan,
+    pub placement: access_plans::ValidatedAccessPlan,
 }

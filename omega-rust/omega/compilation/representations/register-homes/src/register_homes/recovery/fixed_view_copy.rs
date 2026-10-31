@@ -103,7 +103,7 @@ pub struct FixedViewCopyDestination {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
     InvalidQuotientCatalog,
-    InvalidPlacementCatalog {
+    InvalidAccessLifecycleCatalog {
         catalog: &'static str,
         cause: terminal_codec::CodecError,
     },

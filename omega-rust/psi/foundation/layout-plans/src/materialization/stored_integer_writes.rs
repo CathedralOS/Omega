@@ -36,17 +36,17 @@ pub(crate) fn scalar_fragment(
 /// checked field in each diagnostic.
 pub(crate) fn materializer_scalar_window(
     placement: LayoutPlacementReport,
-    placed_width_bits: u16,
+    access_width_bits: u16,
     field_kind: &str,
     field_display: &str,
 ) -> Result<(u64, u16, u16, u16, u16), MaterializationDiagnostic> {
     let (container, container_width, destination_lsb, source_lsb, width) = match placement {
         LayoutPlacementReport::At { offset } => (
             offset,
-            u64::from(placed_width_bits),
+            u64::from(access_width_bits),
             0,
             0,
-            u64::from(placed_width_bits),
+            u64::from(access_width_bits),
         ),
         LayoutPlacementReport::IntegerAt {
             offset,
@@ -75,9 +75,9 @@ pub(crate) fn materializer_scalar_window(
     let source_end = source_lsb.checked_add(width).ok_or_else(|| {
         MaterializationDiagnostic(format!("{field_kind} source bit range overflows"))
     })?;
-    if source_end > u64::from(placed_width_bits) {
+    if source_end > u64::from(access_width_bits) {
         return Err(MaterializationDiagnostic(format!(
-            "{field_kind} field `{field_display}` placement reads through bit {source_end}, past its {placed_width_bits}-bit source"
+            "{field_kind} field `{field_display}` placement reads through bit {source_end}, past its {access_width_bits}-bit source"
         )));
     }
     let destination_end = destination_lsb.checked_add(width).ok_or_else(|| {

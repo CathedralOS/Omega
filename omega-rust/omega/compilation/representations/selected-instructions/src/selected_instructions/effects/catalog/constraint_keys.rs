@@ -24,8 +24,8 @@ impl SelectedConstraintKeys {
 
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
-            self.placed_read,
-            self.placed_write,
+            self.access_read,
+            self.access_write,
             self.port_write,
             self.system_register_read,
             self.system_register_write,
@@ -152,11 +152,11 @@ impl SelectedConstraintKeys {
         semantic: MachineSemanticKind,
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
-            MachineSemanticKind::PlacedScalarAccess(form) => {
+            MachineSemanticKind::AccessorScalarAccess(form) => {
                 return if form.write {
-                    self.rows.placed_write
+                    self.rows.access_write
                 } else {
-                    self.rows.placed_read
+                    self.rows.access_read
                 };
             }
             MachineSemanticKind::PortWrite => return self.rows.port_write,

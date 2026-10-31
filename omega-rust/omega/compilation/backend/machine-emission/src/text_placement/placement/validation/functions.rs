@@ -62,13 +62,13 @@ pub(super) fn check(
             if placed_block.instructions.len() != source_block.instructions.len() {
                 return Err(TextPlacementError::ArtifactMismatch);
             }
-            for (source_row, placed_row) in source_block
+            for (source_row, access_row) in source_block
                 .instructions
                 .iter()
                 .zip(&placed_block.instructions)
             {
                 spans::instruction(
-                    placed_row,
+                    access_row,
                     source_row.instruction,
                     source_row.alternative,
                     source_row.offset,

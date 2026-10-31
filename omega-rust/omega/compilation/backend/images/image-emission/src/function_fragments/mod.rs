@@ -32,7 +32,7 @@ pub enum FunctionFragmentObjectArtifactError {
         operation_description: String,
     },
     Mismatch(&'static str),
-    PlacedBackingGeometry {
+    AccessBackingGeometry {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
         reason: &'static str,
@@ -52,7 +52,7 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
-            Self::PlacedBackingGeometry {
+            Self::AccessBackingGeometry {
                 machine,
                 operation,
                 reason,

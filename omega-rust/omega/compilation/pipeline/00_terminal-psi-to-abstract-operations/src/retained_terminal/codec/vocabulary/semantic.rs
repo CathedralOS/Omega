@@ -188,7 +188,7 @@ record_fields!(diagnostics::ResolvedSourceLocation {
 
 record_fields!(source::SourceSpan { source_id, span });
 
-record_variants!(terminal_psi::TerminalPlacementLifecycleOperation {
+record_variants!(terminal_psi::TerminalAccessLifecycleOperation {
     0 => Initialize,
     1 => MoveOut,
     2 => View,

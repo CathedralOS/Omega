@@ -1152,8 +1152,8 @@ fn visit_callable_symbol(
 ) {
     retained.callable_use(symbol);
     visit_symbol(retained, symbol);
-    for (_, plan) in program.placement_lifecycle_plans.iter() {
-        if let crate::typed_trees::PlacementLifecyclePlan::Evaluated {
+    for (_, plan) in program.access_lifecycle_plans.iter() {
+        if let crate::typed_trees::AccessLifecyclePlan::Evaluated {
             callable,
             policy,
             schema,
@@ -1463,9 +1463,9 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
                 }
             }
         }
-        if !program.placed_view_plans.is_empty() {
+        if !program.access_view_plans.is_empty() {
             for plan in program
-                .placed_view_plans
+                .access_view_plans
                 .iter()
                 .filter(|plan| plan.data_symbol == data.symbol)
             {

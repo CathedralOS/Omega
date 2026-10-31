@@ -68,7 +68,7 @@ fn prepare_plan_declarations<'plans>(
         installation_reach: !matches!(
             provider.schema,
             crate::ProviderSchemaDeclaration::BoundaryOperator(_)
-                | crate::ProviderSchemaDeclaration::SealedPlacedAccessor(_)
+                | crate::ProviderSchemaDeclaration::SealedAccessor(_)
         ),
     });
     Ok(SelectedPlanDeclarations {

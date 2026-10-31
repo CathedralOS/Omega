@@ -191,7 +191,7 @@ impl Transfer<'_> {
     }
 }
 
-/// Only ordinary owned homes prove disjointness. Incoming loans, placed views,
+/// Only ordinary owned homes prove disjointness. Incoming loans, access views,
 /// descriptors and unresolved reference crossings never acquire allocation
 /// identity from their type or from a different PlaceId.
 pub(in crate::descriptor_results::replay) struct Storage {
@@ -396,8 +396,8 @@ fn ordinary_type(
         } => {
             !matches!(
                 storage,
-                terminal_psi::StructuralRecordStorage::PlacedView(_)
-                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_)
+                terminal_psi::StructuralRecordStorage::AccessView(_)
+                    | terminal_psi::StructuralRecordStorage::Accessor(_)
             ) && fields.iter().all(&mut child)
         }
         StructuralTypeShape::Mixed { fields, cases } => fields

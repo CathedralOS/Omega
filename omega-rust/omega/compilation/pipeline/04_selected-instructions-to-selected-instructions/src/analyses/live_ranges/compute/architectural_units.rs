@@ -13,32 +13,31 @@ pub(super) fn architectural_units(
     let mut rows = Vec::<ArchitecturalUnitLiveRange>::new();
     let mut open_unit_end = Vec::<u32>::new();
     let mut touched_units = Vec::<(usize, usize)>::new();
-    let ensure_unit =
-        |unit: RegisterUnitId,
-         unit_indices: &mut Vec<u32>,
-         rows: &mut Vec<ArchitecturalUnitLiveRange>,
-         open_unit_end: &mut Vec<u32>|
-         -> usize {
-            let idx = usize::from(unit.0);
-            if idx >= unit_indices.len() {
-                unit_indices.resize(idx + 1, u32::MAX);
-            }
-            let slot = &mut unit_indices[idx];
-            if *slot == u32::MAX {
-                let new_slot = rows.len();
-                *slot = new_slot as u32;
-                rows.push(ArchitecturalUnitLiveRange {
-                    unit,
-                    actions: Vec::new(),
-                    fragments: Vec::new(),
-                    edge_connectors: Vec::new(),
-                });
-                open_unit_end.push(u32::MAX);
-                new_slot
-            } else {
-                *slot as usize
-            }
-        };
+    let ensure_unit = |unit: RegisterUnitId,
+                       unit_indices: &mut Vec<u32>,
+                       rows: &mut Vec<ArchitecturalUnitLiveRange>,
+                       open_unit_end: &mut Vec<u32>|
+     -> usize {
+        let idx = usize::from(unit.0);
+        if idx >= unit_indices.len() {
+            unit_indices.resize(idx + 1, u32::MAX);
+        }
+        let slot = &mut unit_indices[idx];
+        if *slot == u32::MAX {
+            let new_slot = rows.len();
+            *slot = new_slot as u32;
+            rows.push(ArchitecturalUnitLiveRange {
+                unit,
+                actions: Vec::new(),
+                fragments: Vec::new(),
+                edge_connectors: Vec::new(),
+            });
+            open_unit_end.push(u32::MAX);
+            new_slot
+        } else {
+            *slot as usize
+        }
+    };
 
     for block in &liveness.blocks {
         for &unit in block.unit_live_in.iter().chain(&block.unit_live_out) {
@@ -158,7 +157,9 @@ pub(super) fn architectural_units(
                     continue;
                 }
                 let slot = ensure_unit(unit, &mut unit_indices, &mut rows, &mut open_unit_end);
-                rows[slot].edge_connectors.push(connector(block.block, edge));
+                rows[slot]
+                    .edge_connectors
+                    .push(connector(block.block, edge));
             }
         }
     }

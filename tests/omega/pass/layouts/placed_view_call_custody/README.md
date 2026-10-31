@@ -12,6 +12,6 @@ and modified runtime/state/carrier coordinates. Shared aliases of the same exact
 backing remain admissible.
 
 This package binds no native program entry. Native subordinate establishment
-still refuses at `PlacedViewInputsRequireCustodyLowering`; the test preserves
+still refuses at `AccessViewInputsRequireCustodyLowering`; the test preserves
 that authority gate. The host adapter is a target-neutral external operation
 model, not a claim of physical native placement or device authority.

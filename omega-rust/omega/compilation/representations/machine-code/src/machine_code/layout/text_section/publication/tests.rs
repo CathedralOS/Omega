@@ -53,7 +53,7 @@ fn record() -> FunctionFragmentTextSectionManifest {
         target: NativeTarget::linux_x64(),
         semantic_entry: MachineId::new(13).unwrap(),
         semantic_entry_offset: 14,
-        placement_policy: TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
+        access_policy: TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
         text_section: TerminalRelocationFreeTextSectionIdentity::from_bytes([15; 32]),
         relocation_requirements:
             TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,

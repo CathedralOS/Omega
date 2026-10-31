@@ -1422,7 +1422,7 @@ impl TerminalExecution<'_> {
             }
             // Ordinary ingress already binds the exact qualified view. This
             // endpoint association does not erase its qualifiers or convert
-            // stored payload; host replacement admission remains separate.
+            // stored payload; host reaccess admission remains separate.
             return Ok((loan.storage.clone(), loan.scalar_type, loan.shared_view));
         }
         let (structural_type, shared_view) = self.primitive_home_contract(home, writing, path)?;

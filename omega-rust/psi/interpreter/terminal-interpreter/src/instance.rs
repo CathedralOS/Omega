@@ -61,7 +61,7 @@ impl TerminalProcessExitAdmission {
     /// reading the artifact cannot justify this assertion. No external domain
     /// is ended, and no release or protocol receipt is created.
     ///
-    /// Placed-view host loans have no domain-death admission carrier yet and
+    /// Access-view host loans have no domain-death admission carrier yet and
     /// are conservatively refused here. Ordinary in-domain loans are not.
     pub fn admit_isolated_simulated_domain(
         instance: &TerminalInstance<'_, '_>,
@@ -74,11 +74,11 @@ impl TerminalProcessExitAdmission {
             .execution
             .as_ref()
             .ok_or(TerminalBindingRejection::InstanceClosed)?;
-        if !execution.placed_view_occurrences.is_empty()
+        if !execution.access_view_occurrences.is_empty()
             || execution
                 .call_stack
                 .iter()
-                .any(|frame| !frame.placed_view_occurrences.is_empty())
+                .any(|frame| !frame.access_view_occurrences.is_empty())
         {
             return Err(TerminalBindingRejection::DomainDeathCrossingAdmissionMissing { boundary });
         }

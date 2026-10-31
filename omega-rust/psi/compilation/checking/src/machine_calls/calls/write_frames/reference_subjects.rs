@@ -1011,15 +1011,15 @@ pub(super) fn validate_source_projection(
         if !matches!(
             formation.interpretation,
             crate::ReferenceFormationInterpretation::RepresentationView
-                | crate::ReferenceFormationInterpretation::Placed
-                | crate::ReferenceFormationInterpretation::ResidentPlaced { .. }
+                | crate::ReferenceFormationInterpretation::Access
+                | crate::ReferenceFormationInterpretation::ResidentAccess { .. }
         ) || !formation.view_type.is_valid()
             || program.normalized_type_identity(formation.view_type)
                 != program.normalized_type_identity(recast.target_type)
         {
             return None;
         }
-        if formation.interpretation.is_placed() {
+        if formation.interpretation.is_access_view() {
             // Placement keeps a logical accessor namespace beside the exact
             // original schema. It does not obtain ordinary recast permission.
             let view = crate::value_custody::places::data_definition_for_type(
@@ -1027,7 +1027,7 @@ pub(super) fn validate_source_projection(
                 formation.view_type,
             )?;
             let mut plans = program
-                .placed_view_plans
+                .access_view_plans
                 .iter()
                 .filter(|plan| plan.data_symbol == view.symbol);
             let (Some(plan), None) = (plans.next(), plans.next()) else {
@@ -1048,7 +1048,7 @@ pub(super) fn validate_source_projection(
             }
             formation
                 .interpretation
-                .placed_storage(program, endpoint, plan)?;
+                .access_storage(program, endpoint, plan)?;
         }
         presentation = Some(recast.target_type);
     }

@@ -14,16 +14,16 @@ use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAffineDiscard,
-    StructuralPathQualification, StructuralPathSegment, TerminalPlacementLifecyclePlan,
+    StructuralPathQualification, StructuralPathSegment, TerminalAccessLifecyclePlan,
 };
-use terminal_semantics::{PlacementResultContract, placement_result_contract};
+use terminal_semantics::{AccessResultContract, access_result_contract};
 
 impl TerminalExecution<'_> {
-    pub(crate) fn extract_placement_resident(
+    pub(crate) fn extract_access_resident(
         &mut self,
         operation: &Operation,
         boundary: &BoundaryMachineDeclaration,
-        plan: &TerminalPlacementLifecyclePlan,
+        plan: &TerminalAccessLifecyclePlan,
     ) -> Result<(), TerminalInterpretError> {
         let (vacant, resident_domain) = plan
             .storage
@@ -48,10 +48,10 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let program = std::sync::Arc::clone(&self.program);
-        let PlacementResultContract::MoveOut {
+        let AccessResultContract::MoveOut {
             result: declaration,
             moved,
-        } = placement_result_contract(&program.catalogs, plan)
+        } = access_result_contract(&program.catalogs, plan)
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?
         else {
             return Err(malformed());
@@ -83,7 +83,7 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         let child = ConstructorValue::resolve(self, source)?;
-        let ConstructorValue::Placed(original_extent) = &child else {
+        let ConstructorValue::Access(original_extent) = &child else {
             return Err(malformed());
         };
         let observed = self.resolve_live_projection(

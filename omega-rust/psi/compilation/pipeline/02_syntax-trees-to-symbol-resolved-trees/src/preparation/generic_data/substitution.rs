@@ -578,14 +578,10 @@ pub(crate) fn decide_instance_type_equalities(
             BinaryOperator::Equal | BinaryOperator::NotEqual
         ) {
             let binder = match (single_name(binary.left), single_name(binary.right)) {
-                (Some(left), Some(_))
-                    if type_identities.contains_key(left.as_str(syntax)) =>
-                {
+                (Some(left), Some(_)) if type_identities.contains_key(left.as_str(syntax)) => {
                     Some((left, binary.right))
                 }
-                (Some(_), Some(right))
-                    if type_identities.contains_key(right.as_str(syntax)) =>
-                {
+                (Some(_), Some(right)) if type_identities.contains_key(right.as_str(syntax)) => {
                     Some((right, binary.left))
                 }
                 _ => None,
@@ -594,9 +590,8 @@ pub(crate) fn decide_instance_type_equalities(
                 let parameter_identity = type_identities
                     .get(parameter.as_str(syntax))
                     .expect("the gate admits only listed type binders");
-                let other_identity = single_name(other).and_then(|other| {
-                    closed_name_identity(syntax, selection, &other)
-                });
+                let other_identity = single_name(other)
+                    .and_then(|other| closed_name_identity(syntax, selection, &other));
                 let Some(other_identity) = other_identity else {
                     return Err(vec![Diagnostic::error(format!(
                         "data constraint on generic instance `{instance_name}` cannot decide `{}`: the opposite side does not name a closed type",
@@ -614,10 +609,9 @@ pub(crate) fn decide_instance_type_equalities(
                 // discharged reads `true`, refuted reads `false`, so the
                 // impossible disjunct collapses while the surviving
                 // membership and value couplings carry the case forward.
-                syntax.expressions.replace_expression(
-                    expression,
-                    ExpressionNode::Boolean(holds),
-                );
+                syntax
+                    .expressions
+                    .replace_expression(expression, ExpressionNode::Boolean(holds));
                 return Ok(());
             }
         }
@@ -681,27 +675,12 @@ pub(crate) fn fold_impossible_case_memberships(
             }
         }
         ExpressionNode::Binary(binary) => {
-            fold_impossible_case_memberships(
-                syntax,
-                binary.left,
-                type_name,
-                impossible_variants,
-            );
-            fold_impossible_case_memberships(
-                syntax,
-                binary.right,
-                type_name,
-                impossible_variants,
-            );
+            fold_impossible_case_memberships(syntax, binary.left, type_name, impossible_variants);
+            fold_impossible_case_memberships(syntax, binary.right, type_name, impossible_variants);
             fold_instance_boolean_node(syntax, expression);
         }
         ExpressionNode::Unary(unary) => {
-            fold_impossible_case_memberships(
-                syntax,
-                unary.operand,
-                type_name,
-                impossible_variants,
-            );
+            fold_impossible_case_memberships(syntax, unary.operand, type_name, impossible_variants);
             fold_instance_boolean_node(syntax, expression);
         }
         _ => {}
@@ -723,25 +702,15 @@ fn fold_instance_boolean_node(syntax: &mut SyntaxTrees, expression: ExpressionHa
         ExpressionNode::Binary(binary) => {
             let decided = match binary.operator {
                 BinaryOperator::And => match (truth(binary.left), truth(binary.right)) {
-                    (Some(false), _) | (_, Some(false)) => {
-                        Some(ExpressionNode::Boolean(false))
-                    }
-                    (Some(true), _) => {
-                        Some(syntax.expressions.expression(binary.right).clone())
-                    }
-                    (_, Some(true)) => {
-                        Some(syntax.expressions.expression(binary.left).clone())
-                    }
+                    (Some(false), _) | (_, Some(false)) => Some(ExpressionNode::Boolean(false)),
+                    (Some(true), _) => Some(syntax.expressions.expression(binary.right).clone()),
+                    (_, Some(true)) => Some(syntax.expressions.expression(binary.left).clone()),
                     _ => None,
                 },
                 BinaryOperator::Or => match (truth(binary.left), truth(binary.right)) {
                     (Some(true), _) | (_, Some(true)) => Some(ExpressionNode::Boolean(true)),
-                    (Some(false), _) => {
-                        Some(syntax.expressions.expression(binary.right).clone())
-                    }
-                    (_, Some(false)) => {
-                        Some(syntax.expressions.expression(binary.left).clone())
-                    }
+                    (Some(false), _) => Some(syntax.expressions.expression(binary.right).clone()),
+                    (_, Some(false)) => Some(syntax.expressions.expression(binary.left).clone()),
                     _ => None,
                 },
                 _ => None,
@@ -799,9 +768,7 @@ pub(crate) fn variant_fact_verdict(
             }
         }
         ExpressionNode::Membership(membership) => {
-            let ExpressionNode::Name(path) =
-                syntax.expressions.expression(membership.value)
-            else {
+            let ExpressionNode::Name(path) = syntax.expressions.expression(membership.value) else {
                 return Undecided;
             };
             let [self_member] = syntax.expressions.identifier_path_members(*path) else {
@@ -1363,17 +1330,31 @@ pub(super) fn substitute_cleanup_selection(
     warnings: &mut Vec<Diagnostic>,
 ) -> syntax_trees::expression::StaticMachineArgument {
     if selection.type_reference.is_valid() {
-        selection.type_reference = substitute_type_reference(syntax, snapshot,
-            selection.type_reference, substitution, const_values, warnings);
+        selection.type_reference = substitute_type_reference(
+            syntax,
+            snapshot,
+            selection.type_reference,
+            substitution,
+            const_values,
+            warnings,
+        );
     } else if let [name] = selection.path.as_ref()
         && selection.application.is_none()
-        && let Some(actual) = substitution.get(name.as_str(syntax)) {
+        && let Some(actual) = substitution.get(name.as_str(syntax))
+    {
         selection.type_reference = *actual;
         selection.path = Box::default();
     }
     if let Some(application) = &mut selection.application {
         for argument in application.arguments.iter_mut() {
-            *argument = substitute_cleanup_selection(syntax, snapshot, argument.clone(), substitution, const_values, warnings);
+            *argument = substitute_cleanup_selection(
+                syntax,
+                snapshot,
+                argument.clone(),
+                substitution,
+                const_values,
+                warnings,
+            );
         }
     }
     selection

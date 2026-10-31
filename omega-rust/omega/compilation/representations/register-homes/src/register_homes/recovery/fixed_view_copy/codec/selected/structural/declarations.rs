@@ -97,12 +97,12 @@ pub(super) fn encode_type(
         }
         StructuralTypeShape::Record { fields, storage } => {
             match storage {
-                terminal_psi::StructuralRecordStorage::PlacedView(storage) => {
+                terminal_psi::StructuralRecordStorage::AccessView(storage) => {
                     bytes.push(14);
                     crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
                 }
-                terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) => {
+                terminal_psi::StructuralRecordStorage::Accessor(storage) => {
                     bytes.push(15);
                     crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
@@ -122,8 +122,8 @@ pub(super) fn encode_type(
             if matches!(
                 storage,
                 terminal_psi::StructuralRecordStorage::Authored(_)
-                    | terminal_psi::StructuralRecordStorage::PlacedView(_)
-                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_)
+                    | terminal_psi::StructuralRecordStorage::AccessView(_)
+                    | terminal_psi::StructuralRecordStorage::Accessor(_)
             ) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());
@@ -203,9 +203,9 @@ pub(super) fn decode_type(
             StructuralTypeShape::Record {
                 fields,
                 storage: if tag == 14 {
-                    terminal_psi::StructuralRecordStorage::PlacedView(geometry)
+                    terminal_psi::StructuralRecordStorage::AccessView(geometry)
                 } else {
-                    terminal_psi::StructuralRecordStorage::PlacedAccessor(geometry)
+                    terminal_psi::StructuralRecordStorage::Accessor(geometry)
                 },
             }
         }

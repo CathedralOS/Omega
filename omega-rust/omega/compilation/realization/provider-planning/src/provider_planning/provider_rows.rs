@@ -20,7 +20,7 @@ pub struct UnpreparedProviderRows {
 /// Both selected review and direct completion borrow these same original rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderRows {
-    placed: Result<Option<crate::SealedPlacedAccessor>, Diagnostic>,
+    placed: Result<Option<crate::SealedAccessor>, Diagnostic>,
     rows: Vec<ProviderRow>,
 }
 
@@ -109,7 +109,7 @@ impl ProviderPlanCandidate {
             }
     }
 
-    pub fn placed_accessor(&self) -> Result<Option<&crate::SealedPlacedAccessor>, Diagnostic> {
+    pub fn accessor(&self) -> Result<Option<&crate::SealedAccessor>, Diagnostic> {
         self.rows
             .placed
             .as_ref()
@@ -355,7 +355,7 @@ impl ProviderPlanCandidate<UnpreparedProviderRows> {
         typed: &checked_trees::typed_trees::TypedTrees,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<ProviderPlanCandidate, Diagnostic> {
-        let placed = crate::SealedPlacedAccessor::rejoin_plan(
+        let placed = crate::SealedAccessor::rejoin_plan(
             crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
             self.plan(),
         );

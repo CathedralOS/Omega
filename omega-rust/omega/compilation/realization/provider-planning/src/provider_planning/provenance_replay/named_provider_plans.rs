@@ -77,7 +77,7 @@ pub(super) fn derive(
                 row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
                 row_target_machine_origins: Vec::new(),
-                row_placed_accessors: Vec::new(),
+                row_accessors: Vec::new(),
             };
             for row in rows {
                 // The row binds the entry of the machine resolution named; a
@@ -191,7 +191,7 @@ pub(super) fn derive(
                     .row_realizations
                     .push(ProviderRowRealization::Authored(machine.symbol));
                 provenance.row_target_machine_origins.push(origin);
-                provenance.row_placed_accessors.push(None);
+                provenance.row_accessors.push(None);
             }
             Some(DerivedProviderPlan { plan, provenance })
         })

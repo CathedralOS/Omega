@@ -156,29 +156,27 @@ pub fn schema_binds_exact_boundary_requirement(
 
 /// A generated scalar accessor has its own compiler-catalog declaration role.
 /// It does not make ordinary bodyless boundary machines intrinsic candidates.
-pub fn from_sealed_placed_accessor(
+pub fn from_sealed_accessor(
     context: ProviderPlanningContext<'_>,
-    accessor: &crate::SealedPlacedAccessor,
+    accessor: &crate::SealedAccessor,
 ) -> Result<ServiceSchema, diagnostics::Diagnostic> {
-    if crate::SealedPlacedAccessor::authenticate(context, accessor.machine())?.as_ref()
-        != Some(accessor)
+    if crate::SealedAccessor::authenticate(context, accessor.machine())?.as_ref() != Some(accessor)
     {
         return Err(diagnostics::Diagnostic::error(
-            "sealed placed accessor schema substituted its authenticated declaration",
+            "sealed accessor schema substituted its authenticated declaration",
         ));
     }
-    let machine = context.typed.machine(accessor.machine()).ok_or_else(|| {
-        diagnostics::Diagnostic::error("sealed placed accessor schema lost its machine")
-    })?;
+    let machine = context
+        .typed
+        .machine(accessor.machine())
+        .ok_or_else(|| diagnostics::Diagnostic::error("sealed accessor schema lost its machine"))?;
     projection::project_boundary_machine_schema(
         context,
         machine,
-        crate::ProviderSchemaDeclaration::SealedPlacedAccessor(machine.symbol),
+        crate::ProviderSchemaDeclaration::SealedAccessor(machine.symbol),
     )
     .map(|projected| ServiceSchema::from_declaration(projected.declaration))
     .ok_or_else(|| {
-        diagnostics::Diagnostic::error(
-            "sealed placed accessor has no complete published callable schema",
-        )
+        diagnostics::Diagnostic::error("sealed accessor has no complete published callable schema")
     })
 }

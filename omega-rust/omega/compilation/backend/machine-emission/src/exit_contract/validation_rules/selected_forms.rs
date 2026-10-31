@@ -769,7 +769,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                 }
         }
         (
-            SelectedInstructionKind::PlacedScalarAccess {
+            SelectedInstructionKind::AccessorScalarAccess {
                 form,
                 contract,
                 byte_offset,
@@ -791,7 +791,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                 && effects.external_operand_reads == if form.write { vec![0, 1] } else { vec![0] }
                 && effects.external_operand_writes == if form.write { vec![] } else { vec![1] }
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::PlacedScalarAccess {
+                    == physical_instructions::PhysicalAddressOperation::AccessorScalarAccess {
                         base_operand: 0,
                         byte_offset,
                         form,

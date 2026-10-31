@@ -10,20 +10,20 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::placements::owned_resident_custody::validate_owned_admission_authority;
 use crate::placements::owned_resident_custody::validate_owned_content_binding;
-use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::{
-    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, ObservationModel,
-    OwnedPlacementAdmission, PlacedFieldProjection, PlacedOccurrenceId, PlacementAdmissionId,
-    PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
+    AccessAdmissionId, AccessFieldKey, AccessFieldProjection, AccessOccurrenceId,
+    AccessPlanDiagnostic, AccessResourceCompatibility, BorrowPolarity, ObservationModel,
+    OwnedAccessAdmission, ResourceProfileReceiptId, ValidatedAccessPlan,
 };
 
 /// Dormant provider-established content for one exact Atomic-only placement.
 #[derive(Debug)]
 #[must_use = "dormant Atomic resident content retains linear Extent and content custody"]
 pub struct DormantOwnedAtomicResident {
-    pub(crate) admission: OwnedPlacementAdmission,
+    pub(crate) admission: OwnedAccessAdmission,
     pub(crate) content: ProviderExistingContentGrant,
 }
 
@@ -31,16 +31,16 @@ pub struct DormantOwnedAtomicResident {
 /// caller-supplied placed occurrence.
 #[derive(Debug)]
 #[must_use = "active owned Atomic placement retains linear resident custody"]
-pub struct EstablishedOwnedAtomicPlacement {
-    pub(super) admission: OwnedPlacementAdmission,
+pub struct EstablishedOwnedAtomicAccess {
+    pub(super) admission: OwnedAccessAdmission,
     pub(crate) content: ProviderExistingContentGrant,
-    pub(super) occurrence: PlacedOccurrenceId,
+    pub(super) occurrence: AccessOccurrenceId,
 }
 
 /// Failed Atomic adoption returns both non-Clone inputs unchanged.
 #[derive(Debug)]
 pub struct OwnedAtomicAdoptionError {
-    admission: OwnedPlacementAdmission,
+    admission: OwnedAccessAdmission,
     content: ProviderExistingContentGrant,
     diagnostic: AccessPlanDiagnostic,
 }
@@ -51,7 +51,7 @@ impl OwnedAtomicAdoptionError {
     pub fn into_parts(
         self,
     ) -> (
-        OwnedPlacementAdmission,
+        OwnedAccessAdmission,
         ProviderExistingContentGrant,
         AccessPlanDiagnostic,
     ) {
@@ -64,7 +64,7 @@ impl OwnedAtomicAdoptionError {
 #[derive(Debug)]
 pub struct OwnedAtomicResidentViewEstablishmentError {
     resident: DormantOwnedAtomicResident,
-    occurrence: PlacedOccurrenceId,
+    occurrence: AccessOccurrenceId,
     diagnostic: AccessPlanDiagnostic,
 }
 
@@ -75,7 +75,7 @@ impl OwnedAtomicResidentViewEstablishmentError {
         self,
     ) -> (
         DormantOwnedAtomicResident,
-        PlacedOccurrenceId,
+        AccessOccurrenceId,
         AccessPlanDiagnostic,
     ) {
         (self.resident, self.occurrence, self.diagnostic)
@@ -86,14 +86,14 @@ impl OwnedAtomicResidentViewEstablishmentError {
 /// carrier without reconstructing custody from copied identities.
 #[derive(Debug)]
 pub struct OwnedAtomicResidentRetirementError {
-    established: EstablishedOwnedAtomicPlacement,
+    established: EstablishedOwnedAtomicAccess,
     diagnostic: AccessPlanDiagnostic,
 }
 
 impl OwnedAtomicResidentRetirementError {
     diagnostic_accessor!();
 
-    pub fn into_parts(self) -> (EstablishedOwnedAtomicPlacement, AccessPlanDiagnostic) {
+    pub fn into_parts(self) -> (EstablishedOwnedAtomicAccess, AccessPlanDiagnostic) {
         (self.established, self.diagnostic)
     }
 }
@@ -102,7 +102,7 @@ impl OwnedAtomicResidentRetirementError {
 /// placement. This consumes no checked result contract and performs no atomic
 /// operation.
 pub fn adopt_owned_atomic(
-    admission: OwnedPlacementAdmission,
+    admission: OwnedAccessAdmission,
     content: ProviderExistingContentGrant,
 ) -> Result<DormantOwnedAtomicResident, OwnedAtomicAdoptionError> {
     if let Err(diagnostic) =
@@ -118,14 +118,14 @@ pub fn adopt_owned_atomic(
 }
 
 impl DormantOwnedAtomicResident {
-    owned_placement_accessors!(resident);
+    owned_view_accessors!(resident);
 
     /// Activate this exact resident claim through one requested occurrence.
     /// The occurrence issuer remains responsible for global freshness.
     pub fn view(
         self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedOwnedAtomicPlacement, OwnedAtomicResidentViewEstablishmentError> {
+        occurrence: AccessOccurrenceId,
+    ) -> Result<EstablishedOwnedAtomicAccess, OwnedAtomicResidentViewEstablishmentError> {
         if let Err(diagnostic) = validate_owned_atomic_resident_authority(
             &self.admission,
             &self.content,
@@ -137,7 +137,7 @@ impl DormantOwnedAtomicResident {
                 diagnostic,
             });
         }
-        Ok(EstablishedOwnedAtomicPlacement {
+        Ok(EstablishedOwnedAtomicAccess {
             admission: self.admission,
             content: self.content,
             occurrence,
@@ -145,8 +145,8 @@ impl DormantOwnedAtomicResident {
     }
 }
 
-impl EstablishedOwnedAtomicPlacement {
-    owned_placement_accessors!(resident, occurrence);
+impl EstablishedOwnedAtomicAccess {
+    owned_view_accessors!(resident, occurrence);
 
     pub(super) const fn profile(
         &self,
@@ -157,13 +157,13 @@ impl EstablishedOwnedAtomicPlacement {
     pub fn project<'view>(
         &'view self,
         key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
         self.admission.project_field(
             key,
             BorrowPolarity::Shared,
             BorrowPolarity::Exclusive,
             Some(ObservationModel::Atomic),
-            PlacementAuthorityRef::EstablishedOwnedAtomic(self),
+            AccessAuthorityRef::EstablishedOwnedAtomic(self),
         )
     }
 
@@ -190,7 +190,7 @@ impl EstablishedOwnedAtomicPlacement {
 }
 
 pub(super) fn validate_owned_atomic_resident_authority(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     content: &ProviderExistingContentGrant,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {

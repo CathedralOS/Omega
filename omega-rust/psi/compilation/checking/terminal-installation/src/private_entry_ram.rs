@@ -20,7 +20,7 @@ pub struct PrivateEntryRamInitialization {
 /// Untrusted request to construct one fresh private backing for an exact row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateEntryRamRecipe {
-    pub input: terminal_psi::TerminalPlacedViewInput,
+    pub input: terminal_psi::TerminalAccessViewInput,
     /// Complete initialized storage in canonical little-endian scalar encoding.
     pub contents: Vec<u8>,
 }
@@ -31,10 +31,10 @@ pub struct PrivateEntryRamRecipe {
 pub struct CheckedPrivateEntryRamRecipe {
     terminal: terminal_psi::TerminalPsiIdentity,
     layouts: crate::AdmittedTargetLayouts,
-    input: terminal_psi::TerminalPlacedViewInput,
+    input: terminal_psi::TerminalAccessViewInput,
     schema: StructuralTypeId,
     alignment: u64,
-    correspondence: terminal_psi::PlacedRamCorrespondence,
+    correspondence: terminal_psi::AccessRamCorrespondence,
     contents: Vec<u8>,
     fields: Vec<PrivateEntryRamScalarInitialization>,
 }
@@ -58,7 +58,7 @@ impl CheckedPrivateEntryRamRecipe {
     pub fn target(&self) -> &str {
         self.layouts.target()
     }
-    pub fn input(&self) -> &terminal_psi::TerminalPlacedViewInput {
+    pub fn input(&self) -> &terminal_psi::TerminalAccessViewInput {
         &self.input
     }
     pub const fn schema(&self) -> StructuralTypeId {
@@ -67,7 +67,7 @@ impl CheckedPrivateEntryRamRecipe {
     pub const fn alignment(&self) -> u64 {
         self.alignment
     }
-    pub fn correspondence(&self) -> &terminal_psi::PlacedRamCorrespondence {
+    pub fn correspondence(&self) -> &terminal_psi::AccessRamCorrespondence {
         &self.correspondence
     }
     /// Authenticated by the private runtime channel and independently replayed
@@ -122,7 +122,7 @@ pub fn admit_private_entry_ram(
 ) -> Result<CheckedPrivateEntryRamRecipe, String> {
     let module = artifact.module();
     if recipe.input.machine != entry
-        || !module.placed_view_inputs.contains(&recipe.input)
+        || !module.access_view_inputs.contains(&recipe.input)
         || !matches!(
             recipe.input.access,
             terminal_psi::StructuralAccess::SharedBorrow
@@ -131,7 +131,7 @@ pub fn admit_private_entry_ram(
     {
         return Err("private entry RAM recipe must answer an exact borrowed entry row".into());
     }
-    let parameter = terminal_semantics::placed_view_input_parameter(module, &recipe.input)
+    let parameter = terminal_semantics::access_view_input_parameter(module, &recipe.input)
         .map_err(|reason| format!("private entry RAM row has invalid ingress: {reason:?}"))?;
     if !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
@@ -144,13 +144,13 @@ pub fn admit_private_entry_ram(
         .map_err(|reason| format!("private entry RAM lost selected geometry: {reason:?}"))?;
     let declarations = geometry.declarations().cloned().collect::<Vec<_>>();
     let plan = module
-        .placed_view_plans
+        .access_view_plans
         .iter()
         .find(|plan| plan.carrier == parameter.structural_type)
         .ok_or("private entry RAM has no exact placed plan")?;
-    let correspondence = terminal_semantics::placed_ram_plan_correspondence(
+    let correspondence = terminal_semantics::access_ram_plan_correspondence(
         &declarations,
-        &module.placed_view_plans,
+        &module.access_view_plans,
         plan,
         plan.schema,
     )?;

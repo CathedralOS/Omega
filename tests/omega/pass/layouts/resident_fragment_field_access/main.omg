@@ -9,17 +9,17 @@ data TestMemory {}
 public data Word { value: bool; neighbour: bool; }
 public data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 0, source_lsb: 0, width: 1 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 1, source_lsb: 0, width: 1 } };
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 0, source_lsb: 0, width: 1 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 1, source_lsb: 0, width: 1 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
             FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported }),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 MemorySupply satisfies ResourceProfileSupply<TestMemory> {
@@ -42,41 +42,41 @@ machine carry(storage: Extent in Granted & Resident<WordPlacement, Word>)
     -> Extent in Granted & Resident<WordPlacement, Word> { storage }
 
 machine attempt(storage: Extent in Granted & Vacant, expected_reason: u64)
-    -> PlacementReturn<Extent in Granted & Vacant, Word>
+    -> AccessReturn<Extent in Granted & Vacant, Word>
 reaches ResourceProfileSupply crashes Trap
 {
-    transition NativePlacement<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: true, neighbour: true }) {
-        PlacementOutcome::Ready { view } -> extract(view)
-        PlacementOutcome::Rejected { returned, reason } -> unexpected(returned)
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: true, neighbour: true }) {
+        AccessOutcome::Ready { view } -> extract(view)
+        AccessOutcome::Rejected { returned, reason } -> unexpected(returned)
     }
     machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> {
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
         let mut retained: Extent in Granted & Resident<WordPlacement, Word> = carry(storage);
-        overwrite(Placed::view_resident_mut<WordPlacement, Word>(&mut retained));
-        transition NativePlacement<WordPlacement, Word, TestMemory>::move_out(retained) {
-            PlacementExtraction::Moved { storage, value } -> check_value(storage, value)
+        overwrite(Access::view_resident_mut<WordPlacement, Word>(&mut retained));
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
+            AccessExtraction::Moved { storage, value } -> check_value(storage, value)
         }
     }
     machine check_value(storage: Extent in Granted & Vacant, value: Word)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> {
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
         transition value.value == false && value.neighbour == true {
             true -> done(storage, value)
-            false -> unexpected(PlacementReturn { source: storage, custody: value })
+            false -> unexpected(AccessReturn { source: storage, custody: value })
         }
     }
     machine done(storage: Extent in Granted & Vacant, value: Word)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> {
-        PlacementReturn { source: storage, custody: value }
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        AccessReturn { source: storage, custody: value }
     }
-    machine unexpected(returned: PlacementReturn<Extent in Granted & Vacant, Word>)
-        -> PlacementReturn<Extent in Granted & Vacant, Word> { crash Trap; }
+    machine unexpected(returned: AccessReturn<Extent in Granted & Vacant, Word>)
+        -> AccessReturn<Extent in Granted & Vacant, Word> { crash Trap; }
 }
 
 
-machine overwrite(view: &mut Placed<WordPlacement, Word>) crashes Trap {
-    let initial: bool = placed_read(&view.value);
-    placed_write(&mut view.value, false);
-    let updated: bool = placed_read(&view.value);
+machine overwrite(view: &mut Access<WordPlacement, Word>) crashes Trap {
+    let initial: bool = read(&view.value);
+    write(&mut view.value, false);
+    let updated: bool = read(&view.value);
     transition initial == true && updated == false {
         true -> done()
         false -> bad()

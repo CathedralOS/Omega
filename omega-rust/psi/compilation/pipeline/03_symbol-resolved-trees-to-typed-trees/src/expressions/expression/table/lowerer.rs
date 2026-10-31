@@ -995,7 +995,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let [namespace] = self.source.name_path_members(receiver.members) else {
             return Ok(None);
         };
-        if namespace.as_str() != "Plan" {
+        if namespace.as_str() != "LayoutPlan" {
             return Ok(None);
         }
         let Some(program) = self.program else {
@@ -1005,7 +1005,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         };
         let [selected_slot] = call.machine_arguments.as_ref() else {
             return Err(Diagnostic::error(
-                "`Plan::place_private` requires exactly one static argument naming one exact conformance",
+                "`LayoutPlan::place_private` requires exactly one static argument naming one exact conformance",
             ));
         };
         if selected_slot.const_literal.is_some()
@@ -1014,19 +1014,19 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             || program.symbols.get(selected_slot.symbol).kind != symbols::SymbolKind::Conformance
         {
             return Err(Diagnostic::error(
-                "the static argument to `Plan::place_private` must resolve exactly to one named conformance; slot discovery is not permitted",
+                "the static argument to `LayoutPlan::place_private` must resolve exactly to one named conformance; slot discovery is not permitted",
             ));
         }
         if !call.target_symbol.is_valid()
             || program.symbols.get(call.target_symbol).kind != symbols::SymbolKind::State
         {
             return Err(Diagnostic::error(
-                "`Plan::place_private` must resolve to its exact compiler-known Plan operation",
+                "`LayoutPlan::place_private` must resolve to its exact compiler-known LayoutPlan operation",
             ));
         }
         let exact_owner = program.machines.iter().find(|machine| {
             machine.attached_data_symbol.is_valid()
-                && program.symbols.name(machine.attached_data_symbol) == "Plan"
+                && program.symbols.name(machine.attached_data_symbol) == "LayoutPlan"
                 && program
                     .machine_state_handles(machine.states)
                     .iter()
@@ -1034,7 +1034,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         });
         let Some(exact_owner) = exact_owner else {
             return Err(Diagnostic::error(
-                "`Plan::place_private` must be the Plan-owned compiler-known operation",
+                "`LayoutPlan::place_private` must be the LayoutPlan-owned compiler-known operation",
             ));
         };
         if receiver.symbol != exact_owner.attached_data_symbol
@@ -1046,7 +1046,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 != Some(source::SourceOrigin::Toolchain)
         {
             return Err(Diagnostic::error(
-                "the private-layout operation is sealed to core `Plan::place_private`; an authored lookalike cannot mint a placement receipt",
+                "the private-layout operation is sealed to core `LayoutPlan::place_private`; an authored lookalike cannot mint a placement receipt",
             ));
         }
 

@@ -131,16 +131,16 @@ pub struct TerminalModule {
     /// Concrete reach remains distinct from bounded installation dependencies;
     /// final installation substitutes one selected provider row per dependency.
     pub root_service_reach: TerminalRootServiceReach,
-    /// Closure-wide direct entry inputs whose opaque placed-view meaning is
+    /// Closure-wide direct entry inputs whose opaque access-view meaning is
     /// bound to one exact source-derived placement interpretation. This is
     /// semantic custody only and grants no runtime storage or access.
-    pub placed_view_inputs: Vec<TerminalPlacedViewInput>,
+    pub access_view_inputs: Vec<TerminalAccessViewInput>,
     /// Complete normalized placement and generated-operation relationships.
     /// Description only; establishments separately bind actual backing custody.
-    pub placed_view_plans: Vec<TerminalPlacedViewPlan>,
+    pub access_view_plans: Vec<TerminalAccessViewPlan>,
     /// Whole-value lifecycle demand independent of any later field view.
-    /// Like placed-view plans, these rows grant no backing or execution rights.
-    pub placement_lifecycle_plans: Vec<TerminalPlacementLifecyclePlan>,
+    /// Like access-view plans, these rows grant no backing or execution rights.
+    pub access_lifecycle_plans: Vec<TerminalAccessLifecyclePlan>,
     /// One exact whole-parent mutating call after a one-hop exclusive child
     /// reactivates its direct mutable root. These rows grant use only at the
     /// named call and cannot express cleanup, transfer, or discharge.
@@ -298,9 +298,9 @@ impl TerminalModule {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
-            placed_view_inputs: Vec::new(),
-            placed_view_plans: Vec::new(),
-            placement_lifecycle_plans: Vec::new(),
+            access_view_inputs: Vec::new(),
+            access_view_plans: Vec::new(),
+            access_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             external_providers: Vec::new(),

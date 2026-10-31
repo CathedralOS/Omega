@@ -63,9 +63,9 @@ fn exercise(
 ) {
     let module = program.module();
     let plan = module
-        .placement_lifecycle_plans
+        .access_lifecycle_plans
         .iter()
-        .find(|plan| plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::View)
+        .find(|plan| plan.operation == terminal_psi::TerminalAccessLifecycleOperation::View)
         .expect("exact View operation retained");
     assert_eq!(plan.storage.vacant, None);
     assert_eq!(plan.storage.resident, None);

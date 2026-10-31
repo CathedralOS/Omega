@@ -83,7 +83,7 @@ terminates by fuel;
         let offset: u64 = spread16.slot as u64;
         updated[spread16.index] = FieldEntry {
             key: schema.fields[spread16.index].key,
-            placement: FieldPlan::At { offset: offset },
+            representation: FieldPlan::At { offset: offset },
         };
         spread16.index = spread16.index + 1;
         transition fuel > 1 {

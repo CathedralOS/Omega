@@ -6,7 +6,7 @@
 // package decides which vectors are members, which gate kind each member
 // carries, and which IST slot reaches its dedicated critical stack. What
 // the package does not own is the wire encoding's authority -- the
-// compiler validates this policy's returned Plan (a bad plan is a compile
+// compiler validates this policy's returned LayoutPlan (a bad plan is a compile
 // error, never unsafety), derives the post-handoff writer that seals each
 // member's entry address into the split offset fields, and the package's
 // validator decodes produced slots through this same layout before the
@@ -60,27 +60,27 @@ public data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
 // scalar's declared source width exactly.
 
 public InterruptGateLayout satisfies FixedLayout<InterruptGate> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     // `entry` (fields[0], u64): the sealed offset, split across the wire's
     // three disjoint destination containers.
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 0, container_width: 16,
             destination_lsb: 0, source_lsb: 0, width: 16,
         },
     };
     entries[1] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 6, container_width: 16,
             destination_lsb: 0, source_lsb: 16, width: 16,
         },
     };
     entries[2] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 8, container_width: 32,
             destination_lsb: 0, source_lsb: 32, width: 32,
         },
@@ -88,13 +88,13 @@ public InterruptGateLayout satisfies FixedLayout<InterruptGate> {
     // `selector` (fields[1], u16): the code-segment selector at bytes 2..4.
     entries[3] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 2 },
+        representation: FieldPlan::At { offset: 2 },
     };
     // `ist` (fields[2], u8 <= 7): byte 4 bits 0..=2; the byte's upper
     // bits are reserved and stay unplaced.
     entries[4] = FieldEntry {
         key: schema.fields[2].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 4, container_width: 8,
             destination_lsb: 0, source_lsb: 0, width: 3,
         },
@@ -103,7 +103,7 @@ public InterruptGateLayout satisfies FixedLayout<InterruptGate> {
     // gate type code (0x0e interrupt, 0x0f trap) as semantic data.
     entries[5] = FieldEntry {
         key: schema.fields[3].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 5, container_width: 8,
             destination_lsb: 0, source_lsb: 0, width: 4,
         },
@@ -113,7 +113,7 @@ public InterruptGateLayout satisfies FixedLayout<InterruptGate> {
     // long-mode encoding keeps clear; it stays unplaced.
     entries[6] = FieldEntry {
         key: schema.fields[4].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 5, container_width: 8,
             destination_lsb: 5, source_lsb: 0, width: 2,
         },
@@ -121,12 +121,12 @@ public InterruptGateLayout satisfies FixedLayout<InterruptGate> {
     // `present` (fields[5], bool): byte 5 bit 7.
     entries[7] = FieldEntry {
         key: schema.fields[5].key,
-        placement: FieldPlan::Bits {
+        representation: FieldPlan::Bits {
             container: 5, container_width: 8,
             destination_lsb: 7, source_lsb: 0, width: 1,
         },
     };
-    Plan {
+    LayoutPlan {
         entries: entries,
         entry_count: 8,
         size_fixed: 16,
@@ -153,28 +153,28 @@ public data InterruptDescriptorTable {
 // the state parameters rather than on an implicit subject.
 public data DescriptorTableLayout {
 }
-machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> Plan {
+machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> LayoutPlan {
     DescriptorTableLayout::evaluate(descriptor_table_layout, schema, 128)
 }
-machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64) -> Plan
+machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64) -> LayoutPlan
 requires fuel >= 1 && fuel <= 128
 terminates by fuel;
 {
     let entries: [FieldEntry; 64];
     transition { _ -> fill(schema, entries, fuel, 0) }
 
-    machine fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> Plan requires fuel >= 1 && fuel <= 128 {
+    machine fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> LayoutPlan requires fuel >= 1 && fuel <= 128 {
         transition fuel > 1 && index < 33 {
             true -> place(schema, entries, fuel - 1, index)
             _ -> done(schema, entries)
         }
     }
 
-    machine place(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> Plan requires fuel >= 1 && fuel <= 128 {
+    machine place(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> LayoutPlan requires fuel >= 1 && fuel <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
         updated[index] = FieldEntry {
             key: schema.fields[0].key,
-            placement: FieldPlan::At { offset: (index * 16) as u64 },
+            representation: FieldPlan::At { offset: (index * 16) as u64 },
         };
         transition fuel > 1 {
             true -> fill(schema, updated, fuel - 1, index + 1)
@@ -182,8 +182,8 @@ terminates by fuel;
         }
     }
 
-    machine done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
-        Plan {
+    machine done(schema: Schema, entries: [FieldEntry; 64]) -> LayoutPlan {
+        LayoutPlan {
             entries: entries,
             entry_count: 33,
             size_fixed: 528,

@@ -1,29 +1,29 @@
 //! Owned External adoption: the owned route a device-described placement
 //! takes once its schema/device correspondence is admitted.
 //!
-//! This is the owned sibling of [`bind_schema_correspondence_to_placement`]
+//! This is the owned sibling of [`bind_schema_correspondence_to_access_plan`]
 //! and the External counterpart of the owned Stable/Atomic resident
 //! adoption routes. An External placement has no resident-content grant —
 //! another agent may change the storage — so this carrier joins the owned
-//! placement admission to its exact admitted physical correspondence rather
+//! access admission to its exact admitted physical correspondence rather
 //! than minting resident content custody. The route binds, views, projects,
 //! and retires; it performs no device operation, observes no storage, and
 //! grants no lowering authority.
 
 use extents::Extent;
 
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::placements::owned_resident_custody::{
     validate_owned_admission_authority, validate_resident_observation,
 };
-use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::{
-    AccessFieldKey, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, BorrowPolarity,
-    ObservationModel, OwnedPlacementAdmission, PlacedFieldProjection, PlacedOccurrenceId,
-    PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
-    ValidatedPlacementPlan,
+    AccessAdmissionId, AccessFieldKey, AccessFieldProjection, AccessOccurrenceId,
+    AccessPlanDiagnostic, AccessResourceCompatibility, AdmittedSchemaDeviceCorrespondence,
+    BorrowPolarity, ObservationModel, OwnedAccessAdmission, ResourceProfileReceiptId,
+    ValidatedAccessPlan,
 };
 
-/// Dormant owned carrier joining one owned placement admission to its exact
+/// Dormant owned carrier joining one owned access admission to its exact
 /// admitted schema/device correspondence.
 ///
 /// This is permission to establish placed External views of the named
@@ -34,7 +34,7 @@ use crate::{
 #[derive(Debug)]
 #[must_use = "owned corresponded admission retains linear Extent and physical provenance"]
 pub struct OwnedCorrespondedExternalAdmission {
-    pub(crate) admission: OwnedPlacementAdmission,
+    pub(crate) admission: OwnedAccessAdmission,
     pub(crate) correspondence: AdmittedSchemaDeviceCorrespondence,
 }
 
@@ -44,16 +44,16 @@ pub struct OwnedCorrespondedExternalAdmission {
 /// retained authority before returning the dormant carrier.
 #[derive(Debug)]
 #[must_use = "active owned External placement retains linear custody and physical provenance"]
-pub struct EstablishedOwnedExternalPlacement {
-    pub(crate) admission: OwnedPlacementAdmission,
+pub struct EstablishedOwnedExternalAccess {
+    pub(crate) admission: OwnedAccessAdmission,
     pub(crate) correspondence: AdmittedSchemaDeviceCorrespondence,
-    pub(crate) occurrence: PlacedOccurrenceId,
+    pub(crate) occurrence: AccessOccurrenceId,
 }
 
 /// Failed External adoption returns both non-Clone inputs unchanged.
 #[derive(Debug)]
 pub struct OwnedExternalAdoptionError {
-    admission: OwnedPlacementAdmission,
+    admission: OwnedAccessAdmission,
     correspondence: AdmittedSchemaDeviceCorrespondence,
     diagnostic: AccessPlanDiagnostic,
 }
@@ -64,7 +64,7 @@ impl OwnedExternalAdoptionError {
     pub fn into_parts(
         self,
     ) -> (
-        OwnedPlacementAdmission,
+        OwnedAccessAdmission,
         AdmittedSchemaDeviceCorrespondence,
         AccessPlanDiagnostic,
     ) {
@@ -77,7 +77,7 @@ impl OwnedExternalAdoptionError {
 #[derive(Debug)]
 pub struct OwnedExternalViewEstablishmentError {
     carrier: OwnedCorrespondedExternalAdmission,
-    occurrence: PlacedOccurrenceId,
+    occurrence: AccessOccurrenceId,
     diagnostic: AccessPlanDiagnostic,
 }
 
@@ -88,7 +88,7 @@ impl OwnedExternalViewEstablishmentError {
         self,
     ) -> (
         OwnedCorrespondedExternalAdmission,
-        PlacedOccurrenceId,
+        AccessOccurrenceId,
         AccessPlanDiagnostic,
     ) {
         (self.carrier, self.occurrence, self.diagnostic)
@@ -100,19 +100,19 @@ impl OwnedExternalViewEstablishmentError {
 /// authority.
 #[derive(Debug)]
 pub struct OwnedExternalRetirementError {
-    established: EstablishedOwnedExternalPlacement,
+    established: EstablishedOwnedExternalAccess,
     diagnostic: AccessPlanDiagnostic,
 }
 
 impl OwnedExternalRetirementError {
     diagnostic_accessor!();
 
-    pub fn into_parts(self) -> (EstablishedOwnedExternalPlacement, AccessPlanDiagnostic) {
+    pub fn into_parts(self) -> (EstablishedOwnedExternalAccess, AccessPlanDiagnostic) {
         (self.established, self.diagnostic)
     }
 }
 
-/// The External adopt route: join one owned placement admission to its exact
+/// The External adopt route: join one owned access admission to its exact
 /// admitted schema/device correspondence.
 ///
 /// Adoption independently binds the correspondence to the admission's exact
@@ -120,7 +120,7 @@ impl OwnedExternalRetirementError {
 /// authority, and requires every accepted field to carry the External
 /// observation model. Rejection returns both non-Clone inputs unchanged.
 pub fn adopt_owned_external(
-    admission: OwnedPlacementAdmission,
+    admission: OwnedAccessAdmission,
     correspondence: AdmittedSchemaDeviceCorrespondence,
 ) -> Result<OwnedCorrespondedExternalAdmission, OwnedExternalAdoptionError> {
     if let Err(diagnostic) =
@@ -139,7 +139,7 @@ pub fn adopt_owned_external(
 }
 
 fn validate_owned_external_authority(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     correspondence: &AdmittedSchemaDeviceCorrespondence,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
@@ -157,7 +157,7 @@ fn validate_owned_external_authority(
 /// carry this admission's exact validated plan and resource-profile receipt
 /// and replay its own admitted structure.
 fn validate_external_correspondence_binding(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     correspondence: &AdmittedSchemaDeviceCorrespondence,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
@@ -166,21 +166,21 @@ fn validate_external_correspondence_binding(
             "{transition} could not replay the retained schema/device correspondence: {diagnostic}"
         ))
     })?;
-    if correspondence.placement_plan() != &admission.placement_plan
+    if correspondence.access_plan() != &admission.access_plan
         || correspondence.profile_receipt() != admission.profile_receipt
     {
         return Err(AccessPlanDiagnostic(format!(
-            "{transition} schema correspondence does not bind the owned placement admission's exact plan and resource-profile receipt"
+            "{transition} schema correspondence does not bind the owned access admission's exact plan and resource-profile receipt"
         )));
     }
     Ok(())
 }
 
 impl OwnedCorrespondedExternalAdmission {
-    owned_placement_accessors!(correspondence);
+    owned_view_accessors!(correspondence);
 
     /// Separate the route back into its non-Clone inputs.
-    pub fn into_parts(self) -> (OwnedPlacementAdmission, AdmittedSchemaDeviceCorrespondence) {
+    pub fn into_parts(self) -> (OwnedAccessAdmission, AdmittedSchemaDeviceCorrespondence) {
         (self.admission, self.correspondence)
     }
 
@@ -197,8 +197,8 @@ impl OwnedCorrespondedExternalAdmission {
     /// The occurrence issuer remains responsible for global freshness.
     pub fn view(
         self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedOwnedExternalPlacement, OwnedExternalViewEstablishmentError> {
+        occurrence: AccessOccurrenceId,
+    ) -> Result<EstablishedOwnedExternalAccess, OwnedExternalViewEstablishmentError> {
         if let Err(diagnostic) = validate_owned_external_authority(
             &self.admission,
             &self.correspondence,
@@ -210,7 +210,7 @@ impl OwnedCorrespondedExternalAdmission {
                 diagnostic,
             });
         }
-        Ok(EstablishedOwnedExternalPlacement {
+        Ok(EstablishedOwnedExternalAccess {
             admission: self.admission,
             correspondence: self.correspondence,
             occurrence,
@@ -218,8 +218,8 @@ impl OwnedCorrespondedExternalAdmission {
     }
 }
 
-impl EstablishedOwnedExternalPlacement {
-    owned_placement_accessors!(correspondence, occurrence);
+impl EstablishedOwnedExternalAccess {
+    owned_view_accessors!(correspondence, occurrence);
 
     /// Replay the retained schema/device correspondence binding for the
     /// sealed-request authority hooks.
@@ -239,7 +239,7 @@ impl EstablishedOwnedExternalPlacement {
         transition: &str,
     ) -> Result<(), AccessPlanDiagnostic> {
         validate_resident_observation(
-            &self.admission.placement_plan,
+            &self.admission.access_plan,
             ObservationModel::External,
             transition,
         )
@@ -273,13 +273,13 @@ impl EstablishedOwnedExternalPlacement {
         &'view self,
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
         self.admission.project_field(
             key,
             current_borrow,
             BorrowPolarity::Exclusive,
             Some(ObservationModel::External),
-            PlacementAuthorityRef::OwnedCorrespondedExternal(self),
+            AccessAuthorityRef::OwnedCorrespondedExternal(self),
         )
     }
 }

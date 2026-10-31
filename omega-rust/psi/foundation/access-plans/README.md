@@ -1,7 +1,7 @@
 # Access plans and resident views
 
 Contract: [access policies](../../../../wiki/spec/resources/access.md).
-[lib.rs](src/lib.rs) is the entry map. `AccessPlan` contains a `LayoutPlan`,
+[lib.rs](src/lib.rs) is the entry map. `AccessFields` contains a `LayoutPlan`,
 field-operation decisions, and required reach. Layout owns representation and
 geometry without access rights. `Access<P, T>` is the complete view;
 `Accessor<T>` is a projected operation handle, not an unrestricted lvalue.

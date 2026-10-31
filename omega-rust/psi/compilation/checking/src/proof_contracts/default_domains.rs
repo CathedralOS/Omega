@@ -300,190 +300,187 @@ fn analyze_default_domain_writes_with_frames(
         symbols::SymbolHandle,
         Vec<Diagnostic>,
         Vec<OpenInvariantCrashSite>,
-    )> =
-        crate::checking_thread_pool().install(|| {
-            use rayon::prelude::*;
-            program
-                .machines()
-                .par_iter()
-                .filter_map(|machine| {
-                    let states = program.machine_states(machine);
-                    // Bodyless machines (boundary/requirement declarations) own no
-                    // states -- nothing to walk.
-                    if states.is_empty() {
-                        return None;
+    )> = crate::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
+        program
+            .machines()
+            .par_iter()
+            .filter_map(|machine| {
+                let states = program.machine_states(machine);
+                // Bodyless machines (boundary/requirement declarations) own no
+                // states -- nothing to walk.
+                if states.is_empty() {
+                    return None;
+                }
+                // R2 rung 3 slice 3: CROSS-STATE establishment. Establishment is
+                // globally monotone in the strict model (every accepted write
+                // anywhere re-proves the domain), so a MUST analysis over the
+                // state graph is sound: established at entry of S = established at
+                // exit of EVERY predecessor. Bottom-start iteration converges to
+                // the LEAST fixpoint -- an UNDER-approximation (loop-carried
+                // establishment stays conservative), which only over-refuses.
+                let edges = state_edges(program, states);
+                // R2 rung 3 slice 4 (SOUNDNESS): untracked fields read the born
+                // zero ONLY in the boot state when nothing can re-enter it --
+                // machine-owned fields persist, so in any other state an untracked
+                // field may hold a prior value and must fold as UNKNOWN (poison ->
+                // directed refusal; cross-state valuation transport is the
+                // precision rung).
+                let born_zero = |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
+                // R2 rung 3 slice 5: the combined MUST fixpoint -- establishment
+                // (as slice 3) and per-place field VALUATIONS (Kildall constant
+                // propagation: non-boot entries start TOP/unvisited; meet keeps a
+                // field only when every visited predecessor exits it with the SAME
+                // literal; establishment survives calls, valuations do not).
+                let mut entry_established: Vec<Vec<String>> = vec![Vec::new(); states.len()];
+                let mut entry_valuations: Vec<Option<Vec<PlaceValuation>>> =
+                    vec![None; states.len()];
+                entry_valuations[0] = Some(Vec::new());
+                // WINDOW TRANSPORT: open windows at each state's entry -- the
+                // MAY-union of predecessor exits (an obligation from ANY path in).
+                let mut entry_windows: Vec<Vec<InvariantWindow>> = vec![Vec::new(); states.len()];
+                // A TERMINAL state (no outgoing transition) is where the machine
+                // returns: its exit is a hard consumption point for open windows.
+                let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
+                let predecessors = state_predecessors(&edges, states.len());
+                // A walk reads only its own entry, so a state is walked again only
+                // after its entry changed. Each walk keeps its own diagnostics and
+                // crash sites; at the fixed point every state's last walk ran on its
+                // final entry, so those are the ones reported.
+                let mut walks: Vec<Option<StateWalk>> = (0..states.len()).map(|_| None).collect();
+                let mut stale = vec![true; states.len()];
+                loop {
+                    for (index, state) in states.iter().enumerate() {
+                        if !std::mem::take(&mut stale[index]) {
+                            continue;
+                        }
+                        let mut state_diagnostics = Vec::new();
+                        let mut state_crash_sites = Vec::new();
+                        let (established, valuations, windows) = walk_state(
+                            program,
+                            call_frames,
+                            machine,
+                            state,
+                            &entry_established[index],
+                            entry_valuations[index].as_deref().unwrap_or(&[]),
+                            &entry_windows[index],
+                            &summaries,
+                            &state_to_machine,
+                            born_zero(index),
+                            is_terminal(index),
+                            &mut state_diagnostics,
+                            &mut state_crash_sites,
+                            true,
+                        );
+                        walks[index] = Some(StateWalk {
+                            exit: StateExit {
+                                established,
+                                valuations,
+                                windows,
+                                was_reached: entry_valuations[index].is_some(),
+                            },
+                            diagnostics: state_diagnostics,
+                            crash_sites: state_crash_sites,
+                        });
                     }
-                    // R2 rung 3 slice 3: CROSS-STATE establishment. Establishment is
-                    // globally monotone in the strict model (every accepted write
-                    // anywhere re-proves the domain), so a MUST analysis over the
-                    // state graph is sound: established at entry of S = established at
-                    // exit of EVERY predecessor. Bottom-start iteration converges to
-                    // the LEAST fixpoint -- an UNDER-approximation (loop-carried
-                    // establishment stays conservative), which only over-refuses.
-                    let edges = state_edges(program, states);
-                    // R2 rung 3 slice 4 (SOUNDNESS): untracked fields read the born
-                    // zero ONLY in the boot state when nothing can re-enter it --
-                    // machine-owned fields persist, so in any other state an untracked
-                    // field may hold a prior value and must fold as UNKNOWN (poison ->
-                    // directed refusal; cross-state valuation transport is the
-                    // precision rung).
-                    let born_zero =
-                        |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
-                    // R2 rung 3 slice 5: the combined MUST fixpoint -- establishment
-                    // (as slice 3) and per-place field VALUATIONS (Kildall constant
-                    // propagation: non-boot entries start TOP/unvisited; meet keeps a
-                    // field only when every visited predecessor exits it with the SAME
-                    // literal; establishment survives calls, valuations do not).
-                    let mut entry_established: Vec<Vec<String>> = vec![Vec::new(); states.len()];
-                    let mut entry_valuations: Vec<Option<Vec<PlaceValuation>>> =
-                        vec![None; states.len()];
-                    entry_valuations[0] = Some(Vec::new());
-                    // WINDOW TRANSPORT: open windows at each state's entry -- the
-                    // MAY-union of predecessor exits (an obligation from ANY path in).
-                    let mut entry_windows: Vec<Vec<InvariantWindow>> =
-                        vec![Vec::new(); states.len()];
-                    // A TERMINAL state (no outgoing transition) is where the machine
-                    // returns: its exit is a hard consumption point for open windows.
-                    let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
-                    let predecessors = state_predecessors(&edges, states.len());
-                    // A walk reads only its own entry, so a state is walked again only
-                    // after its entry changed. Each walk keeps its own diagnostics and
-                    // crash sites; at the fixed point every state's last walk ran on its
-                    // final entry, so those are the ones reported.
-                    let mut walks: Vec<Option<StateWalk>> =
-                        (0..states.len()).map(|_| None).collect();
-                    let mut stale = vec![true; states.len()];
-                    loop {
-                        for (index, state) in states.iter().enumerate() {
-                            if !std::mem::take(&mut stale[index]) {
-                                continue;
-                            }
-                            let mut state_diagnostics = Vec::new();
-                            let mut state_crash_sites = Vec::new();
-                            let (established, valuations, windows) = walk_state(
-                                program,
-                                call_frames,
-                                machine,
-                                state,
-                                &entry_established[index],
-                                entry_valuations[index].as_deref().unwrap_or(&[]),
-                                &entry_windows[index],
-                                &summaries,
-                                &state_to_machine,
-                                born_zero(index),
-                                is_terminal(index),
-                                &mut state_diagnostics,
-                                &mut state_crash_sites,
-                                true,
-                            );
-                            walks[index] = Some(StateWalk {
-                                exit: StateExit {
-                                    established,
-                                    valuations,
-                                    windows,
-                                    was_reached: entry_valuations[index].is_some(),
-                                },
-                                diagnostics: state_diagnostics,
-                                crash_sites: state_crash_sites,
+                    let exits = walks
+                        .iter()
+                        .map(|walk| &walk.as_ref().expect("every state is walked").exit)
+                        .collect::<Vec<_>>();
+                    let mut changed = false;
+                    for index in 1..states.len() {
+                        let predecessors = &predecessors[index];
+                        if predecessors.is_empty() {
+                            continue;
+                        }
+                        // Establishment meet (intersection over ALL predecessors).
+                        let mut established_meet: Option<Vec<String>> = None;
+                        for predecessor in predecessors {
+                            let exit = &exits[*predecessor].established;
+                            established_meet = Some(match established_meet {
+                                None => exit.clone(),
+                                Some(current) => current
+                                    .into_iter()
+                                    .filter(|place| exit.contains(place))
+                                    .collect(),
                             });
                         }
-                        let exits = walks
-                            .iter()
-                            .map(|walk| &walk.as_ref().expect("every state is walked").exit)
-                            .collect::<Vec<_>>();
-                        let mut changed = false;
-                        for index in 1..states.len() {
-                            let predecessors = &predecessors[index];
-                            if predecessors.is_empty() {
-                                continue;
-                            }
-                            // Establishment meet (intersection over ALL predecessors).
-                            let mut established_meet: Option<Vec<String>> = None;
-                            for predecessor in predecessors {
-                                let exit = &exits[*predecessor].established;
-                                established_meet = Some(match established_meet {
-                                    None => exit.clone(),
-                                    Some(current) => current
-                                        .into_iter()
-                                        .filter(|place| exit.contains(place))
-                                        .collect(),
-                                });
-                            }
-                            let established_meet = established_meet.unwrap_or_default();
-                            if established_meet != entry_established[index] {
-                                entry_established[index] = established_meet;
-                                stale[index] = true;
-                                changed = true;
-                            }
-                            // Window MAY-union: open from ANY predecessor -> open here.
-                            let mut window_union: Vec<InvariantWindow> = Vec::new();
-                            for predecessor in predecessors {
-                                for window in &exits[*predecessor].windows {
-                                    if !window_union.contains(window) {
-                                        window_union.push(window.clone());
-                                    }
+                        let established_meet = established_meet.unwrap_or_default();
+                        if established_meet != entry_established[index] {
+                            entry_established[index] = established_meet;
+                            stale[index] = true;
+                            changed = true;
+                        }
+                        // Window MAY-union: open from ANY predecessor -> open here.
+                        let mut window_union: Vec<InvariantWindow> = Vec::new();
+                        for predecessor in predecessors {
+                            for window in &exits[*predecessor].windows {
+                                if !window_union.contains(window) {
+                                    window_union.push(window.clone());
                                 }
                             }
-                            window_union.sort_by(|left, right| {
-                                (&left.0, &left.1, left.2.arena_index(), left.2.generation()).cmp(
-                                    &(
-                                        &right.0,
-                                        &right.1,
-                                        right.2.arena_index(),
-                                        right.2.generation(),
-                                    ),
-                                )
+                        }
+                        window_union.sort_by(|left, right| {
+                            (&left.0, &left.1, left.2.arena_index(), left.2.generation()).cmp(&(
+                                &right.0,
+                                &right.1,
+                                right.2.arena_index(),
+                                right.2.generation(),
+                            ))
+                        });
+                        if window_union != entry_windows[index] {
+                            entry_windows[index] = window_union;
+                            stale[index] = true;
+                            changed = true;
+                        }
+                        // Valuation meet (over VISITED predecessors only -- the
+                        // Kildall optimism; unvisited preds resolve as iteration
+                        // reaches them, only ever REMOVING knowledge).
+                        let visited: Vec<usize> = predecessors
+                            .iter()
+                            .copied()
+                            .filter(|predecessor| exits[*predecessor].was_reached)
+                            .collect();
+                        if visited.is_empty() {
+                            continue;
+                        }
+                        let mut valuation_meet: Option<Vec<PlaceValuation>> = None;
+                        for predecessor in visited {
+                            let exit = &exits[predecessor].valuations;
+                            valuation_meet = Some(match valuation_meet {
+                                None => exit.clone(),
+                                Some(current) => meet_valuations(&current, exit),
                             });
-                            if window_union != entry_windows[index] {
-                                entry_windows[index] = window_union;
-                                stale[index] = true;
-                                changed = true;
-                            }
-                            // Valuation meet (over VISITED predecessors only -- the
-                            // Kildall optimism; unvisited preds resolve as iteration
-                            // reaches them, only ever REMOVING knowledge).
-                            let visited: Vec<usize> = predecessors
-                                .iter()
-                                .copied()
-                                .filter(|predecessor| exits[*predecessor].was_reached)
-                                .collect();
-                            if visited.is_empty() {
-                                continue;
-                            }
-                            let mut valuation_meet: Option<Vec<PlaceValuation>> = None;
-                            for predecessor in visited {
-                                let exit = &exits[predecessor].valuations;
-                                valuation_meet = Some(match valuation_meet {
-                                    None => exit.clone(),
-                                    Some(current) => meet_valuations(&current, exit),
-                                });
-                            }
-                            let mut valuation_meet = valuation_meet.unwrap_or_default();
-                            // These vectors represent maps. Statement/constructor order
-                            // must not count as a changed fact at the fixed-point boundary,
-                            // including when there is only one predecessor and no meet.
-                            canonicalize_valuations(&mut valuation_meet);
-                            if entry_valuations[index].as_ref() != Some(&valuation_meet) {
-                                entry_valuations[index] = Some(valuation_meet);
-                                stale[index] = true;
-                                changed = true;
-                            }
                         }
-                        if !changed {
-                            break;
+                        let mut valuation_meet = valuation_meet.unwrap_or_default();
+                        // These vectors represent maps. Statement/constructor order
+                        // must not count as a changed fact at the fixed-point boundary,
+                        // including when there is only one predecessor and no meet.
+                        canonicalize_valuations(&mut valuation_meet);
+                        if entry_valuations[index].as_ref() != Some(&valuation_meet) {
+                            entry_valuations[index] = Some(valuation_meet);
+                            stale[index] = true;
+                            changed = true;
                         }
                     }
-                    let mut machine_diagnostics = Vec::new();
-                    let mut machine_crash_sites = Vec::new();
-                    for walk in walks.into_iter().flatten() {
-                        machine_diagnostics.extend(walk.diagnostics);
-                        machine_crash_sites.extend(walk.crash_sites);
+                    if !changed {
+                        break;
                     }
-                    (!machine_diagnostics.is_empty() || !machine_crash_sites.is_empty())
-                        .then_some((machine.symbol, machine_diagnostics, machine_crash_sites))
-                })
-                .collect()
-        });
+                }
+                let mut machine_diagnostics = Vec::new();
+                let mut machine_crash_sites = Vec::new();
+                for walk in walks.into_iter().flatten() {
+                    machine_diagnostics.extend(walk.diagnostics);
+                    machine_crash_sites.extend(walk.crash_sites);
+                }
+                (!machine_diagnostics.is_empty() || !machine_crash_sites.is_empty()).then_some((
+                    machine.symbol,
+                    machine_diagnostics,
+                    machine_crash_sites,
+                ))
+            })
+            .collect()
+    });
     let proofs = proved_parameter_calls()
         .lock()
         .expect("parameter call proofs")
@@ -595,10 +592,8 @@ fn seed_transported_initializer<'program>(
     }
     match program.expression_table.expression(local.initial_value) {
         typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-            let holder = crate::field_domains::owned_nominal_data_definition(
-                program,
-                local.type_reference,
-            );
+            let holder =
+                crate::field_domains::owned_nominal_data_definition(program, local.type_reference);
             for field in program.expression_table.struct_fields(literal.fields) {
                 let Some((case, fields, symbols)) = case_snapshot(program, field.value) else {
                     continue;
@@ -607,9 +602,9 @@ fn seed_transported_initializer<'program>(
                     continue;
                 };
                 let Some(declared) = program.data_members(holder).iter().find_map(|member| {
-                    member.as_field().filter(|candidate| {
-                        candidate.name.as_str() == field.name.as_str()
-                    })
+                    member
+                        .as_field()
+                        .filter(|candidate| candidate.name.as_str() == field.name.as_str())
                 }) else {
                     continue;
                 };
@@ -653,13 +648,15 @@ fn seed_transported_initializer<'program>(
             if snapshots.iter().any(|snapshot| snapshot.0 != case) {
                 return;
             }
-            let Some(definition) = crate::field_domains::owned_nominal_data_definition(
-                program,
-                local.type_reference,
-            ) else {
+            let Some(definition) =
+                crate::field_domains::owned_nominal_data_definition(program, local.type_reference)
+            else {
                 return;
             };
-            if tracked.iter().any(|place| place.spelling == local.name.as_str()) {
+            if tracked
+                .iter()
+                .any(|place| place.spelling == local.name.as_str())
+            {
                 return;
             }
             tracked.push(TrackedPlace {
@@ -675,10 +672,7 @@ fn seed_transported_initializer<'program>(
                 elements: Vec::new(),
                 element_windows: Vec::new(),
                 active_case: Some(case),
-                alternatives: snapshots
-                    .into_iter()
-                    .map(|(_, fields, _)| fields)
-                    .collect(),
+                alternatives: snapshots.into_iter().map(|(_, fields, _)| fields).collect(),
             });
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
@@ -687,13 +681,15 @@ fn seed_transported_initializer<'program>(
             else {
                 return;
             };
-            let Some(definition) = crate::field_domains::owned_nominal_data_definition(
-                program,
-                local.type_reference,
-            ) else {
+            let Some(definition) =
+                crate::field_domains::owned_nominal_data_definition(program, local.type_reference)
+            else {
                 return;
             };
-            if tracked.iter().any(|place| place.spelling == local.name.as_str()) {
+            if tracked
+                .iter()
+                .any(|place| place.spelling == local.name.as_str())
+            {
                 return;
             }
             tracked.push(TrackedPlace {
@@ -756,9 +752,8 @@ fn machine_return_snapshot(
     let expression = match statements {
         [typed_trees::statement::StatementNode::Expression(expression)] => *expression,
         [typed_trees::statement::StatementNode::Transition(transition)] => {
-            let typed_trees::statement::TransitionTargetNode::Value(expression) = program
-                .statement_table
-                .transition_target(transition.target)
+            let typed_trees::statement::TransitionTargetNode::Value(expression) =
+                program.statement_table.transition_target(transition.target)
             else {
                 return None;
             };
@@ -1146,14 +1141,18 @@ fn walk_state(
                 // obligation. Retain its independently completed case at this
                 // cut; a later payload write cannot rediscover it from syntax
                 // or the destination annotation after the source has changed.
-                let literal_case = local.initial_value.is_valid().then(|| {
-                    match program.expression_table.expression(local.initial_value) {
-                        typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-                            literal.case_symbol.filter(|symbol| symbol.is_valid())
-                        }
-                        _ => None,
-                    }
-                }).flatten();
+                let literal_case = local
+                    .initial_value
+                    .is_valid()
+                    .then(
+                        || match program.expression_table.expression(local.initial_value) {
+                            typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                                literal.case_symbol.filter(|symbol| symbol.is_valid())
+                            }
+                            _ => None,
+                        },
+                    )
+                    .flatten();
                 if local.initial_value.is_valid()
                     && let Some(definition) = crate::field_domains::owned_nominal_data_definition(program, local.type_reference)
                     && program.data_members(definition).iter().any(|member| member.as_variant().is_some())
@@ -1176,11 +1175,7 @@ fn walk_state(
                         alternatives: Vec::new(),
                     });
                 }
-                seed_transported_initializer(
-                    program,
-                    local,
-                    &mut tracked,
-                );
+                seed_transported_initializer(program, local, &mut tracked);
             }
             StatementNode::Transition(transition) => {
                 if matches!(

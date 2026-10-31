@@ -150,12 +150,12 @@ impl EvaluationDomain {
 }
 
 use crate::{
-    BuildTimeSelectionAuthority, PlacedViewRecord, SelectedBuildTimeBinaryOperator,
+    AccessViewRecord, BuildTimeSelectionAuthority, SelectedBuildTimeBinaryOperator,
     SelectedBuildTimeProviderBody, const_evaluation::const_applications,
     const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
     const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
     const_evaluation::const_lengths, const_evaluation::data_layout_queries,
-    const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::placed_views,
+    const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::access_views,
     layouts::plan_laid, layouts::wire_plans,
 };
 
@@ -193,8 +193,8 @@ pub fn evaluate_pre_resolution(
         source_context.source_scoped_top_level_bindings.to_vec(),
         source_context.retained_base(),
     )?;
-    let placed_view_records =
-        placed_views::desugar_placed_views(&mut syntax_trees, source_context.clone())?;
+    let access_view_records =
+        access_views::desugar_access_views(&mut syntax_trees, source_context.clone())?;
     let roots_before_generic = syntax_trees.root_item_handles().len();
     let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
         syntax_trees,
@@ -218,7 +218,7 @@ pub fn evaluate_pre_resolution(
             recorded_authority: None,
             domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
-            placed_view_records,
+            access_view_records,
             selection_authority: source_context.selection_authority,
             selected_operators: Vec::new(),
             provider_bodies: Vec::new(),
@@ -348,7 +348,7 @@ pub struct PreCheckEvaluation {
     /// instances publish in the canonical frontend's original storage.
     domain: EvaluationDomain,
     wire_schema_frontier: usize,
-    placed_view_records: Vec<PlacedViewRecord>,
+    access_view_records: Vec<AccessViewRecord>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     /// Exact selected rows supplied only when the deferred continuation is
     /// finished under Omega's settled plans. They stay empty on the early
@@ -486,7 +486,7 @@ impl PreCheckEvaluation {
                     // different packages. Each application retains its own
                     // requester even though the policy result has one owner.
                     sites.extend(
-                        self.placed_view_records
+                        self.access_view_records
                             .iter()
                             .flat_map(|record| record.invocation_sources.iter().copied()),
                     );
@@ -528,7 +528,7 @@ impl PreCheckEvaluation {
             && other.recorded_authority.is_none()
             && self.domain == other.domain
             && self.wire_schema_frontier == other.wire_schema_frontier
-            && self.placed_view_records == other.placed_view_records
+            && self.access_view_records == other.access_view_records
             && self.selected_operators == other.selected_operators
             && self.provider_bodies == other.provider_bodies
             && match (&self.selection_authority, &other.selection_authority) {
@@ -611,10 +611,10 @@ impl PreCheckEvaluation {
         original: &typed_trees::TypedTrees,
         domain: EvaluationDomain,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        let mut placed_view_records = Vec::new();
-        for record in &self.placed_view_records {
+        let mut access_view_records = Vec::new();
+        for record in &self.access_view_records {
             if domain.contains_data(original, &record.synthetic_name)? {
-                placed_view_records.push(record.clone());
+                access_view_records.push(record.clone());
             }
         }
         // Evaluation mutates the canonical roster, so the checkpoint remains
@@ -631,7 +631,7 @@ impl PreCheckEvaluation {
             recorded_authority: self.recorded_authority.clone(),
             domain,
             wire_schema_frontier: self.wire_schema_frontier,
-            placed_view_records,
+            access_view_records,
             selection_authority: self.selection_authority.clone(),
             selected_operators: self.selected_operators.clone(),
             provider_bodies: self.provider_bodies.clone(),
@@ -860,10 +860,10 @@ impl PreCheckEvaluation {
                 &self.domain,
             )
         })?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.placed_view_plans", || {
-            placed_views::validate_placed_view_plans_in(
+        phase_profile::scope("evaluate_or_defer.evaluate_work.access_view_plans", || {
+            access_views::validate_access_view_plans_in(
                 typed,
-                &self.placed_view_records,
+                &self.access_view_records,
                 self.selection_authority.clone(),
                 &self.domain,
             )
@@ -902,7 +902,7 @@ impl compiler_storage::Record for PreCheckEvaluation {
         output.record(|output| {
             self.domain.write(output)?;
             self.wire_schema_frontier.write(output)?;
-            self.placed_view_records.write(output)?;
+            self.access_view_records.write(output)?;
             let captured;
             let authority = match &self.recorded_authority {
                 Some(authority) => authority,
@@ -926,7 +926,7 @@ impl compiler_storage::Record for PreCheckEvaluation {
             Ok(Self {
                 domain: compiler_storage::Record::read(input)?,
                 wire_schema_frontier: compiler_storage::Record::read(input)?,
-                placed_view_records: compiler_storage::Record::read(input)?,
+                access_view_records: compiler_storage::Record::read(input)?,
                 recorded_authority: Some(compiler_storage::Record::read(input)?),
                 selection_authority: None,
                 selected_operators: compiler_storage::Record::read(input)?,

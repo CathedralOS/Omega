@@ -1,6 +1,6 @@
 use super::PhysicalProgramEntry;
 use super::calling_plans::validate_paired_calling_plans;
-use crate::TerminalPlacedViewEstablishment;
+use crate::TerminalAccessViewEstablishment;
 use calling_conventions::BoundaryCallingApplication;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
@@ -148,19 +148,19 @@ pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) admitted_calling_plans: Option<ValidatedNativeProgramEntryCallingPlans>,
     pub(crate) physical_calling_application: Option<BoundaryCallingApplication>,
     pub(crate) storage_entry: Option<program_entry_plan::SelectedProgramStorageEntryPlan>,
-    /// Provider establishments bound to the entry machine's placed-view
+    /// Provider establishments bound to the entry machine's access-view
     /// roster rows, in roster order. The executable input boundary joined
     /// each supply to its declared row before settlement replayed the
     /// artifact; the settlement retains the exact loans so the emitted entry
     /// boundary is the custody the binder must satisfy. Empty when the entry
-    /// declared no placed-view inputs.
-    pub(crate) placed_view_establishments: Vec<TerminalPlacedViewEstablishment>,
+    /// declared no access-view inputs.
+    pub(crate) access_view_establishments: Vec<TerminalAccessViewEstablishment>,
     pub(crate) private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
 impl ValidatedNativeProgramEntrySettlement {
     /// Borrow the exact replayed declaration and calling contracts for native
-    /// realization. Invocation-owned placed-view loans do not cross this view;
+    /// realization. Invocation-owned access-view loans do not cross this view;
     /// executable receiver admission must bind its own supplied input.
     pub fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
         NativeProgramEntrySettlement {
@@ -221,8 +221,8 @@ impl ValidatedNativeProgramEntrySettlement {
         self.storage_entry.as_ref()
     }
 
-    /// The provider establishments bound to this entry's placed-view roster
-    /// rows, in roster order. Empty when the entry declared no placed-view
+    /// The provider establishments bound to this entry's access-view roster
+    /// rows, in roster order. Empty when the entry declared no access-view
     /// inputs.
     pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
         &self.private_entry_ram
@@ -236,18 +236,18 @@ impl ValidatedNativeProgramEntrySettlement {
         self
     }
 
-    pub fn placed_view_establishments(&self) -> &[TerminalPlacedViewEstablishment] {
-        &self.placed_view_establishments
+    pub fn access_view_establishments(&self) -> &[TerminalAccessViewEstablishment] {
+        &self.access_view_establishments
     }
 
-    /// Attach the placed-view establishments the executable input boundary
+    /// Attach the access-view establishments the executable input boundary
     /// already joined to this artifact's roster. Settlement retains the exact
     /// loans as boundary custody; it does not re-validate them.
-    pub fn with_placed_view_establishments(
+    pub fn with_access_view_establishments(
         mut self,
-        establishments: &[TerminalPlacedViewEstablishment],
+        establishments: &[TerminalAccessViewEstablishment],
     ) -> Self {
-        self.placed_view_establishments = establishments.to_vec();
+        self.access_view_establishments = establishments.to_vec();
         self
     }
 }

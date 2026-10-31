@@ -6,7 +6,7 @@
 //!
 //! `encode_raw` and `decode_module_body` are the ordered section list: each
 //! row kind is encoded and decoded by a named pair in this folder
-//! (`declaration_wire`, `placed_view_wire`, `borrow_wire`,
+//! (`declaration_wire`, `access_view_wire`, `borrow_wire`,
 //! `float_meaning_wire`, `evidence_wire`, `proof_output_wire`,
 //! `recursive_component_wire`, `closed_conformance_wire`,
 //! `carry_and_suspension_wire`, `scalar_block_invariant_wire`,
@@ -19,6 +19,9 @@ mod carry_and_suspension_wire;
 pub(crate) mod quotient_wire;
 mod recursive_component_wire;
 
+pub(crate) mod access_lifecycle_wire;
+pub(crate) mod access_view_plan_wire;
+pub(crate) mod access_view_wire;
 mod closed_conformance_wire;
 pub(crate) mod declaration_wire;
 mod dynamic_dispatch_wire;
@@ -26,9 +29,6 @@ mod evidence_wire;
 mod float_meaning_wire;
 mod folded_constant_wire;
 mod operation_crash_contract_wire;
-pub(crate) mod placed_plan_wire;
-pub(crate) mod placed_view_wire;
-pub(crate) mod placement_lifecycle_wire;
 mod proof_output_wire;
 mod proof_scope_wire;
 mod scalar_application_wire;
@@ -134,16 +134,16 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         &module.root_service_reach.installation_dependencies,
         declaration_wire::encode_installation_reach_dependency,
     )?;
-    c!("placed-view plans" => &module.placed_view_plans => placed_plan_wire::encode)?;
+    c!("access-view plans" => &module.access_view_plans => access_view_plan_wire::encode)?;
     writer.counted(
-        "placement lifecycle plans",
-        &module.placement_lifecycle_plans,
-        placement_lifecycle_wire::encode,
+        "access lifecycle plans",
+        &module.access_lifecycle_plans,
+        access_lifecycle_wire::encode,
     )?;
     writer.counted(
-        "placed-view inputs",
-        &module.placed_view_inputs,
-        placed_view_wire::encode_placed_view_input,
+        "access-view inputs",
+        &module.access_view_inputs,
+        access_view_wire::encode_access_view_input,
     )?;
     writer.counted(
         "reborrow restored call uses",
@@ -334,9 +334,9 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reader,
         declaration_wire::decode_installation_reach_dependency,
     )?;
-    let placed_view_plans = decode_counted(reader, placed_plan_wire::decode)?;
-    let placement_lifecycle_plans = decode_counted(reader, placement_lifecycle_wire::decode)?;
-    let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
+    let access_view_plans = decode_counted(reader, access_view_plan_wire::decode)?;
+    let access_lifecycle_plans = decode_counted(reader, access_lifecycle_wire::decode)?;
+    let access_view_inputs = decode_counted(reader, access_view_wire::decode_access_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let external_providers = decode_counted(reader, external_provider_wire::decode)?;
@@ -399,9 +399,9 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             concrete: concrete_root_service_reach,
             installation_dependencies: installation_reach_dependencies,
         },
-        placed_view_inputs,
-        placed_view_plans,
-        placement_lifecycle_plans,
+        access_view_inputs,
+        access_view_plans,
+        access_lifecycle_plans,
         reborrow_restored_call_uses,
         boundary_machines,
         external_providers,

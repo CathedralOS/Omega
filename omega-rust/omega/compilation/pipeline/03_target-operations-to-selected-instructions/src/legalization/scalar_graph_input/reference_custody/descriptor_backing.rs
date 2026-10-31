@@ -452,7 +452,7 @@ pub(super) fn overlaps(
         Backing::Descriptor { geometry, .. } => match geometry {
             // Formation tokens carry no disjoint physical storage evidence.
             DescriptorCallOrigin::Invocation { .. }
-            | DescriptorCallOrigin::PlacedFormation { .. } => true,
+            | DescriptorCallOrigin::AccessFormation { .. } => true,
             DescriptorCallOrigin::Empty => false,
             DescriptorCallOrigin::Literal {
                 machine: owner,

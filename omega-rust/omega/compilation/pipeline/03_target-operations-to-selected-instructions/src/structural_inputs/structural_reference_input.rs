@@ -1232,8 +1232,8 @@ fn shape_inner(
                 return None;
             }
             if let terminal_psi::StructuralRecordStorage::Authored(storage)
-            | terminal_psi::StructuralRecordStorage::PlacedView(storage)
-            | terminal_psi::StructuralRecordStorage::PlacedAccessor(storage) = storage
+            | terminal_psi::StructuralRecordStorage::AccessView(storage)
+            | terminal_psi::StructuralRecordStorage::Accessor(storage) = storage
             {
                 active.pop();
                 return Some(ValueShape::integer(

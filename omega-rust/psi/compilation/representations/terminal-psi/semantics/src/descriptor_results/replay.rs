@@ -47,7 +47,7 @@ pub enum DescriptorStoredOrigin {
         projection: Projection,
     },
     Provider(DescriptorProviderOrigin<DescriptorStoredOrigin>),
-    PlacedFormation {
+    AccessFormation {
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,
@@ -128,7 +128,7 @@ fn result_origin(
             carrier_type,
             projection,
         }),
-        DescriptorStoredOrigin::PlacedFormation { .. } | DescriptorStoredOrigin::Provider(_) => {
+        DescriptorStoredOrigin::AccessFormation { .. } | DescriptorStoredOrigin::Provider(_) => {
             None
         }
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
@@ -305,7 +305,7 @@ pub enum DescriptorSlotKind {
     /// Complete storage-origin transport includes both pointer contents and
     /// view backing. Their representation and permission meanings stay distinct.
     BorrowedStorage,
-    PlacedOrigins,
+    AccessOrigins,
 }
 impl DescriptorSlotKind {
     pub fn tracks_views(self) -> bool {
@@ -319,13 +319,13 @@ impl DescriptorSlotKind {
     pub fn is_slot(self, types: &[StructuralTypeDeclaration], ty: StructuralTypeId) -> bool {
         match self {
             Self::Views => is_descriptor(types.iter(), ty),
-            Self::PlacedOrigins => find_structural_type(types, ty).is_some_and(|declaration| {
+            Self::AccessOrigins => find_structural_type(types, ty).is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
                     StructuralTypeShape::Reference { .. }
                         | StructuralTypeShape::Record {
-                            storage: terminal_psi::StructuralRecordStorage::PlacedView(_)
-                                | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                            storage: terminal_psi::StructuralRecordStorage::AccessView(_)
+                                | terminal_psi::StructuralRecordStorage::Accessor(_),
                             ..
                         }
                 )
@@ -350,7 +350,7 @@ impl DescriptorSlotKind {
         match self {
             Self::BorrowedStorage => Self::References.is_slot(types, ty),
             Self::Views => false,
-            Self::References | Self::PlacedOrigins => self.is_slot(types, ty),
+            Self::References | Self::AccessOrigins => self.is_slot(types, ty),
         }
     }
     /// Under the view inventory, a field whose carrier borrows caller storage

@@ -348,7 +348,7 @@ impl TerminalExecution<'_> {
                 retained.aggregate_backing(backing);
             }
         }
-        for occurrence in self.placed_view_occurrences.values() {
+        for occurrence in self.access_view_occurrences.values() {
             retained.place(occurrence.referent.clone());
         }
         for (place, view) in &self.element_view_values {
@@ -378,7 +378,7 @@ impl TerminalExecution<'_> {
                     retained.aggregate_backing(backing);
                 }
             }
-            for occurrence in frame.placed_view_occurrences.values() {
+            for occurrence in frame.access_view_occurrences.values() {
                 retained.place(occurrence.referent.clone());
             }
             for (place, view) in &frame.element_view_values {

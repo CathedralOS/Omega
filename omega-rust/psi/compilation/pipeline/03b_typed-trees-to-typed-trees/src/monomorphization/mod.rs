@@ -38,6 +38,7 @@ use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
+mod accessor_primitives;
 mod application_lifetimes;
 mod applications;
 mod candidate;
@@ -48,7 +49,6 @@ mod domain_applications;
 mod explicit_arguments;
 mod layout_storage_policies;
 mod native_query_lifetimes;
-mod placed_primitives;
 mod provider_tuple_closure;
 mod requirement_providers;
 mod selection;
@@ -367,7 +367,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // A catalog operation selects an installed entry, not a body clone.
         // Its closed tuple may be independent of an enclosing generic API.
         // Ordinary checked-body specialization keeps its own staging below.
-        let mut applied_any = placed_primitives::select_calls(
+        let mut applied_any = accessor_primitives::select_calls(
             program,
             &candidates,
             &mut selections,

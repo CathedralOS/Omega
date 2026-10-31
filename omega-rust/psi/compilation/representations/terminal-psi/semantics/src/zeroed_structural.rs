@@ -215,8 +215,8 @@ fn zeroed_declaration_graph(
             }
             StructuralTypeShape::Record {
                 storage:
-                    terminal_psi::StructuralRecordStorage::PlacedView(_)
-                    | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                    terminal_psi::StructuralRecordStorage::AccessView(_)
+                    | terminal_psi::StructuralRecordStorage::Accessor(_),
                 ..
             } => return false,
             StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), None),

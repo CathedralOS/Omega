@@ -1,5 +1,5 @@
 //! Optimizer module role: executable entrance. Canonical preparation followed
-//! by one native admission. The result retains its exact placed-view input
+//! by one native admission. The result retains its exact access-view input
 //! roster and downgrades to optimizer authority on request; optimizer
 //! authority never promotes back.
 
@@ -13,7 +13,7 @@ mod scalar_applications;
 mod qualified_cleanup_receiving_tests;
 
 pub(crate) use error::ArtifactLoweringError;
-pub use establishment::TerminalPlacedViewEstablishment;
+pub use establishment::TerminalAccessViewEstablishment;
 pub(crate) use native::AdmittedNativeArtifact;
 pub(crate) use native::NativeScopePreparation;
 pub use native::{NativeExecutionSelection, VerifiedNativeArtifactInput};
@@ -29,7 +29,7 @@ pub struct ArtifactSections<'artifact> {
 /// eligibility beside the lowered plan. This is
 /// the one artifact entrance: an optimizer consumer downgrades the result
 /// through `AdmittedNativeArtifact::into_optimization_artifact`, and a
-/// realization consumer binds its placed-view establishments through
+/// realization consumer binds its access-view establishments through
 /// `AdmittedNativeArtifact::try_into_native_input`.
 pub fn lower_artifact(
     sections: ArtifactSections<'_>,

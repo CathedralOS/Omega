@@ -4,17 +4,17 @@ use omega::language::core::external_binding;
 
 
 public SignedByte satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::IntegerAt {
+        representation: FieldPlan::IntegerAt {
             offset: 0,
             stored_width: 8,
             interpretation: IntegerInterpretation::Signed,
         },
     };
-    Plan {
+    LayoutPlan {
         entries: entries,
         entry_count: 1,
         size_fixed: 1,

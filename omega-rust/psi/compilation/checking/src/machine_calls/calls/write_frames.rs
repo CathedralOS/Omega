@@ -170,7 +170,7 @@ fn known_call_written_paths_for_parts(
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     if crate::activation_accessor_has_empty_write_frame(program, target_symbol)
-        || crate::placed_borrow_has_empty_write_frame(program, target_symbol)
+        || crate::access_borrow_has_empty_write_frame(program, target_symbol)
     {
         return Some(Vec::new());
     }

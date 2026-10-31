@@ -27,7 +27,8 @@ pub(crate) struct FunctionIndex<'function> {
     /// `(id, position)` for every block, sorted by id and then by order (populated when not identity).
     blocks: Vec<(SelectedBlockId, usize)>,
     /// Instruction IDs and their exact owning block and position, built lazily.
-    instructions: std::sync::OnceLock<Vec<(selected_instructions::SelectedInstructionId, usize, usize)>>,
+    instructions:
+        std::sync::OnceLock<Vec<(selected_instructions::SelectedInstructionId, usize, usize)>>,
 }
 
 impl<'function> FunctionIndex<'function> {

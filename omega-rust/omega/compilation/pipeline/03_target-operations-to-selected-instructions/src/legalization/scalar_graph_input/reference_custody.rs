@@ -76,7 +76,7 @@ pub(in crate::legalization) struct Leaf {
     formations: Vec<Formation>,
     /// This leaf's primitive referent type.
     pub(in crate::legalization) referent: StructuralTypeId,
-    placed: Option<target_operations::TargetPlacedInterpretation>,
+    placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
 /// The referent root of one custody occurrence. Production lowering states this
@@ -271,7 +271,7 @@ pub(in crate::legalization) struct Custody {
     reference_position: Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition>,
     /// Exact module demand rosters, separate from live permission leaves.
     placement_catalog: abstract_operations::StructuralTypeCatalog,
-    placed_formals: BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>,
+    access_formals: BTreeMap<PlaceId, terminal_psi::TerminalAccessViewInput>,
 }
 
 impl Custody {
@@ -315,7 +315,7 @@ impl Custody {
             stored_calls: self.stored_calls.clone(),
             reference_position: self.reference_position,
             placement_catalog: self.placement_catalog.clone(),
-            placed_formals: self.placed_formals.clone(),
+            access_formals: self.access_formals.clone(),
         })
     }
 
@@ -1007,23 +1007,23 @@ fn storage_projection(
 /// check the live roster rather than treating those origins as permission.
 /// Rejoin the actual live source descriptor; the declared placed carrier alone
 /// does not provide an established backing interpretation.
-fn placed_source(
+fn access_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Option<target_operations::TargetPlacedInterpretation> {
+) -> Option<target_operations::TargetAccessInterpretation> {
     if source.path.is_empty() {
         if let Some(origins) = custody.borrowed_sources.get(&source.place) {
-            return optimization_unit_semantics::descriptor_results::placed_results::agree(
+            return optimization_unit_semantics::descriptor_results::access_results::agree(
                 origins.as_ref()?.iter().map(|origin| origin.placed.clone()),
             );
         }
         return custody
-            .placed_formals
+            .access_formals
             .get(&source.place)
             .cloned()
-            .map(target_operations::TargetPlacedInterpretation::Formal);
+            .map(target_operations::TargetAccessInterpretation::Formal);
     }
     let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
         return None;
@@ -1867,7 +1867,7 @@ fn call_results(
                     result,
                     expected,
                 );
-                leaf.placed = placed_source(function, custody, types, source);
+                leaf.placed = access_source(function, custody, types, source);
                 leaf.backing = backing;
                 leaf.parents.extend(backing_parents);
                 leaf.parents.sort();
@@ -1888,17 +1888,17 @@ fn call_results(
         let mut leaf = combine_alternatives(candidates)?;
         if custody
             .placement_catalog
-            .placed_views()
+            .access_views()
             .iter()
             .any(|plan| plan.carrier == expected)
         {
             let private = callee.and_then(|callee| {
                 let slots = custody
                     .stored_calls
-                    .placed_results
+                    .access_results
                     .get(&callee.machine)?
                     .as_ref()?;
-                optimization_unit_semantics::descriptor_results::placed_results::resolve(
+                optimization_unit_semantics::descriptor_results::access_results::resolve(
                     slots,
                     &mapping.path,
                     |formal| {
@@ -1913,18 +1913,18 @@ fn call_results(
                         {
                             return transferred.placed.clone();
                         }
-                        placed_source(function, custody, types, &actual)
+                        access_source(function, custody, types, &actual)
                     },
                     |correspondence| {
-                        target_operations::TargetPlacedInterpretation::Captured(
+                        target_operations::TargetAccessInterpretation::Captured(
                             correspondence.clone(),
                         )
                     },
                 )
             });
             let association =
-                optimization_unit_semantics::descriptor_results::placed_results::reconcile(
-                    optimization_unit_semantics::descriptor_results::placed_results::agree(
+                optimization_unit_semantics::descriptor_results::access_results::reconcile(
+                    optimization_unit_semantics::descriptor_results::access_results::agree(
                         public_interpretations,
                     ),
                     private,
@@ -2262,14 +2262,10 @@ pub(in crate::legalization) fn apply(
             structural_arguments,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
-        } if plan
-            .structural_types
-            .placement_lifecycles()
-            .iter()
-            .any(|row| {
-                row.boundary == *boundary
-                    && row.operation == terminal_psi::TerminalPlacementLifecycleOperation::View
-            }) =>
+        } if plan.structural_types.access_lifecycles().iter().any(|row| {
+            row.boundary == *boundary
+                && row.operation == terminal_psi::TerminalAccessLifecycleOperation::View
+        }) =>
         {
             let declaration = unit
                 .boundary_machines
@@ -2277,7 +2273,7 @@ pub(in crate::legalization) fn apply(
                 .find(|row| row.id == *boundary)
                 .ok_or_else(|| invalid())?;
             let (path, interpretation) =
-                optimization_unit_semantics::placed_references::borrowed_view_formation(
+                optimization_unit_semantics::access_references::borrowed_view_formation(
                     &plan.structural_types,
                     declaration,
                     result,
@@ -2321,7 +2317,7 @@ pub(in crate::legalization) fn apply(
             leaf.parents.extend(backing_parents);
             leaf.parents.sort();
             leaf.parents.dedup();
-            leaf.placed = Some(target_operations::TargetPlacedInterpretation::Captured(
+            leaf.placed = Some(target_operations::TargetAccessInterpretation::Captured(
                 interpretation,
             ));
             custody.leaves.insert((result.place, path), leaf);
@@ -2399,7 +2395,7 @@ pub(in crate::legalization) fn apply(
             }
             custody.leaves.extend(copied);
         }
-        AbstractOperation::EstablishPlacedReference {
+        AbstractOperation::EstablishAccessReference {
             psi_operation,
             result,
             source,
@@ -2408,7 +2404,7 @@ pub(in crate::legalization) fn apply(
             let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
             let mut selected = plan
                 .structural_types
-                .placed_views()
+                .access_views()
                 .iter()
                 .filter(|plan| plan.carrier == referent);
             let (Some(selected), None) = (selected.next(), selected.next()) else {
@@ -2416,9 +2412,9 @@ pub(in crate::legalization) fn apply(
             };
             let actual =
                 reference_source_type(function, custody, types, source).ok_or_else(|| invalid())?;
-            let matches_backing = optimization_unit_semantics::placed_references::validate_backing(
+            let matches_backing = optimization_unit_semantics::access_references::validate_backing(
                 types,
-                plan.structural_types.placed_views(),
+                plan.structural_types.access_views(),
                 selected,
                 actual,
                 correspondence,
@@ -2448,7 +2444,7 @@ pub(in crate::legalization) fn apply(
             let psi = *psi_operation;
             let mut leaf =
                 custody.form_leaf(function, types, source, psi, root, parents, result)?;
-            leaf.placed = Some(target_operations::TargetPlacedInterpretation::Captured(
+            leaf.placed = Some(target_operations::TargetAccessInterpretation::Captured(
                 correspondence.clone(),
             ));
             custody.leaves.insert((result.place, Vec::new()), leaf);
@@ -2528,7 +2524,7 @@ pub(in crate::legalization) fn apply(
             let psi = *psi_operation;
             let mut leaf =
                 custody.form_leaf(function, types, source, psi, root, parents, result)?;
-            leaf.placed = placed_source(function, custody, types, source);
+            leaf.placed = access_source(function, custody, types, source);
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
         AbstractOperation::ReleaseReference {
@@ -2962,11 +2958,11 @@ fn transfer_return_custody(
                     {
                         path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
                     } else if matches!(&leaf.placed,
-                        Some(target_operations::TargetPlacedInterpretation::Captured(correspondence))
+                        Some(target_operations::TargetAccessInterpretation::Captured(correspondence))
                             if correspondence.carrier() == leaf.referent)
                     {
                         // Formation authenticated an interpretation of this
-                        // backing, not a typed Placed object stored there. Its
+                        // backing, not a typed Access object stored there. Its
                         // physical origin must fit a public region ceiling;
                         // it cannot satisfy a typed projected-origin promise.
                         // The live leaf retains the separately checked formation.
@@ -3373,7 +3369,7 @@ pub(in crate::legalization) fn block_entry_states(
     initial.placement_catalog = plan.structural_types.clone();
     for input in plan
         .structural_types
-        .placed_view_inputs()
+        .access_view_inputs()
         .iter()
         .filter(|input| input.machine == function.machine)
     {
@@ -3383,11 +3379,11 @@ pub(in crate::legalization) fn block_entry_states(
             .ok_or_else(|| invalid())?;
         let (matched, _) = plan
             .structural_types
-            .placed_parameter_demand(function.machine, input.runtime_position as usize, parameter)
+            .access_parameter_demand(function.machine, input.runtime_position as usize, parameter)
             .ok_or_else(|| invalid())?;
         if matched != input
             || initial
-                .placed_formals
+                .access_formals
                 .insert(parameter.place, input.clone())
                 .is_some()
         {
@@ -3759,31 +3755,31 @@ pub(in crate::legalization) fn reference_results(
 /// Independently join the exact formal demand to the current live descriptor.
 /// The ordinary observation validates access, active descendants and enclosing
 /// loans first; a sealed plan never supplies an absent permission occurrence.
-pub(in crate::legalization) fn placed_call_custody(
+pub(in crate::legalization) fn access_call_custody(
     caller: &PsiOptimizationFunction,
     callee: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     arguments: &[StructuralArgument],
     custody: &Custody,
-) -> Result<Vec<target_operations::TargetPlacedCallBinding>, LegalizationError> {
+) -> Result<Vec<target_operations::TargetAccessCallBinding>, LegalizationError> {
     let catalog = &custody.placement_catalog;
     let mut bindings = Vec::new();
     for (runtime_position, parameter) in callee.structural_parameters.iter().enumerate() {
-        if !catalog.placed_view_inputs().iter().any(|input| {
+        if !catalog.access_view_inputs().iter().any(|input| {
             input.machine == callee.machine
                 && usize::try_from(input.runtime_position).ok() == Some(runtime_position)
         }) {
             continue;
         }
         let (input, plan) = catalog
-            .placed_parameter_demand(callee.machine, runtime_position, parameter)
+            .access_parameter_demand(callee.machine, runtime_position, parameter)
             .ok_or_else(|| invalid())?;
         let argument = arguments
             .get(runtime_position)
             .filter(|argument| argument.access == parameter.access)
             .ok_or_else(|| invalid())?;
-        let association = match placed_source(caller, custody, types, argument) {
-            Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
+        let association = match access_source(caller, custody, types, argument) {
+            Some(target_operations::TargetAccessInterpretation::Captured(captured)) => {
                 if reference_source_type(caller, custody, types, argument) != Some(plan.carrier) {
                     return Err(invalid());
                 }
@@ -3794,23 +3790,23 @@ pub(in crate::legalization) fn placed_call_custody(
                         return Err(invalid());
                     }
                 }
-                optimization_unit_semantics::placed_references::validate_backing(
+                optimization_unit_semantics::access_references::validate_backing(
                     types,
-                    catalog.placed_views(),
+                    catalog.access_views(),
                     plan,
                     captured.source_type(),
                     &captured,
                 )
                 .map_err(|_| invalid())?;
-                target_operations::TargetPlacedCallAssociation::Captured {
+                target_operations::TargetAccessCallAssociation::Captured {
                     schema: captured.schema(),
                     carrier: captured.carrier(),
                 }
             }
-            Some(target_operations::TargetPlacedInterpretation::Formal(formal)) => {
+            Some(target_operations::TargetAccessInterpretation::Formal(formal)) => {
                 if !parameter.access.admits(formal.access)
                     || !custody
-                        .placed_formals
+                        .access_formals
                         .values()
                         .any(|input| input == &formal)
                 {
@@ -3828,7 +3824,7 @@ pub(in crate::legalization) fn placed_call_custody(
                     .get(formal.runtime_position as usize)
                     .ok_or_else(|| invalid())?;
                 let (_, source_plan) = catalog
-                    .placed_parameter_demand(
+                    .access_parameter_demand(
                         caller.machine,
                         formal.runtime_position as usize,
                         source_parameter,
@@ -3839,11 +3835,11 @@ pub(in crate::legalization) fn placed_call_custody(
                 }
                 // Ordinary call replay below checks this parameter's live storage,
                 // enclosing children and simultaneous operand interference.
-                target_operations::TargetPlacedCallAssociation::CallerFormal(formal)
+                target_operations::TargetAccessCallAssociation::CallerFormal(formal)
             }
             None => return Err(invalid()),
         };
-        bindings.push(target_operations::TargetPlacedCallBinding {
+        bindings.push(target_operations::TargetAccessCallBinding {
             input: input.clone(),
             argument_index: input.runtime_position,
             association,
@@ -3866,7 +3862,7 @@ fn call_transition(
     custody: &mut Custody,
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
     if let Some(callee) = callee {
-        placed_call_custody(caller, callee, types, arguments, custody)?;
+        access_call_custody(caller, callee, types, arguments, custody)?;
     }
     let moved = call_arguments(caller, types, custody, arguments)?;
     let stored = stored_calls::stage(
@@ -3903,7 +3899,7 @@ fn call_transition(
 /// ceiling and backing origins. Handler admission establishes placement supply;
 /// it does not replace this live reference check. Accessor identities are unique
 /// to the canonical plan field, so an unrelated field cannot substitute here.
-pub(in crate::legalization) fn placed_scalar_custody(
+pub(in crate::legalization) fn accessor_scalar_custody(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],

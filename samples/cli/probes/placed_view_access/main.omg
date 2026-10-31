@@ -1,29 +1,29 @@
 use omega::language::core::layout;
 public data Registers { status: u32; transmit: u8; }
 public data RegPlacement {}
-machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+machine RegPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 4 },
+        representation: FieldPlan::At { offset: 4 },
     };
-    let mut services: [u64; 32];
-    services[0] = 7;
-    PlacementPlan {
-        layout: Plan {
+    let layout: LayoutPlan = LayoutPlan {
             entries: entries,
             entry_count: 2,
             size_fixed: 8,
             size_is_dynamic: false,
             align: 4,
-        },
-        access: AccessPlan::with(
+        };
+    let mut services: [u64; 32];
+    services[0] = 7;
+    AccessPlan::with_reach(
+        AccessPlan::with(
             AccessPlan::with(
-                AccessPlan::inaccessible(&schema),
+                AccessPlan::inaccessible(layout),
                 schema.fields[0].key,
                 FieldAccess::External {
                     read: ExternalRead::Read,
@@ -38,13 +38,13 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                 exposure: Exposure::Exported,
             },
         ),
-        reach: BoundaryReach {
+        BoundaryReach {
             services: services,
             service_count: 0,
-        },
-    }
+        }
+    )
 }
-machine inspect(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+machine inspect(view: &mut Access<RegPlacement, Registers>) -> u32 {
     view.transmit.write(&mut view.transmit, 9);
     view.status.read(&view.status)
 }

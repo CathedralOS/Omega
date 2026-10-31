@@ -869,7 +869,7 @@ impl BorrowedWindowLedger {
 
     /// Install a whole completed value at the checked destination. An opening
     /// names exact restoration debt; without one, intact borrowed storage
-    /// requires freely discardable replacement custody. Both retain the destination
+    /// requires freely discardable reaccess custody. Both retain the destination
     /// captured before the RHS and its exact declared type.
     pub(crate) fn emit_store(
         environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,

@@ -1,20 +1,24 @@
 #![forbid(unsafe_code)]
 
-//! Normalized access policy for placed views.
+//! Normalized access policy for access views.
 //!
-//! `LayoutPlan` owns geometry. `AccessPlan` owns observation and the exact
-//! primitive operations permitted over that geometry. Keeping them separate
-//! prevents wire layouts from acquiring MMIO vocabulary and prevents an
-//! arbitrary-offset volatile escape hatch from bypassing plan validation.
+//! `LayoutPlan` owns representation and geometry with no access rights.
+//! `AccessPlan` contains one layout plan, the per-field decisions
+//! (`AccessFields`: observation and the exact primitive operations permitted
+//! over that geometry) and the required boundary reach. A layout plan never
+//! acquires MMIO vocabulary, and no arbitrary-offset volatile escape hatch can
+//! bypass plan validation, because access decisions exist only inside an
+//! access plan that was validated against its layout.
 //!
-//! Start at `access_plan.rs`: the plan, its validated form, the sealed field
-//! descriptors and the diagnostic every operation reports. Around it, `access_operations.rs` names what a field
-//! can be asked to do, `boundary_reach.rs` which services a placement may
-//! reach, `resource_profile.rs` what a provider region supplies, and
-//! `placement_plan.rs` joins layout, access and reach. The remaining modules
-//! are the operations: validation, admission, custody, views, projection and
-//! primitive specialization, each owning the carriers it moves a placement
-//! through.
+//! Start at `access_fields.rs`: the decisions, their validated form, the sealed
+//! field descriptors and the diagnostic every operation reports. Around it,
+//! `plan_policy/access_operations.rs` names what a field can be asked to do,
+//! `plan_policy/boundary_reach.rs` which services an access plan may reach,
+//! `resources/resource_profile.rs` what a provider region supplies, and
+//! `placements/access_plan.rs` joins layout, fields and reach. The remaining
+//! modules are the operations: validation, admission, custody, views,
+//! projection and primitive specialization, each owning the carriers it moves
+//! an access view through.
 //!
 //! The modules are grouped by what they decide: `plan_policy/` what a plan
 //! permits, `resources/` what a provider supplies, `placements/` how a plan
@@ -32,7 +36,7 @@ macro_rules! diagnostic_accessor {
 }
 
 pub(crate) use optimization::digest_encoder;
-mod access_plan;
+mod access_fields;
 mod normalized_identity;
 mod placements;
 
@@ -43,57 +47,54 @@ mod resources;
 #[cfg(test)]
 mod tests;
 
-pub use access_plan::diagnostic::AccessPlanDiagnostic;
-pub use access_plan::{
-    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessPermissions, AccessPlan, AccessPlanId,
-    AtomicPermissions, AuthorizedFieldAccess, EffectFootprint, ExternalRead, FieldAccess,
-    FieldAccessDescriptor, FieldRegion, LogicalFieldExtent, LogicalFieldFragment, ObservationModel,
-    RelativeEffectFootprint, ValidatedAccessPlan,
+pub use access_fields::diagnostic::AccessPlanDiagnostic;
+pub use access_fields::{
+    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessFields, AccessFieldsId,
+    AccessPermissions, AtomicPermissions, AuthorizedFieldAccess, EffectFootprint, ExternalRead,
+    FieldAccess, FieldAccessDescriptor, FieldRegion, LogicalFieldExtent, LogicalFieldFragment,
+    ObservationModel, RelativeEffectFootprint, ValidatedAccessFields,
+};
+pub use placements::access_admission::{
+    AccessAdmission, AccessAdmissionId, AccessOccurrenceId, AccessRejection,
+    PlaceEstablishmentError,
+};
+pub use placements::access_admission::{admit_access, admit_owned_access, place};
+pub use placements::access_plan::{
+    AccessPlan, AccessPlanId, AccessPlanSnapshot, ValidatedAccessPlan, validate_access_plan,
 };
 pub use placements::atomic_resident_views::{
-    BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentPlacement,
+    BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentAccess,
 };
-pub use placements::borrowed_view::{PlacedView, PlacedViewRetirementError};
+pub use placements::borrowed_view::{AccessView, AccessViewRetirementError};
+pub use placements::owned_access_lifecycle::{
+    DormantOwnedResident, EstablishedOwnedAccess, OwnedAccessAdmission, OwnedAccessRejection,
+    OwnedResidentRetirementError, OwnedResidentViewEstablishmentError, OwnedStableAdoptionError,
+};
 pub use placements::owned_atomic_resident_custody::{
-    DormantOwnedAtomicResident, EstablishedOwnedAtomicPlacement, OwnedAtomicAdoptionError,
+    DormantOwnedAtomicResident, EstablishedOwnedAtomicAccess, OwnedAtomicAdoptionError,
     OwnedAtomicResidentRetirementError, OwnedAtomicResidentViewEstablishmentError,
     adopt_owned_atomic,
 };
 pub use placements::owned_external_correspondence::{
-    EstablishedOwnedExternalPlacement, OwnedCorrespondedExternalAdmission,
-    OwnedExternalAdoptionError, OwnedExternalRetirementError, OwnedExternalViewEstablishmentError,
-    adopt_owned_external,
-};
-pub use placements::owned_placement_lifecycle::{
-    DormantOwnedResident, EstablishedOwnedPlacement, OwnedPlacementAdmission,
-    OwnedPlacementRejection, OwnedResidentRetirementError, OwnedResidentViewEstablishmentError,
-    OwnedStableAdoptionError,
+    EstablishedOwnedExternalAccess, OwnedCorrespondedExternalAdmission, OwnedExternalAdoptionError,
+    OwnedExternalRetirementError, OwnedExternalViewEstablishmentError, adopt_owned_external,
 };
 pub use placements::owned_resident_custody::adopt_owned_stable;
-pub use placements::placement_admission::{
-    PlaceEstablishmentError, PlacedOccurrenceId, PlacementAdmission, PlacementAdmissionId,
-    PlacementRejection,
-};
-pub use placements::placement_admission::{admit_owned_placement, admit_placement, place};
-pub use placements::placement_plan::{
-    PlacementPlan, PlacementPlanId, PlacementPlanSnapshot, ValidatedPlacementPlan,
-    validate_placement_plan,
-};
 pub use placements::resident_views::{
-    BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement,
+    BorrowedResidentRetirementError, EstablishedBorrowedResidentAccess,
 };
 pub use placements::schema_correspondence::{
     AdmittedSchemaDeviceCorrespondence, DeviceRevisionPredicateId, RuntimeDeviceRevisionEvidence,
-    RuntimeDeviceRevisionObservationId, SchemaCorrespondedPlaceEstablishmentError,
-    SchemaCorrespondedPlaceRetirementError, SchemaCorrespondedPlacedView,
-    SchemaCorrespondedPlacementAdmission, SchemaCorrespondencePlacementBindingError,
+    RuntimeDeviceRevisionObservationId, SchemaCorrespondedAccessAdmission,
+    SchemaCorrespondedAccessView, SchemaCorrespondedPlaceEstablishmentError,
+    SchemaCorrespondedPlaceRetirementError, SchemaCorrespondenceAccessBindingError,
     SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
     SchemaDeviceCorrespondenceAdmissionError, SchemaDeviceCorrespondenceGrant,
     SchemaDeviceCorrespondenceGrantError, SchemaDeviceCorrespondenceReceiptContext,
-    StableDeviceInstanceId, bind_schema_correspondence_to_placement,
+    StableDeviceInstanceId, bind_schema_correspondence_to_access_plan,
 };
+pub use plan_policy::access_fields_validation::validate_access_fields;
 pub use plan_policy::access_operations::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
-pub use plan_policy::access_plan_validation::validate_access_plan;
 pub use plan_policy::authorization::effect_footprints_conflict;
 pub use plan_policy::boundary_reach::{BoundaryReach, BoundaryServiceReachId};
 pub use primitive_access::corresponded_atomic::{
@@ -109,7 +110,7 @@ pub use primitive_access::corresponded_stable_compound::{
     CorrespondedStableCompoundMutationAccessRejection,
     CorrespondedStableCompoundMutationAccessRequest,
 };
-pub use primitive_access::field_projection::{PlacedFieldAccess, PlacedFieldProjection};
+pub use primitive_access::field_projection::{AccessFieldAccess, AccessFieldProjection};
 pub use primitive_access::primitive_request::PrimitiveAccessRequest;
 pub use primitive_access::primitive_specialization::{
     AtomicPrimitiveAccessRejection, AtomicPrimitiveAccessRequest, ExternalPrimitiveAccessRejection,
@@ -126,11 +127,11 @@ pub use resources::device_operation_requirements::{
     structurally_close_device_operation_requirements,
 };
 pub use resources::resource_compatibility::{
-    BaseCongruence, EffectiveFieldSupply, EffectiveSupplyKind, PlacementResourceCompatibility,
+    AccessResourceCompatibility, BaseCongruence, EffectiveFieldSupply, EffectiveSupplyKind,
 };
 pub use resources::resource_compatibility::{
-    InitializationResourceCompatibility, require_stable_region_supply,
-    validate_initialization_resources, validate_placement_resources,
+    InitializationResourceCompatibility, require_stable_region_supply, validate_access_resources,
+    validate_initialization_resources,
 };
 pub use resources::resource_profile::{
     AtomicCapability, AtomicTransferRule, ExternalCapability, ExternalReadBehavior,

@@ -6,17 +6,17 @@ use omega::language::core::layout;
 
 
 SpreadRecordArray satisfies FixedLayout<RecordArray> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 8 },
+        representation: FieldPlan::At { offset: 8 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 24 },
+        representation: FieldPlan::At { offset: 24 },
     };
-    Plan {
+    LayoutPlan {
         entries: entries,
         entry_count: 2,
         size_fixed: 32,

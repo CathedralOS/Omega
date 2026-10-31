@@ -1,14 +1,14 @@
 //! Fixtures shared by the access-plan tests: UART layouts, plans, extents,
 //! profiles and placements with fixed seeds.
 
+mod access_admission;
+mod access_views;
 mod atomic_specialization;
 mod device_operations;
 mod external_specialization;
 mod field_regions;
 mod initialization_resources;
 mod owned_external_correspondence;
-mod placed_views;
-mod placement_admission;
 mod plan_validation;
 mod provider_content;
 mod resident_custody;
@@ -16,25 +16,24 @@ mod resource_profiles;
 mod schema_correspondence;
 mod stable_specialization;
 
-use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::{
-    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
+    AccessAdmission, AccessAdmissionId, AccessExposure, AccessFieldEntry, AccessFieldKey,
+    AccessFields, AccessOccurrenceId, AccessOperation, AccessPlan, AccessPlanId, AccessRejection,
     AdmittedResourceProfile, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach,
     BoundaryServiceReachId, DeviceOperation, DeviceOperationCoordinates,
     DeviceOperationProviderPlanId, DeviceOperationRequirement, DeviceOperationRequirementId,
     DeviceOrderingScopeId, DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
     DormantOwnedAtomicResident, EffectFootprint, EffectiveFieldSupply, EffectiveSupplyKind,
-    EstablishedOwnedPlacement, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
+    EstablishedOwnedAccess, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
     FieldAccessDescriptor, LogicalFieldExtent, ObservationModel, PeerWritability,
-    PlacedOccurrenceId, PlacementAdmission, PlacementAdmissionId, PlacementPlan, PlacementPlanId,
-    PlacementRejection, PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim,
-    ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
-    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
+    PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim, ResourceProfile,
+    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
+    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
     SchemaDeviceCorrespondenceReceiptContext, StableCapability, StableDeviceInstanceId,
-    TransferRule, ValidatedAccessPlan, ValidatedPlacementPlan, admit_owned_placement,
-    admit_placement, adopt_owned_atomic, adopt_owned_stable, validate_access_plan,
-    validate_placement_plan,
+    TransferRule, ValidatedAccessFields, ValidatedAccessPlan, admit_access, admit_owned_access,
+    adopt_owned_atomic, adopt_owned_stable, validate_access_fields, validate_access_plan,
 };
 use extents::Extent;
 use extents::ExtentLoan;
@@ -112,8 +111,8 @@ fn uart_layout() -> LayoutPlanReport {
     }
 }
 
-fn access_plan(layout: &LayoutPlanReport, decisions: &[(&str, FieldAccess)]) -> AccessPlan {
-    let mut plan = AccessPlan::inaccessible(layout).expect("inaccessible seed");
+fn access_plan(layout: &LayoutPlanReport, decisions: &[(&str, FieldAccess)]) -> AccessFields {
+    let mut plan = AccessFields::inaccessible(layout).expect("inaccessible seed");
     for (field, access) in decisions {
         let key = plan
             .entries()
@@ -127,7 +126,7 @@ fn access_plan(layout: &LayoutPlanReport, decisions: &[(&str, FieldAccess)]) -> 
     plan
 }
 
-fn field_key(plan: &ValidatedAccessPlan, field: &str) -> AccessFieldKey {
+fn field_key(plan: &ValidatedAccessFields, field: &str) -> AccessFieldKey {
     plan.plan()
         .entries()
         .iter()
@@ -136,7 +135,7 @@ fn field_key(plan: &ValidatedAccessPlan, field: &str) -> AccessFieldKey {
         .expect("validated schema field key")
 }
 
-fn uart_access_source(layout: &LayoutPlanReport) -> AccessPlan {
+fn uart_access_source(layout: &LayoutPlanReport) -> AccessFields {
     access_plan(
         layout,
         &[
@@ -171,20 +170,20 @@ fn uart_access_source(layout: &LayoutPlanReport) -> AccessPlan {
     )
 }
 
-fn uart_access_plan() -> ValidatedAccessPlan {
+fn uart_access_fields() -> ValidatedAccessFields {
     let layout = uart_layout();
     let plan = uart_access_source(&layout);
-    validate_access_plan(plan, &layout).expect("UART plan")
+    validate_access_fields(plan, &layout).expect("UART plan")
 }
 
-fn uart_placement_plan() -> ValidatedPlacementPlan {
+fn uart_access_plan() -> ValidatedAccessPlan {
     let layout = uart_layout();
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         access: uart_access_source(&layout),
         layout,
         reach: uart_reach(),
     })
-    .expect("UART placement plan")
+    .expect("UART access plan")
 }
 
 fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, extents::ExtentDiagnostic>) -> T {
@@ -283,7 +282,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
     }
 }
 
-fn stable_word_placement() -> ValidatedPlacementPlan {
+fn stable_word_placement() -> ValidatedAccessPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0x5ab1e,
         entries: vec![layout_field_entry(
@@ -294,7 +293,7 @@ fn stable_word_placement() -> ValidatedPlacementPlan {
         size: Some(4),
         align: 4,
     };
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         access: access_plan(
             &layout,
             &[(
@@ -360,7 +359,7 @@ fn stable_uart_resource_profile(
     .expect("admitted Stable UART resource profile")
 }
 
-fn destructive_word_placement() -> ValidatedPlacementPlan {
+fn destructive_word_placement() -> ValidatedAccessPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0xe17e_7a4e,
         entries: vec![layout_field_entry(
@@ -371,7 +370,7 @@ fn destructive_word_placement() -> ValidatedPlacementPlan {
         size: Some(4),
         align: 4,
     };
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         access: access_plan(
             &layout,
             &[(
@@ -429,14 +428,14 @@ const fn all_atomic_operations() -> AtomicPermissions {
     }
 }
 
-fn atomic_word_placement() -> ValidatedPlacementPlan {
+fn atomic_word_placement() -> ValidatedAccessPlan {
     atomic_word_placement_with_operations(0x000a_701c, all_atomic_operations())
 }
 
 fn atomic_word_placement_with_operations(
     schema_report_fingerprint: u64,
     operations: AtomicPermissions,
-) -> ValidatedPlacementPlan {
+) -> ValidatedAccessPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint,
         entries: vec![layout_field_entry(
@@ -447,7 +446,7 @@ fn atomic_word_placement_with_operations(
         size: Some(4),
         align: 4,
     };
-    validate_placement_plan(PlacementPlan {
+    validate_access_plan(AccessPlan {
         access: access_plan(
             &layout,
             &[(
@@ -496,7 +495,7 @@ fn atomic_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
 }
 
 fn dormant_atomic_word(
-    plan: &ValidatedPlacementPlan,
+    plan: &ValidatedAccessPlan,
     base: u64,
     lineage: u64,
     validity: u64,
@@ -507,8 +506,8 @@ fn dormant_atomic_word(
         let loan = extent.loan(0, 4).expect("Atomic profile loan");
         atomic_word_profile(&loan)
     };
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(admission).expect("Atomic admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(admission).expect("Atomic admission"),
         extent,
         plan,
         &profile,
@@ -519,10 +518,10 @@ fn dormant_atomic_word(
 
 #[derive(Debug, PartialEq, Eq)]
 struct PrimitiveRequestSnapshot {
-    plan: PlacementPlanId,
+    plan: AccessPlanId,
     profile_receipt: ResourceProfileReceiptId,
     effective_supply: EffectiveFieldSupply,
-    admission: PlacementAdmissionId,
+    admission: AccessAdmissionId,
     primitive_address: u64,
     key: AccessFieldKey,
     field: String,
@@ -535,7 +534,7 @@ struct PrimitiveRequestSnapshot {
     operation: AccessOperation,
     reach: BoundaryReach,
     resident_claim: Option<ResidentClaimId>,
-    placed_occurrence: Option<PlacedOccurrenceId>,
+    access_occurrence: Option<AccessOccurrenceId>,
     descriptor: FieldAccessDescriptor,
     authorization: AuthorizedFieldAccess,
     authority_kind: &'static str,
@@ -546,30 +545,28 @@ fn primitive_request_snapshot(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> PrimitiveRequestSnapshot {
     let (authority_kind, authority_identity) = match request._authority {
-        PlacementAuthorityRef::Borrowed(view) => {
-            ("borrowed", std::ptr::from_ref(view).cast::<()>())
-        }
-        PlacementAuthorityRef::CorrespondedBorrowed(view) => (
+        AccessAuthorityRef::Borrowed(view) => ("borrowed", std::ptr::from_ref(view).cast::<()>()),
+        AccessAuthorityRef::CorrespondedBorrowed(view) => (
             "corresponded-borrowed",
             std::ptr::from_ref(view).cast::<()>(),
         ),
-        PlacementAuthorityRef::BorrowedResident(established) => (
+        AccessAuthorityRef::BorrowedResident(established) => (
             "borrowed-resident",
             std::ptr::from_ref(established).cast::<()>(),
         ),
-        PlacementAuthorityRef::BorrowedAtomicResident(established) => (
+        AccessAuthorityRef::BorrowedAtomicResident(established) => (
             "borrowed-atomic-resident",
             std::ptr::from_ref(established).cast::<()>(),
         ),
-        PlacementAuthorityRef::EstablishedOwned(established) => (
+        AccessAuthorityRef::EstablishedOwned(established) => (
             "established-owned",
             std::ptr::from_ref(established).cast::<()>(),
         ),
-        PlacementAuthorityRef::EstablishedOwnedAtomic(established) => (
+        AccessAuthorityRef::EstablishedOwnedAtomic(established) => (
             "established-owned-atomic",
             std::ptr::from_ref(established).cast::<()>(),
         ),
-        PlacementAuthorityRef::OwnedCorrespondedExternal(established) => (
+        AccessAuthorityRef::OwnedCorrespondedExternal(established) => (
             "owned-corresponded-external",
             std::ptr::from_ref(established).cast::<()>(),
         ),
@@ -591,7 +588,7 @@ fn primitive_request_snapshot(
         operation: request.operation,
         reach: request.reach.clone(),
         resident_claim: request.resident_claim,
-        placed_occurrence: request.placed_occurrence,
+        access_occurrence: request.access_occurrence,
         descriptor: request.descriptor.clone(),
         authorization: request.authorization.clone(),
         authority_kind,
@@ -602,8 +599,8 @@ fn primitive_request_snapshot(
 fn assert_atomic_specialization(
     request: PrimitiveAccessRequest<'_, '_>,
     expected: AtomicAccessOperation,
-    plan: PlacementPlanId,
-    admission: PlacementAdmissionId,
+    plan: AccessPlanId,
+    admission: AccessAdmissionId,
 ) {
     let atomic = request
         .into_atomic_primitive_access()
@@ -691,7 +688,7 @@ fn expect_exact_stable_compound_rejection<'view, 'extent>(
 }
 
 fn provider_existing_content(
-    plan: &ValidatedPlacementPlan,
+    plan: &ValidatedAccessPlan,
     base: u64,
     length: u64,
     lineage: u64,
@@ -720,12 +717,12 @@ fn established_stable_word(
     lineage: u64,
     receipt_seed: u64,
     admission_identity: u64,
-) -> (ValidatedPlacementPlan, EstablishedOwnedPlacement) {
+) -> (ValidatedAccessPlan, EstablishedOwnedAccess) {
     let plan = stable_word_placement();
     let (extent, content) = provider_existing_content(&plan, base, 4, lineage, receipt_seed);
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(admission_identity).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(admission_identity).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -735,7 +732,7 @@ fn established_stable_word(
         adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
     let established = dormant
         .view(
-            PlacedOccurrenceId::from_normalized_identity(admission_identity + 10_000)
+            AccessOccurrenceId::from_normalized_identity(admission_identity + 10_000)
                 .expect("placed occurrence"),
         )
         .expect("owned resident-view establishment");
@@ -745,12 +742,12 @@ fn established_stable_word(
 fn admit_uart<'extent>(
     identity: u64,
     loan: ExtentLoan<'extent>,
-    plan: &ValidatedPlacementPlan,
+    plan: &ValidatedAccessPlan,
     permitted_reach: &BoundaryReach,
-) -> Result<PlacementAdmission<'extent>, PlacementRejection<'extent>> {
+) -> Result<AccessAdmission<'extent>, AccessRejection<'extent>> {
     let resources = uart_resource_profile(&loan, permitted_reach);
-    admit_placement(
-        PlacementAdmissionId::from_normalized_identity(identity).expect("placement admission"),
+    admit_access(
+        AccessAdmissionId::from_normalized_identity(identity).expect("access admission"),
         loan,
         plan,
         &resources,
@@ -811,7 +808,7 @@ fn device_requirement_mapped_range(offset: u64, length: u64) -> MappedRangeRecei
 fn device_requirement_correspondence(
     provider_identity: u64,
 ) -> SchemaDeviceCorrespondenceReceiptContext {
-    let placement = uart_placement_plan();
+    let placement = uart_access_plan();
     let extent = uart_extent_with_lineage(0x9000, 12, 817);
     let profile = uart_resource_profile_for_extent(&extent, &uart_reach());
     SchemaDeviceCorrespondenceGrant::from_admitted_provider(

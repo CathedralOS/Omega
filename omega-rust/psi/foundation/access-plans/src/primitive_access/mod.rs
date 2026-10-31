@@ -1,4 +1,4 @@
-//! One primitive access: projecting a placed field, the sealed request,
+//! One primitive access: projecting a access field, the sealed request,
 //! its specialization for stable, external and atomic lowering, and the
 //! corresponded forms that carry device correspondence.
 
@@ -26,7 +26,7 @@ macro_rules! corresponded_primitive_access {
         required_message = $required_message:literal,
         retained_message = $retained_message:literal $(,)?
     ) => {
-        #[doc = concat!("One exact ", $specialization, " specialization joined to the physical correspondence retained by its originating placed view.")]
+        #[doc = concat!("One exact ", $specialization, " specialization joined to the physical correspondence retained by its originating access view.")]
         #[derive(Debug)]
         #[must_use = $must_use]
         pub struct $request<'view, 'extent> {
@@ -41,7 +41,7 @@ macro_rules! corresponded_primitive_access {
             }
 
             /// The exact lifetime-bound, non-Clone physical correspondence
-            /// retained by the originating placed view.
+            /// retained by the originating access view.
             pub const fn correspondence(&self) -> &'view AdmittedSchemaDeviceCorrespondence {
                 self.correspondence
             }
@@ -63,8 +63,8 @@ macro_rules! corresponded_primitive_access {
             #[cfg(test)]
             pub(crate) fn replace_request_plan_for_test(
                 &mut self,
-                placement: PlacementPlanId,
-            ) -> PlacementPlanId {
+                placement: AccessPlanId,
+            ) -> AccessPlanId {
                 std::mem::replace(&mut self.access.request.plan, placement)
             }
 
@@ -127,16 +127,16 @@ macro_rules! corresponded_primitive_access {
     };
 }
 
-/// The placed-placement authority every access keeps: its resident claim,
+/// The placed-access authority every access keeps: its resident claim,
 /// the placed occurrence it projects, and the retained correspondence.
-macro_rules! placed_authority_accessors {
+macro_rules! authority_accessors {
     () => {
         pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
             self.resident_claim
         }
 
-        pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
-            self.placed_occurrence
+        pub const fn access_occurrence(&self) -> Option<AccessOccurrenceId> {
+            self.access_occurrence
         }
 
         pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {

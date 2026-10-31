@@ -1,16 +1,16 @@
 use super::{
     admit_uart, destructive_word_placement, destructive_word_profile, established_stable_word,
-    field_key, primitive_request_snapshot, stable_uart_resource_profile, uart_extent_with_lineage,
-    uart_placement_plan, uart_reach,
+    field_key, primitive_request_snapshot, stable_uart_resource_profile, uart_access_plan,
+    uart_extent_with_lineage, uart_reach,
 };
 use crate::{
-    AccessOperation, BorrowPolarity, EffectiveSupplyKind, ExternalPrimitiveOperation,
-    ObservationModel, PlacementAdmissionId, ResourceProfileReceiptId, admit_placement, place,
+    AccessAdmissionId, AccessOperation, BorrowPolarity, EffectiveSupplyKind,
+    ExternalPrimitiveOperation, ObservationModel, ResourceProfileReceiptId, admit_access, place,
 };
 
 #[test]
 fn external_primitive_specialization_accepts_each_operation_and_supply_kind() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let read_extent = uart_extent_with_lineage(0xae00, 12, 143);
     let read_loan = read_extent.loan(0, 12).expect("shared UART loan");
     let read_admission =
@@ -41,8 +41,8 @@ fn external_primitive_specialization_accepts_each_operation_and_supply_kind() {
     let mut write_extent = uart_extent_with_lineage(0xaf00, 12, 145);
     let write_loan = write_extent.loan_mut(0, 12).expect("exclusive UART loan");
     let stable_resources = stable_uart_resource_profile(&write_loan, &uart_reach());
-    let write_admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(146).expect("admission"),
+    let write_admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(146).expect("admission"),
         write_loan,
         &plan,
         &stable_resources,
@@ -75,8 +75,8 @@ fn external_primitive_specialization_accepts_each_operation_and_supply_kind() {
     let mut take_extent = uart_extent_with_lineage(0xb000, 4, 147);
     let take_loan = take_extent.loan_mut(0, 4).expect("exclusive FIFO loan");
     let take_resources = destructive_word_profile(&take_loan);
-    let take_admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(148).expect("admission"),
+    let take_admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(148).expect("admission"),
         take_loan,
         &take_plan,
         &take_resources,
@@ -107,7 +107,7 @@ fn external_primitive_specialization_accepts_each_operation_and_supply_kind() {
 
 #[test]
 fn external_primitive_lowering_replays_authority_without_observing_storage() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0xb080, 12, 232);
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let admission = admit_uart(233, loan, &plan, &uart_reach()).expect("External UART admission");
@@ -130,7 +130,7 @@ fn external_primitive_lowering_replays_authority_without_observing_storage() {
     let diagnostic = external
         .validate_for_lowering()
         .expect_err("outward preflight must reject copied receipt drift");
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     external.request.profile_receipt = profile_receipt;
 
     external.operation = ExternalPrimitiveOperation::Write;
@@ -173,11 +173,11 @@ fn external_specialization_rejection_returns_the_exact_sealed_request() {
 
 #[test]
 fn external_specialization_fails_closed_without_losing_corrupt_request_custody() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0xb200, 12, 153);
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let admission = admit_uart(154, loan, &plan, &uart_reach()).expect("External UART admission");
-    let view = place(admission).expect("External placed-view establishment");
+    let view = place(admission).expect("External access-view establishment");
     let projection = view
         .project(field_key(plan.access(), "status"))
         .expect("External status projection");

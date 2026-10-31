@@ -122,19 +122,19 @@ boundary trait WindowProcedure: Calling<User32PolicyCalling> {
 
 ProcedureSlot satisfies PrivateCallbackSlot<ClassHeader, ClassLayout, WindowProcedure::call> { }
 ClassLayout satisfies FixedLayout<ClassHeader> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
  let mut entries: [FieldEntry; 64];
- entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
- entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
- entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
- entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 20 } };
- entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 24 } };
- entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 32 } };
- entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 40 } };
- entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 48 } };
- entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 56 } };
- let plan: Plan = Plan { entries: entries, entry_count: 9, size_fixed: 64, size_is_dynamic: false, align: 8 };
- Plan::place_private<ProcedureSlot>(plan, 8)
+ entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+ entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
+ entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
+ entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 20 } };
+ entries[4] = FieldEntry { key: schema.fields[4].key, representation: FieldPlan::At { offset: 24 } };
+ entries[5] = FieldEntry { key: schema.fields[5].key, representation: FieldPlan::At { offset: 32 } };
+ entries[6] = FieldEntry { key: schema.fields[6].key, representation: FieldPlan::At { offset: 40 } };
+ entries[7] = FieldEntry { key: schema.fields[7].key, representation: FieldPlan::At { offset: 48 } };
+ entries[8] = FieldEntry { key: schema.fields[8].key, representation: FieldPlan::At { offset: 56 } };
+ let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 9, size_fixed: 64, size_is_dynamic: false, align: 8 };
+ LayoutPlan::place_private<ProcedureSlot>(plan, 8)
 }
 }
 data ClassHeader {

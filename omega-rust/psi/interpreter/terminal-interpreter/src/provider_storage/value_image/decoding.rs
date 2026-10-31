@@ -15,12 +15,12 @@ use layout_plans::ByteOrder;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeShape,
-    TerminalPlacementLifecyclePlan,
+    TerminalAccessLifecyclePlan,
 };
 
 pub(crate) fn restore(
     execution: &TerminalExecution<'_>,
-    plan: &TerminalPlacementLifecyclePlan,
+    plan: &TerminalAccessLifecyclePlan,
     image: &[u8],
     destination: &StructuralRuntimePlace,
 ) -> Result<ConstructorStorage, TerminalInterpretError> {

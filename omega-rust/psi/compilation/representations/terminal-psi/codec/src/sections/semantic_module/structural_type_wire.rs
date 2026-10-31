@@ -63,8 +63,8 @@ pub(crate) fn encode_structural_type(
         StructuralTypeShape::Record { fields, storage } => {
             writer.u8(match storage {
                 StructuralRecordStorage::Packed => 1,
-                StructuralRecordStorage::PlacedView(_) => 14,
-                StructuralRecordStorage::PlacedAccessor(_) => 15,
+                StructuralRecordStorage::AccessView(_) => 14,
+                StructuralRecordStorage::Accessor(_) => 15,
                 StructuralRecordStorage::Authored(_) => 10,
                 StructuralRecordStorage::TargetLayout(_) => 13,
             });
@@ -72,8 +72,8 @@ pub(crate) fn encode_structural_type(
                 writer.u32(application.0);
             }
             if let StructuralRecordStorage::Authored(storage)
-            | StructuralRecordStorage::PlacedView(storage)
-            | StructuralRecordStorage::PlacedAccessor(storage) = storage
+            | StructuralRecordStorage::AccessView(storage)
+            | StructuralRecordStorage::Accessor(storage) = storage
             {
                 writer.u64(storage.byte_size);
                 writer.u64(storage.byte_alignment);
@@ -82,8 +82,8 @@ pub(crate) fn encode_structural_type(
             if matches!(
                 storage,
                 StructuralRecordStorage::Authored(_)
-                    | StructuralRecordStorage::PlacedView(_)
-                    | StructuralRecordStorage::PlacedAccessor(_)
+                    | StructuralRecordStorage::AccessView(_)
+                    | StructuralRecordStorage::Accessor(_)
             ) {
                 for field in fields {
                     encode_authored_field_storage(writer, field.storage.as_ref())?;
@@ -174,9 +174,9 @@ pub(crate) fn decode_structural_type(
             StructuralTypeShape::Record {
                 fields,
                 storage: if tag == 14 {
-                    StructuralRecordStorage::PlacedView(geometry)
+                    StructuralRecordStorage::AccessView(geometry)
                 } else {
-                    StructuralRecordStorage::PlacedAccessor(geometry)
+                    StructuralRecordStorage::Accessor(geometry)
                 },
             }
         }

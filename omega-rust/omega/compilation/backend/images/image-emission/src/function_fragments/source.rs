@@ -167,7 +167,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         .any(|operation| {
             matches!(
                 operation,
-                AbstractOperation::EstablishPlacedReference { .. }
+                AbstractOperation::EstablishAccessReference { .. }
             )
         })
         .then(|| {
@@ -373,7 +373,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::retained(abstracted, operation, targeted)
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
-                AbstractOperation::EstablishPlacedReference { psi_operation, result, source, correspondence } => {
+                AbstractOperation::EstablishAccessReference { psi_operation, result, source, correspondence } => {
                     geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
                         *psi_operation, result, source, correspondence, targeted, selected, geometry,
                     ).is_some())
@@ -1189,7 +1189,7 @@ fn placed_scalar_retained(
         return false;
     };
     let mut targets = targeted.graph.operations().filter_map(|row| match row {
-        target_operations::TargetUnitOperation::PlacedScalarAccess {
+        target_operations::TargetUnitOperation::AccessorScalarAccess {
             psi_operation: actual,
             boundary,
             realization,
@@ -1230,14 +1230,14 @@ fn placed_scalar_retained(
     let Ok(bytes) = u8::try_from(demand.transfer_width_bits / 8) else {
         return false;
     };
-    let form = selected_instructions::PlacedScalarForm {
-        write: demand.operation == terminal_psi::TerminalPlacedAccessorKind::Write,
+    let form = selected_instructions::AccessorScalarForm {
+        write: demand.operation == terminal_psi::TerminalAccessorKind::Write,
         bytes,
     };
     // Selection follows the original accessor argument to its container; the
     // instruction has no additional whole-view-relative displacement.
     let offset = 0;
-    let expected = selected_instructions::SelectedInstructionKind::PlacedScalarAccess {
+    let expected = selected_instructions::SelectedInstructionKind::AccessorScalarAccess {
         form,
         contract: realization.contract,
         byte_offset: offset,
@@ -1246,7 +1246,7 @@ fn placed_scalar_retained(
         row.provenance.operations == [*psi_operation]
             && matches!(
                 row.kind,
-                selected_instructions::SelectedInstructionKind::PlacedScalarAccess { .. }
+                selected_instructions::SelectedInstructionKind::AccessorScalarAccess { .. }
             )
     });
     let (Some(event), None) = (events.next(), events.next()) else {

@@ -31,7 +31,7 @@ pub(super) fn residence_rules(
             let position = (block.id, u32::try_from(ordinal).ok()?);
             match &operation.kind {
                 terminal_psi::element_view_establish_pair_pattern!(source, ..)
-                | OperationKind::EstablishPlacedReference { source, .. }
+                | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     let (source, _, capture) = captured_storage_source(
                         &module.structural_types,
@@ -497,8 +497,8 @@ pub(super) fn adapt(
                         },
                     ));
                 }
-                OperationKind::EstablishPlacedReference { .. }
-                    if slot_kind == DescriptorSlotKind::PlacedOrigins =>
+                OperationKind::EstablishAccessReference { .. }
+                    if slot_kind == DescriptorSlotKind::AccessOrigins =>
                 {
                     let result = result?;
                     let StructuralTypeShape::Reference {
@@ -513,7 +513,7 @@ pub(super) fn adapt(
                     };
                     graph.originations.entry(position).or_default().push((
                         DescriptorLocation::whole(result.place),
-                        DescriptorCallOrigin::PlacedFormation {
+                        DescriptorCallOrigin::AccessFormation {
                             machine: machine.id,
                             operation: operation.id,
                             place: result.place,
@@ -523,7 +523,7 @@ pub(super) fn adapt(
                     ));
                 }
                 terminal_psi::element_view_establish_pair_pattern!(source, ..)
-                | OperationKind::EstablishPlacedReference { source, .. }
+                | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let (source_location, mut backing_projection, capture) =
@@ -540,7 +540,7 @@ pub(super) fn adapt(
                         && matches!(
                             operation.kind,
                             OperationKind::EstablishReference { .. }
-                                | OperationKind::EstablishPlacedReference { .. }
+                                | OperationKind::EstablishAccessReference { .. }
                         )
                     {
                         graph.storage_derivations.insert((
@@ -1074,15 +1074,15 @@ pub(super) fn adapt(
                     // A checked View creates only its Ready reference leaf.
                     // Preserve that formation through ordinary result/case
                     // transport; the extent descriptor itself is not RAM.
-                    if slot_kind == DescriptorSlotKind::PlacedOrigins
-                        && let Some(plan) = module.placement_lifecycle_plans.iter().find(|plan| {
+                    if slot_kind == DescriptorSlotKind::AccessOrigins
+                        && let Some(plan) = module.access_lifecycle_plans.iter().find(|plan| {
                             plan.boundary == *boundary
                                 && plan.operation
-                                    == terminal_psi::TerminalPlacementLifecycleOperation::View
+                                    == terminal_psi::TerminalAccessLifecycleOperation::View
                         })
                     {
-                        let crate::PlacementResultContract::View { ready, carrier, .. } =
-                            crate::placement_result_contract(module, plan).ok()?
+                        let crate::AccessResultContract::View { ready, carrier, .. } =
+                            crate::access_result_contract(module, plan).ok()?
                         else {
                             return None;
                         };
@@ -1096,7 +1096,7 @@ pub(super) fn adapt(
                         )?;
                         graph.originations.entry(position).or_default().push((
                             location(result.place, &path, None)?,
-                            DescriptorCallOrigin::PlacedFormation {
+                            DescriptorCallOrigin::AccessFormation {
                                 machine: machine.id,
                                 operation: operation.id,
                                 place: result.place,
@@ -1105,15 +1105,33 @@ pub(super) fn adapt(
                             },
                         ));
                     }
-                    let preserves_placed_token = slot_kind == DescriptorSlotKind::PlacedOrigins
-                        && module.placed_view_plans.iter().any(|plan|
-                            module.placed_view_plans.iter().filter(|other| other.carrier == plan.carrier).count() == 1
-                            && crate::placed_ram_plan_correspondence(&module.structural_types,
-                                &module.placed_view_plans, plan, plan.schema).is_ok()
-                            && plan.fields.iter().any(|field| field.operations.iter().any(|accessor|
-                                accessor.boundary == *boundary && matches!(accessor.kind,
-                                    terminal_psi::TerminalPlacedAccessorKind::Read | terminal_psi::TerminalPlacedAccessorKind::Write))));
-                    if !preserves_placed_token
+                    let preserves_access_token = slot_kind == DescriptorSlotKind::AccessOrigins
+                        && module.access_view_plans.iter().any(|plan| {
+                            module
+                                .access_view_plans
+                                .iter()
+                                .filter(|other| other.carrier == plan.carrier)
+                                .count()
+                                == 1
+                                && crate::access_ram_plan_correspondence(
+                                    &module.structural_types,
+                                    &module.access_view_plans,
+                                    plan,
+                                    plan.schema,
+                                )
+                                .is_ok()
+                                && plan.fields.iter().any(|field| {
+                                    field.operations.iter().any(|accessor| {
+                                        accessor.boundary == *boundary
+                                            && matches!(
+                                                accessor.kind,
+                                                terminal_psi::TerminalAccessorKind::Read
+                                                    | terminal_psi::TerminalAccessorKind::Write
+                                            )
+                                    })
+                                })
+                        });
+                    if !preserves_access_token
                         && !boundary_call_preserves_descriptor_storage(module, machine, operation)
                     {
                         mark_opaque_call_occupancy(
@@ -1132,7 +1150,7 @@ pub(super) fn adapt(
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
                         && !declaration.reference_outputs.is_empty()
-                        && slot_kind != DescriptorSlotKind::PlacedOrigins
+                        && slot_kind != DescriptorSlotKind::AccessOrigins
                     {
                         graph.calls.insert(
                             position,
@@ -1411,7 +1429,7 @@ pub(super) fn adapt(
 enum CapturedBacking {
     StorageAddress,
     ElementViewPayload,
-    PlacedInterpretation,
+    AccessInterpretation,
 }
 
 fn captured_storage_source(
@@ -1447,8 +1465,8 @@ fn captured_storage_source(
         // appending this position-bound projection preserves both; capturing
         // the descriptor cell as owned storage would lose that relationship.
         CapturedBacking::ElementViewPayload
-    } else if crate::placed_view_plans::is_placed_projection_shape(types, prefix_type) {
-        CapturedBacking::PlacedInterpretation
+    } else if crate::access_view_plans::is_access_projection_shape(types, prefix_type) {
+        CapturedBacking::AccessInterpretation
     } else {
         return None;
     };

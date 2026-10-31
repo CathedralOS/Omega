@@ -6,24 +6,24 @@ public data Cell { held: u64; }
 
 public data CellPlacement {}
 
-machine CellPlacement::plan(schema: Schema) -> PlacementPlan {
+machine CellPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
-    let mut services: [u64; 32];
-    services[0] = 7;
-    PlacementPlan {
-        layout: Plan {
+    let layout: LayoutPlan = LayoutPlan {
             entries: entries,
             entry_count: 1,
             size_fixed: 8,
             size_is_dynamic: false,
             align: 8,
-        },
-        access: AccessPlan::with(
-            AccessPlan::inaccessible(&schema),
+        };
+    let mut services: [u64; 32];
+    services[0] = 7;
+    AccessPlan::with_reach(
+        AccessPlan::with(
+            AccessPlan::inaccessible(layout),
             schema.fields[0].key,
             FieldAccess::External {
                 read: ExternalRead::Read,
@@ -31,18 +31,18 @@ machine CellPlacement::plan(schema: Schema) -> PlacementPlan {
                 exposure: Exposure::Exported,
             },
         ),
-        reach: BoundaryReach {
+        BoundaryReach {
             services: services,
             service_count: 0,
-        },
-    }
+        }
+    )
 }
 
 machine choose<'storage>(
-    chosen: &'storage mut Placed<CellPlacement, Cell>,
-    other: &'storage mut Placed<CellPlacement, Cell>,
+    chosen: &'storage mut Access<CellPlacement, Cell>,
+    other: &'storage mut Access<CellPlacement, Cell>,
     pick_chosen: bool
-) -> &'storage mut Placed<CellPlacement, Cell> {
+) -> &'storage mut Access<CellPlacement, Cell> {
     transition pick_chosen {
         true -> chosen
         _ -> other
@@ -53,9 +53,9 @@ machine main() crashes Trap {
     let mut chosen: Cell = Cell { held: 0 };
     let mut other: Cell = Cell { held: 1 };
     let items: [u8; 4] = [4, 7, 8, 9];
-    let chosen_view: &mut Placed<CellPlacement, Cell> = Placed::view_mut<CellPlacement, Cell>(&mut chosen);
-    let other_view: &mut Placed<CellPlacement, Cell> = Placed::view_mut<CellPlacement, Cell>(&mut other);
-    let selected: &mut Placed<CellPlacement, Cell> = choose(chosen_view, other_view, false);
+    let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(&mut chosen);
+    let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(&mut other);
+    let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
     selected.held.write(&mut selected.held, 9);
     transition { _ -> read(items, other.held, chosen.held) }
     machine read(items: [u8; 4], index: u64, chosen: u64)

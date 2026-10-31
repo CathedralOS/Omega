@@ -15433,7 +15433,7 @@ fail/build/installed_entry_ram_invalid_extent rejected 5528ms expected @ccdb99ca
 fail/build/installed_entry_ram_invalid_padding rejected 4500ms expected @ccdb99ca2214
 	private entry RAM padding must be initialized to canonical zero
 fail/build/installed_entry_ram_missing_backing rejected 4904ms expected @ccdb99ca2214
-	native artifact native artifact lowering failed: PlacedViewInputsRequireCustodyLowering
+	native artifact native artifact lowering failed: AccessViewInputsRequireCustodyLowering
 fail/build/installed_entry_ram_overlapping_exclusive_roots rejected 4046ms expected @ccdb99ca2214
 	state `touch` receives `view` as mutable more than once
 fail/build/installed_entry_ram_wrong_occurrence rejected 5158ms expected @ccdb99ca2214

@@ -38,7 +38,7 @@ pub struct WireSchemaPlan {
     pub schema: SymbolHandle,
     pub placements: HandleSpan<WirePlacement>,
     /// Runtime resource obligations retained by the generated encoder. These
-    /// are derived from carrier semantics, not authored placement policy.
+    /// are derived from carrier semantics, not authored access policy.
     pub encode_obligations: HandleSpan<WireEncodeObligation>,
     /// Whether the program's authored grammar policy
     /// (`CompactBinary::plan`) was evaluated against this schema's

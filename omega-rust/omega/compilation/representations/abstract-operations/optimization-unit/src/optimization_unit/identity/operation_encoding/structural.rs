@@ -346,7 +346,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_operation_result(bytes, result);
             bytes.slice(fields, encode_record_initializer);
         }
-        O::EstablishPlacedReference {
+        O::EstablishAccessReference {
             psi_operation,
             result,
             source,
@@ -356,7 +356,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
             match correspondence {
-                abstract_operations::PlacedReferenceBacking::OrdinaryRam(correspondence) => {
+                abstract_operations::AccessReferenceBacking::OrdinaryRam(correspondence) => {
                     bytes.u8(0);
                     bytes.id(correspondence.schema);
                     bytes.id(correspondence.carrier);
@@ -378,7 +378,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                         );
                     });
                 }
-                abstract_operations::PlacedReferenceBacking::Resident(resident) => {
+                abstract_operations::AccessReferenceBacking::Resident(resident) => {
                     bytes.u8(1);
                     bytes.id(resident.owner);
                     bytes.id(resident.schema);
@@ -389,7 +389,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.id(resident.roles.resident);
                     bytes.bytes(&resident.placement_commitment);
                 }
-                abstract_operations::PlacedReferenceBacking::BorrowedExtent(backing) => {
+                abstract_operations::AccessReferenceBacking::BorrowedExtent(backing) => {
                     bytes.u8(2);
                     bytes.id(backing.owner);
                     bytes.id(backing.schema);

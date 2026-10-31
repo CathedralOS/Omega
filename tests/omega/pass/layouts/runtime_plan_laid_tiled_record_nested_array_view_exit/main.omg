@@ -7,17 +7,17 @@ use omega::language::core::layout;
 
 
 TiledRecordNestedArray satisfies FixedLayout<Samples> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 16 },
+        representation: FieldPlan::At { offset: 16 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 4 },
+        representation: FieldPlan::At { offset: 4 },
     };
-    Plan {
+    LayoutPlan {
         entries: entries,
         entry_count: 2,
         size_fixed: 28,

@@ -109,7 +109,7 @@ pub fn public_result_slots(
                 crate::BorrowedResultLeafKind::Reference(_),
                 DescriptorSlotKind::References
                     | DescriptorSlotKind::BorrowedStorage
-                    | DescriptorSlotKind::PlacedOrigins,
+                    | DescriptorSlotKind::AccessOrigins,
             )
         );
         if !selected_kind {

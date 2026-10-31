@@ -33,7 +33,7 @@ pub(super) struct ReferenceStorage {
     pub(super) root: ReferenceRoot,
     pub(super) carrier_type: StructuralTypeId,
     pub(super) referent: StructuralTypeId,
-    pub(super) placed: Option<target_operations::TargetPlacedInterpretation>,
+    pub(super) placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
 /// The referent root of one reference descriptor: which storage a use reaches.
@@ -669,23 +669,23 @@ fn reference_leaf_following<'live>(
 /// Preserve a captured interpretation only when the source crosses the exact
 /// retained descriptor and names its whole placed referent. A type or catalog
 /// row cannot manufacture this association for ordinary ingress storage.
-pub(super) fn placed_source(
+pub(super) fn access_source(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
-) -> Option<target_operations::TargetPlacedInterpretation> {
+) -> Option<target_operations::TargetAccessInterpretation> {
     if source.path.is_empty() {
         if let Some(origins) = live.borrowed_reference_sources.get(&source.place) {
-            return optimization_unit_semantics::descriptor_results::placed_results::agree(
+            return optimization_unit_semantics::descriptor_results::access_results::agree(
                 origins.as_ref()?.iter().map(|origin| origin.placed.clone()),
             );
         }
         return live
-            .placed_formals
+            .access_formals
             .get(&source.place)
             .cloned()
-            .map(target_operations::TargetPlacedInterpretation::Formal);
+            .map(target_operations::TargetAccessInterpretation::Formal);
     }
     let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
         return None;
@@ -697,14 +697,14 @@ pub(super) fn placed_source(
 
 /// Retain the invocation's symbolic obligations independently of descriptors.
 /// The actual caller/physical entrance still owes a binding for each row.
-pub(super) fn placed_formals(
+pub(super) fn access_formals(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
-) -> Result<BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>, LoweringError> {
+) -> Result<BTreeMap<PlaceId, terminal_psi::TerminalAccessViewInput>, LoweringError> {
     let catalog = types.catalog();
     let mut formals = BTreeMap::new();
     for input in catalog
-        .placed_view_inputs()
+        .access_view_inputs()
         .iter()
         .filter(|input| input.machine == function.machine)
     {
@@ -713,7 +713,7 @@ pub(super) fn placed_formals(
             .get(input.runtime_position as usize)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let (matched, _) = catalog
-            .placed_parameter_demand(function.machine, input.runtime_position as usize, parameter)
+            .access_parameter_demand(function.machine, input.runtime_position as usize, parameter)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if matched != input || formals.insert(parameter.place, input.clone()).is_some() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -727,25 +727,25 @@ pub(super) fn placed_formals(
 /// new loan nor a concrete address: transport still loads the current carrier.
 /// Incoming views retain a symbolic caller obligation. This does not establish
 /// its backing; the invocation's incoming binding must answer it separately.
-pub(super) fn placed_call_custody(
+pub(super) fn access_call_custody(
     caller: &AbstractFunction,
     callee: &AbstractFunction,
     invocation: semantic_vocabulary::InvocationSite,
     arguments: &[StructuralArgument],
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,
-) -> Result<Vec<target_operations::TargetPlacedCallBinding>, LoweringError> {
-    use crate::lowering::model::PlacedCallCustodyError;
+) -> Result<Vec<target_operations::TargetAccessCallBinding>, LoweringError> {
+    use crate::lowering::model::AccessCallCustodyError;
     let catalog = types.catalog();
     let mut bindings = Vec::new();
     for (runtime_position, parameter) in callee.structural_parameters.iter().enumerate() {
-        if !catalog.placed_view_inputs().iter().any(|input| {
+        if !catalog.access_view_inputs().iter().any(|input| {
             input.machine == callee.machine
                 && usize::try_from(input.runtime_position).ok() == Some(runtime_position)
         }) {
             continue;
         }
-        let invalid = |reason| LoweringError::PlacedCallCustody {
+        let invalid = |reason| LoweringError::AccessCallCustody {
             caller: caller.machine,
             callee: callee.machine,
             invocation,
@@ -753,58 +753,58 @@ pub(super) fn placed_call_custody(
             reason,
         };
         let (input, plan) = catalog
-            .placed_parameter_demand(callee.machine, runtime_position, parameter)
-            .ok_or_else(|| invalid(PlacedCallCustodyError::FormalDemandMismatch))?;
+            .access_parameter_demand(callee.machine, runtime_position, parameter)
+            .ok_or_else(|| invalid(AccessCallCustodyError::FormalDemandMismatch))?;
         let argument = arguments
             .get(runtime_position)
             .filter(|argument| argument.access == parameter.access)
-            .ok_or_else(|| invalid(PlacedCallCustodyError::FormalDemandMismatch))?;
-        let association = match placed_source(caller, live, types, argument) {
-            Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
-                optimization_unit_semantics::placed_references::validate_backing(
+            .ok_or_else(|| invalid(AccessCallCustodyError::FormalDemandMismatch))?;
+        let association = match access_source(caller, live, types, argument) {
+            Some(target_operations::TargetAccessInterpretation::Captured(captured)) => {
+                optimization_unit_semantics::access_references::validate_backing(
                     catalog.as_slice(),
-                    catalog.placed_views(),
+                    catalog.access_views(),
                     plan,
                     captured.source_type(),
                     &captured,
                 )
-                .map_err(|_| invalid(PlacedCallCustodyError::CapturedInterpretationMismatch))?;
-                target_operations::TargetPlacedCallAssociation::Captured {
+                .map_err(|_| invalid(AccessCallCustodyError::CapturedInterpretationMismatch))?;
+                target_operations::TargetAccessCallAssociation::Captured {
                     schema: captured.schema(),
                     carrier: captured.carrier(),
                 }
             }
-            Some(target_operations::TargetPlacedInterpretation::Formal(formal)) => {
+            Some(target_operations::TargetAccessInterpretation::Formal(formal)) => {
                 if !parameter.access.admits(formal.access)
-                    || !live.placed_formals.values().any(|input| input == &formal)
+                    || !live.access_formals.values().any(|input| input == &formal)
                 {
-                    return Err(invalid(PlacedCallCustodyError::FormalDemandMismatch));
+                    return Err(invalid(AccessCallCustodyError::FormalDemandMismatch));
                 }
                 let source_parameter = caller
                     .structural_parameters
                     .get(formal.runtime_position as usize)
-                    .ok_or_else(|| invalid(PlacedCallCustodyError::FormalDemandMismatch))?;
+                    .ok_or_else(|| invalid(AccessCallCustodyError::FormalDemandMismatch))?;
                 let (_, source_plan) = catalog
-                    .placed_parameter_demand(
+                    .access_parameter_demand(
                         caller.machine,
                         formal.runtime_position as usize,
                         source_parameter,
                     )
-                    .ok_or_else(|| invalid(PlacedCallCustodyError::FormalDemandMismatch))?;
+                    .ok_or_else(|| invalid(AccessCallCustodyError::FormalDemandMismatch))?;
                 if source_plan != plan {
                     return Err(invalid(
-                        PlacedCallCustodyError::CapturedInterpretationMismatch,
+                        AccessCallCustodyError::CapturedInterpretationMismatch,
                     ));
                 }
-                target_operations::TargetPlacedCallAssociation::CallerFormal(formal)
+                target_operations::TargetAccessCallAssociation::CallerFormal(formal)
             }
             None => {
                 return Err(invalid(
-                    PlacedCallCustodyError::CapturedInterpretationMissing,
+                    AccessCallCustodyError::CapturedInterpretationMissing,
                 ));
             }
         };
-        bindings.push(target_operations::TargetPlacedCallBinding {
+        bindings.push(target_operations::TargetAccessCallBinding {
             input: input.clone(),
             argument_index: input.runtime_position,
             association,
@@ -1055,7 +1055,7 @@ pub(super) fn establish(
             root,
             carrier_type: result.structural_type,
             referent,
-            placed: placed_source(function, live, types, source),
+            placed: access_source(function, live, types, source),
         },
     );
     // A reference owns descriptor storage just like every other structural
@@ -1076,13 +1076,13 @@ pub(super) fn establish(
 /// Capture a distinct placed interpretation of an initialized ordinary backing.
 /// Declared source storage, canonical target geometry and the live reference
 /// origin remain independent from the requested placement and result carrier.
-pub(super) fn establish_placed(
+pub(super) fn establish_access(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
     let (function, types, live, operations, provenance) = site.parts();
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    let AbstractOperation::EstablishPlacedReference {
+    let AbstractOperation::EstablishAccessReference {
         psi_operation,
         result,
         source,
@@ -1122,15 +1122,15 @@ pub(super) fn establish_placed(
     let schema = reference_source_type(function, live, types, source).ok_or_else(invalid)?;
     let catalog = types.catalog();
     let mut selected = catalog
-        .placed_views()
+        .access_views()
         .iter()
         .filter(|plan| plan.carrier == carrier);
     let (Some(plan), None) = (selected.next(), selected.next()) else {
         return Err(invalid());
     };
-    optimization_unit_semantics::placed_references::validate_backing(
+    optimization_unit_semantics::access_references::validate_backing(
         catalog.as_slice(),
-        catalog.placed_views(),
+        catalog.access_views(),
         plan,
         schema,
         expected,
@@ -1161,14 +1161,14 @@ pub(super) fn establish_placed(
             root,
             carrier_type: result.structural_type,
             referent: carrier,
-            placed: Some(target_operations::TargetPlacedInterpretation::Captured(
+            placed: Some(target_operations::TargetAccessInterpretation::Captured(
                 correspondence.clone(),
             )),
         },
     );
     live.structural_homes
         .insert(result.place, result_home.clone());
-    operations.push(TargetUnitOperation::EstablishPlacedReference {
+    operations.push(TargetUnitOperation::EstablishAccessReference {
         psi_operation: *psi_operation,
         result_home,
         source: source.clone(),
@@ -1180,14 +1180,14 @@ pub(super) fn establish_placed(
 
 /// Record a descriptor leaf formed by the validated lifecycle operation.
 /// Its pointer is produced by that operation, not recomputed from this origin.
-pub(super) fn retain_placed_result(
+pub(super) fn retain_access_result(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
     result: &StructuralOperationResult,
     source: &StructuralArgument,
     path: Vec<StructuralPathSegment>,
-    backing: abstract_operations::PlacedReferenceBacking,
+    backing: abstract_operations::AccessReferenceBacking,
 ) -> Result<(), LoweringError> {
     let root = normalized_source(function, live, types, source)?;
     let carrier_type = leaf_type(types, result.structural_type, &path)
@@ -1200,7 +1200,7 @@ pub(super) fn retain_placed_result(
                 root,
                 carrier_type,
                 referent: backing.carrier(),
-                placed: Some(target_operations::TargetPlacedInterpretation::Captured(
+                placed: Some(target_operations::TargetAccessInterpretation::Captured(
                     backing,
                 )),
             },
@@ -1583,7 +1583,7 @@ pub(super) fn call_results(
                     carrier_type: leaf_type(types, result.structural_type, &mapping.path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: expected,
-                    placed: placed_source(function, live, types, source),
+                    placed: access_source(function, live, types, source),
                 }
             };
             public_interpretations.push(leaf.placed.take().filter(|_| {
@@ -1601,17 +1601,17 @@ pub(super) fn call_results(
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if types
             .catalog()
-            .placed_views()
+            .access_views()
             .iter()
             .any(|plan| plan.carrier == expected)
         {
             let private = callee.and_then(|callee| {
                 let slots = live
                     .stored_reference_effects
-                    .placed_results
+                    .access_results
                     .get(&callee.machine)?
                     .as_ref()?;
-                optimization_unit_semantics::descriptor_results::placed_results::resolve(
+                optimization_unit_semantics::descriptor_results::access_results::resolve(
                     slots,
                     &mapping.path,
                     |formal| {
@@ -1626,23 +1626,23 @@ pub(super) fn call_results(
                         {
                             return transferred.placed.clone();
                         }
-                        placed_source(function, live, types, &actual)
+                        access_source(function, live, types, &actual)
                     },
                     |correspondence| {
-                        target_operations::TargetPlacedInterpretation::Captured(
+                        target_operations::TargetAccessInterpretation::Captured(
                             correspondence.clone(),
                         )
                     },
                 )
             });
             let association =
-                optimization_unit_semantics::descriptor_results::placed_results::reconcile(
-                    optimization_unit_semantics::descriptor_results::placed_results::agree(
+                optimization_unit_semantics::descriptor_results::access_results::reconcile(
+                    optimization_unit_semantics::descriptor_results::access_results::agree(
                         public_interpretations,
                     ),
                     private,
                 )
-                .ok_or(LoweringError::PlacedReturnRequiresWholeView {
+                .ok_or(LoweringError::AccessReturnRequiresWholeView {
                     machine: function.machine,
                 })?;
             leaf.placed = Some(association);

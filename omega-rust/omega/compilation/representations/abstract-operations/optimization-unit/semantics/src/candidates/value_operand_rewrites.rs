@@ -33,7 +33,7 @@ pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(
                 value
             });
         }
-        O::EstablishStructuralArray { .. } | O::EstablishPlacedReference { .. } => {}
+        O::EstablishStructuralArray { .. } | O::EstablishAccessReference { .. } => {}
         O::EstablishReference { storage, .. } => {
             if let Some(view) = storage { replace(&mut view.byte_offset); }
         }

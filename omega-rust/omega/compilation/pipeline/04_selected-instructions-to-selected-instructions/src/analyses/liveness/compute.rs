@@ -276,19 +276,21 @@ fn compute_function_inner(
     for block in &function.blocks {
         for instruction in block_instructions(block) {
             let instruction_position = LivenessPosition(positions[instruction.id.0 as usize]);
-            operand_spans.push(operand_positions.insert_many(instruction.operands.iter().map(
-                |operand| OperandPosition {
-                    position: instruction_position,
-                    instruction: instruction.id,
-                    operand: operand.operand,
-                    virtual_register: operand.virtual_register,
-                    access: operand.access,
-                    class: operand.class,
-                    fixed_view: operand.fixed_view,
-                    tied_to: operand.tied_to,
-                    early_clobber: operand.early_clobber,
-                },
-            )));
+            operand_spans.push(
+                operand_positions.insert_many(instruction.operands.iter().map(|operand| {
+                    OperandPosition {
+                        position: instruction_position,
+                        instruction: instruction.id,
+                        operand: operand.operand,
+                        virtual_register: operand.virtual_register,
+                        access: operand.access,
+                        class: operand.class,
+                        fixed_view: operand.fixed_view,
+                        tied_to: operand.tied_to,
+                        early_clobber: operand.early_clobber,
+                    }
+                })),
+            );
         }
     }
     let blocks = function
@@ -337,7 +339,11 @@ pub(super) fn reject_unsupported_constraints(
                 });
             }
         }
-        if instruction.operands.iter().any(|operand| operand.early_clobber) {
+        if instruction
+            .operands
+            .iter()
+            .any(|operand| operand.early_clobber)
+        {
             let early = instruction
                 .operands
                 .iter()
@@ -402,7 +408,8 @@ pub(super) fn reject_unsupported_constraints(
                     && valid_source
                     && instruction.operands.iter().all(|operand| {
                         (operand.operand == definition.operand
-                            || (tied_source.is_some_and(|source| source.operand == operand.operand)
+                            || (tied_source
+                                .is_some_and(|source| source.operand == operand.operand)
                                 && operand.tied_to.is_none())
                             || (operand.tied_to.is_none()
                                 && operand.access == RegisterOperandAccess::Use))
@@ -442,7 +449,11 @@ pub(super) fn reject_unsupported_constraints(
                 ));
             }
         }
-        if instruction.operands.iter().any(|operand| operand.tied_to.is_some()) {
+        if instruction
+            .operands
+            .iter()
+            .any(|operand| operand.tied_to.is_some())
+        {
             for definition in instruction
                 .operands
                 .iter()

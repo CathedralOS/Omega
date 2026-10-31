@@ -21,6 +21,7 @@ mod block_views;
 mod entry;
 pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
+mod access_lifecycles;
 mod atomic_outcome;
 mod byte_concatenation;
 mod byte_field_read;
@@ -31,7 +32,6 @@ mod descriptor_operands;
 mod leaf_copy;
 mod literals;
 mod local_storage;
-mod placement_lifecycles;
 
 pub(super) fn establish_atomic_outcome(
     source: &LegalizedScalarFunction,
@@ -350,8 +350,8 @@ pub(super) fn operation(
     );
     dispatch_kind!(
         row,
-        Kind::PlacementLifecycle { .. },
-        placement_lifecycles::emit(source, row, builder)
+        Kind::AccessLifecycle { .. },
+        access_lifecycles::emit(source, row, builder)
     );
     dispatch_kind!(
         row,
@@ -428,7 +428,7 @@ pub(super) fn operation(
     );
     dispatch_kind!(
         row,
-        Kind::EstablishReference { .. } | Kind::EstablishPlacedReference { .. },
+        Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. },
         reference::establish(source, row, builder)
     );
     // Closing a loan changes custody, not referent bytes. Trivial empty locals

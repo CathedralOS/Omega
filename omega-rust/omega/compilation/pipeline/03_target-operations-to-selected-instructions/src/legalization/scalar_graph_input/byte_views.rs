@@ -482,7 +482,7 @@ where
                 terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation {
                     ..
                 } => Err(LegalizationError::custody()),
-                terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation {
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::AccessFormation {
                     ..
                 } => Err(LegalizationError::custody()),
                 terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {

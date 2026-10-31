@@ -233,7 +233,7 @@ pub(super) fn validate(
             .zip(&scalar_shapes)
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
             .any(|((((argument, value), parameter), shape), index)| {
-                let Some(placed_byte_size) = calling_conventions::byte_size_at_offset_zero(
+                let Some(access_byte_size) = calling_conventions::byte_size_at_offset_zero(
                     argument.placement.locations.as_slice(),
                 ) else {
                     return true;
@@ -251,7 +251,7 @@ pub(super) fn validate(
                         .get(native_position)
                         != Some(&argument.placement)
                     || argument.placement.shape != *shape
-                    || shape.byte_size != placed_byte_size
+                    || shape.byte_size != access_byte_size
                     || argument.source.scalar_type() != *parameter
                     || match &argument.source {
                         Source::IntegerImmediate {

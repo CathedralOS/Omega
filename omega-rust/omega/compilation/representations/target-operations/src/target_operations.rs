@@ -35,9 +35,9 @@ impl TargetOperationPlan {
 pub mod calls;
 pub use calls::{
     MixedStructuralScalarFunctionAbi, NativeCallTarget, ScalarAbiValue, ScalarFunctionAbi,
-    TargetBoundaryResult, TargetCallResult, TargetNativeCallbackArgument,
-    TargetOperationPlanWithPlacedViewInputs, TargetPlacedCallAssociation, TargetPlacedCallBinding,
-    TargetPlacedInterpretation, TargetPlacedViewInput, TargetStructuralResultContract,
+    TargetAccessCallAssociation, TargetAccessCallBinding, TargetAccessInterpretation,
+    TargetAccessViewInput, TargetBoundaryResult, TargetCallResult, TargetNativeCallbackArgument,
+    TargetOperationPlanWithAccessViewInputs, TargetStructuralResultContract,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, selector_carrier_type,
 };
 pub mod control_flow;
@@ -50,18 +50,17 @@ pub mod provenance;
 pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
 pub mod boundary;
 pub use boundary::{
-    BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
-    BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
-    ClaimCompletionOnlyRealization, CompilerBuiltinExecution, DirectPortReadU8Realization,
-    ExternalCompletionBinding, ForeignCallOperands, HostedExitProcessI32Realization,
-    HostedReadByteRealization, HostedWriteByteI32Realization, IeeeFloatArithmeticOperation,
-    IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
-    IeeeFloatToIntegerDomain, LinuxWriteLineRealization, MetadataOnlyPortRealization,
-    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
-    NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
-    PlacedScalarAccessRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
-    conventional_atomic_once_layout, conventional_float_class_layout,
+    AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
+    BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,
+    BoundarySettlementRealization, ClaimCompletionOnlyRealization, CompilerBuiltinExecution,
+    DirectPortReadU8Realization, ExternalCompletionBinding, ForeignCallOperands,
+    HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
+    IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
+    IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, LinuxWriteLineRealization,
+    MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
+    ProviderPlanReportIdentity, conventional_atomic_once_layout, conventional_float_class_layout,
 };
 pub mod operations;
 pub use operations::{

@@ -4,7 +4,7 @@
 //! flattening evaluation order must not relabel a nested operand as an outer one.
 //! A borrowed owned actual uses the same extraction ledger as a named move.
 //! Its checked expression retains detached custody while the original place
-//! retains repair debt. Replacement planning runs after this preparation, so
+//! retains repair debt. Reaccess planning runs after this preparation, so
 //! it never invents a second displaced value. Terminal's shared argument
 //! scheduler interleaves these producers with scalar operands in authored order.
 use super::super::{

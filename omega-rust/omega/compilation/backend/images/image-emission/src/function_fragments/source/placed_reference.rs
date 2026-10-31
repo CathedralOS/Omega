@@ -28,7 +28,7 @@ pub(in crate::function_fragments) fn establish_geometry(
         function.graph.operations().any(|operation| {
             matches!(
                 operation,
-                TargetUnitOperation::EstablishPlacedReference { .. }
+                TargetUnitOperation::EstablishAccessReference { .. }
             )
         })
     }) {
@@ -41,7 +41,7 @@ pub(in crate::function_fragments) fn establish_geometry(
         backing_geometry::BackingGeometry::new(abstracted, selected, targeted, &graph);
     for function in &targeted.functions {
         for operation in function.graph.operations() {
-            if let TargetUnitOperation::EstablishPlacedReference {
+            if let TargetUnitOperation::EstablishAccessReference {
                 psi_operation,
                 result_home,
                 source,
@@ -55,7 +55,7 @@ pub(in crate::function_fragments) fn establish_geometry(
                         source,
                         correspondence,
                     )
-                    .map_err(|reason| super::Error::PlacedBackingGeometry {
+                    .map_err(|reason| super::Error::AccessBackingGeometry {
                         machine: function.machine,
                         operation: *psi_operation,
                         reason,
@@ -352,7 +352,7 @@ pub(super) fn retained(
     operation: OperationId,
     result: &StructuralOperationResult,
     source: &StructuralArgument,
-    correspondence: &abstract_operations::PlacedReferenceBacking,
+    correspondence: &abstract_operations::AccessReferenceBacking,
     target: &TargetFunction,
     selected: &SelectedFunction,
     geometry: &mut backing_geometry::BackingGeometry<'_>,
@@ -579,7 +579,7 @@ pub(super) fn retained(
     }
     let mut exact = target.graph.operations().filter(|row| {
         matches!(row,
-        TargetUnitOperation::EstablishPlacedReference { psi_operation, result_home,
+        TargetUnitOperation::EstablishAccessReference { psi_operation, result_home,
             source: captured, correspondence: retained } if *psi_operation == operation
             && result_home.operation_result() == Some((operation, result))
             && captured == source && retained == correspondence)

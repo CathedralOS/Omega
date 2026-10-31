@@ -227,7 +227,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::EstablishStructuralLocal { .. }
         | O::EstablishStructuralArray { .. }
         | O::ReleaseReference { .. }
-        | O::EstablishPlacedReference { .. }
+        | O::EstablishAccessReference { .. }
         | O::PortWrite { .. }
         | O::AtomicFence { .. } => {}
         O::EstablishReference { storage, .. } => {

@@ -238,11 +238,9 @@ pub(crate) fn checked_unit_boundary_identity(
     }
     // Sealed generated accessors are semantic requirement slots, not foreign
     // import/export spellings. Psi and provider planning share the exact role.
-    if let Some(accessor) = typed_trees::typed_trees::PlacedScalarAccessorDeclaration::authenticate(
-        &checked.typed,
-        symbol,
-    )
-    .map_err(LoweringError::InvalidSealedAccessorDeclaration)?
+    if let Some(accessor) =
+        typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(&checked.typed, symbol)
+            .map_err(LoweringError::InvalidSealedAccessorDeclaration)?
     {
         let machine =
             checked

@@ -4,10 +4,10 @@ use super::{
     DeviceRevisionPredicateId, ResourceProfileReceiptId, RuntimeDeviceRevisionEvidence,
     RuntimeDeviceRevisionObservationId, SchemaCorrespondenceProviderId,
     SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
-    SchemaDeviceCorrespondenceReceiptContext, StableDeviceInstanceId, ValidatedPlacementPlan,
+    SchemaDeviceCorrespondenceReceiptContext, StableDeviceInstanceId, ValidatedAccessPlan,
     admit_schema_device_correspondence,
 };
-use crate::{AccessPlan, BoundaryReach, PlacementPlan, validate_placement_plan};
+use crate::{AccessFields, AccessPlan, BoundaryReach, validate_access_plan};
 use layout_plans::LayoutPlanReport;
 
 fn provider_id(identity: u64) -> SchemaCorrespondenceProviderId {
@@ -26,7 +26,7 @@ fn receipt_id(identity: u64) -> ResourceProfileReceiptId {
     ResourceProfileReceiptId::from_normalized_identity(identity).expect("profile receipt")
 }
 
-fn test_placement(schema_report_fingerprint: u64) -> ValidatedPlacementPlan {
+fn test_placement(schema_report_fingerprint: u64) -> ValidatedAccessPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint,
         entries: Vec::new(),
@@ -34,8 +34,8 @@ fn test_placement(schema_report_fingerprint: u64) -> ValidatedPlacementPlan {
         size: Some(0),
         align: 1,
     };
-    let access = AccessPlan::inaccessible(&layout).expect("empty inaccessible access plan");
-    validate_placement_plan(PlacementPlan {
+    let access = AccessFields::inaccessible(&layout).expect("empty inaccessible access plan");
+    validate_access_plan(AccessPlan {
         layout,
         access,
         reach: BoundaryReach::default(),
@@ -79,7 +79,7 @@ fn correspondence_admission_retains_separate_provider_device_and_revision_eviden
     assert_eq!(admitted.provider(), provider);
     assert_eq!(admitted.device(), device);
     assert_eq!(admitted.source().normalized_identity(), 10);
-    assert_eq!(admitted.placement_plan(), &placement);
+    assert_eq!(admitted.access_plan(), &placement);
     assert_eq!(admitted.profile_receipt(), receipt);
     let revision = admitted.revision().expect("revision evidence");
     assert_eq!(revision.observed_revision(), 0x17);

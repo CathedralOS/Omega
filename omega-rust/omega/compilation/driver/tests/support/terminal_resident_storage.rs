@@ -91,11 +91,9 @@ fn exercise(
     let allocation_length = expected_bytes.len() + 8;
     let module = program.module();
     let plan = module
-        .placement_lifecycle_plans
+        .access_lifecycle_plans
         .iter()
-        .find(|plan| {
-            plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::Initialize
-        })
+        .find(|plan| plan.operation == terminal_psi::TerminalAccessLifecycleOperation::Initialize)
         .expect("source publishes initialization geometry");
     let supplies = terminal_provision::admitted_supplies(artifact, program);
     let entry = program.entry().unwrap();

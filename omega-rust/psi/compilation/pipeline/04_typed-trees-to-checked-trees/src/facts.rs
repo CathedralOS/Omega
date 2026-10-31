@@ -1,5 +1,5 @@
 //!
-//! This file builds the check facts. `placed_views_and_uses.rs` builds placed
+//! This file builds the check facts. `access_views_and_uses.rs` builds placed
 //! view inputs and nominal machine uses, `machine_facts.rs` termination,
 //! blocking, suspension and invocation facts, `dynamic_conformance.rs`
 //! dynamic conformance facts, `contract_plan_facts.rs` contract plans and
@@ -32,9 +32,9 @@ pub(crate) use expression_children::{
 pub(crate) mod index_compatibility;
 mod integer_writes;
 pub(crate) use integer_writes::obligations::integer_write_obligation;
+mod access_views_and_uses;
 mod machine_facts;
 pub(crate) mod operator_crashes;
-mod placed_views_and_uses;
 pub(crate) mod provider_closed_requirements;
 pub(crate) mod qualification_evidence;
 mod qualification_facts;
@@ -73,15 +73,15 @@ pub(crate) fn crash_entry_operand(
 }
 
 use crate::borrow::build_borrow_facts;
+use crate::facts::access_views_and_uses::{
+    build_checked_access_view_inputs, build_nominal_machine_use_facts,
+};
 use crate::facts::capabilities::build_capability_facts;
 use crate::facts::contract_plan_facts::{build_contract_plans, build_mutation_facts};
 pub(crate) use crate::facts::dynamic_conformance::build_dynamic_conformance_facts;
 use crate::facts::machine_facts::{
     build_blocking_facts, build_suspension_facts, build_synchronous_invocation_facts,
     build_termination_facts,
-};
-use crate::facts::placed_views_and_uses::{
-    build_checked_placed_view_inputs, build_nominal_machine_use_facts,
 };
 use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
 use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
@@ -591,7 +591,7 @@ pub(crate) fn build_check_facts(
             contract_plans,
             carry,
             fact_call_projections,
-            placed_view_inputs: build_checked_placed_view_inputs(program),
+            access_view_inputs: build_checked_access_view_inputs(program),
             ..CheckFacts::default()
         },
         prepared_effects,

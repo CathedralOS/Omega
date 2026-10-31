@@ -10,35 +10,35 @@ boundary trait Callback {
 CallbackSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, Callback::call> { }
 
 Spread satisfies FixedLayout<ForeignRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates; {
     transition {
         false -> with_private(schema)
         _ -> plain(schema)
     }
 
-    machine with_private(schema: Schema) -> Plan {
+    machine with_private(schema: Schema) -> LayoutPlan {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry {
             key: schema.fields[0].key,
-            placement: FieldPlan::At { offset: 0 },
+            representation: FieldPlan::At { offset: 0 },
         };
-        let plan: Plan = Plan {
+        let plan: LayoutPlan = LayoutPlan {
             entries: entries,
             entry_count: 1,
             size_fixed: 16,
             size_is_dynamic: false,
             align: 8,
         };
-        Plan::place_private<CallbackSlot>(plan, 8)
+        LayoutPlan::place_private<CallbackSlot>(plan, 8)
     }
 
-    machine plain(schema: Schema) -> Plan {
+    machine plain(schema: Schema) -> LayoutPlan {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry {
             key: schema.fields[0].key,
-            placement: FieldPlan::At { offset: 0 },
+            representation: FieldPlan::At { offset: 0 },
         };
-        Plan {
+        LayoutPlan {
             entries: entries,
             entry_count: 1,
             size_fixed: 8,

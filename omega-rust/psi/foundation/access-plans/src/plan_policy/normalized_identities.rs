@@ -2,18 +2,19 @@
 //!
 //! Two identity regimes consume the same accepted policy: the authoritative
 //! SHA-256 commitments (`authoritative_access_layout_commitment`,
-//! `authoritative_placement_interpretation`) and the compact, explicitly
-//! non-authoritative FNV-1a compatibility fingerprints (`AccessPlanId`,
-//! `PlacementPlanId`, `ResourceProfileId`). Both feed one canonical byte
+//! `authoritative_access_interpretation`) and the compact, explicitly
+//! non-authoritative FNV-1a compatibility fingerprints (`AccessFieldsId`,
+//! `AccessPlanId`, `ResourceProfileId`). Both feed one canonical byte
 //! encoding of one accepted field policy, so a policy change is recognized
 //! once and the two regimes cannot disagree about which plans carry the same
 //! policy.
 
-use crate::access_plan::AccessLayoutCommitment;
+use crate::access_fields::AccessLayoutCommitment;
 use crate::{
-    AccessExposure, AccessPlan, AccessPlanId, AtomicCapability, AtomicPermissions, BoundaryReach,
-    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PeerWritability,
-    PlacementPlanId, ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
+    AccessExposure, AccessFields, AccessFieldsId, AccessPlanId, AtomicCapability,
+    AtomicPermissions, BoundaryReach, ExternalCapability, ExternalRead, ExternalReadBehavior,
+    FieldAccess, PeerWritability, ResourceProfileId, ResourceRegion, StableCapability,
+    TransferRule,
 };
 use extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
 use layout_plans::{
@@ -140,10 +141,10 @@ fn canonical_field_access_bytes(access: &FieldAccess) -> Vec<u8> {
     encoder.0
 }
 
-pub(crate) fn non_authoritative_placement_compatibility_fingerprint(
-    access: AccessPlanId,
+pub(crate) fn non_authoritative_access_compatibility_fingerprint(
+    access: AccessFieldsId,
     reach: &BoundaryReach,
-) -> PlacementPlanId {
+) -> AccessPlanId {
     let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.bytes(b"omega.placement-plan.v1");
     hash.u64(access.compatibility_fingerprint());
@@ -151,7 +152,7 @@ pub(crate) fn non_authoritative_placement_compatibility_fingerprint(
     for service in reach.services() {
         hash.u64(service.normalized_identity());
     }
-    PlacementPlanId(hash.finish().max(1))
+    AccessPlanId(hash.finish().max(1))
 }
 
 /// Collision-resistant semantic owner of compiler-issued access field keys.
@@ -167,12 +168,12 @@ pub(crate) fn authoritative_access_layout_commitment(
     AccessLayoutCommitment(digest.finish().into())
 }
 
-/// Collision-resistant identity for the complete canonical placement policy.
+/// Collision-resistant identity for the complete canonical access policy.
 ///
 /// Unlike the compact FNV compatibility fingerprint above, this value may be
 /// used to rejoin provider content evidence to its exact interpretation.
-pub(crate) fn authoritative_placement_interpretation(
-    plan: &crate::placements::placement_plan::ValidatedPlacementPlan,
+pub(crate) fn authoritative_access_interpretation(
+    plan: &crate::placements::access_plan::ValidatedAccessPlan,
 ) -> ExtentContentInterpretation {
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(b"omega.placement-plan.authoritative.v1\0");
@@ -347,9 +348,9 @@ fn hash_transfer_rule(hash: &mut semantic_vocabulary::Fnv1a, rule: TransferRule)
 }
 
 pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
-    plan: &AccessPlan,
+    plan: &AccessFields,
     layout_report_fingerprint: u64,
-) -> AccessPlanId {
+) -> AccessFieldsId {
     // FNV-1a is used as a compact deterministic artifact identity here, never
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
@@ -364,5 +365,5 @@ pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
     // Zero is reserved as the inert/no-plan identity throughout the semantic
     // spine. A hash hitting it remains deterministic but is remapped out of
     // the reserved value.
-    AccessPlanId(hash.finish().max(1))
+    AccessFieldsId(hash.finish().max(1))
 }
