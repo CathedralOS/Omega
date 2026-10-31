@@ -1,0 +1,39 @@
+// A generic extractor lists every case of `Value<T>`, so the arm naming the case the instance's default domain refutes (`Integer` on `Value<bool>`, `Boolean` on `Value<i32>`) selects no value: `extract` returns `7` from `Value<i32>`, `true` and `false` from `Value<bool>`.
+// Expected exit: 0.
+data Value<T [copy]> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+machine extract<T [copy]>(v: Value<T>) -> T {
+    match v {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+machine join_bool(flag: bool, left: Value<bool>, right: Value<bool>) -> bool {
+    let joined: Value<bool> = match flag { true -> left, false -> right };
+    extract(joined)
+}
+machine join_int(flag: bool, left: Value<i32>, right: Value<i32>) -> i32 {
+    let joined: Value<i32> = match flag { true -> left, false -> right };
+    extract(joined)
+}
+machine main() crashes Trap {
+    let marked: Value<bool> = Value::Boolean { value: true };
+    let cleared: Value<bool> = Value::Boolean { value: false };
+    let seven: Value<i32> = Value::Integer { value: 7 };
+    let nine: Value<i32> = Value::Integer { value: 9 };
+    transition join_bool(true, marked, cleared) == true
+        && join_bool(false, marked, cleared) == false
+        && join_int(true, seven, nine) == 7
+        && join_int(false, seven, nine) == 9
+    {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

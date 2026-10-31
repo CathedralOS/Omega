@@ -319,9 +319,17 @@ pub(super) fn build(
     // use ordinary rooted successor transfers; unread fields remain in the
     // selected edge's checked cleanup partition.
     // Each arm selects at least one case, except a final `_` that follows
-    // complete coverage (see below).
+    // complete coverage (see below), and an arm naming a refuted case, which
+    // selects none. A body generic over the family must list every declared
+    // case, so the arm count is bounded by the declared roster, not the
+    // possible one.
     trace.phase("state graph: case coverage roster");
-    if variants.is_empty() || statements.len() - transition_start > variants.len() + 1 {
+    let declared = program
+        .data_members(data)
+        .iter()
+        .filter(|member| matches!(member, DataMember::Variant(_)))
+        .count();
+    if variants.is_empty() || statements.len() - transition_start > declared + 1 {
         return None;
     }
     trace.phase("state graph: case selected arms");
@@ -340,12 +348,19 @@ pub(super) fn build(
                 if !dispatch.names(program, state, ordinal as usize, expression) {
                     return None;
                 }
-                vec![
-                    variants
-                        .iter()
-                        .copied()
-                        .find(|variant| variant.symbol == case_symbol)?,
-                ]
+                // `closed_data_constructor_case` named a case of this closed
+                // instance, so a case missing from the roster is one the
+                // instance refutes: no value carries it, the arm is
+                // unreachable and contributes no edge, exactly as it
+                // contributes no coverage obligation.
+                match variants
+                    .iter()
+                    .copied()
+                    .find(|variant| variant.symbol == case_symbol)
+                {
+                    Some(variant) => vec![variant],
+                    None => continue,
+                }
             }
             TransitionGuardNode::Always if transition_start + index + 1 == statements.len() => {
                 variants

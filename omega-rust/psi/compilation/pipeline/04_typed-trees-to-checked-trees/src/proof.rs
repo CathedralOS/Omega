@@ -25,7 +25,10 @@ pub(crate) use evidence_forwarding::{
     bind_evidence_forwarding_facts, bind_evidence_projection_facts,
 };
 pub(crate) use float_meaning::bind_float_meaning_projection_facts;
-pub(crate) use outcome_arms::{bind_outcome_specific_arm_facts, exact_outcome_case_test};
+pub(crate) use outcome_arms::{
+    bind_outcome_specific_arm_facts, exact_outcome_case_test, refuted_case,
+    refuted_outcome_case_test,
+};
 pub(crate) use proof_output_calls::bind_proof_output_call_facts;
 pub(crate) use proposition_vocabulary::lower_checked_proposition_application;
 

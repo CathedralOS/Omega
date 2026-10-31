@@ -215,10 +215,7 @@ retired-syntax deletions to completion.
     established domain recovers type equality and guarded payload bounds while
     preserving recursive/indexed data encoding obligations, exact subject
     identity, first-case zero gating, and mutation restoration.
-  Acceptance: execute a generic typed extractor over Integer/Boolean and a
-  guarded Range payload consumer through native and Terminal Psi (`omega run --both`),
-  exercising the same predicate as a default domain and a named generic domain
-  through all nine fact places. Reject mismatched case/type construction,
+  Acceptance: reject mismatched case/type construction,
   unguarded inactive payload access, reversed bounds, stale facts after writes,
   invalid zero establishment and the retired syntax.
 

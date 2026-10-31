@@ -1,0 +1,36 @@
+// A `transition` over a closed instance may name a case the instance's default
+// domain refutes (`Integer` on `Value<bool>`, `Boolean` on `Value<i32>`). No
+// value carries that case, so the arm is unreachable: it contributes no edge
+// and none of its payload reads, whichever side of the roster it sits on.
+// Expected exit: 0.
+data Value<T [copy]> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+machine main() crashes Trap {
+    let number: Value<i32> = Value::Integer { value: 7 };
+    let marked: Value<bool> = Value::Boolean { value: true };
+    transition marked {
+        Value::Integer { value } -> never_bool(value)
+        Value::Boolean { value } -> second(number, value)
+    }
+    machine never_bool(value: bool) { crash Trap; }
+    machine second(number: Value<i32>, flag: bool) {
+        transition number {
+            Value::Integer { value } -> verify(value, flag)
+            Value::Boolean { value } -> never_int(value)
+        }
+    }
+    machine never_int(value: i32) { crash Trap; }
+    machine verify(value: i32, flag: bool) {
+        transition value == 7 && flag == true {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

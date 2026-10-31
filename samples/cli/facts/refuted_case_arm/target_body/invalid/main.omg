@@ -1,0 +1,34 @@
+// A generic extractor lists every case of `Value<T>`, so the arm naming the case the instance's default domain refutes (`Integer` on `Value<bool>`, `Boolean` on `Value<i32>`) selects no value: `extract` returns `7` from `Value<i32>`, `true` and `false` from `Value<bool>`.
+// Expected exit: 0.
+data Value<T [copy]> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+machine extract<T [copy]>(v: Value<T>) -> T {
+    match v {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+boundary trait Consume {
+    machine consume(number: Value<i32>, marked: Value<bool>, cleared: Value<bool>) -> bool reaches;
+}
+Selected satisfies Consume {
+    machine consume(number: Value<i32>, marked: Value<bool>, cleared: Value<bool>) -> bool {
+        extract(number) == 7 && extract(marked) == true && extract(cleared) == false
+    }
+}
+machine probe() -> bool {
+    Consume::consume(Value::Integer { value: 7 }, Value::Integer { value: true }, Value::Boolean { value: false })
+}
+machine main() crashes Trap {
+    transition probe() == true {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

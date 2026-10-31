@@ -315,6 +315,55 @@ fn append_evidence_interface_reference_regions(
     }
 }
 
+/// Whether `case` is one the closed instance `subject_type` refutes
+/// (`Integer` on `Value<bool>` under `T == i32`). No value of that instance
+/// carries it, so an arm naming it is unreachable: a body generic over the
+/// family must still list every declared case, and each instance of that body
+/// carries the refuted ones as arms that select nothing. A subject that is not
+/// a closed instance refutes nothing, keeping its arms on their ordinary route.
+pub(crate) fn refuted_case(
+    program: &dyn ::validation::CheckingInput,
+    subject_type: typed_trees::types::TypeReferenceHandle,
+    case: SymbolHandle,
+) -> bool {
+    // A retained template symbol maps to the instance's own variant; a symbol
+    // already naming the instance's variant is found among its members.
+    program
+        .closed_data_constructor_case(subject_type, case)
+        .or_else(|| {
+            program
+                .closed_data_definition(subject_type)
+                .and_then(|data| {
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Variant(variant)
+                                if variant.symbol == case =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })
+                })
+        })
+        .is_some_and(|variant| ::validation::impossible_variant(program, variant))
+}
+
+/// Whether `guard` is an exact case test of a case its subject's instance
+/// refutes ([`refuted_case`]).
+pub(crate) fn refuted_outcome_case_test(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    guard: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    exact_outcome_case_test(program, guard).is_some_and(|(subject, case)| {
+        ::validation::expression_result_type_reference(program, machine, state, subject)
+            .is_some_and(|subject_type| refuted_case(program, subject_type, case))
+    })
+}
+
 pub(crate) fn exact_outcome_case_test(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,

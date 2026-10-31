@@ -97,6 +97,17 @@ pub(crate) fn build_checked_value_computation_plans(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
+                // An arm testing a case its subject's instance refutes is
+                // never selected (the closed-sum roster omits it), so it owns
+                // no computation: its payload reads name a case the lowered
+                // type no longer declares.
+                if let Some(transition) = statement.as_transition()
+                    && let typed_trees::statement::TransitionGuardNode::When(guard) =
+                        transition.guard
+                    && crate::proof::refuted_outcome_case_test(program, machine, state, guard)
+                {
+                    continue;
+                }
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,

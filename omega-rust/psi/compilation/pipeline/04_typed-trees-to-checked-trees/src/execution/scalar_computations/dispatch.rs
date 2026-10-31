@@ -222,9 +222,29 @@ impl Builder<'_, '_> {
             .expression_table
             .match_arms(dispatch.arms)
             .to_vec();
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        let subject_type =
+            validation::structural_match_subject_type(self.program, machine, state, dispatch)?;
         let mut arms = Vec::new();
         for (ordinal, arm) in authored.iter().enumerate() {
             let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
+            // An arm naming a case the subject's instance refutes selects
+            // nothing: the lowered sum no longer declares the case, so its
+            // predicate and payload reads have nothing to observe. The
+            // checked arm list is the possible cases in authored order.
+            if validation::structural_match_pattern_case(
+                self.program,
+                machine,
+                state,
+                dispatch,
+                arm.pattern,
+            )
+            .is_some_and(|case| {
+                case.is_valid() && crate::proof::refuted_case(self.program, subject_type, case)
+            }) {
+                continue;
+            }
             let pattern = self.structural_dispatch_pattern(
                 source_expression,
                 dispatch,

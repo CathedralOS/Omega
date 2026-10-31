@@ -1,0 +1,32 @@
+// A generic extractor lists every case of `Value<T>`, so the arm naming the case the instance's default domain refutes (`Integer` on `Value<bool>`, `Boolean` on `Value<i32>`) selects no value: `extract` returns `7` from `Value<i32>`, `true` and `false` from `Value<bool>`.
+// Expected exit: 0.
+data Value<T [copy]> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+machine extract<T [copy]>(v: Value<T>) -> T {
+    match v {
+        Value::Integer { value } -> value
+        Value::Boolean { value } -> value
+    }
+}
+data Carrier [copy] { number: Value<i32>; marked: Value<bool>; cleared: Value<bool>; }
+machine read(carrier: Carrier) -> bool {
+    extract(carrier.number) == 7 && extract(carrier.marked) == true && extract(carrier.cleared) == false
+}
+machine main() crashes Trap {
+    let carrier: Carrier = Carrier {
+        number: Value::Integer { value: 7 },
+        marked: Value::Boolean { value: true },
+        cleared: Value::Boolean { value: false }
+    };
+    transition read(carrier) == true {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
