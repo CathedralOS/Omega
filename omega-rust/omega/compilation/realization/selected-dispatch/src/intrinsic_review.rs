@@ -2,8 +2,7 @@
 //! service binding and retaining the selected review identities.
 
 use crate::SelectedCompilerIntrinsicExecutionIdentity;
-use crate::compiler_intrinsic::AcceptedRowBinding;
-use crate::compiler_intrinsic::HostedService;
+use crate::compiler_intrinsic::{AcceptedRowBinding, HostedService};
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use provider_planning::SelectedProviderReviewProvenance;
