@@ -4,7 +4,8 @@
 
 use super::{TerminalRuntimeError, host_imports};
 use terminal_interpreter::{
-    TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,
+    TerminalComponentBinding, TerminalInterpretError, TerminalProgram,
+    TerminalRuntimeSupplyRequest, admit_target_layouts, admit_target_machine_selections,
 };
 
 pub(super) fn prepare<'host, 'artifact>(
@@ -24,23 +25,14 @@ pub(super) fn prepare<'host, 'artifact>(
             "component runtime companions name another producing occurrence",
         ));
     }
-    let target_machines = terminal_interpreter::admit_target_machine_selections(
-        artifact,
-        runtime.target().target_name(),
-    );
+    let target_machines = admit_target_machine_selections(artifact, runtime.target().target_name());
     let facts = super::layout_target_facts(runtime.target().target_name()).map_err(|error| {
-        TerminalRuntimeError::Requirements(
-            terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-        )
+        TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
     })?;
     let target_layouts =
-        terminal_interpreter::admit_target_layouts(artifact, &target_machines, &facts).map_err(
-            |error| {
-                TerminalRuntimeError::Requirements(
-                    terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-                )
-            },
-        )?;
+        admit_target_layouts(artifact, &target_machines, &facts).map_err(|error| {
+            TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
+        })?;
     let mut imports = Vec::new();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,

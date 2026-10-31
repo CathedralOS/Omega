@@ -274,9 +274,7 @@ pub fn execute_sliced(
         })
         .transpose()
         .map_err(|error| {
-            TerminalRuntimeError::Requirements(
-                terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-            )
+            TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
         })?;
     // These are this native request's admitted external settlements, not every
     // boundary with a retained checked alternative. Completion authority is
