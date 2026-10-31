@@ -10,7 +10,7 @@ use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_item_identifier_path, snapshot_static_argument, snapshot_type_reference_handle,
 };
 use crate::syntax_trees::inspection::snapshot::item_snapshots::{
-    snapshot_capability_contract, snapshot_capability_contracts, snapshot_type_parameter,
+    snapshot_capability_contract, snapshot_capability_contracts, snapshot_type_parameters,
 };
 use crate::syntax_trees::inspection::snapshot::{
     CapabilityContractSnapshot, ExpressionSnapshot, IdentifierSnapshot, StaticArgumentSnapshot,
