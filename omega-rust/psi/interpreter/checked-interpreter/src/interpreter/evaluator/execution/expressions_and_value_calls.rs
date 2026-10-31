@@ -1,8 +1,11 @@
+use crate::interpreter::UnavailableStaticInput::TypePredicate;
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, ExpressionNode,
     Frame, Halt, HashSet, PrimitiveType, Reference, Value, expression_table, trap,
     type_reference_table, unsupported,
 };
+use checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly;
+use checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite;
 use typed_trees::references::collect_type_symbol_dependencies;
 mod call_evaluation;
 mod layout_target_facts;
@@ -63,12 +66,10 @@ impl<'program> Evaluator<'program> {
                             })
                     });
                     match input {
-                        Some(input) => Halt::StaticInputUnavailable(
-                            crate::interpreter::UnavailableStaticInput::TypePredicate {
-                                expression: handle,
-                                input,
-                            },
-                        ),
+                        Some(input) => Halt::StaticInputUnavailable(TypePredicate {
+                            expression: handle,
+                            input,
+                        }),
                         None => Halt::Unsupported(
                             "closed static type predicate cannot be evaluated".to_owned(),
                         ),
@@ -175,12 +176,8 @@ impl<'program> Evaluator<'program> {
             }
             let domain = match selected.policy {
                 checked_trees::CheckedArithmeticPolicyAdapter::None => ArithmeticDomain::Exact,
-                checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
-                    ..
-                } => ArithmeticDomain::Saturating,
-                checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                    ..
-                } => ArithmeticDomain::Trapping,
+                FloatSaturatingOverflowOnly { .. } => ArithmeticDomain::Saturating,
+                FloatTrappingNonFinite { .. } => ArithmeticDomain::Trapping,
             };
             return self.eval_float_binary(
                 selected.operation,

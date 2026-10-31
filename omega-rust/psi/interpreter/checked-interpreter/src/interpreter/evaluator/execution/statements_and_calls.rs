@@ -3,6 +3,7 @@ use crate::interpreter::evaluator::{
     Machine, Reference, State, StatementNode, SymbolHandle, TableCall, TableTransition,
     TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value, statement_table,
 };
+use checked_trees::FlowClaimJoinExitKind::{TransitionContinuation, TransitionTarget};
 use language_core::inline_assembly::{
     AsmCacheOperationKind, AsmFenceKind, AsmInstructionSerializationKind, AsmInterruptControlKind,
     AsmSchedulingHintKind,
@@ -128,15 +129,9 @@ impl<'program> Evaluator<'program> {
             }
         };
         let (target_handle, kind) = if holds {
-            (
-                transition.target,
-                checked_trees::FlowClaimJoinExitKind::TransitionTarget,
-            )
+            (transition.target, TransitionTarget)
         } else if transition.continuation.is_valid() {
-            (
-                transition.continuation,
-                checked_trees::FlowClaimJoinExitKind::TransitionContinuation,
-            )
+            (transition.continuation, TransitionContinuation)
         } else {
             return Ok(None);
         };
