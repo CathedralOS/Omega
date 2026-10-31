@@ -4,15 +4,27 @@ use omega_language_std::calling;
 public boundary trait Parent { machine value() -> u64 reaches; }
 public boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64 reaches; }
 public boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64 reaches; }
-public FirstCalling satisfies CallingPolicy { CallingPolicy::plan = first_plan; }
-public SecondCalling satisfies CallingPolicy { CallingPolicy::plan = second_plan; }
+public FirstCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        first_plan(signature)
+    }
+}
+public SecondCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        second_plan(signature)
+    }
+}
 FirstMap satisfies FirstRoot { Parent::value = first_value; FirstRoot::selected = first_value; }
 SecondMap satisfies SecondRoot { Parent::value = second_value; SecondRoot::selected = second_value; }
 machine first_value() -> u64 { 17 }
 machine second_value() -> u64 { 29 }
 
-machine first_plan(signature: BoundarySignature) -> BoundaryPlanResult { value_plan(signature, false) }
-machine second_plan(signature: BoundarySignature) -> BoundaryPlanResult { value_plan(signature, true) }
+machine first_plan(signature: BoundarySignature) -> BoundaryPlanResult 
+    satisfies CallingPolicy::plan
+{ value_plan(signature, false) }
+machine second_plan(signature: BoundarySignature) -> BoundaryPlanResult 
+    satisfies CallingPolicy::plan
+{ value_plan(signature, true) }
 machine value_plan(signature: BoundarySignature, allow_vectors: bool) -> BoundaryPlanResult {
     transition signature.parameter_count == 0 && signature.has_result {
         true -> select_result(signature, signature.result, allow_vectors)
