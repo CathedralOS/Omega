@@ -451,13 +451,16 @@ fn publish_observation(
         .find(|body| body.id == machine)
         .ok_or_else(|| "scalar observation lost its emitted entry body".to_owned())?;
     let mut occurrences = emitted.calls.iter().filter(|call| {
+        let Some(site) = call.origin.statement() else {
+            return false;
+        };
         call.source_site == Some(NominalMachineUseSite::Expression(expression))
-            && (call.source_state == owner
+            && (site.state == owner
                 || (owner == entry
                     && emitted
                         .checked
                         .typed
-                        .machine_by_own_or_state_symbol(call.source_state)
+                        .machine_by_own_or_state_symbol(site.state)
                         .is_some_and(|machine| machine.symbol == entry)))
     });
     let occurrence = occurrences

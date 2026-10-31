@@ -413,7 +413,10 @@ impl ExitScalars<'_, '_> {
             else {
                 continue;
             };
-            if self.facts.flow.control.calls.get(*source_call) != call {
+            let Some(source_call) = source_call.statement() else {
+                continue;
+            };
+            if self.facts.flow.control.calls.get(source_call) != call {
                 continue;
             }
             let parameters = validation::call_target_parameters(self.program, call.target_symbol)?;

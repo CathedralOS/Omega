@@ -272,9 +272,11 @@ pub(crate) fn resolve_direct_float_source_binding(
             let format =
                 projection_format(result.fallback.primitive).map_err(|_| invalid_source())?;
             let mut occurrences = source_call_occurrences.iter().filter(|occurrence| {
-                occurrence.source_state == result.use_site.owner_state
-                    && occurrence.statement_index == result.use_site.statement_index
-                    && occurrence.call_ordinal == result.use_site.call_ordinal
+                occurrence.matches_statement(
+                    result.use_site.owner_state,
+                    result.use_site.statement_index,
+                    result.use_site.call_ordinal,
+                )
             });
             let Some(occurrence) = occurrences.next() else {
                 return Ok(None);

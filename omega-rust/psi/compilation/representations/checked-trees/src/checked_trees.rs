@@ -16,6 +16,7 @@ pub mod admissibility;
 pub mod borrow;
 pub mod facts;
 pub mod flow;
+pub use flow::CheckedCallOrigin;
 pub mod keyed_rows;
 pub mod operators;
 pub mod proof;
@@ -47,18 +48,19 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
-    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
-    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+    CheckedDeclarationCall, CheckedMachineRankCorrespondence, CheckedRankApplicationFacts,
+    CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge,
+    CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
+    CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
+    CheckedRankLocalCapture, CheckedRankObservation, CheckedRankPremiseRegime,
+    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeNaturalState,
+    CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
+    CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
+    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 pub use facts::{
-    CheckedMachineRankCorrespondence, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
-    CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
-    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
-    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
-    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
-    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
-    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
 };
 pub use facts::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,

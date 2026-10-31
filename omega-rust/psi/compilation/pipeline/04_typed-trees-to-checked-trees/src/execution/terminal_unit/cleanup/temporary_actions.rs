@@ -830,7 +830,7 @@ pub(crate) fn finalize_completion_actions(
             if retained.is_empty() {
                 continue;
             }
-            let call = facts.flow.control.calls.get(source_call);
+            let call = facts.flow.control.calls.get(source_call.statement()?);
             let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
                 crate::flow::call_flows(&facts.flow.control, row.calls)
                     .iter()

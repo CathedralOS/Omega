@@ -210,9 +210,11 @@ pub(in crate::unit::attached_unit) fn result<'a>(
         return unsupported("Unit graph result binding duplicated or reordered");
     }
     let mut occurrences = operations.source_calls.iter().filter(|occurrence| {
-        occurrence.source_state == state.state
-            && occurrence.statement_index == coordinate.statement_index as usize
-            && occurrence.call_ordinal == coordinate.call_ordinal as usize
+        occurrence.matches_statement(
+            state.state,
+            coordinate.statement_index as usize,
+            coordinate.call_ordinal as usize,
+        )
     });
     let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
         "Unit graph result source call missing",

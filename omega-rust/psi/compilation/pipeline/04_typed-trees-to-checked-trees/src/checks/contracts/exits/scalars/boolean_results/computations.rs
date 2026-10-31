@@ -169,7 +169,8 @@ impl ExitScalars<'_, '_> {
                 ..
             } => {
                 let control = &self.facts.flow.control;
-                if !control.calls.is_valid(*source_call) || !structural_arguments.is_empty() {
+                let source_call = source_call.statement()?;
+                if !control.calls.is_valid(source_call) || !structural_arguments.is_empty() {
                     return None;
                 }
                 let call = self.normal_return_call(source)?;
@@ -182,7 +183,7 @@ impl ExitScalars<'_, '_> {
                         .primitive_type_reference(call.entry.return_type)
                         != Some(PrimitiveType::Bool)
                     || call.fact.call_ordinal != *call_ordinal as usize
-                    || !std::ptr::eq(call.fact, control.calls.get(*source_call))
+                    || !std::ptr::eq(call.fact, control.calls.get(source_call))
                 {
                     return None;
                 }

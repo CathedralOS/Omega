@@ -3,9 +3,9 @@
 mod source_custody;
 pub use source_custody::{
     LoweredSelectedComparisonOccurrence, LoweredSelectedComparisonOperandOrder,
-    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
-    LoweredSourceLoanCapture, LoweredSourceScalarBinding, LoweredSourceStructuralBinding,
-    LoweredStateBlock,
+    LoweredSourceCallOccurrence, LoweredSourceCallOrigin, LoweredSourceCallSite,
+    LoweredSourceFrontierBindings, LoweredSourceLoanCapture, LoweredSourceScalarBinding,
+    LoweredSourceStructuralBinding, LoweredStateBlock, LoweredStatementCallCoordinate,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

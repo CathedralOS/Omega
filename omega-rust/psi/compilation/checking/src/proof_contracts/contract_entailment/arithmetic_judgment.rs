@@ -20,6 +20,7 @@ mod intervals;
 mod lower_bound_queries;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 pub(super) use lower_bound_queries::{LowerBoundQueries, PreparedLowerBoundIndex};
+mod call_values;
 mod captured_calls;
 mod mathematical_terms;
 mod strict_bindings;
@@ -209,6 +210,14 @@ impl Polynomial {
 /// transported operands rather than dropping the term.
 #[derive(Clone)]
 pub(super) enum OpaqueTerm {
+    /// A selected declaration application under completed actual values.
+    /// This identity carries no formation, progress or result guarantee.
+    Call {
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        target: SymbolHandle,
+        arguments: Vec<Polynomial>,
+    },
     /// A completed finite-carrier value, distinct from its unbounded
     /// mathematical calculation. Wrapping retains its residue polynomial;
     /// saturation retains the calculation to clamp after substitution.
@@ -468,6 +477,7 @@ impl<'program> Engine<'program> {
                 OpaqueTerm::IntegerPolicy { .. }
                 | OpaqueTerm::ShiftLeft { .. }
                 | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
+                OpaqueTerm::Call { .. } => None,
                 OpaqueTerm::Quotient { .. }
                 | OpaqueTerm::Remainder { .. }
                 | OpaqueTerm::ShiftRight { .. } => None,
@@ -482,6 +492,7 @@ impl<'program> Engine<'program> {
         self.opaque_terms
             .get(index)
             .and_then(|(name, term)| match term {
+                OpaqueTerm::Call { .. } => None,
                 OpaqueTerm::IntegerPolicy { .. }
                 | OpaqueTerm::ShiftLeft { .. }
                 | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
@@ -534,6 +545,7 @@ impl<'program> Engine<'program> {
                 | OpaqueTerm::ShiftRight { value, count, .. } => {
                     poly_mentions(value) || poly_mentions(count)
                 }
+                OpaqueTerm::Call { arguments, .. } => arguments.iter().any(poly_mentions),
                 OpaqueTerm::Bitwise { left, right, .. } => {
                     poly_mentions(left) || poly_mentions(right)
                 }
@@ -584,6 +596,7 @@ impl<'program> Engine<'program> {
         for position in 0..self.opaque_terms.len() {
             let (atom, term) = self.opaque_terms[position].clone();
             let interval = match term {
+                OpaqueTerm::Call { .. } => continue,
                 OpaqueTerm::IntegerPolicy {
                     primitive,
                     domain,
@@ -859,13 +872,16 @@ impl<'program> Engine<'program> {
     /// installed without arithmetic overflow.
     pub(super) fn install_hypotheses(
         &mut self,
-        comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+        mut comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
     ) -> bool {
         let mut fully_visible = true;
         for (operator, left, right) in &comparisons {
             if *operator == BinaryOperator::Equal {
                 self.harvest_substitution(left, right);
             }
+        }
+        if !self.refresh_call_congruences(&mut comparisons) {
+            return false;
         }
         // Premises arrive in formation order: intrinsic carrier bounds can
         // precede an equality fixing their symbolic ceiling. Re-normalize the
@@ -1529,6 +1545,25 @@ impl<'program> Engine<'program> {
                             expression,
                         )?;
                     return self.normalize_integer_embedding(argument);
+                }
+                if self.formal_arguments.is_some() {
+                    let owner = super::specification_calls::selected_call_contract(
+                        self.program,
+                        self.source_owner,
+                        &call,
+                    )?;
+                    let target = super::specification_calls::owner_symbol(&owner);
+                    let arguments = expression_table(self.program)
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| self.normalize(*argument))
+                        .collect::<Option<Vec<_>>>()?;
+                    return self.selected_call_value(
+                        self.source_owner,
+                        expression,
+                        target,
+                        arguments,
+                    );
                 }
                 // Ordinary proof views are source-defined data and machines.
                 // Their spelling cannot introduce an arithmetic atom or stand

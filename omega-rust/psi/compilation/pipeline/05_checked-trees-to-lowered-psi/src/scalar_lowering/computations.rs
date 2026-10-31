@@ -16,7 +16,7 @@ use super::{
 use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::SourceCallCoordinate;
+use crate::emission::operation_emission::buffer::{SourceCallCoordinate, SourceInvocation};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::computation_graph::reachable_nodes;
@@ -107,7 +107,8 @@ pub(crate) struct Expansion<'a> {
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
     claim_edges: Vec<PreparedClaimEdge>,
-    calls: Vec<SourceCallCoordinate>,
+    calls: Vec<SourceInvocation>,
+    declaration_observation: Option<u64>,
     produced_values: Vec<produced_values::Slot>,
     call_views: Vec<call_views::Slot>,
     subslices: Vec<subslices::Slot>,
@@ -157,6 +158,7 @@ impl<'a> Expansion<'a> {
             states: Vec::new(),
             claim_edges: Vec::new(),
             calls: Vec::new(),
+            declaration_observation: None,
             produced_values: Vec::new(),
             call_views: Vec::new(),
             subslices: Vec::new(),
@@ -199,6 +201,11 @@ impl<'a> Expansion<'a> {
             states: self.states,
             claim_edges: self.claim_edges,
         }
+    }
+
+    pub(crate) fn with_declaration_observation(mut self, scope: u64) -> Self {
+        self.declaration_observation = Some(scope);
+        self
     }
 
     pub(crate) fn with_fields(mut self, fields: &'a [fields::Binding]) -> Self {
@@ -622,7 +629,7 @@ impl<'a> Expansion<'a> {
         active.push(*handle);
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
-        let completion_expression = node.completion_expression(&self.checked.facts.flow.control);
+        let completion_expression = node.evaluated_expression();
         let completion = flow_facts(&self.checked)
             .terminal_unit_effects
             .cleanup_control
@@ -969,6 +976,7 @@ impl<'a> Expansion<'a> {
                 self.argument(identities, &operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {
+                source_expression,
                 source_call,
                 callee,
                 call_ordinal,
@@ -976,9 +984,11 @@ impl<'a> Expansion<'a> {
                 structural_arguments,
                 temporary_cleanups,
                 claim_transfers,
+                ..
             } => self.call(
                 identities,
                 source_call,
+                source_expression,
                 &callee,
                 call_ordinal,
                 arguments,
