@@ -50,8 +50,8 @@ The accepted contracts are [static callback applications](../../../../wiki/spec/
 [named implementations](../../../../wiki/spec/language/conformances.md),
 [Build selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 and [requirement scopes](../../../../wiki/spec/language/state_contracts.md#requirement-clauses).
-Canonical requires-machine clauses own their nested contracts and terminating
-semicolons. The parser stages an owner's clauses before publishing contiguous
+Each nested requires-machine declaration owns its complete contract and one
+declaration-ending semicolon; individual clauses have none. The parser stages an owner's clauses before publishing contiguous
 arena spans, so interleaved nested clauses cannot become outer predicates.
 
 Establishment comes from the callback's published contract and each checked
@@ -86,8 +86,11 @@ native artifact passes503decoder cases; its producer and frozen source closure
 remain recorded separately from producer45fb. The original explicit `terminates;;`
 control is pinned as
 `tests/omega/pass/calls/requires_machine_explicit_operational_closers_exit`
-and runs native0/Terminal0. Its full nested/interleaved requirement
-implementation remains open under REQUIRES-UNIFICATION.
+and ran native0/Terminal0 under that producer. This is historical acceptance,
+not the settled grammar: the extra same-level terminator must reject under
+[machine header delimiters](../../../../wiki/spec/language/state_contracts.md#machine-header-delimiters).
+Its source and expectation migration, along with full nested/interleaved
+requirement implementation, remains under REQUIRES-UNIFICATION.
 
 Original producerad909308cdb32b3c95b5cbf8093262e4630e0c51 checked all25old Source
 controls and ran all11old executable programs with native0/Terminal0. The new
@@ -97,6 +100,7 @@ actual products and raw observations remain under `build/content-provider/callba
 archive manifests preserve closed compiler images with exact restoration metadata.
 
 The parent target/native retirement and remaining requirement forms remain open.
-The single-semicolon operational ownership question is narrowly recorded in
-[OWNER_QUESTIONS.md](../../../../OWNER_QUESTIONS.md); explicit distinct terminators
-remain engineering and are accepted by the Rust producer.
+Operational clause ownership is settled by the header-delimiter rule: one
+semicolon closes the nested callable, and subsequent clauses belong to its
+enclosing declaration. Parser and fixture migration is engineering work under
+REQUIRES-UNIFICATION, not an owner blocker.

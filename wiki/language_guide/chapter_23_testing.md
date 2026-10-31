@@ -82,7 +82,7 @@ ordinary fixture state inside the test:
 ```omega
 trait Tests {
     machine memory()
-        reaches Filesystem;
+        reaches Filesystem
         crashes Trap;
 }
 
