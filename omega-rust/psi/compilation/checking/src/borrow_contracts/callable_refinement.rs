@@ -391,7 +391,8 @@ impl PreparedCallableBorrowRefinement {
                 &actual_frontier.regions,
                 &application.elided,
                 &output_elisions,
-            )?;
+            )
+            .map_err(|region_error| format!("{region_error}; {error}"))?;
             return Err(error.to_owned());
         }
         super::region_correspondence::validate(
