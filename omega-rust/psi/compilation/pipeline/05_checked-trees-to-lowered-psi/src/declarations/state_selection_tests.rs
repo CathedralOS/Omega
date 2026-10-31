@@ -113,9 +113,9 @@ fn frozen_state_selection_matches_original_scan_after_equal_revision_replacement
     let old_revision = warmed.tables.machine_states.revision();
     let mut replacement = fixture().tables.machine_states;
     // Every storage row, including the unspanned one, changes its named state.
-    for (_, state) in replacement.iter_mut() {
+    replacement.for_each_mut(|_, state| {
         state.symbol = SymbolHandle::from_parts(30, 1);
-    }
+    });
     // Reconstruct storage to retain the original local revision deliberately.
     let replacement = rows(
         replacement.iter().map(|(_, state)| state.clone()).collect(),
