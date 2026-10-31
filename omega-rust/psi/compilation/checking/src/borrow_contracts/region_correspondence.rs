@@ -25,6 +25,27 @@ enum RegionEnvironment<'scope> {
     Bound(&'scope RegionIdentity),
 }
 
+struct RejectedRegionComparison {
+    reference: TypeReferenceHandle,
+    actual_declaration: SymbolHandle,
+    required_declaration: SymbolHandle,
+    actual: Option<RegionIdentity>,
+    required: Option<RegionIdentity>,
+}
+
+impl std::fmt::Debug for RejectedRegionComparison {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RejectedRegionComparison")
+            .field("reference", &self.reference)
+            .field("actual_declaration", &self.actual_declaration)
+            .field("required_declaration", &self.required_declaration)
+            .field("actual", &self.actual)
+            .field("required", &self.required)
+            .finish()
+    }
+}
+
 impl RegionEnvironment<'_> {
     fn identity(
         self,
@@ -192,6 +213,33 @@ fn contract_scope<'scope>(
     }
 }
 
+/// Format only premises already computed by this refinement, on refusal.
+fn region_context(
+    program: &dyn crate::CheckingInput,
+    contract: &CallableBorrowContract<'_>,
+    regions: &CallableRegions,
+) -> String {
+    let bindings = regions
+        .bindings
+        .iter()
+        .map(|binding| (binding.parameter, &binding.argument))
+        .collect::<Vec<_>>();
+    format!(
+        "owner {} {:?}, supplier {} {:?}, fresh {}, names {:?}, own slots {:?}, bindings {:?}, applications {:?}, substitutions {:?}, scope starts {:?}",
+        program.symbols.name(contract.lexical_owner),
+        contract.lexical_owner,
+        program.symbols.name(contract.argument_owner),
+        contract.argument_owner,
+        regions.fresh_count,
+        regions.names,
+        regions.own_lifetimes,
+        bindings,
+        regions.applications,
+        contract.substitutions,
+        contract.substitution_scope_starts,
+    )
+}
+
 pub(super) fn infer_inputs(
     program: &dyn crate::CheckingInput,
     required: &CallableBorrowContract<'_>,
@@ -199,9 +247,9 @@ pub(super) fn infer_inputs(
     required_regions: &CallableRegions,
     actual_regions: &CallableRegions,
     actual_inputs: &[Vec<CarriedLifetime>],
-) -> Result<InputRegionApplication, &'static str> {
+) -> Result<InputRegionApplication, String> {
     if required.parameters.len() != actual.parameters.len() {
-        return Err("callable input arity does not match its requirement");
+        return Err("callable input arity does not match its requirement".to_owned());
     }
     let mut applications = vec![InputRegionApplication::default()];
     for (ordinal, (required_parameter, actual_parameter)) in required
@@ -211,6 +259,7 @@ pub(super) fn infer_inputs(
         .enumerate()
     {
         let mut failure = "callable input does not preserve its region identity";
+        let mut rejected = None;
         let mut constrain = |application: &mut InputRegionApplication,
                              actual_scope: RegionScope<'_>,
                              required_scope: RegionScope<'_>,
@@ -269,6 +318,13 @@ pub(super) fn infer_inputs(
             } else {
                 "callable type does not preserve its region identity"
             };
+            rejected = Some(RejectedRegionComparison {
+                reference,
+                actual_declaration: actual_scope.declaration,
+                required_declaration: required_scope.declaration,
+                actual,
+                required: Some(required),
+            });
             false
         };
         if !type_reference_region_applications(
@@ -281,7 +337,13 @@ pub(super) fn infer_inputs(
             &mut applications,
             &mut constrain,
         ) {
-            return Err(failure);
+            return Err(format!(
+                "{failure} [input-inference parameter {ordinal}; actual reference {:?}; required reference {:?}; last rejected comparison {rejected:?}; required: {}; actual: {}]",
+                actual_parameter.type_reference,
+                required_parameter.type_reference,
+                region_context(program, required, required_regions),
+                region_context(program, actual, actual_regions),
+            ));
         }
     }
     // Only the complete input tuple and universal telescope settle inference.
@@ -289,21 +351,31 @@ pub(super) fn infer_inputs(
     // binder. Results consume this application; they never choose among it.
     let mut completed = Vec::new();
     let mut failure = "callable input regions do not determine one application";
+    let mut rejected = None;
     for mut application in applications {
         match application.finish(actual_regions.fresh_count, required_regions.fresh_count) {
             Ok(()) if !completed.contains(&application) => completed.push(application),
             Ok(()) => {}
-            Err(reason) => failure = reason,
+            Err(reason) => {
+                failure = reason;
+                rejected = Some(application);
+            }
         }
     }
     if completed.len() != 1 {
-        return Err(if completed.is_empty() {
+        let reason = if completed.is_empty() {
             failure
         } else {
             "callable input regions do not determine one application"
-        });
+        };
+        return Err(format!(
+            "{reason} [input-telescope-finish; completed {}; last rejected application {rejected:?}; required: {}; actual: {}]",
+            completed.len(),
+            region_context(program, required, required_regions),
+            region_context(program, actual, actual_regions),
+        ));
     }
-    completed.pop().ok_or(failure)
+    completed.pop().ok_or_else(|| failure.to_owned())
 }
 
 pub(super) fn validate(
@@ -314,32 +386,43 @@ pub(super) fn validate(
     actual_regions: &CallableRegions,
     input_elisions: &[(usize, TypeReferenceHandle, RegionIdentity)],
     output_elisions: &[(TypeReferenceHandle, RegionIdentity)],
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     let required_scope = contract_scope(required, required_regions);
     let actual_scope = contract_scope(actual, actual_regions);
-    let mut matches = |_: &mut (),
-                       actual_scope: RegionScope<'_>,
-                       required_scope: RegionScope<'_>,
-                       reference: TypeReferenceHandle,
-                       actual: Option<&Identifier>,
-                       required: Option<&Identifier>| {
+    let matches = |rejected: &mut Option<RejectedRegionComparison>,
+                   actual_scope: RegionScope<'_>,
+                   required_scope: RegionScope<'_>,
+                   reference: TypeReferenceHandle,
+                   actual: Option<&Identifier>,
+                   required: Option<&Identifier>| {
         let Some(required) = required else {
             return true;
         };
-        required_scope
-            .regions
-            .identity(program, required)
-            .zip(match actual {
-                Some(actual) => actual_scope.regions.identity(program, actual),
-                None => actual_scope
-                    .output_elisions
-                    .iter()
-                    .find(|(output, _)| *output == reference)
-                    .map(|(_, region)| region.clone()),
-            })
-            .is_some_and(|(required, actual)| required == actual)
+        let required = required_scope.regions.identity(program, required);
+        let actual = match actual {
+            Some(actual) => actual_scope.regions.identity(program, actual),
+            None => actual_scope
+                .output_elisions
+                .iter()
+                .find(|(output, _)| *output == reference)
+                .map(|(_, region)| region.clone()),
+        };
+        let agrees = required
+            .as_ref()
+            .zip(actual.as_ref())
+            .is_some_and(|(required, actual)| required == actual);
+        if !agrees {
+            *rejected = Some(RejectedRegionComparison {
+                reference,
+                actual_declaration: actual_scope.declaration,
+                required_declaration: required_scope.declaration,
+                actual,
+                required,
+            });
+        }
+        agrees
     };
-    for (ordinal, (required, actual)) in required
+    for (ordinal, (required_reference, actual_reference)) in required
         .parameters
         .iter()
         .map(|parameter| parameter.type_reference)
@@ -356,21 +439,29 @@ pub(super) fn validate(
             .filter(|(parameter, _, _)| *parameter == ordinal)
             .map(|(_, reference, region)| (*reference, region.clone()))
             .collect::<Vec<_>>();
+        let mut rejected = None;
         if !type_reference_regions_match(
             program,
-            actual,
-            required,
+            actual_reference,
+            required_reference,
             RegionScope {
                 output_elisions: &elisions,
                 ..actual_scope
             },
             required_scope,
             &mut (),
-            &mut matches,
+            &mut |_: &mut (), a, r, reference, actual, required| {
+                matches(&mut rejected, a, r, reference, actual, required)
+            },
         ) {
-            return Err("callable type does not preserve its region identity");
+            return Err(format!(
+                "callable type does not preserve its region identity [input-validation parameter {ordinal}; actual reference {actual_reference:?}; required reference {required_reference:?}; last rejected comparison {rejected:?}; required: {}; actual: {}]",
+                region_context(program, required, required_regions),
+                region_context(program, actual, actual_regions),
+            ));
         }
     }
+    let mut rejected = None;
     if !type_reference_regions_match(
         program,
         actual.return_type,
@@ -381,9 +472,17 @@ pub(super) fn validate(
         },
         required_scope,
         &mut (),
-        &mut matches,
+        &mut |_: &mut (), a, r, reference, actual, required| {
+            matches(&mut rejected, a, r, reference, actual, required)
+        },
     ) {
-        return Err("callable type does not preserve its region identity");
+        return Err(format!(
+            "callable type does not preserve its region identity [result-validation; actual reference {:?}; required reference {:?}; last rejected comparison {rejected:?}; required: {}; actual: {}]",
+            actual.return_type,
+            required.return_type,
+            region_context(program, required, required_regions),
+            region_context(program, actual, actual_regions),
+        ));
     }
     Ok(())
 }
