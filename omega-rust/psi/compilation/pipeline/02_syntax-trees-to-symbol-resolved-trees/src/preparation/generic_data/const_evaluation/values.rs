@@ -1564,18 +1564,6 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     ));
                 }
             }
-            // A case literal supplies one complete active value: the common
-            // record fields plus this case's payload, never sibling payloads.
-            let common_fields = syntax
-                .tables
-                .items
-                .data_members(definition.members)
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => Some(field),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
             if let Some(case_name) = &case_name {
                 let variant = syntax
                     .tables
@@ -1593,10 +1581,24 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     .ok_or_else(|| {
                         format!("`{type_name}` has no case `{}`", case_name.as_str(syntax))
                     })?;
-                let declared_fields = common_fields
-                    .into_iter()
-                    .chain(syntax.tables.items.data_payload_fields(variant.payload))
+                let declared_fields = syntax
+                    .tables
+                    .items
+                    .data_payload_fields(variant.payload)
+                    .iter()
                     .collect::<Vec<_>>();
+                // A case literal supplies one complete active value: the common
+                // record fields plus this case's payload, never sibling payloads.
+                let common_fields = syntax
+                    .tables
+                    .items
+                    .data_members(definition.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        DataMember::Field(field) => Some(field),
+                        _ => None,
+                    });
+                let declared_fields = common_fields.chain(declared_fields).collect::<Vec<_>>();
                 let fields = canonicalize_named_fields_with_admission(
                     syntax,
                     &declared_fields,
@@ -1622,9 +1624,19 @@ fn canonicalize_selected_data_const_expression_with_admission(
                         "`{type_name}` is case data; its const value must name one case"
                     ));
                 }
+                let declared_fields = syntax
+                    .tables
+                    .items
+                    .data_members(definition.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        DataMember::Field(field) => Some(field),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
                 let fields = canonicalize_named_fields_with_admission(
                     syntax,
-                    &common_fields,
+                    &declared_fields,
                     literal.fields,
                     selection,
                     substitution,
