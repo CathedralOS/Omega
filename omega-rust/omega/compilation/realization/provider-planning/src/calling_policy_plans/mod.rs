@@ -1,11 +1,14 @@
-//! Build-time evaluation of source-authored calling policies.
+//! Prepare source calling requests and activate retained Terminal policies.
 //!
 //! The source vocabulary lives in `source/library/std/calling.omg`; this
 //! module is the compiler-owned decoder that keeps that open policy surface
 //! behind the closed normalized-plan validator.
 //!
 //! `boundary_signatures.rs` materializes Psi's prepared signatures,
-//! `plan_computation.rs` evaluates the policy into plans,
+//! `plan_computation.rs` retains admission and signature inputs, then evaluates
+//! policies from the compiler's shared code catalog. `policy_code.rs` owns the
+//! exact source-entry association and finite invocation accounting;
+//! `terminal_execution.rs` runs the canonical code without source,
 //! Psi's service catalog retains the exact named map and inherited signatures,
 //! `callback_bindings.rs` binds and closes callbacks; backend `layout` constructs
 //! their native value graphs and `build_time_decoding.rs` decodes build-time
