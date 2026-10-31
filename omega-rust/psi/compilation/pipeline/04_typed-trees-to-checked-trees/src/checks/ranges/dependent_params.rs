@@ -41,7 +41,7 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
             continue;
         }
         let Some((field, offset)) =
-            dependent_maximum_of_type_reference(program, parameter.type_reference)
+            validation::exact_shells_symbolic_range_maximum(program, parameter.type_reference)
         else {
             continue;
         };
@@ -66,16 +66,6 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
             place_label(data_binding.as_str(), field.as_str()),
         );
     }
-}
-
-/// The dependent maximum (field, offset) of a declared type's Range
-/// constraint under Exact shells (the recognizer class; mirrors the
-/// substitution gates in types.rs).
-fn dependent_maximum_of_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: typed_trees::types::TypeReferenceHandle,
-) -> Option<(typed_trees::name::Identifier, i64)> {
-    validation::exact_shells_symbolic_range_maximum(program, handle)
 }
 
 /// The sibling-length bound of a declared type's Range constraint under
