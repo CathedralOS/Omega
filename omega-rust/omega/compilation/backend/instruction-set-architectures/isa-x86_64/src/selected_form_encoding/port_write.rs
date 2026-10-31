@@ -2,6 +2,7 @@
 //! Privilege and selected-provider authority are admitted separately; this
 //! owner fixes the actual bytes, scratch registers and architectural fault.
 use super::{ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError};
+use crate::register_model::units_of;
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
@@ -10,22 +11,8 @@ use selected_instructions::{
 };
 
 pub(crate) fn effects() -> MachineEncodedEffects {
-    let physical = crate::x86_64_physical_register_model_ref();
-    let mut clobbers = ["rax", "rdx", "r10", "r11"]
-        .into_iter()
-        .flat_map(|name| {
-            physical
-                .view_named(name)
-                .expect("canonical x86 register")
-                .units
-                .iter()
-                .copied()
-        })
-        .collect::<Vec<_>>();
-    clobbers.sort_unstable();
-    clobbers.dedup();
     MachineEncodedEffects {
-        implicit_unit_clobbers: clobbers,
+        implicit_unit_clobbers: units_of(&["rax", "rdx", "r10", "r11"]),
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ..MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new())
     }
