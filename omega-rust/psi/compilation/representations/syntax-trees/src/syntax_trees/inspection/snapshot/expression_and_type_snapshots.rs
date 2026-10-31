@@ -732,3 +732,13 @@ pub(crate) fn snapshot_identifier_slice(
         .map(|value| snapshot_identifier(syntax_trees, value))
         .collect()
 }
+
+pub(crate) fn snapshot_item_identifier_path(
+    syntax_trees: &SyntaxTrees,
+    span: HandleSpan<Identifier>,
+) -> Vec<IdentifierSnapshot> {
+    snapshot_identifier_slice(
+        syntax_trees,
+        syntax_trees.items.identifier_path_members(span),
+    )
+}

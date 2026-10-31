@@ -8,7 +8,7 @@ use crate::item::{
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_expression_handle, snapshot_identifier, snapshot_identifier_slice,
-    snapshot_type_reference_handle, snapshot_type_references,
+    snapshot_item_identifier_path, snapshot_type_reference_handle, snapshot_type_references,
 };
 use crate::syntax_trees::inspection::snapshot::state_and_statement_snapshots::{
     snapshot_state_node, snapshot_state_parameter, snapshot_state_parameters,
@@ -488,20 +488,10 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             properties: snapshot_data_properties(value.properties),
             quotient: value.quotient.as_ref().map(|quotient| QuotientSnapshot {
                 carrier: snapshot_type_reference_handle(syntax_trees, quotient.carrier),
-                relation: snapshot_identifier_slice(
-                    syntax_trees,
-                    syntax_trees
-                        .items
-                        .identifier_path_members(quotient.relation),
-                ),
+                relation: snapshot_item_identifier_path(syntax_trees, quotient.relation),
                 equivalence: quotient.equivalence.as_ref().map(|selection| {
                     QuotientEquivalenceSelectionSnapshot {
-                        relation: snapshot_identifier_slice(
-                            syntax_trees,
-                            syntax_trees
-                                .items
-                                .identifier_path_members(selection.relation),
-                        ),
+                        relation: snapshot_item_identifier_path(syntax_trees, selection.relation),
                         trait_name: snapshot_identifier(syntax_trees, &selection.trait_name),
                         trait_arguments: snapshot_type_references(
                             syntax_trees,
@@ -675,12 +665,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
-            ranking_view: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees
-                    .items
-                    .identifier_path_members(value.ranking_view),
-            ),
+            ranking_view: snapshot_item_identifier_path(syntax_trees, value.ranking_view),
             ranking_view_arguments: syntax_trees
                 .expressions
                 .expression_handles(value.ranking_view_arguments)
@@ -694,12 +679,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 ))
             }),
             service_reach_is_installation_bound: value.service_reach_is_installation_bound,
-            service_reaches: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees
-                    .items
-                    .identifier_path_members(value.service_reaches),
-            ),
+            service_reaches: snapshot_item_identifier_path(syntax_trees, value.service_reaches),
             invokes: snapshot_identifier_slice(
                 syntax_trees,
                 syntax_trees.items.identifier_path_members(value.invokes),
@@ -924,12 +904,7 @@ pub(crate) fn snapshot_capability_contract(
             CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
             CapabilityContractKind::EnsuresForResultCase { result_case } => {
                 CapabilityContractKindSnapshot::EnsuresForResultCase {
-                    result_case: syntax_trees
-                        .items
-                        .identifier_path_members(*result_case)
-                        .iter()
-                        .map(|value| snapshot_identifier(syntax_trees, value))
-                        .collect(),
+                    result_case: snapshot_item_identifier_path(syntax_trees, *result_case),
                 }
             }
             CapabilityContractKind::Requires => CapabilityContractKindSnapshot::Requires,
@@ -968,12 +943,7 @@ fn snapshot_proof_fact(syntax_trees: &SyntaxTrees, fact: &ProofFact) -> ProofFac
         },
         ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
             value: snapshot_expression_handle(syntax_trees, membership.value),
-            domain: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees
-                    .items
-                    .identifier_path_members(membership.domain),
-            ),
+            domain: snapshot_item_identifier_path(syntax_trees, membership.domain),
             domain_arguments: snapshot_type_references(syntax_trees, membership.domain_arguments),
         },
     }

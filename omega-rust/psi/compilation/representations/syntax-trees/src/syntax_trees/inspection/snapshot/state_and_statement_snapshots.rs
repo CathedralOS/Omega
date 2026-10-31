@@ -7,7 +7,7 @@ use crate::statement::{
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_expression_handle, snapshot_identifier, snapshot_identifier_slice,
-    snapshot_static_argument, snapshot_type_reference_handle,
+    snapshot_item_identifier_path, snapshot_static_argument, snapshot_type_reference_handle,
 };
 use crate::syntax_trees::inspection::snapshot::item_snapshots::{
     snapshot_capability_contract, snapshot_capability_contracts, snapshot_type_parameter,
@@ -217,18 +217,11 @@ macro_rules! state_signature_snapshot {
                 .collect(),
             return_type: snapshot_type_reference_handle($syntax_trees, $signature.return_type),
             service_reach_is_installation_bound: $signature.service_reach_is_installation_bound,
-            service_reaches: snapshot_identifier_slice(
+            service_reaches: snapshot_item_identifier_path(
                 $syntax_trees,
-                $syntax_trees
-                    .items
-                    .identifier_path_members($signature.service_reaches),
+                $signature.service_reaches,
             ),
-            invokes: snapshot_identifier_slice(
-                $syntax_trees,
-                $syntax_trees
-                    .items
-                    .identifier_path_members($signature.invokes),
-            ),
+            invokes: snapshot_item_identifier_path($syntax_trees, $signature.invokes),
             suspends: $signature.suspends,
             blocks: $signature.blocks,
             contracts: snapshot_capability_contracts($syntax_trees, $signature.contracts),
