@@ -685,6 +685,9 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             && active_paths
                 .first()
                 .is_some_and(|path| path.judge.requires_value_preservation())
+            && !active_paths[0]
+                .judge
+                .statement_has_runtime_completion(machine, call)
         {
             let Some(frames) = active_paths[0].judge.frame_resolver() else {
                 return valid;
@@ -706,6 +709,29 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         };
         let mut next_paths = Vec::new();
         for mut path in active_paths {
+            if let StatementNode::Call(call) = statement
+                && path.judge.has_runtime_body_values()
+                && path.judge.statement_has_runtime_completion(machine, call)
+            {
+                let Some(outcomes) = path.judge.normal_statement_completion_paths(
+                    call,
+                    statement_index,
+                    &path.environment,
+                    (machine, state, state.return_type),
+                ) else {
+                    return valid;
+                };
+                for judge in outcomes {
+                    next_paths.push(ActiveStatePrefixPath {
+                        judge,
+                        environment: path.environment.clone(),
+                        established_guarantees: path.established_guarantees.clone(),
+                        checked_contradiction_state: path.checked_contradiction_state,
+                    });
+                }
+                continue;
+            }
+
             let mut citation_preserves_values = true;
             if let Some((complete, ref writes)) = call_write_frame {
                 citation_preserves_values = complete && writes.is_empty();
@@ -832,6 +858,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 .rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             rejoined.capture_sequence += 1;
                             let captured = StructuralTerm::CapturedValue {
+                                statement: arena::Handle::invalid(),
                                 expression: local.initial_value,
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
@@ -1311,6 +1338,45 @@ fn recognize_structural_state_leaves_from<'a>(
                     &established_guarantees,
                 )?;
             }
+            if judge.has_runtime_body_values()
+                && let StatementNode::Call(call) = statement
+                && judge.statement_has_runtime_completion(invocation, call)
+            {
+                let outcomes = judge.normal_statement_completion_paths(
+                    call,
+                    statement_index,
+                    &environment,
+                    (invocation, state, state.return_type),
+                )?;
+                let next_statement = execution
+                    .get(execution_position + 1)
+                    .copied()
+                    .unwrap_or(statements.len());
+                let mut leaves = Vec::new();
+                for completed in outcomes {
+                    leaves.extend(recognize_structural_state_leaves_from(
+                        program,
+                        machine,
+                        &completed,
+                        classification,
+                        diagnostics,
+                        states,
+                        state,
+                        parameter_names,
+                        environment.clone(),
+                        case_hypotheses.clone(),
+                        case_equations.clone(),
+                        pending_citations.clone(),
+                        collect_citations,
+                        path,
+                        fresh,
+                        requirement,
+                        established_guarantees.clone(),
+                        next_statement,
+                    )?);
+                }
+                return Some(leaves);
+            }
             // Statement calls and their operands own separate write frames.
             // Retire affected storage without discarding unrelated captures.
             // Legacy citation substitution has no post-state argument model,
@@ -1484,6 +1550,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             rejoined.capture_sequence += 1;
                             let captured = StructuralTerm::CapturedValue {
+                                statement: arena::Handle::invalid(),
                                 expression: local.initial_value,
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,

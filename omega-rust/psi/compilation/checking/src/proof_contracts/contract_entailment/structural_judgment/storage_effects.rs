@@ -820,12 +820,26 @@ impl StructuralJudge<'_> {
         &self,
         scope: StorageScope<'_>,
         expression: ExpressionHandle,
+        mut specification_selector: impl FnMut(ExpressionHandle) -> Option<super::StructuralTerm>,
     ) -> Option<super::StructuralTerm> {
         // Case-only judgments intentionally do not track storage writes.
         if self.stored_values.is_empty() || !self.requires_value_preservation() {
             return None;
         }
-        let place = self.captured_storage_coordinate(scope, expression)?;
+        let place = if self.specification_terms {
+            // A predicate observes selectors at this proof point; it has no
+            // executable operand schedule of its own. Its term owner supplies
+            // the exact current environment and selected operation meanings.
+            // Executed reads still require their already completed selectors.
+            self.ordinary_storage_path(scope, expression)
+                .then_some(())?;
+            let place = crate::canonical_place_from_expression(self.program, expression)?;
+            self.capture_storage_place_with_selectors(place, |selector| {
+                specification_selector(selector).map(|value| self.completed_value_identity(value))
+            })?
+        } else {
+            self.captured_storage_coordinate(scope, expression)?
+        };
         let current = self.current_storage_value(&place);
         if super::super::struct_trace() {
             eprintln!(
@@ -1278,7 +1292,49 @@ impl StructuralJudge<'_> {
         destination: CapturedStoreDestination,
         value: super::StructuralTerm,
     ) -> Option<()> {
+        // The outward frame deliberately coarsens indexed stores. This actual
+        // store additionally owns one authenticated, already evaluated place.
+        // Preserve observed cells proved disjoint from that place, using the
+        // current roster after RHS effects, never the pre-RHS snapshot. Calls
+        // and opaque/multiple destinations still use only their complete frame.
+        let mut preserved = Vec::new();
+        if let Some(written) = &destination.coordinate {
+            let frames = self.frame_resolver()?;
+            for stored in self.stored_values.iter() {
+                if !stored
+                    .coordinate
+                    .has_stable_backing(self.program, state, frames)
+                    || !self.exact_storage_coordinates_disjoint(&stored.coordinate, written)
+                {
+                    continue;
+                }
+                let Some(current) = stored.current.clone() else {
+                    continue;
+                };
+                let Some(reference) = stored.coordinate.root.as_symbol().and_then(|root| {
+                    stored.coordinate.segments.iter().try_fold(
+                        crate::declaration_type_reference(self.program, root)?,
+                        |reference, segment| segment.projected_type(self.program, reference),
+                    )
+                }) else {
+                    continue;
+                };
+                // A disjoint descriptor slot preserves its words, not an old
+                // observation of potentially aliased storage behind the slot.
+                preserved.push((
+                    stored.coordinate.clone(),
+                    super::super::structural_terms::owned_projection_observation(
+                        self.program,
+                        reference,
+                        current,
+                    ),
+                ));
+            }
+        }
         self.observe_storage_effects(state, destination.frame.complete_paths())?;
+        for (coordinate, current) in preserved {
+            self.retain_storage_value(coordinate, current, false);
+        }
         if let Some(coordinate) = destination.coordinate {
             if super::super::struct_trace() {
                 eprintln!(
@@ -1304,6 +1360,43 @@ impl StructuralJudge<'_> {
             self.retain_storage_value(coordinate, value, false);
         }
         Some(())
+    }
+
+    /// A common backing and equal prefix identify the collection whose frozen
+    /// selectors are compared. Different roots, unknown selectors and prefix
+    /// writes supply no non-interference proof. Case tags are not disjoint
+    /// storage: changing a variant may replace its entire payload.
+    fn exact_storage_coordinates_disjoint(
+        &self,
+        observed: &CapturedStorageCoordinate,
+        written: &CapturedStorageCoordinate,
+    ) -> bool {
+        if observed.root != written.root {
+            return false;
+        }
+        for (observed, written) in observed.segments.iter().zip(&written.segments) {
+            if observed == written {
+                continue;
+            }
+            return match (observed, written) {
+                (
+                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol: left }),
+                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol: right }),
+                ) => left != right,
+                (CapturedStorageSegment::Index(left), CapturedStorageSegment::Index(right)) => {
+                    matches!(
+                        self.judge_equation(
+                            self.resolve_at(left.clone(), 0),
+                            self.resolve_at(right.clone(), 0),
+                            0,
+                        ),
+                        super::StructuralJudgment::Refuted
+                    )
+                }
+                _ => false,
+            };
+        }
+        false
     }
 
     /// A slice descriptor in a private owned home is a completed value,

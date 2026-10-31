@@ -1,0 +1,20 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+public data Holder { before: u64; items: [u64; 2]; after: u64; }
+public machine preserve(holder: &mut Holder, kept: u64, changed: u64, value: u64)
+requires kept < 2 && changed < 2 && holder.items[kept] == 7
+ensures holder.items[kept] == 7 && holder.items[changed] == value
+{ holder.items[changed] = value; }
+machine agree(saved: u64, current: u64) requires saved == 7 && current == saved {}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { before: 11, items: [7, 1], after: 13 };
+    let saved: u64 = holder.items[0];
+    preserve(&mut holder, 0, 1, 4);
+    agree(saved, holder.items[0]);
+    transition holder.items[0] == 7 && holder.items[1] == 4 && holder.before == 11 && holder.after == 13 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

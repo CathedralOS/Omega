@@ -1,0 +1,8 @@
+// A predicate's checked body, not its name, supplies entry element facts.
+// Intended invalid: the predicate guarantees 6 while the result promises 7.
+public machine kept(values: &[u64; 2]) -> bool { values[0] == 6 }
+public machine read_seven(values: &[u64; 2]) -> u64
+requires kept(values) == true
+ensures result == 7
+{ values[0] }
+machine main() -> u64 { let values: [u64; 2] = [6, 1]; read_seven(&values) }

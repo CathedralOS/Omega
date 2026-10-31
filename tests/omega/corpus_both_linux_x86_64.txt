@@ -5109,6 +5109,17 @@ pass/facts/saved_byte_predicate_through_other_machine built 2474ms exit:0 interp
 pass/facts/saved_byte_predicate_through_other_state built 1876ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/saved_byte_predicate_through_parameter built 1887ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/saved_byte_predicate_through_target_body built 1882ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit built 7952ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_const_name_exit built 7025ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_field_exit built 6799ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_local_exit built 6524ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_match_join_exit built 6984ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit built 6519ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit built 8079ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_parameter_exit built 6499ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_rhs_disjoint_exit built 7145ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_selector_current_exit built 7657ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit built 5511ms exit:0 interpreter-exit:0 interpreter:agrees @755b31d334ff
 pass/facts/saved_observation_snapshot_through_call_result_exit built 2128ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/saved_observation_snapshot_through_const_name_exit built 2101ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/saved_observation_snapshot_through_field_exit built 1866ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
