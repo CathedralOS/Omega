@@ -77,9 +77,10 @@ uses captured storage versions and call operands; an unknown or public/opaque
 result keeps the public requirement bound. Dynamic selection narrows only the
 suspension/blocking summary here; other envelope categories remain parent work.
 
-Scheduler parking, borrowed-parameter preservation across an inner suspension,
-complete operational-envelope refinement, crash and recursion contracts,
-package qualification metadata, product-source parity, and native execution on
-the other hosts remain parent acceptance. A borrowed Unit-call experiment and
-its refusal are retained under ignored `build/slot4-evidence/`; the compiler's
-retained-loan checks remain enforced.
+[Borrowed parameter](borrowed_parameter/main.omg) keeps a shared record live
+across the suspending call and reads it again after return. Its
+[invalid input](borrowed_parameter/invalid/main.omg) changes only that value
+from 100 to 99 and rejects the unproved requirement. Provider rows name each
+hosted target. Scheduler parking, operational-envelope categories other than
+suspension and blocking, package qualification metadata, product-source parity,
+and native execution on the other hosts remain parent acceptance.

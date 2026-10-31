@@ -1,0 +1,55 @@
+// Fact: a suspending dyn call preserves a borrowed record across the suspension.
+// Expected exit: 0
+public boundary trait Scheduler {
+    machine identity(value: u64) -> u64
+    ensures result == value
+    suspends;
+    reaches;
+}
+
+InlineScheduler satisfies Scheduler {
+    machine identity(value: u64) -> u64
+    ensures result == value
+    {
+        value
+    }
+}
+
+data Cell {
+    value: u64;
+}
+
+trait Read {
+    machine current(cell: &Cell) -> u64
+    requires cell.value == 100u64
+    ensures result == 100u64
+    suspends;
+}
+
+Reader satisfies Read {
+    machine current(cell: &Cell) -> u64
+    requires cell.value == 100u64
+    ensures result == 100u64
+    suspends;
+    {
+        let observed: u64 = cell.value;
+        let echoed: u64 = suspend Scheduler::identity(observed);
+        transition echoed == cell.value {
+            true -> echoed
+            _ -> bad()
+        }
+        machine bad() -> u64 crashes Trap { crash Trap; }
+    }
+}
+
+machine main() crashes Trap {
+    let cell: Cell = Cell { value: 100u64 };
+    let selected: dyn Read = Reader as dyn Read;
+    let observed: u64 = suspend Read::current(selected, &cell);
+    transition observed == 100u64 && cell.value == 100u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -393,13 +393,6 @@ fn lower_terminal_selection(
                 exact_toolchain_sources,
                 &mut lowered,
             )?;
-            suspension_call_plan::retain_suspension_call_plans(
-                identities,
-                checked,
-                &source_machines,
-                &lowered.source_call_occurrences,
-                &mut lowered.semantic_module,
-            )?;
             retained_borrow_custody::retain_foreign_borrow_custodies(
                 identities,
                 checked,
@@ -445,6 +438,16 @@ fn lower_terminal_selection(
                 identities,
                 checked,
                 &source_machines,
+                &mut lowered.semantic_module,
+            )?;
+            // A suspending selector call binds live arguments to the public
+            // slot shape. That shape is the catalog published above; reading
+            // it earlier finds no interface.
+            suspension_call_plan::retain_suspension_call_plans(
+                identities,
+                checked,
+                &source_machines,
+                &lowered.source_call_occurrences,
                 &mut lowered.semantic_module,
             )?;
             retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;

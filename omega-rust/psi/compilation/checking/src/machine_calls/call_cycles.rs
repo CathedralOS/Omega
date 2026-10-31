@@ -480,11 +480,21 @@ pub(crate) fn validate_machine_call_cycles(
             // from direct self calls. No source spelling or singleton shape
             // can supply the missing implementation-selection ranking.
             if selector_self_recursion.contains(&member) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine call cycle: `{}` can re-enter itself through a selector call; \
-                     termination across runtime implementation selection is not yet ranked",
-                    machines[member].name
-                )));
+                let machine = &machines[member];
+                let witnessed = machine.termination_plan.implementation_witness.is_some()
+                    || machine.termination_plan.interface.published().is_some_and(
+                        language_semantics::TerminationGuarantee::promises_termination,
+                    );
+                // An authored rank is judged with the rest of the component
+                // after effects complete. An unranked selector edge still
+                // cannot borrow a direct-call singleton exemption.
+                if !witnessed {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine call cycle: `{}` can re-enter itself through a selector call; \
+                         termination across runtime implementation selection is not yet ranked",
+                        machine.name
+                    )));
+                }
             }
             continue;
         }

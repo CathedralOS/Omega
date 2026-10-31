@@ -9148,16 +9148,21 @@ pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit built 5988ms exit:70 in
 pass/traits/runtime_dyn_mutable_byte_result built 2378ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_nested_result_exit built 1999ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_qualified_byte_result built 2270ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/traits/runtime_dyn_ranked_dispatch_cycle_exit built 2436ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
+pass/traits/runtime_dyn_ranked_self_dispatch_exit built 3118ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit built 6311ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_requirement_contract_exit built 6118ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_selector_and_literal_addresses_exit built 5930ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit built 6529ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 5833ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/traits/runtime_dyn_selector_crash_refined_exit built 2788ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_stored_byte_input rejected 1131ms interpreter:unchecked @a92f16431042
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 pass/traits/runtime_dyn_structural_result_exit built 3103ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/traits/runtime_dyn_suspending_borrowed_parameter_exit built 2137ms exit:0 interpreter-exit:0 interpreter:agrees @60879b0bca31+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @60879b0bca31+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 5743ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_exact_requirement_edge_exit built 5400ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
 pass/traits/runtime_explicit_implementation_arguments_exit rejected 848ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042

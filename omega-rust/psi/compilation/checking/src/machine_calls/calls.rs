@@ -912,7 +912,7 @@ pub use topology::{
     expression_normal_completion_possible, find_machine, find_machine_by_entry_state,
     find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
     find_state_on_machine, machine_state_by_symbols, machine_state_count,
-    normal_completion_possible, terminal_callable_target,
+    normal_completion_possible, terminal_callable_target, unique_dispatched_entry,
 };
 mod receiver_topology;
 pub(crate) use receiver_topology::placed_accessor_target;

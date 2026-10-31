@@ -595,7 +595,7 @@ pub use machine_calls::calls::{
     resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
-    transition_call_target,
+    transition_call_target, unique_dispatched_entry,
 };
 pub use value_custody::places::{
     CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,

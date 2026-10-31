@@ -154,6 +154,10 @@ fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
+fail/traits/dyn_selector_leading_crash_uncovered rejected 2077ms expected @3caadfad789f+wt
+	call from `observe` to `pass` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expected @60879b0bca31+wt
+	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -13004,16 +13008,20 @@ pass/traits/runtime_dyn_mutable_byte_result checked 3783ms check-target:macos_ar
 pass/traits/runtime_dyn_nested_result_exit checked 2658ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_post_write_alternatives_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_qualified_byte_result checked 3393ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_ranked_dispatch_cycle_exit checked 2941ms check-target:macos_arm64 @3caadfad789f+wt
+pass/traits/runtime_dyn_ranked_self_dispatch_exit checked 2702ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit checked 11240ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_requirement_contract_exit checked 13627ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_and_literal_addresses_exit checked 12212ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit checked 11285ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 4282ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_stored_byte_input incomplete 3835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `Main::main::main`, statement 3
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
