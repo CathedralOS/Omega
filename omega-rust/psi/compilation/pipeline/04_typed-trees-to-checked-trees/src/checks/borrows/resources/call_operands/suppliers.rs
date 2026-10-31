@@ -8,7 +8,7 @@ use super::{
     Arena, BorrowLoanFact, BorrowLoanOwnerSegment, CheckFacts, FlowCallFact, FlowOperandFact,
     FlowStateFact, Handle, ResourceDraft,
 };
-use crate::borrow::owner_path_from_place_segments;
+use crate::borrow::{owner_path_from_place_segments, owner_place_segments};
 use crate::places::place_at;
 use checked_trees::{
     CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowParentLifetime,
@@ -476,9 +476,8 @@ fn collect_formed_projection(
                 let capture = facts.flow.control.operands.get(source.capture);
                 row.formation_expression == capture.expression
                     && row.statement_index == capture.statement_index
-                    && crate::borrow::owner_place_segments(
-                        facts.borrow.owner_segments.span_or_empty(formed),
-                    ) == source.projection
+                    && owner_place_segments(facts.borrow.owner_segments.span_or_empty(formed))
+                        == source.projection
             })
         {
             continue;

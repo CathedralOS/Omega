@@ -16,7 +16,8 @@ use super::local_origins::rebase_storage_region;
 use super::local_origins::write_source_region;
 use super::summary::WriteDestination;
 use super::summary::captured_argument_write_regions;
-use crate::flow::expressions;
+use crate::collections::push_unique;
+use crate::flow::{expressions, literal_expression_projections, shared_call_frames_or};
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
@@ -76,7 +77,7 @@ pub(crate) fn signature_ceiling_regions(
         return None;
     }
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
+    let resolver = shared_call_frames_or(call_frames, program, &mut owned_frames);
     let mut places = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
@@ -94,7 +95,7 @@ pub(crate) fn signature_ceiling_regions(
                 resolver,
             );
             for region in residents? {
-                crate::collections::push_unique(&mut places, region);
+                push_unique(&mut places, region);
             }
             if !is_exclusive_reference(program, parameter.type_reference) {
                 // Declared reference-free storage cannot reach the caller. A
@@ -143,10 +144,10 @@ pub(crate) fn signature_ceiling_regions(
                                         granted: owner.granted,
                                         resident: owner.resident,
                                     };
-                                    crate::collections::push_unique(&mut places, content);
+                                    push_unique(&mut places, content);
                                 }
                             }
-                            crate::collections::push_unique(&mut places, region);
+                            push_unique(&mut places, region);
                         }
                     }
                 }
@@ -178,7 +179,7 @@ pub(crate) fn signature_ceiling_regions(
             )
         })?;
         for storage in storage {
-            crate::collections::push_unique(&mut places, storage);
+            push_unique(&mut places, storage);
         }
         // Access routes belong to borrow checking and observation aliases.
         // Lending a captured view does not lend replacement of its descriptor
@@ -192,7 +193,7 @@ pub(crate) fn signature_ceiling_regions(
             borrow,
             borrow_call,
         )? {
-            crate::collections::push_unique(&mut places, region);
+            push_unique(&mut places, region);
         }
     }
     Some(places)
@@ -331,7 +332,7 @@ fn resident_owners_in_type(
     }
     let mut paths = vec![Vec::new()];
     for (path, _, _) in roster.identities {
-        crate::collections::push_unique(&mut paths, path);
+        push_unique(&mut paths, path);
     }
     for path in paths {
         let projected =
@@ -388,9 +389,7 @@ fn carried_exclusive_referents(
     // contributes its retained descriptor inventory. The shared projection
     // owner handles fields, cases and elements for both, without turning an
     // inline constructor into a fictitious named storage allocation.
-    for projection in
-        crate::flow::literal_expression_projections(program, argument, reference, &[], true)?
-    {
+    for projection in literal_expression_projections(program, argument, reference, &[], true)? {
         let projected = validation::project_type_reference_from_segments(
             program,
             reference,
@@ -537,7 +536,7 @@ pub(super) fn retained_loan_write_regions(
             root: loan.root,
             segments: borrow.loan_segments(loan).to_vec(),
         });
-        crate::collections::push_unique(&mut regions, region);
+        push_unique(&mut regions, region);
     }
     Some(regions)
 }

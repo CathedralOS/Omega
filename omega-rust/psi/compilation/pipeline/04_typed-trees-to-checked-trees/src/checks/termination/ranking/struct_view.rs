@@ -1,4 +1,4 @@
-use crate::flow::expressions;
+use crate::flow::{expressions, shared_call_frames_or};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -38,8 +38,7 @@ pub(super) fn state_has_proven_self_loop(
         return false;
     };
     let mut owned_frames = None;
-    let Some(frames) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-    else {
+    let Some(frames) = shared_call_frames_or(call_frames, program, &mut owned_frames) else {
         return false;
     };
     let mut rank_path = parameter.name.as_str().to_owned();

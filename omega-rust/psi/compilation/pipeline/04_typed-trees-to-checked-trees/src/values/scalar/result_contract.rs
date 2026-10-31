@@ -12,9 +12,9 @@ use super::structural_fields;
 use crate::flow::expressions;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
-use crate::values::scalar::contract_entry;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::scalar_lowering::{construct_integer_binary, lower_return_expression};
+use crate::values::scalar::{contract_entry, scalar_position_count};
 use crate::values::scalar_expression_type;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
@@ -408,8 +408,7 @@ impl ContractPredicates<'_, '_> {
                     .count();
                 return Some((erased_position, parameter.type_reference, true));
             }
-            let scalar_position =
-                crate::values::scalar::scalar_position_count(program, &self.parameters[..position]);
+            let scalar_position = scalar_position_count(program, &self.parameters[..position]);
             return Some((scalar_position, parameter.type_reference, false));
         }
         // Equal spelling or carrier does not establish result ownership. This
@@ -419,7 +418,7 @@ impl ContractPredicates<'_, '_> {
                 == Some((self.owner, self.result_type)))
         .then(|| {
             (
-                crate::values::scalar::scalar_position_count(program, self.parameters),
+                scalar_position_count(program, self.parameters),
                 self.result_type,
                 false,
             )
@@ -1623,7 +1622,7 @@ pub(crate) fn lower_state_declared_range_predicate(
     if !is_integer(primitive_type) {
         return None;
     }
-    let position = crate::values::scalar::scalar_position_count(program, &parameters[..index]);
+    let position = scalar_position_count(program, &parameters[..index]);
     if let (Some(minimum), Some(maximum)) = (
         validation::closed_integer_range_bound(program, minimum),
         validation::closed_integer_range_maximum(program, maximum, end_inclusive),
@@ -1689,7 +1688,7 @@ pub(crate) fn lower_state_domain_predicate(
     if authored.relevance.is_erased() || authored.is_const {
         return None;
     }
-    let position = crate::values::scalar::scalar_position_count(program, &parameters[..index]);
+    let position = scalar_position_count(program, &parameters[..index]);
     validation::scalar_domain_value_predicate(
         program,
         constraint,

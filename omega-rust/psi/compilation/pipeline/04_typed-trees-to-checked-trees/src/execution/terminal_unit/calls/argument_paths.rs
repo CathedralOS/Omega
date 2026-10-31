@@ -4,6 +4,7 @@
 use super::super::types::parameter_is_root;
 use super::boundary_admission::fixed_byte_array_view_is_admitted;
 use super::view_subslice::is_view_subslice;
+use crate::execution::terminal_unit::cleanup::machine_has_content_evidence;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_type_identity, dense_scalar_parameter_index,
@@ -17,8 +18,10 @@ use crate::execution::terminal_unit::{
     Multiplicity, SignatureContractKind, StateParameter, StatementNode, SymbolHandle,
     TypeReferenceHandle, TypeReferenceNode,
 };
-use crate::flow::expressions;
+use crate::flow::{expressions, state_statements};
 use crate::places::place_at;
+use crate::values::lower_unit_scalar_argument;
+use crate::values::scalar_expression_type;
 use typed_trees::expression::ExpressionHandle;
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -82,7 +85,7 @@ pub(crate) fn checked_call_scalar_arguments(
                 coordinate.statement_index,
                 role,
             )?;
-            (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
+            (scalar_expression_type(expression)? == parameter.primitive_type)
                 .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
@@ -180,7 +183,7 @@ pub(crate) fn checked_call_erased_scalar_arguments(
                 coordinate.statement_index,
                 role,
             )?;
-            (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
+            (scalar_expression_type(expression)? == parameter.primitive_type)
                 .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
@@ -645,7 +648,7 @@ pub(crate) fn value_index_segment(
     if !primitive.is_fixed_integer() {
         return None;
     }
-    let operand = crate::values::lower_unit_scalar_argument(
+    let operand = lower_unit_scalar_argument(
         program,
         operators,
         state,
@@ -694,7 +697,7 @@ fn constant_local_index(
 ) -> Option<usize> {
     let name = program.expression_table.name_path_node(expression)?;
     let source_state = program.state_by_symbol(state_symbol)?;
-    let local = crate::flow::state_statements(program, source_state.statement_nodes)
+    let local = state_statements(program, source_state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == name.symbol && !local.is_mutable => {
@@ -1022,11 +1025,7 @@ pub(crate) fn projected_call_contracts_are_represented(
     if parameters.len() != arguments.len() || !target_machine.supplies_checked_body() {
         return false;
     }
-    let has_content_evidence = |machine, state| {
-        crate::execution::terminal_unit::cleanup::machine_has_content_evidence(
-            facts, machine, state,
-        )
-    };
+    let has_content_evidence = |machine, state| machine_has_content_evidence(facts, machine, state);
     let content_evidence = has_content_evidence(caller_machine.symbol, caller_state.symbol)
         || has_content_evidence(target_machine.symbol, target_state.symbol);
     arguments
