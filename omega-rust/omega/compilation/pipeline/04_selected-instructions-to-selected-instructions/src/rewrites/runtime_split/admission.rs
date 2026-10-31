@@ -17,6 +17,7 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{
     control, next_instruction_id, next_register_id, require_dominated_uses,
 };
+use crate::rewrites::selected_operands::selected_operand;
 
 pub(super) struct Admission {
     pub block_index: usize,
@@ -237,22 +238,13 @@ pub(super) fn copy_instruction(
     fresh: VirtualRegisterId,
     source_value: ValueId,
 ) -> SelectedInstruction {
-    let operand = |row: &register_model::RegisterOperandConstraint, register| SelectedOperand {
-        operand: row.operand,
-        virtual_register: register,
-        access: row.access,
-        class: row.class,
-        fixed_view: row.fixed_view,
-        tied_to: row.tied_to,
-        early_clobber: row.early_clobber,
-    };
     SelectedInstruction {
         id,
         kind: SelectedInstructionKind::CopyI64,
         constraint: row.key,
         operands: vec![
-            operand(&row.operands[0], victim),
-            operand(&row.operands[1], fresh),
+            selected_operand(&row.operands[0], victim),
+            selected_operand(&row.operands[1], fresh),
         ],
         implicit_uses: row.implicit_uses.clone(),
         implicit_defs: row.implicit_defs.clone(),
