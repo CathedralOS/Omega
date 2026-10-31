@@ -3,6 +3,8 @@
 //! call return types, ownership events, and cleanup plans in the complete check
 //! facts. The check pass derives it after execution finalization, not during flow.
 
+use std::collections::BTreeMap;
+
 use validation::{
     CanonicalPlace, canonical_place_type_reference, project_type_reference_from_segments,
 };
@@ -15,6 +17,14 @@ use language_semantics::{PermissionEventKind, PermissionEventSource};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::types::TypeReferenceHandle;
 
+/// Invocation-local positions into the publication roster. Exact full handles
+/// and dependency kind own membership; the Vec retains first-publication order.
+#[derive(Default)]
+struct DependencyRows {
+    rows: Vec<CheckedSemanticDependency>,
+    positions: BTreeMap<(u32, u32, u32, u32, Kind), usize>,
+}
+
 /// Rederive the complete canonical semantic-dependency table from compiler
 /// authority rather than trusting a previously retained table.
 ///
@@ -24,7 +34,7 @@ pub(crate) fn derive_checked_semantic_dependencies(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedSemanticDependencies {
-    let mut rows = Vec::new();
+    let mut rows = DependencyRows::default();
 
     // Machine-head types are semantic dependencies even when no ownership
     // event materializes them (notably a returned nominal constructed at the
@@ -141,6 +151,11 @@ pub(crate) fn derive_checked_semantic_dependencies(
         }
     }
 
+    let DependencyRows {
+        mut rows,
+        positions,
+    } = rows;
+    drop(positions);
     rows.sort_by_key(|row| {
         (
             row.consumer_machine.arena_index(),
@@ -154,7 +169,7 @@ pub(crate) fn derive_checked_semantic_dependencies(
 
 fn append_type_dependencies(
     program: &dyn ::validation::CheckingInput,
-    rows: &mut Vec<CheckedSemanticDependency>,
+    rows: &mut DependencyRows,
     consumer_machine: SymbolHandle,
     type_reference: TypeReferenceHandle,
     exposure: Exposure,
@@ -378,7 +393,7 @@ fn machine_signature_exposure(
 }
 
 fn push_cleanup_machine(
-    rows: &mut Vec<CheckedSemanticDependency>,
+    rows: &mut DependencyRows,
     consumer_machine: SymbolHandle,
     cleanup_machine: SymbolHandle,
     exposure: Exposure,
@@ -394,16 +409,91 @@ fn push_cleanup_machine(
     );
 }
 
-fn push_promoting(rows: &mut Vec<CheckedSemanticDependency>, candidate: CheckedSemanticDependency) {
-    if let Some(existing) = rows.iter_mut().find(|existing| {
-        existing.consumer_machine == candidate.consumer_machine
-            && existing.dependency == candidate.dependency
-            && existing.kind == candidate.kind
-    }) {
-        if candidate.exposure == Exposure::PublicInterface {
-            existing.exposure = Exposure::PublicInterface;
+fn push_promoting(rows: &mut DependencyRows, candidate: CheckedSemanticDependency) {
+    let key = (
+        candidate.consumer_machine.arena_index(),
+        candidate.consumer_machine.generation(),
+        candidate.dependency.arena_index(),
+        candidate.dependency.generation(),
+        candidate.kind,
+    );
+    match rows.positions.entry(key) {
+        std::collections::btree_map::Entry::Occupied(position) => {
+            if candidate.exposure == Exposure::PublicInterface {
+                rows.rows[*position.get()].exposure = Exposure::PublicInterface;
+            }
         }
-    } else {
-        rows.push(candidate);
+        std::collections::btree_map::Entry::Vacant(position) => {
+            position.insert(rows.rows.len());
+            rows.rows.push(candidate);
+        }
+    }
+}
+
+#[cfg(test)]
+mod dependency_row_tests {
+    use super::{CheckedSemanticDependency, DependencyRows, Exposure, Kind, push_promoting};
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn indexed_promotion_matches_ordered_linear_accumulation() {
+        let row = |consumer_generation, dependency_generation, kind, exposure| {
+            CheckedSemanticDependency {
+                consumer_machine: SymbolHandle::from_parts(3, consumer_generation),
+                dependency: SymbolHandle::from_parts(7, dependency_generation),
+                kind,
+                exposure,
+            }
+        };
+        let candidates = [
+            row(1, 1, Kind::NominalIdentity, Exposure::PrivateImplementation),
+            row(1, 1, Kind::NominalIdentity, Exposure::PublicInterface),
+            row(2, 1, Kind::NominalIdentity, Exposure::PrivateImplementation),
+            row(1, 2, Kind::NominalIdentity, Exposure::PrivateImplementation),
+            row(1, 1, Kind::Layout, Exposure::PublicInterface),
+            row(
+                1,
+                1,
+                Kind::AutomaticCleanupMachine,
+                Exposure::PrivateImplementation,
+            ),
+        ];
+        for length in 0..=4 {
+            for sequence in 0..candidates.len().pow(length) {
+                let mut digits = sequence;
+                let mut indexed = DependencyRows::default();
+                let mut expected: Vec<CheckedSemanticDependency> = Vec::new();
+                for _ in 0..length {
+                    let candidate = candidates[digits % candidates.len()];
+                    digits /= candidates.len();
+                    push_promoting(&mut indexed, candidate);
+                    if let Some(existing) = expected.iter_mut().find(|existing| {
+                        existing.consumer_machine == candidate.consumer_machine
+                            && existing.dependency == candidate.dependency
+                            && existing.kind == candidate.kind
+                    }) {
+                        if candidate.exposure == Exposure::PublicInterface {
+                            existing.exposure = Exposure::PublicInterface;
+                        }
+                    } else {
+                        expected.push(candidate);
+                    }
+                    assert_eq!(indexed.rows, expected);
+                }
+                // The original stable sort deliberately omits generations.
+                // Its equal-key order still comes from the publication Vec.
+                let key = |row: &CheckedSemanticDependency| {
+                    (
+                        row.consumer_machine.arena_index(),
+                        row.dependency.arena_index(),
+                        row.kind,
+                        row.exposure,
+                    )
+                };
+                indexed.rows.sort_by_key(key);
+                expected.sort_by_key(key);
+                assert_eq!(indexed.rows, expected);
+            }
+        }
     }
 }

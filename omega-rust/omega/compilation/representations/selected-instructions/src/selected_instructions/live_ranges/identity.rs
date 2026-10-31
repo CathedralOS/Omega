@@ -28,34 +28,32 @@ pub fn live_range_identity_from_digests(
 
 /// One function's share of `live_range_identity`.
 pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 32] {
-    let mut bytes = Vec::with_capacity(
-        256 + function.virtual_registers.len() * 48 + function.interference.len() * 8,
-    );
-    bytes.extend_from_slice(b"omega.terminal-live-range-function.v1\0");
-    crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
-    crate::codec_bytes::encode_len(&mut bytes, function.block_domains.len());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    digest.raw(b"omega.terminal-live-range-function.v1\0");
+    digest.raw(&function.machine.get().to_le_bytes());
+    digest.len(function.block_domains.len());
     for block in &function.block_domains {
-        crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, block.source_block.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, block.start.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, block.end.0.to_le_bytes());
+        digest.raw(&block.block.0.to_le_bytes());
+        digest.raw(&block.source_block.get().to_le_bytes());
+        digest.raw(&block.start.0.to_le_bytes());
+        digest.raw(&block.end.0.to_le_bytes());
     }
-    crate::codec_bytes::encode_len(&mut bytes, function.virtual_registers.len());
+    digest.len(function.virtual_registers.len());
     for register in &function.virtual_registers {
-        crate::codec_bytes::push_encoded(&mut bytes, register.virtual_register.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, register.class.0.to_le_bytes());
-        crate::codec_bytes::encode_len(&mut bytes, register.occurrences.len());
+        digest.raw(&register.virtual_register.0.to_le_bytes());
+        digest.raw(&register.class.0.to_le_bytes());
+        digest.len(register.occurrences.len());
         for occurrence in &register.occurrences {
-            crate::codec_bytes::push_encoded(&mut bytes, occurrence.position.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, occurrence.point.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, occurrence.instruction.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, occurrence.operand.to_le_bytes());
-            bytes.push(occurrence.access.access_tag());
+            digest.raw(&occurrence.position.0.to_le_bytes());
+            digest.raw(&occurrence.point.0.to_le_bytes());
+            digest.raw(&occurrence.instruction.0.to_le_bytes());
+            digest.raw(&occurrence.operand.to_le_bytes());
+            digest.byte(occurrence.access.access_tag());
         }
-        crate::codec_bytes::encode_len(&mut bytes, register.fixed_constraints.len());
+        digest.len(register.fixed_constraints.len());
         for constraint in &register.fixed_constraints {
             match constraint.site {
-                VirtualFixedConstraintSite::Entry => bytes.push(0),
+                VirtualFixedConstraintSite::Entry => digest.byte(0),
                 VirtualFixedConstraintSite::Operand {
                     position,
                     point,
@@ -63,113 +61,121 @@ pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 
                     operand,
                     access,
                 } => {
-                    bytes.push(1);
-                    crate::codec_bytes::push_encoded(&mut bytes, position.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(&mut bytes, point.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(&mut bytes, instruction.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(&mut bytes, operand.to_le_bytes());
-                    bytes.push(access.access_tag());
+                    digest.byte(1);
+                    digest.raw(&position.0.to_le_bytes());
+                    digest.raw(&point.0.to_le_bytes());
+                    digest.raw(&instruction.0.to_le_bytes());
+                    digest.raw(&operand.to_le_bytes());
+                    digest.byte(access.access_tag());
                 }
             }
-            crate::codec_bytes::push_encoded(&mut bytes, constraint.view.0.to_le_bytes());
+            digest.raw(&constraint.view.0.to_le_bytes());
         }
-        encode_fragments(&mut bytes, &register.fragments);
-        encode_connectors(&mut bytes, &register.edge_connectors);
+        encode_fragments(&mut digest, &register.fragments);
+        encode_connectors(&mut digest, &register.edge_connectors);
     }
-    crate::codec_bytes::encode_len(&mut bytes, function.tied_pairs.len());
-    crate::codec_bytes::encode_len(&mut bytes, function.edge_transfers.len());
+    digest.len(function.tied_pairs.len());
+    digest.len(function.edge_transfers.len());
     for edge in &function.edge_transfers {
-        crate::codec_bytes::push_encoded(&mut bytes, edge.source.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, edge.target.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, edge.psi_edge.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, edge.argument.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, edge.parameter.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, edge.class.0.to_le_bytes());
+        digest.raw(&edge.source.0.to_le_bytes());
+        digest.raw(&edge.target.0.to_le_bytes());
+        digest.raw(&edge.psi_edge.get().to_le_bytes());
+        digest.raw(&edge.argument.0.to_le_bytes());
+        digest.raw(&edge.parameter.0.to_le_bytes());
+        digest.raw(&edge.class.0.to_le_bytes());
     }
-    crate::codec_bytes::encode_len(&mut bytes, function.copy_affinities.len());
+    digest.len(function.copy_affinities.len());
     for affinity in &function.copy_affinities {
-        crate::codec_bytes::push_encoded(&mut bytes, affinity.block.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, affinity.instruction.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, affinity.source.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, affinity.destination.0.to_le_bytes());
+        digest.raw(&affinity.block.0.to_le_bytes());
+        digest.raw(&affinity.instruction.0.to_le_bytes());
+        digest.raw(&affinity.source.0.to_le_bytes());
+        digest.raw(&affinity.destination.0.to_le_bytes());
     }
     for tie in &function.tied_pairs {
-        crate::codec_bytes::push_encoded(&mut bytes, tie.block.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.position.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.instruction.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.use_operand.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.use_virtual_register.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.use_point.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.def_operand.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.def_virtual_register.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.def_point.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, tie.class.0.to_le_bytes());
+        digest.raw(&tie.block.0.to_le_bytes());
+        digest.raw(&tie.position.0.to_le_bytes());
+        digest.raw(&tie.instruction.0.to_le_bytes());
+        digest.raw(&tie.use_operand.to_le_bytes());
+        digest.raw(&tie.use_virtual_register.0.to_le_bytes());
+        digest.raw(&tie.use_point.0.to_le_bytes());
+        digest.raw(&tie.def_operand.to_le_bytes());
+        digest.raw(&tie.def_virtual_register.0.to_le_bytes());
+        digest.raw(&tie.def_point.0.to_le_bytes());
+        digest.raw(&tie.class.0.to_le_bytes());
     }
-    crate::codec_bytes::encode_len(&mut bytes, function.early_clobbers.len());
+    digest.len(function.early_clobbers.len());
     for early in &function.early_clobbers {
-        crate::codec_bytes::push_encoded(&mut bytes, early.block.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.position.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.instruction.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.early_point.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.def_operand.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.def_virtual_register.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.def_class.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, early.def_point.0.to_le_bytes());
-        crate::codec_bytes::encode_len(&mut bytes, early.uses.len());
+        digest.raw(&early.block.0.to_le_bytes());
+        digest.raw(&early.position.0.to_le_bytes());
+        digest.raw(&early.instruction.0.to_le_bytes());
+        digest.raw(&early.early_point.0.to_le_bytes());
+        digest.raw(&early.def_operand.to_le_bytes());
+        digest.raw(&early.def_virtual_register.0.to_le_bytes());
+        digest.raw(&early.def_class.0.to_le_bytes());
+        digest.raw(&early.def_point.0.to_le_bytes());
+        digest.len(early.uses.len());
         for used in &early.uses {
-            crate::codec_bytes::push_encoded(&mut bytes, used.operand.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, used.virtual_register.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, used.class.0.to_le_bytes());
+            digest.raw(&used.operand.to_le_bytes());
+            digest.raw(&used.virtual_register.0.to_le_bytes());
+            digest.raw(&used.class.0.to_le_bytes());
         }
     }
-    crate::codec_bytes::encode_len(&mut bytes, function.architectural_units.len());
+    digest.len(function.architectural_units.len());
     for unit in &function.architectural_units {
-        crate::codec_bytes::push_encoded(&mut bytes, unit.unit.0.to_le_bytes());
-        crate::codec_bytes::encode_len(&mut bytes, unit.actions.len());
+        digest.raw(&unit.unit.0.to_le_bytes());
+        digest.len(unit.actions.len());
         for action in &unit.actions {
-            crate::codec_bytes::push_encoded(&mut bytes, action.block.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, action.position.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, action.point.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, action.instruction.0.to_le_bytes());
-            bytes.push(match action.kind {
+            digest.raw(&action.block.0.to_le_bytes());
+            digest.raw(&action.position.0.to_le_bytes());
+            digest.raw(&action.point.0.to_le_bytes());
+            digest.raw(&action.instruction.0.to_le_bytes());
+            digest.byte(match action.kind {
                 ArchitecturalUnitActionKind::Use => 0,
                 ArchitecturalUnitActionKind::Def => 1,
                 ArchitecturalUnitActionKind::Clobber => 2,
             });
         }
-        encode_fragments(&mut bytes, &unit.fragments);
-        encode_connectors(&mut bytes, &unit.edge_connectors);
+        encode_fragments(&mut digest, &unit.fragments);
+        encode_connectors(&mut digest, &unit.edge_connectors);
     }
-    crate::codec_bytes::encode_len(&mut bytes, function.interference.len());
+    digest.len(function.interference.len());
     for pair in &function.interference {
-        crate::codec_bytes::push_encoded(&mut bytes, pair.lower.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut bytes, pair.higher.0.to_le_bytes());
+        digest.raw(&pair.lower.0.to_le_bytes());
+        digest.raw(&pair.higher.0.to_le_bytes());
     }
-    crate::digest_encoder::content_identity(&bytes).into()
+    digest.finish()
 }
 
-fn encode_fragments(bytes: &mut Vec<u8>, fragments: &[crate::LiveRangeFragment]) {
-    crate::codec_bytes::encode_len(bytes, fragments.len());
+fn encode_fragments(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    fragments: &[crate::LiveRangeFragment],
+) {
+    digest.len(fragments.len());
     for fragment in fragments {
-        crate::codec_bytes::push_encoded(bytes, fragment.block.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, fragment.start.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, fragment.end.0.to_le_bytes());
+        digest.raw(&fragment.block.0.to_le_bytes());
+        digest.raw(&fragment.start.0.to_le_bytes());
+        digest.raw(&fragment.end.0.to_le_bytes());
     }
 }
 
-fn encode_connectors(bytes: &mut Vec<u8>, connectors: &[crate::LiveRangeEdgeConnector]) {
-    crate::codec_bytes::encode_len(bytes, connectors.len());
+fn encode_connectors(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    connectors: &[crate::LiveRangeEdgeConnector],
+) {
+    digest.len(connectors.len());
     for connector in connectors {
-        crate::codec_bytes::push_encoded(bytes, connector.source.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, connector.terminator.0.to_le_bytes());
-        bytes.push(connector.polarity_ordinal);
-        crate::codec_bytes::push_encoded(
-            bytes,
-            connector
+        digest.raw(&connector.source.0.to_le_bytes());
+        digest.raw(&connector.terminator.0.to_le_bytes());
+        digest.byte(connector.polarity_ordinal);
+        digest.raw(
+            &connector
                 .psi_edge
                 .map_or(0, |edge| edge.get())
                 .to_le_bytes(),
         );
-        crate::codec_bytes::push_encoded(bytes, connector.target.0.to_le_bytes());
+        digest.raw(&connector.target.0.to_le_bytes());
     }
 }
+
+#[cfg(test)]
+mod tests;

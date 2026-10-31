@@ -69,7 +69,7 @@ pub(super) fn establish(
         &[tag],
         provenance(row),
     )?;
-    let pointer = super::zeroed_slot(builder, row, result.place, layout.shape)?;
+    let pointer = super::record::initialize_storage(row, builder, result.place, layout.shape)?;
     let payload = &layout.cases[0].fields[0];
     if layout.cases[2].fields != layout.cases[0].fields {
         return Err(invalid());

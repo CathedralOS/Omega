@@ -557,21 +557,23 @@ public machine Checker::writes_field(checker: &Checker, machine: u64 in Trapping
 crashes Trap
 {
     transition machine < 10240 && field < 1024 {
-        true -> read(checker, machine * 1024 + field)
+        true -> read(checker, machine * 16 + field / 64, field % 64)
         _ -> written()
     }
 
-    machine read(checker: &Checker, index: u64 in Trapping) -> bool {
-        transition index < 2097152 {
-            true -> entry(checker, index)
+    machine read(checker: &Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool {
+        transition index < 163840 && shift < 64 {
+            true -> entry(checker, index, shift)
             _ -> written()
         }
     }
 
-    machine entry(checker: &Checker, index: u64 in Trapping) -> bool
-    requires index < 2097152
+    machine entry(checker: &Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool
+    requires index < 163840, shift < 64
     {
-        checker.field_writes[index]
+        let one: u64 = 1;
+        let bit: u64 = one << shift;
+        (checker.field_writes[index] & bit) != 0
     }
 
     machine written() -> bool {
@@ -585,23 +587,25 @@ machine Checker::add_field_write(checker: &mut Checker, machine: u64 in Trapping
 crashes Trap
 {
     transition machine < 10240 && field < 1024 {
-        true -> slot(checker, machine, machine * 1024 + field)
+        true -> slot(checker, machine, machine * 16 + field / 64, field % 64)
         _ -> beyond(checker, machine)
     }
 
-    machine slot(checker: &mut Checker, machine: u64 in Trapping, index: u64 in Trapping) -> bool {
-        transition index < 2097152 {
-            true -> entry(checker, index)
+    machine slot(checker: &mut Checker, machine: u64 in Trapping, index: u64 in Trapping, shift: u64 in Trapping) -> bool {
+        transition index < 163840 && shift < 64 {
+            true -> entry(checker, index, shift)
             _ -> beyond(checker, machine)
         }
     }
 
-    machine entry(checker: &mut Checker, index: u64 in Trapping) -> bool
-    requires index < 2097152
+    machine entry(checker: &mut Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool
+    requires index < 163840, shift < 64
     {
-        let marked: bool = checker.field_writes[index];
-        checker.field_writes[index] = true;
-        !marked
+        let one: u64 = 1;
+        let bit: u64 = one << shift;
+        let previous: u64 = checker.field_writes[index];
+        checker.field_writes[index] = previous | bit;
+        (previous & bit) == 0
     }
 
     machine beyond(checker: &mut Checker, machine: u64 in Trapping) -> bool {
@@ -645,22 +649,22 @@ machine Checker::clear_field_writes(checker: &mut Checker, machine: u64 in Trapp
 crashes Trap
 {
     transition machine < 10240 {
-        true -> next(checker, machine * 1024, 0)
+        true -> next(checker, machine * 16, 0)
         _ -> done()
     }
 
     machine next(checker: &mut Checker, base: u64 in Trapping, field: u64 in Trapping) {
         let index: u64 in Trapping = base + field;
-        transition field < 1024 && index < 2097152 {
+        transition field < 16 && index < 163840 {
             true -> cleared(checker, base, field, index)
             _ -> done()
         }
     }
 
     machine cleared(checker: &mut Checker, base: u64 in Trapping, field: u64 in Trapping, index: u64 in Trapping)
-    requires index < 2097152
+    requires index < 163840
     {
-        checker.field_writes[index] = false;
+        checker.field_writes[index] = 0;
         transition { _ -> next(checker, base, field + 1) }
     }
 

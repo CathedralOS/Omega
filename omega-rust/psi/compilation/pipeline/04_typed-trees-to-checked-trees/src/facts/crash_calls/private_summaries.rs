@@ -506,9 +506,25 @@ pub(crate) fn solve_private_summary_fixed_point(
             .or_insert(index);
         resolved.push((equation.machine, equation.direct.clone()));
     }
+    // An equation's immutable direct/published routes and call substitutions
+    // change only when one of its selected target summaries changes. Retain
+    // reverse edges in the same exact machine namespace as selection below.
+    let mut dependents = vec![Vec::new(); equations.len()];
+    for (equation_index, equation) in equations.iter().enumerate() {
+        for dependency in &equation.private_dependencies {
+            let &target_index = equation_index_by_machine
+                .get(&dependency.machine)
+                .expect("every private dependency belongs to the viable fixed point");
+            dependents[target_index].push(equation_index);
+        }
+    }
+    let mut dirty = vec![true; equations.len()];
     for _ in 0..=equations.len() {
         let mut changed = false;
         for (equation_index, equation) in equations.iter().enumerate() {
+            if !std::mem::take(&mut dirty[equation_index]) {
+                continue;
+            }
             let mut buckets = equation.direct.clone();
             buckets.extend(equation.published_dependencies.clone());
             for dependency in &equation.private_dependencies {
@@ -536,6 +552,11 @@ pub(crate) fn solve_private_summary_fixed_point(
             if *current != buckets {
                 *current = buckets;
                 changed = true;
+                // Later equations still see this update in this sweep; an
+                // earlier or self-dependent equation is revisited next sweep.
+                for &dependent in &dependents[equation_index] {
+                    dirty[dependent] = true;
+                }
             }
         }
         if !changed {
@@ -1028,3 +1049,6 @@ pub(crate) fn selected_invocation_target(
     };
     crate::proof::contract_target_from_state_symbol(program, selected.unwrap_or(ordinary_target))
 }
+
+#[cfg(test)]
+mod fixed_point_tests;

@@ -504,6 +504,76 @@ pub(super) fn account<'calls>(
         // not an additional local Establish/Consume obligation.
         let release_owned_view = affine_view && owns_local_view_claim;
         let has_captured_view_loans = release_owned_view && has_captured_view_loans;
+        let storage_transfers = if result.multiplicity == Multiplicity::Unrestricted {
+            None
+        } else {
+            Some(super::super::storage_transfers::transfers(
+                program,
+                facts,
+                prepared_calls,
+                structural_results,
+                result.binding_ordinal,
+                operations,
+            )?)
+        };
+        let moves_occurrence = |argument: &CheckedUnitStructuralArgumentPlan| {
+            argument.access == CheckedStructuralAccess::Owned
+                && occupies_result(&argument.source, operations.len())
+        };
+        // The emitted affine frontier solver owns whole no-work custody
+        // independently of a source exit death. Require its exact source type
+        // capability and the actual producer's empty claim frontier, rather
+        // than inferring disposal from scalar payloads or a nonreturning target.
+        // Partially moved owners keep their independently selected residual
+        // cleanup; that solver never invents a death for a vacant root.
+        // Descriptor/loan release remains a distinct owner as well.
+        let no_code_completion_owner = result.multiplicity == Multiplicity::Affine
+            && result.local.access == CheckedStructuralAccess::Owned
+            && shapes
+                .types
+                .get(&result.type_identity)
+                .is_some_and(|declaration| {
+                    declaration.no_code_affine_cleanup && !declaration.owns_linear_claim
+                })
+            && producer_claim_paths(program, facts, operation)
+                .is_some_and(|claims| claims.is_empty())
+            && storage_transfers
+                .as_ref()
+                .is_some_and(|transfers| transfers.possible.is_empty())
+            && matches!(
+                super::super::storage_transfers::has_computation_transfer(
+                    program,
+                    facts,
+                    state.symbol,
+                    structural_results,
+                    result,
+                    operations,
+                ),
+                Some(false)
+            )
+            && successor_moves.iter().all(|(_, moves)| *moves == 0)
+            && !successors.iter().any(|edge| {
+                edge.transfers.iter().any(|transfer| matches!(
+                    &transfer.source,
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject }
+                        if moves_occurrence(subject)
+                ))
+            })
+            && !construction_uses
+                .iter()
+                .chain(successor_construction_uses.iter().flatten())
+                .chain(return_construction_uses.iter().flatten())
+                .chain(guarded_return_construction_uses.iter().flatten())
+                .any(|(_, argument)| moves_occurrence(argument))
+            && !successors
+                .iter()
+                .flat_map(|edge| edge.operand_calls())
+                .chain(return_arms.iter().flat_map(|arm| {
+                    arm.operation_dependencies()
+                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                }))
+                .flat_map(CheckedUnitEffectOperationPlan::structural_operands)
+                .any(|argument| moves_occurrence(argument));
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
             // A closed dispatch retains the selected arm even after its call
             // becomes an ordinary completion. Never infer its disposal from
@@ -527,6 +597,7 @@ pub(super) fn account<'calls>(
                         operations,
                         statement,
                         continuation,
+                        no_code_completion_owner,
                     ))
         };
         if result.multiplicity != Multiplicity::Unrestricted
@@ -588,15 +659,7 @@ pub(super) fn account<'calls>(
         let projected_disposition = if result.multiplicity == Multiplicity::Unrestricted {
             false
         } else {
-            let mut paths = super::super::storage_transfers::transfers(
-                program,
-                facts,
-                prepared_calls,
-                structural_results,
-                result.binding_ordinal,
-                operations,
-            )?
-            .definite;
+            let mut paths = storage_transfers.as_ref()?.definite.clone();
             // Definite paths are coverage, not transfer occurrences: mutually
             // exclusive alternatives may establish the same guarantee. Keep
             // the actual occurrences in the transfer graph for move checking.

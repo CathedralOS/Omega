@@ -965,20 +965,6 @@ helper that passes does not close an item.
   construction, matching-host layout/ABI and customer oracles remain unchanged;
   no retired syntax acceptance path remains.
 
-- **PREFIX-CASE-IDENTITIES.** Implement the ratified
-  [identity-before-case syntax](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
-  through Rust and Omega parsers, schema reflection, retained encodings and
-  source tooling. Migrate every numbered-case declaration under source,
-  samples, fixtures and compiler-input literals to `#N case Name`, preserving
-  member numbers, payload scopes, tombstones, default-domain obligations,
-  authored case order and runtime discriminators; remove the retired parser
-  path rather than accepting two dialects. Unnumbered cases remain unchanged.
-  Acceptance: a mixed common-field/case fact survives all nine places with
-  native/Terminal agreement, payload and neighbor checks, and fact-sensitive
-  reject twins; old-order and case-block declarations reject. No executable
-  source fixture remains in the retired numbered spelling or changes its
-  expected value/reject obligation merely to accommodate the migration.
-
 - **STATE-LOCAL-VALUE-FRONTIER.** (also covers **REFERENCE-LOCAL-BINDING-ROUTES**
   and **TRANSITION-TAIL-CALL-TO-MACHINE**)
   Complete ordinary expression, call, reference-local, tail-transition, and

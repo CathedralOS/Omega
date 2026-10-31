@@ -12,6 +12,7 @@ use language_semantics::content::ContentConservationOwnerKind;
 pub(super) fn completed_source(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    outgoing_rows: &super::partition_wrappers::OutgoingRows<'_>,
     source: &validation::ContentConservationSourcePlan,
 ) -> Option<Vec<validation::ContentConservationDependencies>> {
     if source.plan.owner_kind != ContentConservationOwnerKind::Machine {
@@ -24,7 +25,11 @@ pub(super) fn completed_source(
         return None;
     }
     let state = program.state_in_machine(machine, source.plan.callable)?;
-    let outgoing = super::partition_wrappers::ordinary_returns(program, facts, state);
+    let outgoing = super::partition_wrappers::ordinary_returns(
+        program,
+        outgoing_rows.for_state(state.symbol).into_iter(),
+        state,
+    );
     if outgoing.is_empty() {
         return None;
     }

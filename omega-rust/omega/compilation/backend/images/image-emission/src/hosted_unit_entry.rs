@@ -13,11 +13,12 @@ use object_file::{
 
 /// One installed entry surface: the symbol and text offset every entry
 /// surface retains, plus the surface that completes through it.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct EntryShim {
     pub(super) surface: EntrySurface,
     pub(super) symbol: ObjectSymbolHandle,
     pub(super) offset: usize,
+    pub(super) stack: Option<owned_stack::HostedUnitStackPlan>,
 }
 
 /// The entry surface a shim completes through: physical arrival, one of the
@@ -26,6 +27,7 @@ pub(super) struct EntryShim {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum EntrySurface {
     Physical,
+    ProvisionedUnit,
     DarwinReceiver,
     LinuxReceiver,
     LinuxArm64Receiver,
@@ -45,6 +47,7 @@ impl EntrySurface {
             surface: self,
             symbol,
             offset,
+            stack: None,
         }
     }
 }
@@ -90,7 +93,7 @@ pub(super) fn prepared_parts<'a>(
             object: &prepared.object,
             text_bytes: prepared.text.as_slice(),
             relocations: &prepared.relocations,
-            entry_shim: Some(prepared.shim),
+            entry_shim: Some(prepared.shim.clone()),
         },
     )
 }
@@ -257,8 +260,7 @@ fn validate_unit_entry(
     object: &ObjectPlan,
     text: &[u8],
     relocations: &object_file::RelocationPlan,
-    symbol: ObjectSymbolHandle,
-    offset: usize,
+    shim: EntryShim,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
     owned_stack::validate(
@@ -268,7 +270,7 @@ fn validate_unit_entry(
         object,
         text,
         relocations,
-        form.surface.shim(symbol, offset),
+        shim,
         output,
     )
 }
@@ -284,12 +286,8 @@ pub(super) fn validate_unit_shim(
     relocations: &object_file::RelocationPlan,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let EntryShim {
-        surface,
-        symbol,
-        offset,
-    } = shim;
-    let target = match surface {
+    let target = match shim.surface {
+        EntrySurface::ProvisionedUnit => artifact.target,
         EntrySurface::DarwinUnit => target::NativeTarget::macos_arm64(),
         EntrySurface::DarwinX86_64Unit => target::NativeTarget::macos_x64(),
         EntrySurface::WindowsUnit => target::NativeTarget::windows_x64(),
@@ -310,8 +308,7 @@ pub(super) fn validate_unit_shim(
         object,
         text,
         relocations,
-        symbol,
-        offset,
+        shim,
         output,
     )
 }

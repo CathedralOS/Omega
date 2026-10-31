@@ -183,3 +183,106 @@ fn constraint_catalog_accepts_an_explicit_register_free_row() {
     row.clobbers.clear();
     assert!(validate_register_constraint_catalog(catalog, &model).is_ok());
 }
+
+#[test]
+fn validated_lookup_preserves_full_keys_missing_rows_and_revalidated_snapshots() {
+    use crate::{RegisterConstraintFamily, RegisterConstraintKey, find_register_constraint};
+
+    let families = [
+        RegisterConstraintFamily::Call,
+        RegisterConstraintFamily::Return,
+        RegisterConstraintFamily::SystemCall,
+        RegisterConstraintFamily::InlineAssembly,
+        RegisterConstraintFamily::Instruction,
+    ];
+    let model = validated_miniature_model();
+    let mut raw = miniature_catalog();
+    let template = raw.constraints[0].clone();
+    let keys: Vec<_> = families
+        .iter()
+        .flat_map(|&family| {
+            [0, 1, u32::MAX].map(|variant| RegisterConstraintKey { family, variant })
+        })
+        .collect();
+    raw.required = keys.clone();
+    raw.constraints = keys
+        .iter()
+        .enumerate()
+        .map(|(position, &key)| crate::RegisterInstructionConstraint {
+            id: RegisterConstraintId(u16::try_from(position).unwrap()),
+            key,
+            ..template.clone()
+        })
+        .collect();
+    let validated = validate_register_constraint_catalog(raw.clone(), &model).unwrap();
+    for family in families {
+        for variant in [0, 1, 2, u32::MAX - 1, u32::MAX] {
+            let key = RegisterConstraintKey { family, variant };
+            let original = find_register_constraint(&validated.catalog().constraints, key);
+            let found = validated.constraint(key);
+            assert_eq!(found, original);
+            if let Some(found) = found {
+                assert!(std::ptr::eq(found, original.unwrap()));
+                assert!(std::ptr::eq(
+                    found,
+                    &validated.catalog().constraints[usize::from(found.id.0)]
+                ));
+            }
+        }
+    }
+    // Raw catalogs retain arbitrary order and exact first-match behavior.
+    let mut duplicate = vec![template.clone(), template.clone()];
+    duplicate[0].id = RegisterConstraintId(24);
+    duplicate[1].id = RegisterConstraintId(25);
+    assert_eq!(
+        find_register_constraint(&duplicate, template.key),
+        Some(&duplicate[0])
+    );
+    duplicate.reverse();
+    assert_eq!(
+        find_register_constraint(&duplicate, template.key),
+        Some(&duplicate[0])
+    );
+    for duplicate in [true, false] {
+        let mut invalid = raw.clone();
+        if duplicate {
+            invalid.constraints[1].key = invalid.constraints[0].key;
+        } else {
+            invalid.constraints.swap(0, 1);
+            for (position, row) in invalid.constraints.iter_mut().enumerate() {
+                row.id = RegisterConstraintId(u16::try_from(position).unwrap());
+            }
+        }
+        assert_eq!(
+            validate_register_constraint_catalog(invalid, &model),
+            Err(Rejected::NonCanonicalConstraintKeys)
+        );
+    }
+    // Appending a raw row requires a new validation; it cannot stale a borrow.
+    let appended_key = RegisterConstraintKey::call(2);
+    let mut appended = template;
+    appended.id = RegisterConstraintId(u16::try_from(raw.constraints.len()).unwrap());
+    appended.key = appended_key;
+    raw.constraints.push(appended);
+    raw.required.push(appended_key);
+    raw.required.sort();
+    assert_eq!(
+        validate_register_constraint_catalog(raw.clone(), &model),
+        Err(Rejected::NonCanonicalConstraintKeys)
+    );
+    raw.constraints.sort_by_key(|row| row.key);
+    for (position, row) in raw.constraints.iter_mut().enumerate() {
+        row.id = RegisterConstraintId(u16::try_from(position).unwrap());
+    }
+    let replacement = validate_register_constraint_catalog(raw.clone(), &model).unwrap();
+    assert!(validated.constraint(appended_key).is_none());
+    assert_eq!(
+        replacement.constraint(appended_key),
+        find_register_constraint(&raw.constraints, appended_key)
+    );
+    raw.required.clear();
+    raw.constraints.clear();
+    let empty = validate_register_constraint_catalog(raw, &model).unwrap();
+    assert!(empty.constraint(appended_key).is_none());
+    assert!(replacement.constraint(appended_key).is_some());
+}

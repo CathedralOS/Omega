@@ -20,6 +20,8 @@ pub struct PackageReviewInput<'a> {
     /// Original checked trees have a separate immutable query namespace. A
     /// supplied candidate's memo must never stand in for compiler custody.
     pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
+    /// Scratch for one immutable callable-projection batch, never custody.
+    pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>,
     pub(crate) service_declarations:
         Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
     pub(crate) external_providers:
@@ -35,8 +37,26 @@ impl<'a> PackageReviewInput<'a> {
             custody,
             checking_input: program,
             custody_checking_input: &**custody,
+            contract_owner_queries: None,
             external_providers: None,
             service_declarations: None,
+        }
+    }
+
+    /// Ask the same checked target query with this batch's raw owner setup.
+    /// Standalone projections retain the original unindexed query path.
+    pub(crate) fn derive_checked_nominal_call_target(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<symbols::SymbolHandle> {
+        match self.contract_owner_queries {
+            Some(queries) => queries.derive_checked_nominal_call_target(expression),
+            None => typed_trees_to_checked_trees::derive_checked_nominal_call_target(
+                self.checking_input,
+                &self.facts,
+                expression,
+                None,
+            ),
         }
     }
 
@@ -150,3 +170,48 @@ impl std::ops::Deref for PackageReviewInput<'_> {
         self.program
     }
 }
+
+/// Existing raw owner/site associations, bound to one exact immutable program
+/// and its supplied checked contracts for one package's callable projection.
+/// No call target or proof result is retained here.
+pub(crate) struct ContractOwnerQueries<'program> {
+    program: &'program dyn validation::CheckingInput,
+    facts: &'program checked_trees::CheckFacts,
+    owners: std::cell::OnceCell<validation::expression_owners::OwnerEnvironmentIndex>,
+}
+
+impl<'program> ContractOwnerQueries<'program> {
+    pub(crate) fn new(
+        program: &'program dyn validation::CheckingInput,
+        facts: &'program checked_trees::CheckFacts,
+    ) -> Self {
+        Self {
+            program,
+            facts,
+            owners: std::cell::OnceCell::new(),
+        }
+    }
+
+    fn derive_checked_nominal_call_target(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<symbols::SymbolHandle> {
+        // The old query's first guard remains before any forest setup.
+        self.program.expression_table.call_node(expression)?;
+        let owners = self.owners.get_or_init(|| {
+            validation::expression_owners::OwnerEnvironmentIndex::new(
+                self.program,
+                &self.facts.proof.contract_facts,
+            )
+        });
+        typed_trees_to_checked_trees::derive_checked_nominal_call_target(
+            self.program,
+            self.facts,
+            expression,
+            Some(owners),
+        )
+    }
+}
+
+#[cfg(test)]
+mod owner_query_tests;

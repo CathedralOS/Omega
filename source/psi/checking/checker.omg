@@ -183,7 +183,8 @@ public data Checker {
     // per machine.
     whole_writes: [bool; 32768];
     unknown_writes: [bool; 10240];
-    field_writes: [bool; 2097152];
+    // Exact 1,024-field sets use sixteen words per declaration, below the old 2 MiB budget.
+    field_writes: [u64; 163840];
     // Per declaration, completed global component/termination summaries.
     binder_calls: [bool; 10240];
     terminating: [bool; 10240];

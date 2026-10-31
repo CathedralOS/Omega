@@ -2,12 +2,12 @@
 
 use selected_instructions::VirtualRegisterId;
 
-use selected_instructions::VirtualInterference;
+use selected_instructions::{VirtualInterference, VirtualInterferences};
 
 pub(super) fn registers_interfere(
     left: VirtualRegisterId,
     right: VirtualRegisterId,
-    interference: &[VirtualInterference],
+    interference: &VirtualInterferences,
 ) -> bool {
     let (lower, higher) = if left < right {
         (left, right)

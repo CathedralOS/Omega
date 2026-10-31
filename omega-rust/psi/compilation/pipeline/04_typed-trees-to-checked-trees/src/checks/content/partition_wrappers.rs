@@ -67,52 +67,85 @@ pub(crate) struct AvailablePartitionSource {
     pub(crate) derivation_depth: u32,
 }
 
+/// Every raw outgoing row under its exact state key, in arena order. This
+/// reader belongs to one immutable composition request, not a state span or a
+/// theorem frontier. Missing owners and duplicate rows remain candidates.
+pub(super) struct OutgoingRows<'facts> {
+    outgoing: &'facts arena::PagedArenaSet<checked_trees::FlowStateOutgoingFact>,
+    rows: checked_trees::KeyedRows<SymbolHandle, checked_trees::FlowStateOutgoingFact>,
+}
+
+impl<'facts> OutgoingRows<'facts> {
+    pub(super) fn new(
+        outgoing: &'facts arena::PagedArenaSet<checked_trees::FlowStateOutgoingFact>,
+    ) -> Self {
+        Self {
+            outgoing,
+            rows: Default::default(),
+        }
+    }
+
+    pub(super) fn for_state(
+        &self,
+        state: SymbolHandle,
+    ) -> Vec<(
+        arena::Handle<checked_trees::FlowStateOutgoingFact>,
+        &'facts checked_trees::FlowStateOutgoingFact,
+    )> {
+        self.rows.with_rows(
+            self.outgoing,
+            |row| row.state_symbol,
+            &state,
+            |rows| {
+                rows.iter()
+                    .map(|&handle| (handle, self.outgoing.get(handle)))
+                    .collect()
+            },
+        )
+    }
+}
+
 /// The flow owner records ordinary outgoing edges even when no authored
 /// ensures clause exists. Keep that complete roster independently from the
 /// invocations that happen to have usable theorem evidence.
-pub(crate) fn ordinary_returns(
+pub(crate) fn ordinary_returns<'facts>(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    rows: impl Iterator<
+        Item = (
+            arena::Handle<checked_trees::FlowStateOutgoingFact>,
+            &'facts checked_trees::FlowStateOutgoingFact,
+        ),
+    >,
     state: &typed_trees::state::State,
 ) -> Vec<arena::Handle<checked_trees::FlowStateOutgoingFact>> {
-    facts
-        .flow
-        .control
-        .outgoing
-        .iter()
-        .filter_map(|(handle, outgoing)| {
-            if outgoing.state_symbol != state.symbol {
+    rows.filter_map(|(handle, outgoing)| {
+        if outgoing.state_symbol != state.symbol {
+            return None;
+        }
+        if outgoing.transition_target.is_valid() {
+            let Some(StatementNode::Transition(transition)) = program
+                .statement_table
+                .statement_at(state, outgoing.statement_index)
+            else {
+                return None;
+            };
+            if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
                 return None;
             }
-            if outgoing.transition_target.is_valid() {
-                let Some(StatementNode::Transition(transition)) = program
-                    .statement_table
-                    .statement_at(state, outgoing.statement_index)
-                else {
-                    return None;
-                };
-                if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
-                    return None;
-                }
-            }
-            Some(handle)
-        })
-        .collect()
+        }
+        Some(handle)
+    })
+    .collect()
 }
 
-pub(crate) fn returned_partition_invocations(
+pub(super) fn returned_partition_invocations(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    outgoing_rows: &OutgoingRows<'_>,
     state: &typed_trees::state::State,
     conditions: &mut SelectionConditions,
 ) -> Vec<ReturnedPartitionInvocation> {
-    let Some(state_flow) = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))
-    else {
+    let Some(state_flow) = facts.flow.control.state_by_symbol(state.symbol) else {
         return Vec::new();
     };
     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
@@ -122,7 +155,11 @@ pub(crate) fn returned_partition_invocations(
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     let mut invocations = Vec::new();
-    for returned_at in ordinary_returns(program, facts, state) {
+    for returned_at in ordinary_returns(
+        program,
+        outgoing_rows.for_state(state.symbol).into_iter(),
+        state,
+    ) {
         let outgoing = facts.flow.control.outgoing.get(returned_at);
         let claims = crate::checks::multiplicity::current_returned_claims(
             program, facts, outgoing, conditions,
@@ -555,12 +592,7 @@ fn partition_entry_binding(
     subject: &ContentStructuralPlace,
     observations: &[Vec<facts::PlaceSegment>],
 ) -> Option<(PermissionClaimIdentity, ContentStructuralPlace)> {
-    let state_flow = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))?;
+    let state_flow = facts.flow.control.state_by_symbol(state.symbol)?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
     let call = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
@@ -790,12 +822,7 @@ fn instantiate_partition_result_subject(
     // retained capture trace follows stores through every receiving home and
     // stops at writes; a claim surviving a field mutation cannot donate its
     // producer's content theorem to this exit.
-    let state_flow = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, flow)| (flow.state_symbol == caller_state.symbol).then_some(flow))?;
+    let state_flow = facts.flow.control.state_by_symbol(caller_state.symbol)?;
     let operand =
         crate::flow::CapturedOperand::recorded(&facts.flow.control, invocation.completed_value)?;
     for observation in observations {
@@ -865,3 +892,6 @@ fn instantiate_partition_result_subject(
         });
     Some(target)
 }
+
+#[cfg(test)]
+mod outgoing_rows_tests;

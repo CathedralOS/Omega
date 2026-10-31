@@ -6,8 +6,8 @@ where
     marker >= 1,
 {
     marker: i32;
-    case #0 None;
-    case #1 Some;
+    #0 case None;
+    #1 case Some;
 }
 
 machine zero_is_none()

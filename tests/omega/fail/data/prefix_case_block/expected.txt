@@ -1,0 +1,1 @@
+case declaration blocks are not supported

@@ -163,8 +163,13 @@ impl<'program> CaseEvidence<'program> {
     /// Exact owned payload namespaces excluded in this immutable scope. The
     /// same batch supplies linear availability and affine residual geometry;
     /// a saved reference descriptor never supplies ownership of its referent.
-    pub(crate) fn inactive_owned_cases(&self) -> Vec<CanonicalPlace> {
-        let mut inactive = Vec::new();
+    pub(crate) fn for_each_inactive_owned_case(&self, mut visit: impl FnMut(&CanonicalPlace)) {
+        // One synchronous borrowed projection buffer serves this batch. A
+        // retaining consumer copies only after deciding this is new evidence.
+        let mut path = CanonicalPlace {
+            root: PlaceRoot::Unknown,
+            segments: Vec::new(),
+        };
         let mut previous = None;
         let mut previous_root = None;
         let mut root_is_plain_without_cleanup = false;
@@ -240,15 +245,15 @@ impl<'program> CaseEvidence<'program> {
                     continue;
                 };
                 if self.has_value_for_subject(&prepared, variant.symbol, false) {
-                    let mut path = subject.clone();
+                    path.root = subject.root;
+                    path.segments.clone_from(&subject.segments);
                     path.segments.push(PlaceSegment::Case {
                         variant: variant.symbol,
                     });
-                    inactive.push(path);
+                    visit(&path);
                 }
             }
         }
-        inactive
     }
 
     fn has_value(&self, subject: &CanonicalPlace, case: SymbolHandle, required: bool) -> bool {
@@ -279,8 +284,8 @@ impl<'program> CaseEvidence<'program> {
     }
 
     /// The caller authenticated stability at this evidence batch's exact cut.
-    /// Only the variant changes inside `inactive_owned_cases`, so normalize the
-    /// subject and locate its observation ranges once before querying variants.
+    /// Only the variant changes in this emission walk, so normalize the subject
+    /// and locate its observation ranges once before querying variants.
     fn prepare_stable_subject(&self, subject: &CanonicalPlace) -> PreparedCaseSubject {
         let mut subject = subject.clone();
         observations::normalize_place(

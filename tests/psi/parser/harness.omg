@@ -88,6 +88,7 @@ blocks;
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
         ParserHarness::write_declaration_tables(parser_harness, output);
+        ParserHarness::write_retirement_table(parser_harness, output);
         Console::exit_process(0);
     }
 
@@ -95,6 +96,7 @@ blocks;
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
         ParserHarness::write_declaration_tables(parser_harness, output);
+        ParserHarness::write_retirement_table(parser_harness, output);
         Console::exit_process(250);
     }
 
@@ -104,8 +106,8 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR15`, version
-// 15, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR17`, version
+// 17, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
@@ -127,8 +129,8 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 53);
-    ParserHarness::write_u64(parser_harness, 15);
+    ParserHarness::write_byte(parser_harness, 55);
+    ParserHarness::write_u64(parser_harness, 17);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -1883,4 +1885,37 @@ machine ParserHarness::flag(value: bool) -> u8 {
     machine zero() -> u8 {
         0
     }
+}
+
+// Schema history is retained separately: these rows cannot change any live
+// member, field, payload or case index in the preceding tables.
+machine ParserHarness::write_retirement_table(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
+reaches Console
+crashes Trap
+{
+    ParserHarness::write_u64(parser_harness, output.retired_identity_count as u64 in Trapping);
+    transition { _ -> next(parser_harness, output, 0) }
+    machine next(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.retired_identity_count {
+            true -> row(parser_harness, output, index)
+            _ -> done()
+        }
+    }
+    machine row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let retired: RetiredIdentity = SyntaxTrees::retired_identity(output, index);
+        transition retired.owner_kind {
+            RetiredIdentityOwner::Declaration -> tagged(parser_harness, output, index, retired, 1)
+            RetiredIdentityOwner::Payload -> tagged(parser_harness, output, index, retired, 2)
+        }
+    }
+    machine tagged(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping,
+        retired: RetiredIdentity, tag: u8)
+    {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_u64(parser_harness, retired.owner);
+        ParserHarness::write_source_span(parser_harness, retired.identity);
+        ParserHarness::write_source_span(parser_harness, retired.source_span);
+        transition { _ -> next(parser_harness, output, index + 1) }
+    }
+    machine done() {}
 }

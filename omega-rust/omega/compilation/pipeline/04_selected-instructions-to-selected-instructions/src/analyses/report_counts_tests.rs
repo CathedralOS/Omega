@@ -38,7 +38,7 @@ fn range_receipt_counts_match_fresh_projection_after_partial_carry() {
             copy_affinities: Vec::new(),
             early_clobbers: Vec::new(),
             architectural_units: Vec::new(),
-            interference: Vec::new(),
+            interference: Default::default(),
         })
     };
     let mut plan = LiveRangePlan {

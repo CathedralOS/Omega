@@ -2752,10 +2752,18 @@ crashes Trap
         let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
         let named: Lookup = Resolver::generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition named {
-            Lookup::Absent -> ancestor(sources, syntax, scope, name, item.parent)
-            _ -> named
+            Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle)
+            _ -> ancestor(sources, syntax, scope, name, item.parent)
         }
     }
+    machine static_parameter(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping, handle: u64 in Trapping) -> Lookup {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        transition parameter.kind == GenericParameterKind::Value {
+            true -> ancestor(sources, syntax, scope, name, parent)
+            false -> Lookup::Found { handle: handle }
+        }
+    }
+
     machine outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup {
         Resolver::generic_named(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
     }

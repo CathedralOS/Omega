@@ -50,8 +50,11 @@ pub(crate) fn partitions(
     let stack_end = stack.checked_add(stack_bytes).ok_or_else(invalid)?;
     let allocation_offset = stack_end;
     let end = recipes.iter().try_fold(allocation_offset, |end, recipe| {
+        let bytes = (recipe.contents().len() as u64)
+            .checked_add(recipe.observation_header().len() as u64)
+            .ok_or_else(invalid)?;
         align(end, recipe.alignment(), &invalid)?
-            .checked_add(recipe.contents().len() as u64 + recipe.observation_header().len() as u64)
+            .checked_add(bytes)
             .ok_or_else(invalid)
     })?;
     Ok(HostedEntryPartitions {

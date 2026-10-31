@@ -161,7 +161,7 @@ public machine Resolver::check_machine_forms(resolver: &mut Resolver, syntax: &S
 crashes Trap
 {
     let bindable: bool = Resolver::bindable_token(item.operator);
-    transition item.operator == OperatorToken::None || (bindable && item.container == MachineContainer::Root && item.has_owner) {
+    transition item.operator == OperatorToken::None || (bindable && item.container == MachineContainer::Root && item.parent == 0 && item.has_owner) {
         true -> contracts(resolver, syntax, item)
         _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedOperatorToken, item.token.source_span)
     }

@@ -10,6 +10,13 @@ use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord, SectionKind,
 };
 
+/// Produced once from the exact closed body; normal emission consumes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HostedUnitStackPlan {
+    pub(super) demand: crate::StackDemand,
+    pub(super) partitions: HostedEntryPartitions,
+}
+
 fn invalid() -> Diagnostic {
     Diagnostic::error("free Unit entry lost exact stack, call, or loader-continuation custody")
 }
@@ -34,19 +41,20 @@ pub(super) fn prepare(
     }
     let demand = crate::derive_stack_demand(artifact, artifact.entry)
         .map_err(|error| Diagnostic::error(format!("free Unit entry stack demand: {error}")))?;
-    let (object, _, storage) = crate::hosted_entry_storage::provision(
+    let (object, partitions, storage) = crate::hosted_entry_storage::provision(
         artifact,
         &demand,
         &[],
         call_overhead(artifact.target),
     )?;
-    if artifact.target.architecture == target::Architecture::Aarch64 {
-        let mut prepared =
-            crate::hosted_receiver::prepare_aarch64_entry(artifact, &[], object, storage)?;
-        prepared.shim.surface = form.surface;
-        return Ok(prepared);
-    }
-    prepare_x86_64(artifact, form, object, storage)
+    let mut prepared = if artifact.target.architecture == target::Architecture::Aarch64 {
+        crate::hosted_receiver::prepare_aarch64_entry(artifact, &[], object, storage)?
+    } else {
+        prepare_x86_64(artifact, form, object, storage)?
+    };
+    prepared.shim.surface = super::EntrySurface::ProvisionedUnit;
+    prepared.shim.stack = Some(HostedUnitStackPlan { demand, partitions });
+    Ok(prepared)
 }
 
 fn prepare_x86_64(
@@ -148,18 +156,20 @@ pub(super) fn validate(
     artifact: &crate::ObjectArtifact,
     object: &ObjectPlan,
     text: &[u8],
-    relocations: &object_file::RelocationPlan,
+    _relocations: &object_file::RelocationPlan,
     shim: EntryShim,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let expected = prepare(artifact, form)?;
+    let plan = shim.stack.as_ref().ok_or_else(invalid)?;
     let (symbol, offset) = shim.symbol_offset();
     if target != artifact.target
-        || shim != expected.shim
-        || object != &expected.object
-        || text != expected.text
-        || relocations != &expected.relocations
+        || plan.demand.psi() != artifact.psi
+        || plan.demand.target() != artifact.target()
+        || plan.demand.entry() != artifact.entry()
+        || artifact.physical_entry_binding().is_some()
+        || artifact.hosted_receiver_binding().is_some()
         || offset != artifact.text_bytes.len()
+        || object.layout.entry_symbol != symbol
     {
         return Err(invalid());
     }
@@ -174,8 +184,7 @@ pub(super) fn validate(
     if !(form.header_check)(output, offset, bytes) {
         return Err(Diagnostic::error(form.header_error));
     }
-    let demand = crate::derive_stack_demand(artifact, artifact.entry)
-        .map_err(|error| Diagnostic::error(format!("free Unit entry stack demand: {error}")))?;
+    let demand = &plan.demand;
     let original_bss = artifact
         .object
         .layout
@@ -192,14 +201,17 @@ pub(super) fn validate(
         .unwrap_or(0);
     let partitions = crate::hosted_entry_storage::partitions(
         target,
-        &demand,
+        demand,
         &[],
         call_overhead(target),
         original_bss,
     )?;
+    if partitions != plan.partitions {
+        return Err(invalid());
+    }
     crate::hosted_entry_storage::validate_partitions(
         target,
-        &demand,
+        demand,
         partitions,
         original_bss,
         output,

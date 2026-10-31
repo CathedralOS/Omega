@@ -575,18 +575,21 @@ fn receiving_claim_places(
             established_constructions.push(construction);
         }
     }
-    for (handle, operand) in flow.operands.iter().filter(|(_, operand)| {
-        operand.state_symbol == state
-            && operand.statement_index == statement
-            && operand.expression != expression
-            && !operand.constructed_children().is_empty()
-            && established_constructions.contains(&operand.expression)
-    }) {
-        roots.push((
-            handle,
-            facts::PlaceRoot::Expression(operand.expression),
-            Vec::new(),
-        ));
+    // An empty establishment roster contributes no construction roots.
+    if !established_constructions.is_empty() {
+        for (handle, operand) in flow.operands.iter().filter(|(_, operand)| {
+            operand.state_symbol == state
+                && operand.statement_index == statement
+                && operand.expression != expression
+                && !operand.constructed_children().is_empty()
+                && established_constructions.contains(&operand.expression)
+        }) {
+            roots.push((
+                handle,
+                facts::PlaceRoot::Expression(operand.expression),
+                Vec::new(),
+            ));
+        }
     }
     let mut receiving = Vec::new();
     for (handle, destination, path) in roots {

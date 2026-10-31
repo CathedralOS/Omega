@@ -1,26 +1,34 @@
 //! Invocation-local case observations in first-observation order.
 //!
-//! Permission replay revisits the same authenticated exclusions at successive
-//! cuts. Keep one exact-identity index alongside the publication order instead
-//! of comparing every prior structural path on every visit. This index decides
-//! only duplicate identity; it supplies no membership or overlap evidence.
-//! Hashes filter candidates; complete structural equality still decides every
-//! hit, including collisions. Publication and invalidation keep their order.
+//! Permission replay forks the same authenticated exclusions at successive
+//! cuts. Share the immutable table and paths until a branch changes its facts;
+//! copying every structural path at each cut makes large checking bodies retain
+//! the same evidence many times. The table keeps its publication order and exact
+//! identity index together. Hashes only filter candidates: full structural
+//! equality decides collisions, and invalidation still visits every original
+//! observation exactly once in order.
 
+use facts::{PlaceRoot, PlaceSegment};
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use symbols::{SymbolHasher, SymbolKeyMap};
 use validation::CanonicalPlace;
 
 #[derive(Clone)]
 struct CaseObservation {
-    place: CanonicalPlace,
+    place: Arc<CanonicalPlace>,
     fingerprint: u64,
 }
 
 #[derive(Clone, Default)]
-pub(super) struct CaseExclusions {
+struct CaseObservationTable {
     observations: Vec<CaseObservation>,
     by_identity: SymbolKeyMap<u64, usize>,
+}
+
+#[derive(Clone, Default)]
+pub(super) struct CaseExclusions {
+    table: Arc<CaseObservationTable>,
 }
 
 impl CaseExclusions {
@@ -31,15 +39,18 @@ impl CaseExclusions {
     }
 
     fn identity_position(&self, fingerprint: u64, place: &CanonicalPlace) -> Option<usize> {
-        let &first = self.by_identity.get(&fingerprint)?;
-        if self.observations[first].place == *place {
+        let Some(&first) = self.table.by_identity.get(&fingerprint) else {
+            return None;
+        };
+        if self.table.observations[first].place.as_ref() == place {
             return Some(first);
         }
-        // A collision keeps the first indexed row. Search the exact retained
-        // observations rather than treating the hash as a semantic identity.
-        self.observations
+        // A collision keeps the first indexed row, while complete retained
+        // paths distinguish every other observation with that fingerprint.
+        self.table
+            .observations
             .iter()
-            .position(|observation| observation.place == *place)
+            .position(|observation| observation.place.as_ref() == place)
     }
 
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
@@ -47,11 +58,13 @@ impl CaseExclusions {
         if self.identity_position(fingerprint, place).is_some() {
             return;
         }
-        self.by_identity
+        let table = Arc::make_mut(&mut self.table);
+        table
+            .by_identity
             .entry(fingerprint)
-            .or_insert(self.observations.len());
-        self.observations.push(CaseObservation {
-            place: place.clone(),
+            .or_insert(table.observations.len());
+        table.observations.push(CaseObservation {
+            place: Arc::new(place.clone()),
             fingerprint,
         });
     }
@@ -61,40 +74,75 @@ impl CaseExclusions {
             .is_some()
     }
 
+    /// Query exact ancestors through the existing identity index, including
+    /// the empty prefix. Membership keeps its complete collision comparisons.
+    pub(super) fn contains_prefix_of(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        if self.table.observations.is_empty() {
+            return false;
+        }
+        let mut query = CanonicalPlace {
+            root,
+            segments: path.to_vec(),
+        };
+        loop {
+            if self.contains(&query) {
+                return true;
+            }
+            if query.segments.pop().is_none() {
+                return false;
+            }
+        }
+    }
+
     pub(super) fn iter(&self) -> impl Iterator<Item = &CanonicalPlace> {
-        self.observations
+        self.table
+            .observations
             .iter()
-            .map(|observation| &observation.place)
+            .map(|observation| observation.place.as_ref())
     }
 
     pub(super) fn retain(&mut self, mut keep: impl FnMut(&CanonicalPlace) -> bool) {
-        let previous_length = self.observations.len();
-        self.observations
-            .retain(|observation| keep(&observation.place));
-        if self.observations.len() == previous_length {
+        // An unrelated write must not copy a shared table. Find the first
+        // removal before detaching, retaining the predicate's original order
+        // and exactly-once evaluation even when it carries observation state.
+        let Some(first_removed) = self
+            .table
+            .observations
+            .iter()
+            .position(|observation| !keep(&observation.place))
+        else {
             return;
-        }
-        // Rebuild only the compact integer index after a real removal. The
-        // retained fingerprints avoid rehashing paths, and a colliding bucket
-        // now points at its first surviving observation.
-        self.by_identity.clear();
-        for (position, observation) in self.observations.iter().enumerate() {
-            self.by_identity
+        };
+        let table = Arc::make_mut(&mut self.table);
+        let mut position = 0;
+        table.observations.retain(|observation| {
+            let original = position;
+            position += 1;
+            original < first_removed || (original > first_removed && keep(&observation.place))
+        });
+        // The first removed row and its prefix were already tested. Rebuild
+        // only after real removal, pointing each fingerprint at its first
+        // surviving observation without rehashing or changing publication order.
+        table.by_identity.clear();
+        for (position, observation) in table.observations.iter().enumerate() {
+            table
+                .by_identity
                 .entry(observation.fingerprint)
                 .or_insert(position);
         }
     }
 
     pub(super) fn clear(&mut self) {
-        self.observations.clear();
-        self.by_identity.clear();
+        // Forget this branch's facts without detaching and copying its sibling.
+        self.table = Arc::default();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CaseExclusions, CaseObservation};
+    use super::{CaseExclusions, CaseObservation, CaseObservationTable};
     use facts::{PlaceRoot, PlaceSegment};
+    use std::sync::Arc;
     use symbols::SymbolHandle;
     use validation::CanonicalPlace;
 
@@ -122,14 +170,16 @@ mod tests {
         ];
         let fingerprint = 7;
         let mut exclusions = CaseExclusions {
-            observations: places[..3]
-                .iter()
-                .map(|place| CaseObservation {
-                    place: place.clone(),
-                    fingerprint,
-                })
-                .collect(),
-            by_identity: [(fingerprint, 0)].into_iter().collect(),
+            table: Arc::new(CaseObservationTable {
+                observations: places[..3]
+                    .iter()
+                    .map(|place| CaseObservation {
+                        place: Arc::new(place.clone()),
+                        fingerprint,
+                    })
+                    .collect(),
+                by_identity: [(fingerprint, 0)].into_iter().collect(),
+            }),
         };
         for (position, place) in places[..3].iter().enumerate() {
             assert_eq!(
@@ -153,6 +203,69 @@ mod tests {
     }
 
     #[test]
+    fn indexed_prefix_queries_match_linear_observations_after_mutation() {
+        let exact = place(1, 1, 8);
+        let mut descendant = exact.clone();
+        descendant.segments.push(PlaceSegment::Field {
+            symbol: SymbolHandle::from_parts(11, 1),
+        });
+        let mut ancestor = exact.clone();
+        ancestor.segments.pop();
+        let empty = CanonicalPlace {
+            root: exact.root,
+            segments: Vec::new(),
+        };
+        let mut anonymous = exact.clone();
+        anonymous.root = PlaceRoot::Expression(arena::Handle::from_parts(3, 1));
+        let queries = [
+            exact.clone(),
+            descendant,
+            ancestor.clone(),
+            empty.clone(),
+            place(1, 1, 9),
+            place(1, 2, 8),
+            place(2, 1, 8),
+            anonymous.clone(),
+        ];
+        let check = |observations: &CaseExclusions| {
+            for query in &queries {
+                assert_eq!(
+                    observations.contains_prefix_of(query.root, &query.segments),
+                    observations.iter().any(|stored| {
+                        stored.root == query.root && query.segments.starts_with(&stored.segments)
+                    }),
+                    "query {query:?}",
+                );
+            }
+        };
+        let mut observations = CaseExclusions::default();
+        check(&observations);
+        for stored in [&exact, &queries[5], &queries[6], &anonymous] {
+            observations.insert(stored);
+            check(&observations);
+        }
+        // A stored descendant never proves its ancestor or another root.
+        assert!(!observations.contains_prefix_of(ancestor.root, &ancestor.segments));
+        assert!(!observations.contains_prefix_of(empty.root, &empty.segments));
+        let mut branch = observations.clone();
+        branch.retain(|stored| stored != &exact);
+        check(&branch);
+        check(&observations);
+        branch.insert(&empty);
+        check(&branch);
+        assert!(branch.contains_prefix_of(empty.root, &empty.segments));
+        assert!(branch.contains_prefix_of(queries[4].root, &queries[4].segments));
+        branch.retain(|stored| stored != &empty);
+        branch.insert(&exact);
+        check(&branch);
+        observations.clear();
+        check(&observations);
+        observations.insert(&anonymous);
+        check(&observations);
+        check(&branch);
+    }
+
+    #[test]
     fn repeated_cuts_preserve_first_observation_and_complete_identities() {
         let places = [
             place(2, 1, 8),
@@ -167,18 +280,47 @@ mod tests {
                 let mut digits = sequence;
                 let mut exclusions = CaseExclusions::default();
                 let mut expected = Vec::new();
+                let mut mixed = CaseExclusions::default();
+                let mut scratch = CanonicalPlace {
+                    root: PlaceRoot::Unknown,
+                    segments: Vec::new(),
+                };
                 for _ in 0..length {
                     let place = &places[digits % places.len()];
                     digits /= places.len();
                     exclusions.insert(place);
+                    scratch.root = place.root;
+                    scratch.segments.clone_from(&place.segments);
+                    mixed.insert(&scratch);
+                    // The callback's borrow ended: later buffer mutation must
+                    // not change any first-published table observation.
+                    scratch.segments.clear();
                     if !expected.contains(place) {
                         expected.push(place.clone());
                     }
                 }
                 assert_eq!(exclusions.iter().cloned().collect::<Vec<_>>(), expected);
+                assert_eq!(mixed.iter().cloned().collect::<Vec<_>>(), expected);
+                let mut branch = mixed.clone();
                 for place in &places {
                     assert_eq!(exclusions.contains(place), expected.contains(place));
+                    assert_eq!(mixed.contains(place), expected.contains(place));
                 }
+                for place in &expected {
+                    branch.insert(place);
+                    assert!(Arc::ptr_eq(&mixed.table, &branch.table));
+                }
+                let added = place(9, 9, 99);
+                branch.insert(&added);
+                assert!(!Arc::ptr_eq(&mixed.table, &branch.table));
+                assert_eq!(mixed.iter().cloned().collect::<Vec<_>>(), expected);
+                scratch.root = added.root;
+                scratch.segments.clone_from(&added.segments);
+                let mut retained = CaseExclusions::default();
+                retained.insert(&scratch);
+                scratch.root = PlaceRoot::Unknown;
+                scratch.segments.clear();
+                assert_eq!(retained.iter().next(), Some(&added));
             }
         }
     }
@@ -217,6 +359,12 @@ mod tests {
         );
         assert!(!exclusions.contains(&places[1]));
         let mut branch = exclusions.clone();
+        branch.retain(|place| place != &places[0]);
+        branch.insert(&places[1]);
+        assert_eq!(
+            exclusions.iter().collect::<Vec<_>>(),
+            vec![&places[0], &places[3], &places[2]]
+        );
         exclusions.clear();
         exclusions.insert(&places[1]);
         branch.retain(|_| false);

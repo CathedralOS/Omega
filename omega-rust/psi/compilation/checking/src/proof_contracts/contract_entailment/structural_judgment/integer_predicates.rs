@@ -121,7 +121,30 @@ pub(super) struct PreparedIntegerPremises<'program> {
     goal_work: std::sync::Mutex<Option<IntegerObservations<'program>>>,
 }
 
-type PreparedIntegerPremisesCacheKey = (usize, usize, usize, usize, bool, bool);
+// Leaf retention also depends on nonprojected current value facts and the
+// complete admitted-call class. Keep those immutable COW owners alive: pointer
+// equality is an exact epoch, including equal-length sibling histories. These
+// owners contain no Judge/cache edge, so they cannot cycle back into this LRU.
+struct PreparedIntegerPremisesCacheKey {
+    state: (usize, usize, usize, usize, bool, bool),
+    rewrites: std::sync::Arc<super::rewrite_table::RewriteTable>,
+    captured_results: std::sync::Arc<Vec<super::normal_returns::CapturedResultEquation>>,
+    normal_results:
+        std::sync::Arc<Vec<(typed_trees::expression::ExpressionHandle, StructuralTerm)>>,
+    substitutions: std::sync::Arc<Vec<(String, StructuralTerm)>>,
+    require_closed_computation: bool,
+}
+
+impl PartialEq for PreparedIntegerPremisesCacheKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.state == other.state
+            && std::sync::Arc::ptr_eq(&self.rewrites, &other.rewrites)
+            && std::sync::Arc::ptr_eq(&self.captured_results, &other.captured_results)
+            && std::sync::Arc::ptr_eq(&self.normal_results, &other.normal_results)
+            && std::sync::Arc::ptr_eq(&self.substitutions, &other.substitutions)
+            && self.require_closed_computation == other.require_closed_computation
+    }
+}
 
 #[derive(Default)]
 pub(super) struct PreparedIntegerPremisesCache<'program> {
@@ -134,9 +157,9 @@ pub(super) struct PreparedIntegerPremisesCache<'program> {
 impl<'program> PreparedIntegerPremisesCache<'program> {
     fn get(
         &mut self,
-        state: PreparedIntegerPremisesCacheKey,
+        state: &PreparedIntegerPremisesCacheKey,
     ) -> Option<Option<std::sync::Arc<PreparedIntegerPremises<'program>>>> {
-        let index = self.entries.iter().position(|(key, _)| *key == state)?;
+        let index = self.entries.iter().position(|(key, _)| key == state)?;
         let entry = self.entries.remove(index);
         let result = entry.1.clone();
         self.entries.push(entry);
@@ -148,7 +171,7 @@ impl<'program> PreparedIntegerPremisesCache<'program> {
         state: PreparedIntegerPremisesCacheKey,
         prepared: Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
     ) {
-        if let Some(index) = self.entries.iter().position(|(key, _)| *key == state) {
+        if let Some(index) = self.entries.iter().position(|(key, _)| key == &state) {
             self.entries.remove(index);
         } else if self.entries.len() >= 8 {
             self.entries.remove(0);
@@ -541,7 +564,9 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
             return None;
         }
-        let value = self.resolved_completed_semantic_value(value);
+        let value = self
+            .resolve(self.completed_value_identity(value.clone()))
+            .into_semantic_value();
         match value {
             StructuralTerm::Integer(value) => {
                 Some(IntegerRangeRecipe::bounds(value.clone(), value))
@@ -1004,11 +1029,17 @@ impl<'program> StructuralJudge<'program> {
             && self.captured_result_equations.is_empty()
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn resolved_completed_semantic_value(
+    /// Numeric association filtering uses the same admitted leaf namespace
+    /// as prepared integer atoms. This identity filter supplies no equality
+    /// proof; its caller still proves the original operands on every path.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_integer_semantic_value(
         &self,
         value: &StructuralTerm,
     ) -> StructuralTerm {
-        self.resolve(self.completed_value_identity(value.clone()))
+        let value = self.integer_projection_value(self.completed_value_identity(value.clone()));
+        self.completed_integer_call(&value)
+            .map(|(_, canonical, _)| canonical)
+            .unwrap_or(value)
             .into_semantic_value()
     }
 
@@ -1396,6 +1427,11 @@ impl<'program> StructuralJudge<'program> {
     fn cached_prepared_integer_premises(
         &self,
     ) -> Option<std::sync::Arc<PreparedIntegerPremises<'program>>> {
+        // A dependency trace is mutable output. Do not reuse a completed
+        // premise preparation or retain opaque leaves while it is active.
+        if self.has_resolution_dependency_collector() {
+            return self.prepare_integer_premises().map(std::sync::Arc::new);
+        }
         let potential_len = self.rewrites.potential_integer_premises_len();
         let state = if potential_len == 0 {
             (0, 0, 0, 0, self.runtime_body_values, self.case_facts_only)
@@ -1409,8 +1445,16 @@ impl<'program> StructuralJudge<'program> {
                 self.case_facts_only,
             )
         };
+        let state = PreparedIntegerPremisesCacheKey {
+            state,
+            rewrites: std::sync::Arc::clone(&self.rewrites),
+            captured_results: std::sync::Arc::clone(&self.captured_result_equations),
+            normal_results: std::sync::Arc::clone(&self.normal_results),
+            substitutions: std::sync::Arc::clone(&self.substitutions),
+            require_closed_computation: self.require_closed_computation,
+        };
         if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
-            && let Some(cached) = cache.get(state)
+            && let Some(cached) = cache.get(&state)
         {
             phase_profile::count("05.num.prove.2a_prep.hit", 1);
             return cached;
@@ -1533,7 +1577,7 @@ impl<'program> StructuralJudge<'program> {
             let truth_sem = match truth.semantic_value() {
                 sem @ StructuralTerm::Constructor { .. } => sem,
                 _ => {
-                    resolved_truth = self.resolve(truth.clone());
+                    resolved_truth = self.integer_projection_value(truth.clone());
                     resolved_truth.semantic_value()
                 }
             };
@@ -1783,7 +1827,20 @@ impl<'program> StructuralJudge<'program> {
         {
             return IntegerComparisonProjection::NotInteger;
         }
-        let [left, right] = [left, right].map(|operand| self.resolve(operand.as_ref().clone()));
+        let [left, right] =
+            [(left, references[0]), (right, references[1])].map(|(operand, reference)| {
+                if super::super::structural_terms::scalar_operand_is_observed(
+                    self.program,
+                    reference,
+                    operand,
+                ) {
+                    self.resolve_integer_operand(operand.as_ref().clone(), observations)
+                } else {
+                    // An unobserved original operand cannot gain the new
+                    // completed-call route by resolving to a different shell.
+                    self.resolve(operand.as_ref().clone())
+                }
+            });
         if ![&left, &right]
             .into_iter()
             .zip(references)
@@ -1814,13 +1871,23 @@ impl<'program> StructuralJudge<'program> {
         ))
     }
 
+    /// A completed call denotes its saved scalar here; public recipes retain
+    /// their operation trees in integer_value. Unobserved terms use the ordinary
+    /// resolver, including its original formation and completion checks.
+    fn integer_projection_value(&self, value: StructuralTerm) -> StructuralTerm {
+        self.resolve_with_at(value, 0, super::ResolutionPurpose::IntegerProjection)
+    }
+
     fn resolve_integer_operand(
         &self,
         value: StructuralTerm,
         observations: &mut IntegerObservations<'_>,
     ) -> StructuralTerm {
+        if self.has_resolution_dependency_collector() {
+            return self.integer_projection_value(value);
+        }
         let Some(answers) = &mut observations.operand_resolutions else {
-            return self.resolve(value);
+            return self.integer_projection_value(value);
         };
         if let Some((_, resolved)) = answers
             .iter()
@@ -1828,7 +1895,7 @@ impl<'program> StructuralJudge<'program> {
         {
             return resolved.clone();
         }
-        let resolved = self.resolve(value.clone());
+        let resolved = self.integer_projection_value(value.clone());
         answers.push((value, resolved.clone()));
         resolved
     }
@@ -1852,8 +1919,35 @@ impl<'program> StructuralJudge<'program> {
             }
             _ => false,
         };
-        let completed = self.completed_scalar_observation(value, primitive);
-        let description = self.completed_value_identity(value.clone());
+        let completed_before_resolution = self.completed_scalar_observation(value, primitive);
+        // This is an admission query only. Consume current context through
+        // the shared walk before using any saved whole-call leaf or atom.
+        let resolved_call;
+        let resolves_completed_call = self.completed_integer_call(value).is_some();
+        let value = if resolves_completed_call {
+            resolved_call = self.integer_projection_value(value.clone());
+            &resolved_call
+        } else {
+            value
+        };
+        let call = self
+            .completed_integer_call(value)
+            .filter(|(_, _, observed)| *observed == primitive);
+        let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
+        let completed = completed_before_resolution
+            .or_else(|| self.completed_scalar_observation(value, primitive));
+        let canonical_atom = |identity: &StructuralTerm| {
+            call.as_ref()
+                .filter(|(original, _, _)| original.same_resolution_payload(identity))
+                .map_or_else(|| identity.clone(), |(_, canonical, _)| canonical.clone())
+        };
+        let description = if call.is_some() {
+            // Eligibility already established that every peer has no public
+            // scalar recipe. Keep this occurrence until an atom is installed.
+            value.clone()
+        } else {
+            self.completed_value_identity(value.clone())
+        };
         // Preserve the authored operation tree until each node has admitted
         // its own children. General ring resolution may cancel an unsafe node.
         let value = match description.semantic_value() {
@@ -1871,15 +1965,16 @@ impl<'program> StructuralJudge<'program> {
                     | ArithmeticDomain::Saturating
             )
             && !matches!(value, StructuralTerm::ScalarBinary { .. })
+            && !(resolves_completed_call && matches!(value, StructuralTerm::Integer(_)))
         {
-            return observations.observed_atom(identity.clone(), primitive);
+            return observations.observed_atom(canonical_atom(identity), primitive);
         }
         if let StructuralTerm::Integer(integer) = value {
             let value = Polynomial::constant(integer.clone());
             // Folding an independently formed operand cannot make it
             // anonymous again. Contextual literal destinations carry no such
             // observation, nor does the operation whose fit is being queried.
-            if observed_carrier {
+            if observed_carrier || (resolves_completed_call && completed.is_some()) {
                 observations.install_observed_carrier_bounds(primitive, &value)?;
             }
             return Some(value);
@@ -1931,7 +2026,7 @@ impl<'program> StructuralJudge<'program> {
             });
             let (value, formation) = if let Some((completed, _)) = completed {
                 (
-                    observations.observed_atom(completed, primitive)?,
+                    observations.observed_atom(canonical_atom(&completed), primitive)?,
                     OperationFormation::CompletedValue,
                 )
             } else {
@@ -1953,7 +2048,7 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        observations.observed_atom(value.clone(), primitive)
+        observations.observed_atom(canonical_atom(value), primitive)
     }
 
     fn mathematical_value(
@@ -1964,6 +2059,11 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<Polynomial> {
         if depth >= 64 {
             return None;
+        }
+        if let Some((_, _, primitive)) = self.completed_integer_call(value) {
+            // The retained row selects a carrier, not an answer. The integer
+            // owner first consumes current rewrites through the shared walk.
+            return self.integer_value(value, primitive, observations, depth + 1);
         }
         if let StructuralTerm::IntegerEmbedding { reference, value } = value.semantic_value() {
             let (primitive, _) = super::super::structural_terms::scalar_operand_meaning(
@@ -1980,7 +2080,7 @@ impl<'program> StructuralJudge<'program> {
         // scalar operands still resolve normally, with formation checked below.
         let value = match value.semantic_value() {
             StructuralTerm::MathematicalBinary { .. } => value.clone(),
-            _ => self.resolve(value.clone()),
+            _ => self.integer_projection_value(value.clone()),
         };
         match value.semantic_value() {
             StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),

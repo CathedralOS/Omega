@@ -40,6 +40,9 @@ pass/control_flow/case_pattern_rename_waive_exit built 6884ms exit:70 interprete
 pass/core/independent_content_checked_factory_exit built 1804ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
 pass/core/independent_content_closed_carrier_factory_exit built 1720ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
 pass/core/independent_content_factory_exit built 1446ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
+pass/data/prefix_case_contextual_case_field built 1057ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/data/prefix_case_empty_reference_array built 1013ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/data/prefix_case_pure_sum_retirement built 1017ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/dependent/data_requires_clauses_exit built 1163ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/dependent/runtime_symbolic_slice_cell_theorem_exit built 1279ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
 pass/dependent/runtime_symbolic_slice_predicate_store_exit built 1328ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
@@ -242,6 +245,10 @@ pass/facts/disjoint_field_borrow_windows_through_other_machine_exit built 1141ms
 pass/facts/disjoint_field_borrow_windows_through_other_state_exit built 1170ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/facts/disjoint_field_borrow_windows_through_parameter_exit built 1154ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/facts/disjoint_field_borrow_windows_through_target_body_exit built 1454ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @1e127a84987a
+pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 699ms interpreter:unchecked @55a5fd4e07f8
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
+	cannot prove requires contract for call consume from main: Keeper in Keeper::Label in state `entry`
+pass/facts/domain_selected_cleanup_through_field_exit built 1069ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/eight_variant_enum_payload_bound_through_call_result_exit built 1930ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/eight_variant_enum_payload_bound_through_const_name_exit built 2033ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/eight_variant_enum_payload_bound_through_field_exit built 2180ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -434,6 +441,7 @@ pass/facts/inferred_record_equation_call/other_state built 3803ms exit:0 interpr
 pass/facts/inferred_record_equation_call/parameter built 4877ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/inferred_record_equation_call/root built 4265ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/inferred_record_equation_call/target_body built 3792ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/linear_owner_borrowed_projection_local built 1169ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/live_across_five_calls_preservation_bound_through_call_result_exit built 4507ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/live_across_five_calls_preservation_bound_through_const_name_exit built 4081ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/live_across_five_calls_preservation_bound_through_field_exit built 3994ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -831,6 +839,15 @@ pass/facts/owned_array_field_replacement_other_machine_exit built 1088ms exit:0 
 pass/facts/owned_array_field_replacement_other_state_exit built 1037ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
 pass/facts/owned_array_field_replacement_parameter_exit built 980ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
 pass/facts/owned_array_field_replacement_target_body_exit built 1037ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
+pass/facts/prefix_case_identity_call_result built 1017ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_const_name built 1045ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_field built 1082ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_local built 1018ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_match_join built 1036ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_other_machine built 1057ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_other_state built 1024ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_parameter built 1211ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/prefix_case_identity_target_body built 1327ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/quotient_closed_literal built 3876ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
 pass/facts/quotient_closed_literal_scalar_first built 2236ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/quotient_closed_literal_through_call_result_exit built 2243ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -1625,7 +1642,7 @@ pass/borrows/runtime_reference_record_call_completion_exit built 4584ms exit:70 
 pass/borrows/runtime_reference_record_call_payload_restoration_exit built 1672ms exit:70 interpreter-exit:70 interpreter:agrees @b5d8c6882a8b+wt
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit built 2397ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
 pass/borrows/runtime_replaced_reference_record_return_exit built 2486ms exit:0 interpreter-exit:0 interpreter:agrees @098d6c3730a4+wt
-pass/borrows/runtime_retained_operand_descriptor_cleanup_exit built 993ms exit:0 interpreter-exit:0 interpreter:agrees @b1c2f62d34c1
+pass/borrows/runtime_retained_operand_descriptor_cleanup_exit built 1201ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/borrows/runtime_returned_literal_window_exit built 994ms exit:0 interpreter-exit:0 interpreter:agrees @77f91fb3da34
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 2100ms exit:70 interpreter-exit:70 interpreter:agrees @6ba9c43af356+wt
 pass/borrows/runtime_returned_mutable_window_restoration_exit built 994ms exit:0 interpreter-exit:0 interpreter:agrees @77f91fb3da34
@@ -1698,7 +1715,8 @@ pass/build/crash_exclusion_unexecuted_helper_exit built 1403ms exit:0 interprete
 pass/build/discarded_provider_selection_exit built 6550ms exit:70 interpreter-exit:70 interpreter:agrees @ac7fc986d407+wt
 pass/build/executed_exclusion_values_exit built 2003ms exit:0 interpreter-exit:0 interpreter:agrees @85ebedb7befa
 pass/build/explicit_provider_readiness_exit built 2267ms exit:0 interpreter-exit:0 interpreter:agrees @f229bab668eb
-pass/build/installed_entry_ram_two_occurrences_exit built 1578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @0360a23ad5f5+wt
+pass/build/installed_entry_ram_two_occurrences_exit rejected 1167ms interpreter:unchecked regressed-from:built+exit:0+entry-ram:match+interpreter-exit:0+interpreter-entry-ram:match+interpreter:agrees @55a5fd4e07f8
+	placed scalar execution substituted its sealed operation or requested unsupported destructive take
 pass/build/nested_generated_dependency_dual_purpose built 3586ms exit:0 interpreter-exit:0 interpreter:agrees @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/build/product_entry_query_product_scope_alias built 2125ms exit:0 interpreter-exit:0 interpreter:agrees @07ad7c55cebd
 pass/build/product_selection_conditional_exit built 931ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
@@ -6752,3 +6770,7 @@ pass/facts/unsigned_8bit_bitwise_or_bound_through_target_body_exit built 1556ms 
 pass/facts/unsigned_8bit_saturating_multiplication_bound_through_target_body_exit built 8867ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8a8e769965b2
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_target_body_exit built 1552ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @e484531d32cf
 pass/facts/write_only_indexed_reborrow_through_target_body_exit built 1570ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @e484531d32cf
+pass/control_flow/affine_case_nonreturning_loop built 5872ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @55a5fd4e07f8
+pass/control_flow/affine_declared_home_nonreturning_loop built 5923ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @55a5fd4e07f8
+pass/control_flow/hosted_stack_live_caller_nested_callee built 1059ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/build/installed_entry_ram_live_stack_exit built 1401ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @9b4e2a97fb39

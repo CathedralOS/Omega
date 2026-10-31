@@ -191,10 +191,13 @@ pub(super) fn lower(
             .collect();
     }
 
+    let mut selected_subjects =
+        crate::unit::unit_cleanup::contexts::SelectedCleanupSubjects::new(checked);
     for signature in &mut signatures {
         let cleanup_context = crate::unit::unit_cleanup::contexts::prepare_signature(
             identities,
             checked,
+            &mut selected_subjects,
             signature.source,
             &mut signature.predicate_parameters,
             structural_types,

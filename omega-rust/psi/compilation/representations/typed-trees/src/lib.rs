@@ -18,6 +18,7 @@ pub mod references;
 pub mod service_declarations;
 pub mod typed_trees;
 
+pub use typed_trees::SpelledDeclarationTable;
 pub use typed_trees::calls::{
     boundary, dynamic_traits, finite_family, service, signature, static_applications,
 };

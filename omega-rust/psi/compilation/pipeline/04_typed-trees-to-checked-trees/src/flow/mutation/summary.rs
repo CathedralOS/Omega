@@ -887,6 +887,42 @@ fn instantiate_call_relative_writes(
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
+    let inputs = prepare_call_relative_inputs(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call,
+        namespace,
+    )?;
+    instantiate_call_relative_writes_pre_resolved(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call,
+        &inputs.site,
+        inputs.has_builtin_coordinates,
+        inputs.target,
+        relative_region,
+        destination,
+        namespace,
+        call_frames,
+    )
+}
+
+/// Immutable coordinates shared by every relative path of one invocation.
+struct CallRelativeInputs<'program> {
+    site: validation::CallSite<'program>,
+    has_builtin_coordinates: bool,
+    target: &'program typed_trees::state::State,
+}
+
+fn prepare_call_relative_inputs<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+    namespace: WritePlaceNamespace,
+) -> Option<CallRelativeInputs<'program>> {
     let call_site = find_call_site(
         program,
         caller_machine_symbol,
@@ -902,19 +938,72 @@ fn instantiate_call_relative_writes(
             &call_site,
         );
     let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
-    instantiate_call_relative_writes_pre_resolved(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        borrow_call,
-        &call_site,
+    Some(CallRelativeInputs {
+        site: call_site,
         has_builtin_coordinates,
-        target_state,
-        relative_region,
-        destination,
-        namespace,
-        call_frames,
-    )
+        target: target_state,
+    })
+}
+
+/// One immutable access-route interpretation, resolved on its first path only.
+/// The varying relative place is still judged by the shared instantiation body.
+pub(in crate::flow) struct AccessRouteReader<'input> {
+    program: &'input dyn ::validation::CheckingInput,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+    call: &'input BorrowCallFact,
+    inputs: std::cell::OnceCell<Option<CallRelativeInputs<'input>>>,
+}
+
+impl<'input> AccessRouteReader<'input> {
+    pub(in crate::flow) fn new(
+        program: &'input dyn ::validation::CheckingInput,
+        caller_machine: SymbolHandle,
+        caller_state: SymbolHandle,
+        call: &'input BorrowCallFact,
+    ) -> Self {
+        Self {
+            program,
+            caller_machine,
+            caller_state,
+            call,
+            inputs: std::cell::OnceCell::new(),
+        }
+    }
+
+    pub(in crate::flow) fn instantiate(
+        &self,
+        relative_place: &CanonicalPlace,
+    ) -> Option<Vec<CanonicalPlace>> {
+        let inputs = self
+            .inputs
+            .get_or_init(|| {
+                prepare_call_relative_inputs(
+                    self.program,
+                    self.caller_machine,
+                    self.caller_state,
+                    self.call,
+                    WritePlaceNamespace::AccessRoute,
+                )
+            })
+            .as_ref()?;
+        instantiate_call_relative_writes_pre_resolved(
+            self.program,
+            self.caller_machine,
+            self.caller_state,
+            self.call,
+            &inputs.site,
+            inputs.has_builtin_coordinates,
+            inputs.target,
+            &StorageRegion::Declared(relative_place.clone()),
+            WriteDestination::Referent,
+            WritePlaceNamespace::AccessRoute,
+            None,
+        )
+        .and_then(|writes| {
+            StorageRegion::declared_places(writes.into_iter().map(|write| write.region))
+        })
+    }
 }
 
 fn instantiate_call_relative_writes_pre_resolved(

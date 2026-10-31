@@ -148,6 +148,7 @@ pub(crate) fn call_receiver_read_accesses(
 /// state's own receiver.
 struct ReceiverCall<'facts> {
     call: &'facts BorrowCallFact,
+    access_route: super::mutation::AccessRouteReader<'facts>,
     receiver: CanonicalPlace,
     /// The target's footprint position; `None` for a target without one.
     target: Option<usize>,
@@ -227,6 +228,12 @@ fn build_state_receiver_reads(
             if owner.reaches(program, &receiver) {
                 calls.push(ReceiverCall {
                     call,
+                    access_route: super::mutation::AccessRouteReader::new(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        call,
+                    ),
                     receiver,
                     target: None,
                     run: target_run(program, machine.symbol, state.symbol, call),
@@ -355,15 +362,7 @@ impl FootprintOwner<'_> {
         let instantiated = target_reads.and_then(|reads| {
             let mut places = Vec::new();
             for read in reads {
-                places.extend(instantiate_call_relative_places(
-                    program,
-                    self.machine_symbol,
-                    self.state.symbol,
-                    receiver_call.call,
-                    read,
-                    WritePlaceNamespace::AccessRoute,
-                    None,
-                )?);
+                places.extend(receiver_call.access_route.instantiate(read)?);
             }
             Some(places)
         });

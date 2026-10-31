@@ -39588,3 +39588,44 @@ run/variant_record_normalization_repeats rejected 12132ms check-target:linux_x86
 pass/wire/runtime_wire_decode_predicate_capture_exit checked 8163ms check-target:macos_arm64 @00d9206f6621
 fail/dependent/data_where_field_free_conjunct_unestablished rejected 322ms expected @00d9206f6621
 	machine `entry_start` state `entry` statement 2: reading `pending.<whole value>` crosses an open default-domain invariant window before data `Guarded` is established: the zeroed representation is not yet a `Guarded` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/data/prefix_case_block rejected 98ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_block/main.omg:1:24: case declaration blocks are not supported; declare each `case Name` separately
+fail/data/prefix_case_mixed_tombstone_ambiguous rejected 98ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_mixed_tombstone_ambiguous/main.omg:1:71: `retired #N;` is ambiguous in mixed field-and-case data; publish separate record and sum shapes so each retired identity has one structural scope
+fail/data/prefix_case_old_order rejected 99ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_old_order/main.omg:1:17: numbered cases are spelled `#N case Name`, not `case #N Name`
+fail/data/prefix_case_partial_identities rejected 99ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_partial_identities/main.omg:1:44: stable identities are all-or-nothing for sum cases: number every member with `#N` or number none of them
+fail/data/prefix_case_payload_tombstone_reuse rejected 96ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_payload_tombstone_reuse/main.omg:1:53: stable identity #1 is declared more than once among structured case-payload fields and their retired identities
+fail/facts/prefix_case_identity_call_result rejected 681ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_const_name rejected 697ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_field rejected 684ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 3: result <= 60
+fail/facts/prefix_case_identity_local rejected 672ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_match_join rejected 681ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_other_machine rejected 707ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from consume_elsewhere at statement 2: result <= 60
+fail/facts/prefix_case_identity_other_state rejected 695ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from consume at statement 2: result <= 60
+fail/facts/prefix_case_identity_parameter rejected 676ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 1: result <= 60
+fail/facts/prefix_case_identity_target_body rejected 721ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from SelectedEntry::evaluate at statement 2: result <= 60
+pass/control_flow/affine_case_nonreturning_loop checked 5749ms check-target:macos_arm64 @3e5750be47b9
+pass/data/prefix_case_contextual_case_field checked 982ms check-target:macos_arm64 @3e5750be47b9
+pass/data/prefix_case_empty_reference_array checked 899ms check-target:macos_arm64 @3e5750be47b9
+pass/data/prefix_case_pure_sum_retirement checked 874ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_call_result checked 912ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_const_name checked 946ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_field checked 909ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_local checked 911ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_match_join checked 919ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_other_machine checked 899ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_other_state checked 902ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_parameter checked 912ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_target_body checked 943ms check-target:macos_arm64 @3e5750be47b9

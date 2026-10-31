@@ -15,7 +15,7 @@ use register_homes::{
     FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
     SpillChoicePolicy,
 };
-use selected_instructions::{LiveRangePoint, VirtualInterference};
+use selected_instructions::{LiveRangePoint, VirtualInterference, VirtualInterferences};
 
 #[derive(Debug, Clone, Copy)]
 struct ActiveHome {
@@ -488,7 +488,7 @@ fn first_free(
 fn interferes(
     left: VirtualRegisterId,
     right: VirtualRegisterId,
-    interference: &[VirtualInterference],
+    interference: &VirtualInterferences,
 ) -> bool {
     let pair = if left < right {
         VirtualInterference {

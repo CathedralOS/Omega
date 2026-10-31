@@ -718,9 +718,9 @@ pub(crate) fn declared_carriers_match_under_application(
 /// name ordinal 0), so only that case's payload contributes cells; a float
 /// payload is +0.0 and an aggregate payload is its own zero value
 /// (dependent_values.md, default domains and zero initialization).
-/// Reference and constrained payload carriers still decline: a reference has
-/// no zero spelling and a constrained carrier may exclude 0. Common fields
-/// beside cases follow the ordinary record rule. This is shape admission,
+/// Reference carriers decline: their referents are not owned zero storage.
+/// Constraints do not change storage shape; common and active payload fields
+/// use the same recursive admission. This is shape admission,
 /// not proof of a declaration's domain constraints, which source validation
 /// checks separately. Byte sequences and erased members remain unsupported.
 pub fn zeroed_structural_parts(
@@ -729,17 +729,30 @@ pub fn zeroed_structural_parts(
 ) -> bool {
     let mut pending = vec![type_reference];
     while let Some(current) = pending.pop() {
-        let Some(reference) = unwrapped_type_reference(program, current) else {
+        if !current.is_valid() {
             return false;
-        };
+        }
+        let reference = peel_declared_constraints(program, current);
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            return false;
+        }
         if program.primitive_type_reference(reference).is_some() {
             continue;
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: typed_trees::types::FixedArrayLength::Literal(_),
-            } => pending.push(*element_type),
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+            } => {
+                // An empty array owns no element occurrence, including no
+                // reference descriptor whose zero image needs establishment.
+                if *length != 0 {
+                    pending.push(*element_type);
+                }
+            }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
                 // Zero storage follows the same closed declaration as ordinary
                 // construction. Region arguments do not change layout, and a
@@ -777,15 +790,7 @@ pub fn zeroed_structural_parts(
                     }
                 }
                 for field in program.data_payload_fields(first_case) {
-                    if field.relevance.is_erased()
-                        || matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(field.type_reference),
-                            TypeReferenceNode::Reference { .. }
-                                | TypeReferenceNode::Constrained { .. }
-                        )
-                    {
+                    if field.relevance.is_erased() {
                         return false;
                     }
                     pending.push(field.type_reference);

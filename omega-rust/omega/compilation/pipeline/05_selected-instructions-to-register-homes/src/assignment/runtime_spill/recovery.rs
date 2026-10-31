@@ -1288,6 +1288,10 @@ fn recover_over(
                 // Flush the actual current program before concluding recovery
                 // failed; those admitted edits may already have solved it.
                 if selected.selected_identity() != analysis_source.selected().selected_identity() {
+                    // This batch is finished; release its pressure-only working index
+                    // before constructing replacement analysis facts.
+                    drop(domain);
+                    batch_indices.clear();
                     let unsealed = reanalyze_unsealed(
                         environment,
                         availability,
@@ -1313,7 +1317,6 @@ fn recover_over(
                         Err(error) if error.admits_runtime_recovery() => {
                             failure = error;
                             current_facts = unsealed;
-                            batch_indices.clear();
                             analysis_source = current.clone();
                             pending_pressure = home_reuse.take_pressure();
                             pending_pressure.reverse();
@@ -1443,6 +1446,10 @@ fn recover_over(
             failure = next_failure;
             continue;
         }
+        // No pending region will consult the old batch's pressure index again.
+        // Release it before replacement facts coexist with the current facts.
+        drop(domain);
+        batch_indices.clear();
         let reused_pressure = match &rewrite {
             RuntimeSpillStepRewrite::Spill(bounded) => {
                 failed_crossing.and_then(|probe| probe.reuse_for(bounded))
@@ -1481,7 +1488,6 @@ fn recover_over(
             Err(error) if error.admits_runtime_recovery() => {
                 failure = error;
                 current_facts = unsealed;
-                batch_indices.clear();
                 current = rewrite;
                 analysis_source = current.clone();
                 pending_pressure = home_reuse.take_pressure();

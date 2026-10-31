@@ -658,17 +658,7 @@ pub(crate) fn produced_value_root<'checked>(
         return unsupported("computed structural operand lost its checked invocation");
     }
     let call = control.calls.get(source_call);
-    let mut owners = control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .filter(|state| {
-            control
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .any(|candidate| std::ptr::eq(candidate, call))
-        });
+    let mut owners = control.call_owners(source_call).into_iter();
     let state = owners.next().ok_or(LoweringError::Unsupported(
         "computed structural operand has no invocation state",
     ))?;

@@ -1,0 +1,2 @@
+data Bad { #90 case First(#1 value: u64, retired #1); #7 case Later; }
+machine main() {}

@@ -25,8 +25,8 @@ where
 }
 
 data Choice<T> {
-    case #0 Empty;
-    case #1 Value(value: T);
+    #0 case Empty;
+    #1 case Value(value: T);
 }
 
 data Main { hits: i32 in Wrapping; }

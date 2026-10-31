@@ -294,6 +294,7 @@ fn check_program(
             record_dependency_bodies,
         )
     })?;
+    phase_profile::checkpoint("after typed preparation", "05.d.2.prepare_typed_program");
     let dependency_body_judgments = std::mem::take(&mut validated.dependency_body_judgments);
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
     // Caller-visible mutation summaries depend only on the immutable typed
@@ -331,6 +332,7 @@ fn check_program(
             &mutation_summaries,
         )
     })?;
+    phase_profile::checkpoint("after check-fact construction", "05.d.3.build_check_facts");
     let program = program.with_prepared_effect_plans(&prepared_effects);
     facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;
@@ -377,6 +379,7 @@ fn check_program(
             &expression_intervals,
         )
     })?;
+    phase_profile::checkpoint("after checked-fact checks", "05.d.7.check_checked_facts");
     let late_guard = phase_profile::guard("05.d.8_10.finalize_execution_identities");
     crate::quotient_eligibility::check(&program, &facts)?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
@@ -394,6 +397,10 @@ fn check_program(
     let mut facts = phase_profile::scope("05.d.8_10.a.finalize_execution", || {
         crate::execution::finalize_execution::finalize_execution(&program, facts)
     })?;
+    phase_profile::checkpoint(
+        "after execution finalization",
+        "05.d.8_10.a.finalize_execution",
+    );
     facts.flow.semantic_dependencies =
         phase_profile::scope("05.d.8_10.b.semantic_dependencies", || {
             crate::flow::derive_checked_semantic_dependencies(&program, &facts)
@@ -571,6 +578,10 @@ fn check_program(
         },
     )?;
     drop(final_guard);
+    phase_profile::checkpoint(
+        "after final selections/custody/boundaries",
+        "05.d.11_13.selections_custody_types_boundaries",
+    );
     crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
     checked.facts.proof_applications = crate::facts::proof_applications::retain(&checked);
     Ok((checked, dependency_body_judgments, frozen_dependency_bodies))

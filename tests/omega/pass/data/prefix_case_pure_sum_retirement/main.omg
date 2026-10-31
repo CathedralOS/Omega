@@ -1,0 +1,22 @@
+// Expected exit: 0. A case and its payload retain independent tombstone scopes.
+data Stored [copy] {
+    #90 case First(#1 value: u64, retired #2);
+    #7 case Later;
+    retired #2;
+}
+machine evaluate(value: Stored) -> u64 {
+    transition value {
+        Stored::First { value } -> value
+        Stored::Later {} -> 3
+    }
+}
+machine main() crashes Trap {
+    let first: Stored = Stored::First { value: 17 };
+    let later: Stored = Stored::Later {};
+    let zero_value: Stored;
+    transition evaluate(first) == 17 && evaluate(later) == 3 && evaluate(zero_value) == 0 {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

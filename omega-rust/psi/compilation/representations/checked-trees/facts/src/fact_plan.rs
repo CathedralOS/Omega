@@ -50,7 +50,7 @@ pub struct FactPlan {
     pub qualification_issuers: Arena<crate::BoundaryQualificationIssuerRecord>,
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
-    pub facts: Arena<Fact>,
+    pub facts: evidence::FactTable,
     pub scalar_values: Arena<crate::ScalarValue>,
     pub boolean_predicates: Arena<crate::BooleanPredicate>,
     pub boolean_predicate_bindings: Arena<crate::BooleanPredicateBinding>,
@@ -96,7 +96,7 @@ macro_rules! fact_plan_root_impls {
         impl FactPlan {
             pub fn with_capacity(fact_capacity: usize, context_capacity: usize) -> Self {
                 Self {
-                    $($root: Arena::with_capacity(fact_capacity),)*
+                    $($root: Arena::with_capacity(fact_capacity).into(),)*
                     contexts: contexts::FactContexts::with_capacity(context_capacity),
                 }
             }

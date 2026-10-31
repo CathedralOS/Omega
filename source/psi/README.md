@@ -13,13 +13,13 @@ The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
 semantic tokens, and a fail-closed whole-file parser for ordinary
 `use path::member;` roots,
-`[pub] data Name [<generic parameters>] [properties] [where facts] { ... }`
+`[public] data Name [<generic parameters>] [properties] [where facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
-`[#N] name: Type;` and payload-free `case [#N] Name;` or structured
-`case [#N] Name([#N] field: Type, ...);` members that may carry their own
+`[#N] name: Type;` and payload-free `[#N] case Name;` or structured
+`[#N] case Name([#N] field: Type, ...);` members that may carry their own
 `where` facts (`#N` is a stable schema identity), and
-`[pub] [target] [boundary] machine [token] [Owner::]name [<generic
+`[public] [target] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
 declarations, where a target name before `machine` scopes one body of a
 family keyed by target, `boundary` marks a crossing, and a fixed operator
@@ -91,25 +91,25 @@ and case-payload fields retain separate bounded custody while mixed
 declarations preserve exact authored field/case order and shared named
 type-reference identity. Empty payload lists and trailing payload commas are
 accepted. The remaining root kinds share those grammars:
-`[pub] boundary data Name [<generic parameters>] [properties];` leaves its
+`[public] boundary data Name [<generic parameters>] [properties];` leaves its
 representation to a crossing, with no members or facts;
-`[pub] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
+`[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
 {where proposition Name(parameters);} { ... }` holds machine requirements and
 body parents `requires Parent;`, and a transparent refinement `trait Name =
 Base { machine (* | [Base::]requirement) clauses }` narrows its base's
 `reaches`, `suspends`, `blocks` and `terminates`, each clause ending at its
 own `;`; a
-named conformance `[pub] Name [<generic parameters>] satisfies Trait<arguments>
+named conformance `[public] Name [<generic parameters>] satisfies Trait<arguments>
 { ... }` holds checked machines and reference rows `Trait::requirement = Path;`
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
-`[pub] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
+`[public] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
 is a transparent alias `= A & B;` or takes `requires` facts and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
-([`parse/domain.omg`](parse/domain.omg)); `[pub] const [Owner::]NAME: Type =
+([`parse/domain.omg`](parse/domain.omg)); `[public] const [Owner::]NAME: Type =
 value;` names a compile-time value ([`parse/constant.omg`](parse/constant.omg));
-`[pub] proposition Name [<generic parameters>] [(parameters)]` ends with
+`[public] proposition Name [<generic parameters>] [(parameters)]` ends with
 `;`, `evidence Type;` or `= fact;` ([`parse/proposition.omg`](parse/proposition.omg));
-and a named mathematical definition `[pub] let Name [<generic parameters>]
+and a named mathematical definition `[public] let Name [<generic parameters>]
 [(parameters)]: Type = term;`, or an admitted assumption `boundary let ...:
 Type;` without a term ([`parse/definition.omg`](parse/definition.omg)).
 Generic parameter lists also take `proposition Name` binders, whose
@@ -118,8 +118,10 @@ binders `Name satisfies Trait<arguments>`. The current parser's legacy name-led
 target prefix path recognizes a machine when `machine` or `boundary` follows
 the name and a conformance when `satisfies` or `<` does; after a bodyless
 declaration's `;`, `Name<...> satisfies` likewise begins a conformance. Trait and conformance
-members are machine rows marked with their container, held as one contiguous
-range per declaration; a trait member without a body is a requirement, and a
+members are machine rows marked with their container. A container's preorder
+span can include nested descendants; direct-member selection excludes rows
+with a lexical parent so helpers do not become requirements. A trait member
+without a body is a requirement, and a
 conformance member must have one. Target-prefixed machines are retired language
 syntax; `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route)
 tracks removing that parser path and using ordinary implementations selected by
@@ -129,11 +131,20 @@ constituents, both sides of a reference row) share one table
 `operator` introducers reject at their word: a boundary operation is a
 requirement of a boundary trait, and a token binds to an ordinary
 `machine + Name(...)` declaration. Unsupported roots, retired inline
-discriminants (`case A = 1`), `retired #N;` members, multi-domain unions, the
+discriminants (`case A = 1`), old-order numbered cases (`case #N Name`),
+case-group blocks, multi-domain unions, the
 retired bracketed scalar range suffix (`u32 [0..=9]`; ranges are
 `where`/`requires`/`ensures` propositions, `scalar-range-contract-spelling`),
 and the `if`, `loop`, `while` and `return` statements reject instead of
 becoming a private bridge tree.
+
+Canonical nested machine declarations share ordinary MachineItem rows with their
+own generic signature, complete clauses, static contracts and executable ranges.
+The single parent field is the exact lexical machine handle plus one, or zero
+at package/container scope. Parsing freezes each own range before children and
+resumes its parent through retained declaration indices. Source nesting never
+captures runtime values. The version17 observation uses that one parent field;
+the retired authored state spelling and its separate syntax table are removed.
 
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): up to 64 packages, 256
@@ -212,7 +223,14 @@ duplicate members: fields and cases share one namespace; each case's payload
 fields share another with the common fields. Stable identities
 ([`resolve/identities.omg`](resolve/identities.omg)) number all or none of a
 declaration's direct fields, of its cases, and of each case's payload fields,
-with distinct `u64` values compared by value. Trait requirements and defaults
+with distinct `u64` values compared by value.
+Retirement declarations (`retired #N;`, or `retired #N` within a payload)
+are retained as owner-scoped schema history, separately from live members.
+They activate numbered mode and reject both live-number reuse and duplicate
+retirements using the same checked `u64` decoder. A bare retirement in mixed
+field-and-case data still rejects because it names no unique member scope.
+Neither retirement history nor canonical identity order changes authored
+case order, the first zero case, or runtime discriminators. Trait requirements and defaults
 and conformance members are machines named through their container
 (`Trait::requirement`, `Conformance::member`; [`resolve/containers.omg`](resolve/containers.omg)),
 a `MachineOwner` per machine, and the container's generic parameters cover

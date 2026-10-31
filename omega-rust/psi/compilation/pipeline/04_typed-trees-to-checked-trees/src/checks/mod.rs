@@ -172,6 +172,8 @@ pub(crate) fn check_checked_facts_recording(
         content::compose_partition_wrappers(program, facts, &mut entailment);
     });
 
+    phase_profile::checkpoint("after content composition", "05.d.7.3a.content_composition");
+
     match phase_profile::scope("05.d.7.3b.check_flow_call_contracts", || {
         contracts::check_flow_call_contracts(
             program,
@@ -197,6 +199,11 @@ pub(crate) fn check_checked_facts_recording(
         Err(mut contract_diagnostics) => diagnostics.append(&mut contract_diagnostics),
     }
 
+    phase_profile::checkpoint(
+        "after call contracts",
+        "05.d.7.3b.check_flow_call_contracts",
+    );
+
     if let Err(mut store_diagnostics) =
         stored_integer_calls::check(program, facts, call_frames.as_ref())
     {
@@ -210,6 +217,11 @@ pub(crate) fn check_checked_facts_recording(
     {
         diagnostics.append(&mut multiplicity_diagnostics);
     }
+
+    phase_profile::checkpoint(
+        "after linear obligations",
+        "05.d.7.4.check_linear_obligations",
+    );
 
     phase_profile::scope("05.d.7.5_8.crashes_content_carry_operators", || {
         if let Err(mut crash_edge_diagnostics) = crashes::check_crash_exit_edge_isolation(program) {
@@ -248,6 +260,11 @@ pub(crate) fn check_checked_facts_recording(
         }
     });
 
+    phase_profile::checkpoint(
+        "BEFORE indexed ranges",
+        "05.d.7.5_8.crashes_content_carry_operators",
+    );
+
     match phase_profile::scope("05.d.7.9.check_indexed_accesses", || {
         ranges::check_indexed_accesses(
             program,
@@ -268,6 +285,7 @@ pub(crate) fn check_checked_facts_recording(
         }
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
+    phase_profile::checkpoint("AFTER indexed ranges", "05.d.7.9.check_indexed_accesses");
     indexed_writes::record(program, facts);
     indexed_writes::record_assignment_indexes(program, facts);
 

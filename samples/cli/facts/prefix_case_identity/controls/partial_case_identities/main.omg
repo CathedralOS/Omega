@@ -1,0 +1,2 @@
+data Partial { #90 case First; case Later; }
+machine main() {}

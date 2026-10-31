@@ -9,6 +9,8 @@
 mod array_elements;
 mod body_completion;
 mod collection_extents;
+mod completed_scalar_calls;
+pub(super) use completed_scalar_calls::CapturedResultEquation;
 mod match_captures;
 mod match_composition;
 mod operand_types;
@@ -252,7 +254,8 @@ impl<'program> StructuralJudge<'program> {
             _ => (value, None),
         };
         let mut paths = Vec::new();
-        for (left, right) in self.captured_result_equations.iter() {
+        for equation in self.captured_result_equations.iter() {
+            let (left, right) = (&equation.left, &equation.right);
             for term in [left, right] {
                 let StructuralTerm::Projection { subject, path } = term else {
                     continue;
@@ -304,16 +307,24 @@ impl<'program> StructuralJudge<'program> {
         if self.captured_result_equations.is_empty() {
             return value;
         }
-        self.completed_value_identity_at(value, 0)
+        self.completed_value_identity_at(value, 0, self.captured_result_equations.iter())
     }
 
-    fn completed_value_identity_at(&self, value: StructuralTerm, depth: usize) -> StructuralTerm {
+    /// Both views borrow the same ordered facts; numeric projection excludes
+    /// only producer-marked call identities, never public recipe equations.
+    fn completed_value_identity_at<'equations>(
+        &self,
+        value: StructuralTerm,
+        depth: usize,
+        equations: impl Iterator<Item = &'equations CapturedResultEquation> + Clone,
+    ) -> StructuralTerm {
         if depth >= 64 {
             return value;
         }
         let value = match value {
             StructuralTerm::Projection { subject, path } => {
-                let subject = self.completed_value_identity_at(*subject, depth + 1);
+                let subject =
+                    self.completed_value_identity_at(*subject, depth + 1, equations.clone());
                 path.split('.')
                     .try_fold(subject.clone(), |value, field| {
                         super::super::observed_projections::project_declared_field(
@@ -328,7 +339,9 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            other => other.map_children(|child| self.completed_value_identity_at(child, depth + 1)),
+            other => other.map_children(|child| {
+                self.completed_value_identity_at(child, depth + 1, equations.clone())
+            }),
         };
         if !matches!(
             value.semantic_value(),
@@ -338,7 +351,8 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return value;
         }
-        for (left, right) in self.captured_result_equations.iter() {
+        for equation in equations.clone() {
+            let (left, right) = (&equation.left, &equation.right);
             // Orient captured results toward earlier source observations:
             // normalize a later captured call result toward an earlier
             // observation or input parameter, avoiding circular flips.
@@ -363,7 +377,11 @@ impl<'program> StructuralJudge<'program> {
                 && replacement != &value
                 && !super::super::structural_terms::term_contains(replacement, &value)
             {
-                return self.completed_value_identity_at(replacement.clone(), depth + 1);
+                return self.completed_value_identity_at(
+                    replacement.clone(),
+                    depth + 1,
+                    equations.clone(),
+                );
             }
         }
         value
@@ -2590,7 +2608,11 @@ impl<'program> StructuralJudge<'program> {
             captured.as_ref(),
             0,
         )?;
-        let mut equations = guarantees.equations;
+        let mut equations = guarantees
+            .equations
+            .into_iter()
+            .map(CapturedResultEquation::public)
+            .collect::<Vec<_>>();
         // A completed occurrence keeps its identity. Both existing value-call
         // judgments establish repeatability: conditional primitive normal
         // returns, and the custody-free denotational call owner. Neither an
@@ -2625,7 +2647,7 @@ impl<'program> StructuralJudge<'program> {
                 );
             }
             if repeatable {
-                equations.push((
+                equations.push(CapturedResultEquation::completed_call(
                     captured.clone(),
                     StructuralTerm::Application {
                         result_type: crate::expression_result_type_reference(
@@ -2654,7 +2676,10 @@ impl<'program> StructuralJudge<'program> {
                     presentation.type_reference,
                     actuals,
                 ) {
-                    equations.push((captured.clone(), source));
+                    equations.push(CapturedResultEquation::completed_call(
+                        captured.clone(),
+                        source,
+                    ));
                 }
             }
         }
@@ -2760,15 +2785,25 @@ impl<'program> StructuralJudge<'program> {
         if let (Some(captured), Some(_)) = (&captured, &result_presentation)
             && let SelectedCallContract::Concrete(callee, selected_state) = &owner
         {
-            equations.extend(self.returned_field_equations(
-                callee,
-                selected_state,
-                parameters,
-                actuals,
-                captured,
-            ));
+            equations.extend(
+                self.returned_field_equations(
+                    callee,
+                    selected_state,
+                    parameters,
+                    actuals,
+                    captured,
+                )
+                .into_iter()
+                .map(CapturedResultEquation::public),
+            );
         }
-        for (left, right) in equations {
+        for equation in equations {
+            // This producer already authenticated the completed call and its
+            // eager inputs. Preserve that identity instead of evaluating its
+            // description again; active dependency collectors still own the walk.
+            let completed_identity =
+                equation.completed_call_identity && !self.has_resolution_dependency_collector();
+            let (left, right) = (equation.left.clone(), equation.right.clone());
             let max_premise_occ = self.rewrites.max_premise_occurrence();
             let pattern_occ = match (
                 Self::term_max_captured_occurrence(&left),
@@ -2793,11 +2828,14 @@ impl<'program> StructuralJudge<'program> {
                 std::sync::Arc::make_mut(&mut self.rewrites)
                     .bump_integer_premise_revision_for_occurrences(occ);
             }
-            std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                .push((left.clone(), right.clone()));
+            std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
             std::sync::Arc::make_mut(&mut self.normal_guarantees)
                 .push((left.clone(), right.clone()));
-            self.intake_equation(left, right, 0);
+            if completed_identity {
+                self.intake_completed_call_identity(left, right);
+            } else {
+                self.intake_equation(left, right, 0);
+            }
         }
         if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
             let result_type = result_presentation.type_reference;

@@ -410,6 +410,35 @@ impl<'program> StructuralJudge<'program> {
         Some(resolving)
     }
 
+    /// Opaque leaf retention must not omit mutable dependency collection.
+    pub(super) fn has_resolution_dependency_collector(&self) -> bool {
+        if self.returned_field_trace.is_some() {
+            return true;
+        }
+        let mut previous = self.active_application.as_deref();
+        while let Some(active) = previous {
+            if active.context.returned_field_trace.is_some()
+                // resolving_application clears this edge in every saved context.
+                // Refuse an unfamiliar nested context rather than omit its effects.
+                || active.context.active_application.is_some()
+            {
+                return true;
+            }
+            previous = active.previous.as_deref();
+        }
+        false
+    }
+
+    pub(super) fn invalidate_resolution_observations(&self) {
+        let mut observation = self.resolution_observations.as_deref();
+        while let Some(current) = observation {
+            if let Ok(mut reads) = current.reads.lock() {
+                *reads = None;
+            }
+            observation = current.previous.as_deref();
+        }
+    }
+
     fn same_resolution_context(&self, other: &Self) -> bool {
         self.specification_terms == other.specification_terms
             && self.same_returned_field_trace(other)
