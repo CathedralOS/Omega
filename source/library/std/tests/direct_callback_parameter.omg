@@ -3,7 +3,9 @@ use omega::language::std::calling;
 
 data HookProcedurePolicy { }
 public HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = HookProcedurePolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        HookProcedurePolicy::plan(signature)
+    }
 }
 
 machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -74,7 +76,9 @@ boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
 
 data RegistrarPolicy { }
 public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = RegistrarPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        RegistrarPolicy::plan(signature)
+    }
 }
 
 machine BoundaryEntryPlan::write_integer_register_parameter(

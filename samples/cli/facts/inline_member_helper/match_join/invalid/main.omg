@@ -1,0 +1,56 @@
+// Selected satisfies Sum and its inline combine calls shared helper add, preserving result == left + right.
+trait Sum<Value> {
+    machine combine(left: Value, right: Value) -> Value
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures result == left + right
+    blocks;
+}
+
+machine add(left: i32, right: i32) -> i32
+requires 0 <= left && left <= 50
+requires 0 <= right && right <= 50
+ensures result == left + right
+{
+    left + right
+}
+
+Selected satisfies Sum<i32> {
+    machine combine(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures result == left + right
+    blocks;
+    {
+        add(left, right)
+    }
+}
+
+machine apply<Operations satisfies Sum<i32>>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 50
+requires 0 <= right && right <= 50
+ensures result == left + right
+{
+    block Operations::combine(left, right)
+}
+
+// Place: match join. The low right arm has no bound, so the false join cannot prove combine's requires.
+machine probe(high_left: i32, high_right: i32, low_left: i32, low_right: i32, flag: bool) -> i32
+blocks;
+requires 0 <= high_left && high_left <= 50
+requires 0 <= high_right && high_right <= 50
+requires 0 <= low_left && low_left <= 50
+{
+    let left: i32 = match flag { true -> high_left, false -> low_left };
+    let right: i32 = match flag { true -> high_right, false -> low_right };
+    block apply<Selected>(left, right)
+}
+
+machine main() blocks; crashes Trap {
+    let result: i32 = block probe(20, 22, 10, 12, true);
+    transition result == 42 { true -> done() _ -> bad() }
+
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -18,7 +18,9 @@ boundary trait WindowsProcessEntry {
 
 data WindowsX86_64 {}
 WindowsX86_64CallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = WindowsX86_64::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        WindowsX86_64::plan(signature)
+    }
 }
 
 machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult

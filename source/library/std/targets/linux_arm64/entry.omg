@@ -23,7 +23,9 @@ boundary trait LinuxArm64PhysicalEntry {
 
 data LinuxArm64 {}
 LinuxArm64CallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = LinuxArm64::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        LinuxArm64::plan(signature)
+    }
 }
 
 machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
