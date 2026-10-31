@@ -23,6 +23,14 @@ fn frame_offset(base: u32, addend: u32) -> Result<u32, Error> {
     base.checked_add(addend).ok_or(Error::FrameOverflow)
 }
 
+/// The widest of 8, 4, 2, 1 that fits the remaining extent.
+fn widest_word(remaining: u32) -> Result<u32, Error> {
+    [8, 4, 2, 1]
+        .into_iter()
+        .find(|width| *width <= remaining)
+        .ok_or(Error::UnsupportedValueTransport)
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum WordLocation {
     Register(MachineRegister),
@@ -132,10 +140,7 @@ pub(crate) fn value_pieces(
                 let mut remaining = byte_size;
                 let mut copied = 0_u32;
                 while remaining != 0 {
-                    let width = [8, 4, 2, 1]
-                        .into_iter()
-                        .find(|width| *width <= remaining)
-                        .ok_or(Error::UnsupportedValueTransport)?;
+                    let width = widest_word(remaining)?;
                     pieces.push(ValuePiece {
                         location: WordLocation::Stack(frame_offset(stack_byte_offset, copied)?),
                         value_byte_offset: frame_offset(value_byte_offset, copied)?,
@@ -460,10 +465,7 @@ impl Encoding {
     ) -> Result<(), Error> {
         let mut offset = 0_u32;
         while offset < extent {
-            let size = [8, 4, 2, 1]
-                .into_iter()
-                .find(|size| *size <= extent - offset)
-                .ok_or(Error::UnsupportedValueTransport)?;
+            let size = widest_word(extent - offset)?;
             let slot = frame_offset(snapshot, offset)?;
             // Frame addressing may reuse the base scratch. Reload the saved
             // pointer after every frame operation, including large offsets.
@@ -496,10 +498,7 @@ impl Encoding {
                 let destination = if let Some(destination) = copy_offset {
                     let mut offset = 0;
                     while offset < extent {
-                        let size = [8, 4, 2, 1]
-                            .into_iter()
-                            .find(|size| *size <= extent - offset)
-                            .ok_or(Error::UnsupportedValueTransport)?;
+                        let size = widest_word(extent - offset)?;
                         self.copy_word(
                             bytes,
                             frame_offset(snapshot, offset)?,
