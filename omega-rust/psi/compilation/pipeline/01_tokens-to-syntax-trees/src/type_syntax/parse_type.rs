@@ -219,6 +219,8 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     break;
                 };
                 input = next;
+                // The next argument may be another lifetime, not a type.
+                continue;
             }
 
             let (argument, rest) = parse_static_argument_reference(syntax_trees, input)?;

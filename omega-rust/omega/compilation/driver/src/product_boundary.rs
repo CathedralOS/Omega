@@ -913,6 +913,26 @@ fn provider_derivation_consumes_the_prepared_service_census() {
     }
     assert!(named.contains("services.named_application("));
     assert!(service_catalog.contains("catalog.declared_traits()"));
+    let native_supply =
+        include_str!("../../realization/provider-planning/src/native_bindings/plans.rs");
+    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
+    for consumer in [native_supply, settlement] {
+        assert!(!consumer.contains("service_schema::from_typed"));
+        assert!(consumer.contains("service_schema::attach_calling(&prepared,"));
+    }
+    assert!(native_supply.contains("services: ServiceCatalog<'_>"));
+    assert!(
+        native_supply.contains("trait_machine_signature_by_symbol(owner, selection.requirement)")
+    );
+    assert!(
+        native_supply.find("let evaluated = evaluate(").unwrap()
+            < native_supply
+                .find("if selected_target != Some(target)")
+                .unwrap()
+    );
+    assert!(settlement.contains("services\n        .declared_traits()"));
+    assert!(settlement.contains("declaration.package != Some(binding.package())"));
+    assert!(settlement.contains("binding.normalized_schema_digest()"));
     let build = include_str!("../../build-evaluation/src/admission/checking.rs");
     assert!(
         build

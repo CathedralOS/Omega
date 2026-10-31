@@ -223,7 +223,13 @@ not make census preparation fail. Foreign extraction and component ABI preparati
 retain the complete provider/provenance relationship; toolchain settlement emits
 the same derived-plan carrier instead of a separate plan-plus-symbol record.
 Target calling-plan validation and commitment checks remain separate from this
-source correspondence. Other source-schema consumers, default ABI signature
+source correspondence. Native Build supply and canonical-host settlement attach
+calling evidence to the same prepared Product declarations instead of projecting
+neutral schemas per target. Canonical-host admission still requires the exact
+accepted package, path and complete target-augmented schema digest. Native
+supplies retain exact declared-signature checks and validate every authored
+target's locator before narrowing realization; neither catalog presence nor a
+Product row supplies Build-host authority. Other source-schema consumers, default ABI signature
 materialization and canonical Terminal publication of the full catalog remain
 unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
