@@ -338,6 +338,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193)
             ParseDiagnosticCode::MissingBoundaryReachCeiling -> parse_diagnostic(parser_harness, output, 200)
             ParseDiagnosticCode::RetiredWhereMachineRequirement -> parse_diagnostic(parser_harness, output, 201)
+            ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202)
+            ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203)
         }
     }
 
