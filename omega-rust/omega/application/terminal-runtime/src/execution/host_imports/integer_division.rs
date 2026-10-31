@@ -54,11 +54,7 @@ impl TerminalEffectHandler for IntegerDivisionImport {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "lldiv operands or result differ from the admitted signature",
-            )
-        };
+        let invalid = super::refusal("lldiv operands or result differ from the admitted signature");
         let call = super::call_operands(effect, &invalid)?;
         let integer = IntegerType::new(IntegerSign::Signed, 64).map_err(|_| invalid())?;
         let [

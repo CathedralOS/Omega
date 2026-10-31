@@ -62,11 +62,9 @@ impl AddressValues {
         application: [u8; 32],
         multiplicity: StructuralMultiplicity,
     ) -> Result<HostInternetAddress, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "inet owned occurrence differs from the admitted application or multiplicity",
-            )
-        };
+        let invalid = super::refusal(
+            "inet owned occurrence differs from the admitted application or multiplicity",
+        );
         let slot = self.values.get_mut(ordinal).ok_or_else(invalid)?;
         let owned = slot.as_ref().ok_or_else(invalid)?;
         if owned.application != application || owned.multiplicity != multiplicity {
@@ -126,11 +124,8 @@ impl TerminalEffectHandler for NetworkAddressImport {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "inet operands or owned occurrence differ from the admitted contract",
-            )
-        };
+        let invalid =
+            super::refusal("inet operands or owned occurrence differ from the admitted contract");
         let call = super::call_operands(effect, &invalid)?;
         let word = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
         let mut values = self.values.lock().map_err(|_| {

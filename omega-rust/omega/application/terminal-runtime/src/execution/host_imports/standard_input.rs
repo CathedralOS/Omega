@@ -36,11 +36,8 @@ impl<'input> ReadByteImport<'input> {
         declaration: &BoundaryMachineDeclaration,
         input: Arc<Mutex<Box<dyn Read + Send + 'input>>>,
     ) -> Result<Self, TerminalRuntimeError> {
-        let invalid = || {
-            TerminalRuntimeError::InvalidProvision(
-                "stdin realization differs from its admitted sum contract",
-            )
-        };
+        let invalid =
+            super::unprovisioned("stdin realization differs from its admitted sum contract");
         let signature = TerminalImportSignature::from(declaration);
         let BoundaryMachineResult::Structural(result) = &signature.result else {
             return Err(invalid());

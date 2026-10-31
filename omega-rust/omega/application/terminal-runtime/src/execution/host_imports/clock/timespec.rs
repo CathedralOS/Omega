@@ -23,11 +23,9 @@ pub(super) fn admit(
     layouts: &[NativeBorrowedStorageLayout],
     implementation: ClockImplementation,
 ) -> Result<NativeBorrowedStorageLayout, TerminalRuntimeError> {
-    let invalid = || {
-        TerminalRuntimeError::InvalidProvision(
-            "clock timespec requires an admitted loan covering aligned native storage",
-        )
-    };
+    let invalid = super::super::unprovisioned(
+        "clock timespec requires an admitted loan covering aligned native storage",
+    );
     let [parameter] = signature.structural_parameters.as_slice() else {
         return Err(invalid());
     };
@@ -63,9 +61,8 @@ pub(super) fn read(
     clock: &Arc<Mutex<TerminalClockEnvironment>>,
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-    let invalid = || {
-        TerminalEffectRejection::new("clock timespec operands differ from the installed contract")
-    };
+    let invalid =
+        super::super::refusal("clock timespec operands differ from the installed contract");
     let call = super::super::call_operands(effect, &invalid)?;
     let selector = super::selector(call.arguments, signature)?;
     if call.structural_arguments.len() != 1
@@ -112,8 +109,7 @@ pub(super) fn sleep(
     clock: &Arc<Mutex<TerminalClockEnvironment>>,
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-    let invalid =
-        || TerminalEffectRejection::new("nanosleep operands differ from the installed contract");
+    let invalid = super::super::refusal("nanosleep operands differ from the installed contract");
     let call = super::super::call_operands(effect, &invalid)?;
     let [
         TerminalScalarValue::Integer {

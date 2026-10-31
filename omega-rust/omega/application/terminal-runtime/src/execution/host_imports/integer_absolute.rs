@@ -141,8 +141,7 @@ impl TerminalEffectHandler for IntegerAbsoluteImport {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid =
-            || TerminalEffectRejection::new("abs operands differ from its admitted signature");
+        let invalid = super::refusal("abs operands differ from its admitted signature");
         let call = super::call_operands(effect, &invalid)?;
         if !byte_buffers.is_empty() || *call.result != self.signature.result {
             return Err(TerminalEffectRejection::new(

@@ -60,8 +60,8 @@ use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target::TargetProfile;
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{
-    TerminalEffect, TerminalImportSignature, TerminalInstance, TerminalProgram,
-    TerminalScalarValue, TerminalStructuralValue,
+    TerminalEffect, TerminalEffectRejection, TerminalImportSignature, TerminalInstance,
+    TerminalProgram, TerminalScalarValue, TerminalStructuralValue,
 };
 use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
 
@@ -179,6 +179,19 @@ pub(super) fn call_operands<'effect, E>(
         byte_sequence_arguments,
         result,
     })
+}
+
+/// The refusal one adapter raises for its own operand mismatches: a fresh
+/// rejection carrying the message that adapter owns. Naming the shape once
+/// keeps each adapter to its message instead of re-spelling the closure.
+pub(super) fn refusal(message: &'static str) -> impl Fn() -> TerminalEffectRejection + Copy {
+    move || TerminalEffectRejection::new(message)
+}
+
+/// The admission-time counterpart: an adapter that cannot be offered at all
+/// reports through the runtime error rather than an effect rejection.
+pub(super) fn unprovisioned(message: &'static str) -> impl Fn() -> TerminalRuntimeError + Copy {
+    move || TerminalRuntimeError::InvalidProvision(message)
 }
 
 /// Whether this host actually supplies the selected target's runtime: another

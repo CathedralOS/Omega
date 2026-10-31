@@ -150,9 +150,7 @@ impl TerminalEffectHandler for AllocationImport {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new("allocation operands differ from the admitted signature")
-        };
+        let invalid = super::refusal("allocation operands differ from the admitted signature");
         let call = super::call_operands(effect, &invalid)?;
         if *call.result != self.signature.result || !byte_buffers.is_empty() {
             return Err(invalid());

@@ -205,11 +205,8 @@ impl TerminalEffectHandler for IntegerParsingImport {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "strtol invocation differs from its admitted storage/ABI contract",
-            )
-        };
+        let invalid =
+            super::refusal("strtol invocation differs from its admitted storage/ABI contract");
         let call = super::call_operands(effect, &invalid)?;
         let [
             TerminalScalarValue::Integer {

@@ -57,11 +57,9 @@ impl DescriptorModeImport {
         if offered != *locator {
             return Ok(None);
         }
-        let invalid = || {
-            TerminalRuntimeError::InvalidProvision(
-                "descriptor-mode adapter differs from its exact admitted declaration/ABI",
-            )
-        };
+        let invalid = super::unprovisioned(
+            "descriptor-mode adapter differs from its exact admitted declaration/ABI",
+        );
         let word = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
         let signature = TerminalImportSignature::from(declaration);
         let native_signature = CallSignature {
@@ -112,11 +110,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "descriptor-mode operands differ from the installed contract",
-            )
-        };
+        let invalid = super::refusal("descriptor-mode operands differ from the installed contract");
         let call = super::call_operands(effect, &invalid)?;
         if !byte_buffers.is_empty() || !storage_buffers.is_empty() {
             return Err(invalid());

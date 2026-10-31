@@ -240,8 +240,7 @@ fn selector(
     arguments: &[TerminalScalarValue],
     signature: &TerminalImportSignature,
 ) -> Result<u128, TerminalEffectRejection> {
-    let invalid =
-        || TerminalEffectRejection::new("clock selector differs from its installed carrier");
+    let invalid = super::refusal("clock selector differs from its installed carrier");
     let [TerminalScalarValue::Integer { scalar_type, value }] = arguments else {
         return Err(invalid());
     };
@@ -355,8 +354,7 @@ impl TerminalEffectHandler for ClockImport {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid =
-            || TerminalEffectRejection::new("clock operands differ from the installed contract");
+        let invalid = super::refusal("clock operands differ from the installed contract");
         let call = super::call_operands(effect, &invalid)?;
         if !call.structural_arguments.is_empty()
             || call.arguments.len() != self.signature.scalar_parameters.len()
