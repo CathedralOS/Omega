@@ -221,6 +221,25 @@ pub struct SymbolResolvedBodyStorage {
 }
 
 impl SymbolResolvedTrees {
+    /// The body tables, named once: a call site spells `expression_table()`
+    /// instead of chaining `tables.bodies.expressions` into the method it calls,
+    /// so a one-call site stays on one line instead of a four-line vertical chain.
+    pub(crate) fn expression_table(&self) -> &expression::ExpressionTable {
+        &self.tables.bodies.expressions
+    }
+
+    pub(crate) fn expression_table_mut(&mut self) -> &mut expression::ExpressionTable {
+        &mut self.tables.bodies.expressions
+    }
+
+    pub(crate) fn statement_table(&self) -> &statement::StatementTable {
+        &self.tables.bodies.statements
+    }
+
+    pub(crate) fn statement_table_mut(&mut self) -> &mut statement::StatementTable {
+        &mut self.tables.bodies.statements
+    }
+
     /// The domain definition keyed `symbol`, when the trees declare it.
     pub fn domain_definition_by_symbol(
         &self,
@@ -244,10 +263,10 @@ impl SymbolResolvedTrees {
     pub fn authored_selection_extension_frontier(&self) -> AuthoredSelectionExtensionFrontier {
         AuthoredSelectionExtensionFrontier {
             selections: self.tables.authored_declaration_selections.len(),
-            expressions: self.tables.bodies.expressions.expression_count(),
+            expressions: self.expression_table().expression_count(),
             tree_statements: self.tables.declarations.state_statements.len(),
-            statements: self.tables.bodies.statements.statement_count(),
-            transition_targets: self.tables.bodies.statements.transition_target_count(),
+            statements: self.statement_table().statement_count(),
+            transition_targets: self.statement_table().transition_target_count(),
             proof_facts: self.tables.declarations.proof_facts.len(),
         }
     }
@@ -280,20 +299,14 @@ impl SymbolResolvedTrees {
         };
         let mut trees = self;
         trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .apply_authored_selection_rebase(expressions);
         trees.apply_tree_statement_rebase(frontier.tree_statements, rebase);
-        trees
-            .tables
-            .bodies
-            .statements
-            .apply_authored_selection_rebase(
-                frontier.statements,
-                frontier.transition_targets,
-                rebase,
-            );
+        trees.statement_table_mut().apply_authored_selection_rebase(
+            frontier.statements,
+            frontier.transition_targets,
+            rebase,
+        );
         trees.apply_proof_fact_rebase(frontier.proof_facts, rebase);
         trees.tables.authored_declaration_selections = ledger;
         Ok(trees)
@@ -305,7 +318,7 @@ impl SymbolResolvedTrees {
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) -> Result<expression::PreparedExpressionSelectionRebase, AuthoredSelectionExtensionRebaseError>
     {
-        if frontier.expressions > self.tables.bodies.expressions.expression_count() {
+        if frontier.expressions > self.expression_table().expression_count() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
                     AuthoredSelectionOccurrenceStore::Expressions,
@@ -313,9 +326,7 @@ impl SymbolResolvedTrees {
             );
         }
         let expressions = self
-            .tables
-            .bodies
-            .expressions
+            .expression_table()
             .prepare_authored_selection_rebase(frontier.expressions, rebase)
             .map_err(|()| {
                 AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
@@ -325,14 +336,14 @@ impl SymbolResolvedTrees {
 
         self.validate_tree_statement_rebase(frontier.tree_statements, rebase)?;
 
-        if frontier.statements > self.tables.bodies.statements.statement_count() {
+        if frontier.statements > self.statement_table().statement_count() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
                     AuthoredSelectionOccurrenceStore::Statements,
                 ),
             );
         }
-        if frontier.transition_targets > self.tables.bodies.statements.transition_target_count() {
+        if frontier.transition_targets > self.statement_table().transition_target_count() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
                     AuthoredSelectionOccurrenceStore::TransitionTargets,
@@ -1243,14 +1254,10 @@ mod tests {
         let mut trees = SymbolResolvedTrees::default();
         let base_occurrence = record_selection(&mut trees, 1, 3);
         let base_expression = trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(expression::ExpressionNode::default());
         trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .attach_authored_selection_occurrences(base_expression, [base_occurrence]);
         trees
             .tables
@@ -1258,9 +1265,7 @@ mod tests {
             .state_statements
             .append(tree_call(base_occurrence));
         trees
-            .tables
-            .bodies
-            .statements
+            .statement_table_mut()
             .insert(statement::StatementNode::Call(statement::TableCall {
                 authored_call_selection: Some(base_occurrence),
                 ..Default::default()
@@ -1277,14 +1282,10 @@ mod tests {
 
         let extension_occurrence = record_selection(&mut trees, 3, 4);
         let extension_expression = trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(expression::ExpressionNode::default());
         trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .attach_authored_selection_occurrences(extension_expression, [extension_occurrence]);
         let extension_tree_statement = trees
             .tables
@@ -1298,9 +1299,7 @@ mod tests {
             .append(tree_transition(extension_occurrence));
         let extension_table_statement =
             trees
-                .tables
-                .bodies
-                .statements
+                .statement_table_mut()
                 .insert(statement::StatementNode::Call(statement::TableCall {
                     authored_call_selection: Some(extension_occurrence),
                     ..Default::default()
@@ -1339,9 +1338,7 @@ mod tests {
         let shifted = rebased.authored_declaration_selections().as_slice()[2].occurrence_id();
         assert_eq!(
             rebased
-                .tables
-                .bodies
-                .expressions
+                .expression_table()
                 .authored_selection_occurrences(extension_expression)
                 .collect::<Vec<_>>(),
             vec![shifted]
@@ -1373,9 +1370,7 @@ mod tests {
         };
         assert_eq!(continuation.authored_call_selection, Some(shifted));
         let statement::StatementNode::Call(call) = rebased
-            .tables
-            .bodies
-            .statements
+            .statement_table()
             .statement(extension_table_statement)
         else {
             panic!("extension table call")
@@ -1453,14 +1448,10 @@ mod tests {
             // A valid expression and tree statement must really be shifted on
             // success; a later invalid store must leave both wholly untouched.
             let expression = trees
-                .tables
-                .bodies
-                .expressions
+                .expression_table_mut()
                 .insert(expression::ExpressionNode::default());
             trees
-                .tables
-                .bodies
-                .expressions
+                .expression_table_mut()
                 .attach_authored_selection_occurrences(expression, [extension]);
             trees
                 .tables
@@ -1468,9 +1459,7 @@ mod tests {
                 .state_statements
                 .append(tree_call(extension));
             trees
-                .tables
-                .bodies
-                .statements
+                .statement_table_mut()
                 .insert(statement::StatementNode::Call(statement::TableCall {
                     authored_call_selection: Some(
                         if failed_store == AuthoredSelectionOccurrenceStore::Statements {
@@ -1481,7 +1470,7 @@ mod tests {
                     ),
                     ..Default::default()
                 }));
-            trees.tables.bodies.statements.insert_transition_target(
+            trees.statement_table_mut().insert_transition_target(
                 statement::TransitionTargetNode::Named {
                     authored_call_selection: Some(
                         if failed_store == AuthoredSelectionOccurrenceStore::TransitionTargets {
@@ -1529,14 +1518,10 @@ mod tests {
         let base_occurrence = record_selection(&mut trees, 1, 3);
         let frontier = trees.authored_selection_extension_frontier();
         let appended_expression = trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(expression::ExpressionNode::default());
         trees
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .attach_authored_selection_occurrences(appended_expression, [base_occurrence]);
         let appended_clone = trees
             .tables
@@ -1559,9 +1544,7 @@ mod tests {
         assert_eq!(call.authored_call_selection, Some(base_occurrence));
         assert_eq!(
             rebased
-                .tables
-                .bodies
-                .expressions
+                .expression_table()
                 .authored_selection_occurrences(appended_expression)
                 .collect::<Vec<_>>(),
             vec![base_occurrence]

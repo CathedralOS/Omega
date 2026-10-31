@@ -109,12 +109,7 @@ impl SymbolCopy<'_, '_> {
         if !source.is_valid() {
             return source;
         }
-        let copied = self
-            .program
-            .tables
-            .bodies
-            .expressions
-            .copy_from_self(source);
+        let copied = self.program.expression_table_mut().copy_from_self(source);
         self.expression_payloads(copied);
         copied
     }
@@ -134,21 +129,13 @@ impl SymbolCopy<'_, '_> {
                 .resize(position + 1, Handle::invalid());
         }
         self.visited_payloads[position] = copied;
-        let mut node = self
-            .program
-            .tables
-            .bodies
-            .expressions
-            .expression(copied)
-            .clone();
+        let mut node = self.program.expression_table().expression(copied).clone();
         match &mut node {
             ExpressionNode::Match(dispatch) => {
                 self.expression_payloads(dispatch.subject);
                 let arms = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .match_arms(dispatch.arms)
                     .to_vec();
                 for arm in arms {
@@ -160,9 +147,7 @@ impl SymbolCopy<'_, '_> {
                             self.expression_payloads(pattern.guard);
                             let fields = self
                                 .program
-                                .tables
-                                .bodies
-                                .expressions
+                                .expression_table()
                                 .match_fields(pattern.fields)
                                 .to_vec();
                             for (ordinal, mut field) in fields.into_iter().enumerate() {
@@ -172,9 +157,7 @@ impl SymbolCopy<'_, '_> {
                                 }
                                 *self
                                     .program
-                                    .tables
-                                    .bodies
-                                    .expressions
+                                    .expression_table_mut()
                                     .match_field_mut(pattern.fields.handle_at(ordinal as u32)) =
                                     field;
                             }
@@ -233,17 +216,13 @@ impl SymbolCopy<'_, '_> {
                 path.symbol = self.symbol(path.symbol);
                 let symbols = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .name_path_member_symbols(path.member_symbols)
                     .to_vec();
                 for (position, source) in (0..path.member_symbols.count()).zip(symbols) {
                     let replacement = self.symbol(source);
                     self.program
-                        .tables
-                        .bodies
-                        .expressions
+                        .expression_table_mut()
                         .set_name_path_member_symbol_at_offset(
                             path.member_symbols,
                             position,
@@ -260,18 +239,14 @@ impl SymbolCopy<'_, '_> {
                 literal.case_symbol = literal.case_symbol.map(|symbol| self.symbol(symbol));
                 let fields = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .struct_fields(literal.fields)
                     .to_vec();
                 for (position, mut field) in (0..literal.fields.count()).zip(fields) {
                     self.expression_payloads(field.value);
                     field.field_symbol = self.symbol(field.field_symbol);
                     self.program
-                        .tables
-                        .bodies
-                        .expressions
+                        .expression_table_mut()
                         .set_struct_field_at_offset(literal.fields, position, field);
                 }
             }
@@ -285,20 +260,13 @@ impl SymbolCopy<'_, '_> {
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_) => {}
         }
-        *self
-            .program
-            .tables
-            .bodies
-            .expressions
-            .expression_mut(copied) = node;
+        *self.program.expression_table_mut().expression_mut(copied) = node;
     }
 
     fn expression_span_payloads(&mut self, expressions: HandleSpan<ExpressionHandle>) {
         let children = self
             .program
-            .tables
-            .bodies
-            .expressions
+            .expression_table()
             .expression_handles(expressions)
             .to_vec();
         for child in children {
@@ -316,18 +284,14 @@ impl SymbolCopy<'_, '_> {
             if application.member.is_valid() {
                 let mut member = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .static_member(application.member)
                     .expect("copied static member belongs to the receiving expression table")
                     .clone();
                 self.static_argument(&mut member);
                 *self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table_mut()
                     .static_member_mut(application.member)
                     .expect("copied static member remains present") = member;
             }
@@ -591,19 +555,13 @@ mod tests {
         let original = SymbolHandle::from_arena_index(3);
         let replacement = SymbolHandle::from_arena_index(4);
         let member_symbols = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .reserve_name_path_member_symbols(1);
         program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .set_name_path_member_symbol_at_offset(member_symbols, 0, original);
         let name = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(ExpressionNode::Name(TableNamePath {
                 members: HandleSpan::empty(),
                 member_symbols,
@@ -636,15 +594,11 @@ mod tests {
             .child_type_references
             .insert(generic(original, arguments));
         let source = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(ExpressionNode::ZeroValue(carrier));
         let source_span = SourceSpan::new(SourceId(7), Span::new(11, 19));
         program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .set_source_span(source, source_span);
         let copied = program.copy_expression_with_symbols(source, &[(original, replacement)]);
         assert_eq!(
@@ -676,9 +630,7 @@ mod tests {
             panic!("copy must retain static expression");
         };
         let ExpressionNode::Name(copied_path) = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table()
             .expression(copied_name.expression)
         else {
             panic!("copy must retain name");
@@ -686,9 +638,7 @@ mod tests {
         assert_eq!(copied_path.symbol, replacement);
         assert_eq!(
             program
-                .tables
-                .bodies
-                .expressions
+                .expression_table()
                 .name_path_member_symbols(copied_path.member_symbols),
             [replacement]
         );
@@ -739,29 +689,28 @@ mod tests {
             evidence_projection: None,
             symbol: original,
         };
-        let source = program
-            .tables
-            .bodies
-            .expressions
-            .insert(ExpressionNode::Call(TableCallExpression {
-                authored_call_binding: None,
-                receiver: ExpressionHandle::invalid(),
-                target_symbol: original,
-                target: DiagnosticName::generated("run"),
-                requirement_application: arena::Handle::invalid(),
-                machine_arguments: vec![StaticMachineArgument {
-                    application: Some(Box::new(StaticSymbolApplication {
-                        member: arena::Handle::invalid(),
-                        lifetime_arguments: Box::new([]),
-                        arguments: vec![argument.clone()].into_boxed_slice(),
-                    })),
-                    ..argument
-                }]
-                .into_boxed_slice(),
-                arguments: HandleSpan::empty(),
-                evidence_arguments: Box::new([]),
-                operational_acknowledgement: Default::default(),
-            }));
+        let source =
+            program
+                .expression_table_mut()
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: None,
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: original,
+                    target: DiagnosticName::generated("run"),
+                    requirement_application: arena::Handle::invalid(),
+                    machine_arguments: vec![StaticMachineArgument {
+                        application: Some(Box::new(StaticSymbolApplication {
+                            member: arena::Handle::invalid(),
+                            lifetime_arguments: Box::new([]),
+                            arguments: vec![argument.clone()].into_boxed_slice(),
+                        })),
+                        ..argument
+                    }]
+                    .into_boxed_slice(),
+                    arguments: HandleSpan::empty(),
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }));
         let copied = program.copy_expression_with_symbols(
             source,
             &[

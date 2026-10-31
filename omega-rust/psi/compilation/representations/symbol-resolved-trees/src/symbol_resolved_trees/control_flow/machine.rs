@@ -243,14 +243,11 @@ pub struct TraitConformance {
 pub(crate) fn test_program_with_guarded_transition()
 -> (crate::SymbolResolvedTrees, HandleSpan<Handle<State>>) {
     let mut program = crate::SymbolResolvedTrees::default();
-    let guard =
-        program
-            .tables
-            .bodies
-            .expressions
-            .insert(crate::expression::ExpressionNode::Integer(
-                numerics::literals::IntegerLiteral::from_value(1),
-            ));
+    let guard = program
+        .expression_table_mut()
+        .insert(crate::expression::ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(1),
+        ));
     let statements = program.tables.declarations.state_statements.insert_many([
         crate::statement::Statement::Transition(crate::statement::Transition {
             target: crate::statement::TransitionTarget::Terminal,
