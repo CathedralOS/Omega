@@ -9,6 +9,8 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
 };
+use typed_trees::statement::TransitionTargetHandle;
+use typed_trees::statement::TransitionTargetNode;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::{CallableIdentityId, CallableParametersId, CallablePathId};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -361,7 +363,7 @@ pub fn resolve_named_result_overloads(
     }
     let mut changed_owners = Vec::new();
     for (target, selected, owner) in transition_updates {
-        let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+        let TransitionTargetNode::Named { path, .. } =
             program.statement_table.transition_target_mut(target)
         else {
             unreachable!("collected transition target changed shape");
@@ -533,11 +535,7 @@ pub fn resolve_named_result_overloads(
 fn selected_transition_call_symbols(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(
-    typed_trees::statement::TransitionTargetHandle,
-    SymbolHandle,
-    SymbolHandle,
-)> {
+) -> Vec<(TransitionTargetHandle, SymbolHandle, SymbolHandle)> {
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -546,7 +544,7 @@ fn selected_transition_call_symbols(
                     continue;
                 };
                 for target in transition.targets() {
-                    let typed_trees::statement::TransitionTargetNode::Named {
+                    let TransitionTargetNode::Named {
                         path,
                         arguments,
                         source_span,
@@ -1253,17 +1251,15 @@ pub fn collect_expected_expression_calls(
                     StatementNode::Transition(transition) => {
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
-                                typed_trees::statement::TransitionTargetNode::Named {
-                                    path,
-                                    arguments,
-                                    ..
+                                TransitionTargetNode::Named {
+                                    path, arguments, ..
                                 } => collect_call_argument_expectations(
                                     program,
                                     path.symbol,
                                     program.statement_table.expression_handles(*arguments),
                                     &mut expected,
                                 ),
-                                typed_trees::statement::TransitionTargetNode::Value(value)
+                                TransitionTargetNode::Value(value)
                                     if state.return_type.is_valid() =>
                                 {
                                     push_expected_call(
