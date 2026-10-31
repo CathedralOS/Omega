@@ -9,6 +9,7 @@
 
 mod error;
 
+use abstract_operations_to_target_operations::lower_optimized_to_target_operations;
 use abstract_operations_to_target_operations::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
 };
@@ -41,10 +42,7 @@ pub(crate) fn lower_to_target(
             budget,
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
-        let target =
-            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, request,
-            )
+        let target = lower_optimized_to_target_operations(optimized, request)
             .map_err(TargetLoweringError::Target)?;
         Ok(target)
     })
