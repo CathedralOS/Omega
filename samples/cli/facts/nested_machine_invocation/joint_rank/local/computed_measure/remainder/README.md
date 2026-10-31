@@ -40,3 +40,5 @@ The requirement evidence follows the same complete path:
 - **Encoding and native image:** direct native execution and Terminal Psi independently return zero. Other hosts are authored but were not executed by this macOS run.
 
 This closes the scalar arithmetic remainder production of the joint-rank fact, not every declared body form or the parent migration. Structured/call-computed or cross-carrier measure bodies, nonscalar orders, dependent distances and the parent's other acceptance remain open. Focused signed/policy regression checks and independent review are recorded with the PR; an existing unsupported case is not relabeled as accepted.
+
+Focused comparison covers 309 termination/remainder cases. The other 308 outcomes are unchanged; a constant-view rejection now reaches the actual descent judgment, so its obsolete classification diagnostic was migrated and replayed with zero lost outcomes. Historical unsupported source cases remain visible; this is not a claim that the whole termination domain is green. A proof-only polynomial probe also refuses identically on the baseline and candidate, so general proof-only scalar-view support remains open.
