@@ -1,0 +1,46 @@
+// A complete machine-valued static tuple supplied through generic dispatch
+// is those selected declarations. The call records that result, and the
+// caller reads the record.
+// Place: parameter.
+// Expected exit: 0
+machine left(kept: bool) -> bool { false }
+
+machine right(kept: bool) -> bool { true }
+
+machine pair<machine A, machine B>(kept: bool) -> bool
+requires machine A(kept: bool) -> bool;
+requires machine B(kept: bool) -> bool;
+{
+    transition A(kept) {
+        true -> B(kept)
+        _ -> false
+    }
+}
+
+machine apply<machine Observe>(kept: bool) -> bool
+requires machine Observe(kept: bool) -> bool;
+{
+    Observe(kept)
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+machine relay(kept: bool) -> bool
+requires kept == true
+{
+    let direct: bool = apply<pair<left, right>>(kept);
+    hold(direct)
+}
+
+machine main() crashes Trap {
+    transition relay(true) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

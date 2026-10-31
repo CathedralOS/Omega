@@ -83,6 +83,28 @@ fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms ex
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_field_rejected rejected 2187ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_local_rejected rejected 1662ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_match_join_rejected rejected 1499ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_other_machine_rejected rejected 1683ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from relay: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_other_state_rejected rejected 1699ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from check: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_parameter_rejected rejected 1880ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from relay: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
 	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
 fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
@@ -5581,6 +5603,15 @@ pass/facts/loop_branch_relaxation_ranking_through_parameter_exit rejected 2989ms
 	cannot prove ensures contract for exit from loop_calc at statement 1: result >= 100 && result <= 100
 pass/facts/loop_branch_relaxation_ranking_through_target_body_exit rejected 3358ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from loop_calc at statement 1: result >= 100 && result <= 100
+pass/facts/machine_tuple_dispatch_through_call_result_exit checked 3415ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_const_name_exit checked 3643ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_field_exit checked 3419ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_local_exit checked 3638ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_match_join_exit checked 3129ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_other_machine_exit checked 2843ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_other_state_exit checked 2467ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_parameter_exit checked 2593ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_target_body_exit checked 2670ms check-target:macos_arm64 @dacae466db1d+wt
 pass/facts/match_computed_root_through_call_result_exit rejected 2686ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call compute from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/match_computed_root_through_const_name_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214

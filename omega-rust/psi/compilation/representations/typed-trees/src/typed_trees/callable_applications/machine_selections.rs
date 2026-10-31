@@ -50,9 +50,10 @@ impl TypedTrees {
             .filter_map(|binding| match binding.value {
                 StaticMachineBindingValue::Type(actual)
                 | StaticMachineBindingValue::Const(actual) => Some(Ok((binding.parameter, actual))),
-                StaticMachineBindingValue::Conformance(_) => None,
-                _ => Some(Err(
-                    "applied machine callable has an unclosed machine or runtime operand",
+                StaticMachineBindingValue::Conformance(_)
+                | StaticMachineBindingValue::Machine(_) => None,
+                StaticMachineBindingValue::RuntimeValue { .. } => Some(Err(
+                    "applied machine callable has an unclosed runtime operand",
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -61,7 +62,8 @@ impl TypedTrees {
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match &binding.value {
-                StaticMachineBindingValue::Conformance(argument) => {
+                StaticMachineBindingValue::Conformance(argument)
+                | StaticMachineBindingValue::Machine(argument) => {
                     Some((binding.parameter, argument.clone()))
                 }
                 _ => None,
@@ -93,9 +95,17 @@ impl TypedTrees {
                 .machine_type_parameters(machine)
                 .iter()
                 .any(|parameter| {
-                    !substitutions
-                        .iter()
-                        .any(|(symbol, _)| *symbol == parameter.symbol)
+                    let supplied = match &parameter.kind {
+                        crate::data::TypeParameterKind::Machine { .. } => {
+                            static_arguments.iter().any(|(symbol, argument)| {
+                                *symbol == parameter.symbol && argument.symbol.is_valid()
+                            })
+                        }
+                        _ => substitutions
+                            .iter()
+                            .any(|(symbol, _)| *symbol == parameter.symbol),
+                    };
+                    !supplied
                 })
             {
                 return Err("applied machine callable has an incomplete provider tuple");
