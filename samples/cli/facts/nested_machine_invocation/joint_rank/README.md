@@ -248,3 +248,7 @@ through an owned resource that holds the caller's counter and drops exactly once
 when the component completes, in all nine places with strict-descent twins. It
 adds a 100,000-edge long cycle, a missing drop precondition and a live local
 loan. Windows x86-64 native and Terminal Psi agree; other hosts were not run.
+
+[Mutable distance endpoints](parameter/bounded_distance/moving_upper/mutable_upper/README.md)
+carry the same fact through indexed storage in all nine places, retaining
+entry selectors and bounds while observing the replacement value after mutation.
