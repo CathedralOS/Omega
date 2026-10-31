@@ -8,6 +8,7 @@
 //! contexts keep payload promises and whole-value snapshots from extending or
 //! shortening the discriminator lifetime; dynamic selectors remain dependencies.
 
+use super::places::contract_expression_place;
 use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::semantic::facts::append_observation_context;
 use crate::semantic::places::instantiate_call_contract_expression_place;
@@ -135,19 +136,16 @@ pub(super) fn append_requirement(
         return;
     };
     for (expression, variant) in selected_cases(program, machine, state, contract) {
-        let Some(place) =
-            super::places::contract_expression_place(program, proof, facts, contract, expression)
+        let Some(place) = contract_expression_place(program, proof, facts, contract, expression)
         else {
             continue;
         };
         let dependencies: Vec<_> = selector_occurrences(program, expression)
             .into_iter()
             .map(|expression| {
-                super::places::contract_expression_place(
-                    program, proof, facts, contract, expression,
-                )
-                .map(FactPlace::Place)
-                .unwrap_or(FactPlace::Unknown)
+                contract_expression_place(program, proof, facts, contract, expression)
+                    .map(FactPlace::Place)
+                    .unwrap_or(FactPlace::Unknown)
             })
             .collect();
         append_observation_context(
