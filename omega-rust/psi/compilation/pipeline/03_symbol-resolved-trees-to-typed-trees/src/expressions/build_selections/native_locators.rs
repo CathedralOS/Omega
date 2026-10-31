@@ -35,12 +35,6 @@ pub(crate) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
     if pending.is_empty() {
         return Ok(());
     }
-    let vocabulary =
-        validation::native_locators::vocabulary(program, |_| true).map_err(|errors| {
-            errors.into_iter().next().unwrap_or_else(|| {
-                Diagnostic::error("native locator vocabulary admission returned no diagnostic")
-            })
-        })?;
     // Resolve each occurrence in its own state; nesting supplies no implicit
     // data or inherited argument context. Borrow one immutable owner per group.
     let mut groups = Vec::new();
@@ -69,6 +63,12 @@ pub(crate) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
     }
     let mut completed = HashSet::<ExpressionHandle, symbols::BuildSymbolHasher>::default();
     for (machine, state, sites) in groups {
+        let vocabulary = validation::native_locators::vocabulary_for_owner(program, machine.symbol)
+            .map_err(|errors| {
+                errors.into_iter().next().unwrap_or_else(|| {
+                    Diagnostic::error("native locator vocabulary admission returned no diagnostic")
+                })
+            })?;
         for site in sites {
             let call = expression_table(program)
                 .call_node(site)

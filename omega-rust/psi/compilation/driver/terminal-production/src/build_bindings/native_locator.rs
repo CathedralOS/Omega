@@ -72,11 +72,13 @@ pub(super) fn capture(
         .or_else(|| validation::expression_result_type_reference(checked, machine, state, *value))
         .ok_or_else(|| Diagnostic::error("native binding locator has no exact produced type"))?;
     let vocabulary =
-        validation::native_locators::vocabulary(&checked.typed, |_| true).map_err(|errors| {
-            errors.into_iter().next().unwrap_or_else(|| {
-                Diagnostic::error("native locator vocabulary failed without a diagnostic")
-            })
-        })?;
+        validation::native_locators::vocabulary_for_owner(&checked.typed, machine.symbol).map_err(
+            |errors| {
+                errors.into_iter().next().unwrap_or_else(|| {
+                    Diagnostic::error("native locator vocabulary failed without a diagnostic")
+                })
+            },
+        )?;
     let widths =
         validation::native_locators::binding_widths(&checked.typed, vocabulary.binding, reference)
             .map_err(Diagnostic::error)?;

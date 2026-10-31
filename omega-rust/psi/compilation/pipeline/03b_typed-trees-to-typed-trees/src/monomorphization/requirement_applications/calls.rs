@@ -201,7 +201,7 @@ fn instance_in_scope(
 /// invocation. Its complete logical selection must be prepared and retargeted
 /// alongside the ordinary statement; the binding's later statement position is
 /// not a second invocation. Erased-only packages keep their own source point.
-fn source_expression_roster(
+pub(super) fn source_expression_roster(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,

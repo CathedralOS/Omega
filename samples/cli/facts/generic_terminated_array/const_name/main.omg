@@ -1,0 +1,27 @@
+// A nonempty fixed array retains its last-byte terminator through transport and a generic native string read.
+// Expected exit: 0
+boundary trait CText {
+    machine length<const Count: u64>(text: &[u8; Count]) -> u64
+    requires Count > 0
+    requires text[Count - 1] == 0
+    reaches;
+}
+data Text [copy]
+requires self.bytes[3] == 0
+{ prefix: u8; bytes: [u8; 4]; suffix: u8; }
+machine verify(value: &Text, expected: u64) reaches CText crashes Trap {
+    let actual: u64 = CText::length<4>(&value.bytes);
+    let inferred: u64 = CText::length(&value.bytes);
+    transition actual == expected && inferred == expected && value.prefix == 0xa5 && value.suffix == 0x5a {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+const FIRST: Text = Text { prefix: 0xa5, bytes: [0x61, 0x62, 0x63, 0], suffix: 0x5a };
+const SECOND: Text = Text { prefix: 0xa5, bytes: [0x61, 0, 0x63, 0], suffix: 0x5a };
+machine main() reaches CText crashes Trap {
+    verify(&FIRST, 3);
+    verify(&SECOND, 1);
+}

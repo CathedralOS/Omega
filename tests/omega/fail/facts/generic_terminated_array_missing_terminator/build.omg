@@ -1,0 +1,8 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "cstring_generic_invalid_probe");
+    Build::bind<CText::length>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strlen"
+    } });
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+}

@@ -98,6 +98,33 @@ fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms ex
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
+	machine `step` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
+	machine `step$specialized$47e79a86f727bf08$0` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
+	machine `step$specialized$e396d67fe4ba2dd5$1` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
+	machine `step$specialized$a7b89e77363ad41a$2` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
+fail/facts/generic_nonempty_array_requires_out_of_order rejected 553ms expected @a889c2d8b84c
+	cannot form specification index in machine `last` requires contract: independent collection bounds are not established by preceding formed facts
+fail/facts/generic_terminated_array_missing_terminator rejected 1518ms expected @a889c2d8b84c
+	cannot prove requires contract for call length from entry_start: second.bytes[5 - 1] == 0 (needs fact `text[5 - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/generic_terminated_array_through_call_result rejected 975ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_const_name rejected 227ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_field rejected 543ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_local rejected 637ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_match_join rejected 712ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_other_machine rejected 605ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_other_state rejected 718ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_parameter rejected 738ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/generic_terminated_array_through_target_body rejected 678ms expected @a889c2d8b84c
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/induction_call_guarantee_through_call_result_rejected rejected 808ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_const_name_rejected rejected 622ms expected @961147032a93+wt
@@ -401,6 +428,14 @@ fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/providers/boundary_guarded_array_requires_false rejected 1400ms expected @a889c2d8b84c
+	cannot prove requires contract for call bytes from main: 1 == 4 || left.bytes[1] == 0 (needs fact `count == 4 || left[count] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/providers/implicit_method_conflicting_array_counts rejected 332ms expected @a889c2d8b84c
+	public method inference has conflicting structural operands for `Count`
+fail/providers/implicit_method_unused_const_count rejected 306ms expected @a889c2d8b84c
+	static method application requires its complete invocation telescope
+fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @7a28fce028fa
+	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -5235,6 +5270,15 @@ pass/facts/generic_content_transfer_through_other_machine_exit checked 1305ms ch
 pass/facts/generic_content_transfer_through_other_state_exit checked 1385ms check-target:macos_arm64 @29b6d7aad7f6
 pass/facts/generic_content_transfer_through_parameter_exit checked 1307ms check-target:macos_arm64 @29b6d7aad7f6
 pass/facts/generic_content_transfer_through_target_body_exit checked 1435ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_terminated_array_through_call_result_exit checked 2405ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_const_name_exit checked 2074ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_field_exit checked 1804ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_local_exit checked 1875ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_match_join_exit checked 1860ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_other_machine_exit checked 2033ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_other_state_exit checked 1868ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_parameter_exit checked 2215ms check-target:macos_arm64 @a889c2d8b84c
+pass/facts/generic_terminated_array_through_target_body_exit checked 1926ms check-target:macos_arm64 @a889c2d8b84c
 pass/facts/guarded_line_loan_through_call_result_exit checked 3534ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/guarded_line_loan_through_const_name_exit checked 3653ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/guarded_line_loan_through_field_exit checked 2604ms check-target:macos_arm64 @ccdb99ca2214

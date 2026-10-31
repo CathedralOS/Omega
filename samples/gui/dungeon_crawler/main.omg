@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches
         Game::reset(&mut main.game);
         let class_name: [u8; 7] = "#32770\0";
         let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
-        let window: Window = macos_window_create(class_name, &title[0], 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        let window: Window = macos_window_create<16>(class_name, &title, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         transition window.window != 0 { true -> frame(main, window) _ -> close(main, window) }
     }
 

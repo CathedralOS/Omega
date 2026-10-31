@@ -1,0 +1,14 @@
+// Expected: checking rejection; one Count cannot be both four and five.
+boundary trait SharedCount {
+    machine read<const Count: u64>(left: &[u8; Count], right: &[u8; Count]) -> u8 reaches;
+}
+CheckedSharedCount satisfies SharedCount {
+    machine read<const Count: u64>(left: &[u8; Count], right: &[u8; Count]) -> u8 reaches {
+        0
+    }
+}
+machine main() reaches SharedCount {
+    let left: [u8; 4] = [1, 2, 3, 4];
+    let right: [u8; 5] = [1, 2, 3, 4, 5];
+    let observed: u8 = SharedCount::read(&left, &right);
+}

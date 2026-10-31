@@ -2,4 +2,4 @@
 //! native calling plans and binding authority remain Omega judgments.
 
 mod vocabulary;
-pub use vocabulary::{NativeLocatorVocabulary, binding_widths, vocabulary};
+pub use vocabulary::{NativeLocatorVocabulary, binding_widths, vocabulary, vocabulary_for_owner};

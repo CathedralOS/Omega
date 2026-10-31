@@ -74,6 +74,35 @@ impl NativeBuildOutputs {
 }
 
 impl super::PackageCompilationInputs {
+    /// A dependency's Build may name requirements outside the module imported
+    /// by its consumer. Reconstruct the supplier's ordinary Product catalogue
+    /// before Psi admits every captured formation, including unused bindings.
+    /// Loading these roots grants neither private nameability to the consumer
+    /// nor Build visibility; exact declaration admission remains independent.
+    pub(crate) fn native_binding_source_seeds(
+        &self,
+    ) -> Result<Vec<std::path::PathBuf>, Vec<diagnostics::Diagnostic>> {
+        let mut sources = Vec::new();
+        for handoff in self.product_dependency_native_handoffs() {
+            if handoff.native_declarations().is_empty() {
+                continue;
+            }
+            let root = self.package_root(handoff.package()).ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "captured native declarations have no admitted Product source supplier",
+                )]
+            })?;
+            let project = crate::source_imports::project_roots(root, self.source_filesystem());
+            // Module-only packages need not declare a Product entry root.
+            // Their imported modules still owe every captured declaration to
+            // the same admission query; absence here skips no binding check.
+            sources.extend(project.sources.into_iter().filter(|source| {
+                Some(source) != project.build.as_ref() && self.source_filesystem().is_file(source)
+            }));
+        }
+        Ok(sources)
+    }
+
     /// Relative import purpose, rather than the producer's own purpose, decides
     /// whether these outputs may supply the receiving Product.
     pub fn product_dependency_native_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {

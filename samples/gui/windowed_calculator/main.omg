@@ -24,7 +24,9 @@ public boundary trait Input {
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics;
 }
 public boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires Count > 0
+    requires title[Count - 1] == 0
         reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -32,14 +34,14 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
+        invokes ObjectiveC invokes CoreGraphics invokes AppKit;
     machine window_destroy(window: Window) reaches
         GlobalInputObservation + NativeCodeExecution + WindowManagement +
         SurfacePresentation + WindowEventObservation + WindowEventDispatch +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC; invokes CoreGraphics;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
@@ -49,7 +51,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC; invokes CoreGraphics;
+        invokes ObjectiveC invokes CoreGraphics;
     machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -84,24 +86,124 @@ public boundary trait Gui {
 // Selection supplies code. The application carries its window as an owned
 // state argument, borrowing it for observations and the event pump.
 CalcGuiProvider satisfies Gui {
-    Gui::window_create = macos_window_create;
-    Gui::window_destroy = macos_window_destroy;
-    Gui::get_dc = macos_window_get_dc;
-    Gui::blit = macos_window_blit;
-    Gui::msg_peek = macos_window_msg_peek;
-    Gui::msg_translate = macos_window_msg_translate;
-    Gui::msg_dispatch = macos_window_msg_dispatch;
-    Gui::is_window = macos_window_is_window;
-    Gui::foreground_window = macos_window_foreground_window;
+    machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires Count > 0
+    requires title[Count - 1] == 0
+        reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
+        invokes ObjectiveC invokes CoreGraphics invokes AppKit
+    {
+        macos_window_create<Count>(class_name, title, style, x, y, width, height)
+    }
+    machine window_destroy(window: Window) reaches
+        GlobalInputObservation + NativeCodeExecution + WindowManagement +
+        SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics
+    {
+        macos_window_destroy(window);
+    }
+    machine get_dc(window_state: &Window, window: u64) -> u64 reaches
+    {
+        macos_window_get_dc(window_state, window)
+    }
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+        reaches
+            GlobalInputObservation + NativeCodeExecution + WindowManagement +
+            SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
+        invokes ObjectiveC invokes CoreGraphics
+    {
+        macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
+    }
+    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_msg_peek(window_state, message)
+    }
+    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32 reaches
+    {
+        macos_window_msg_translate(window_state, message)
+    }
+    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_msg_dispatch(window_state, message)
+    }
+    machine is_window(window_state: &Window, window: u64) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_is_window(window_state, window)
+    }
+    machine foreground_window(window_state: &Window) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_foreground_window(window_state)
+    }
 }
 CalcInputProvider satisfies Input {
-    Input::key_state = macos_key_state;
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics
+    {
+        macos_key_state(virtual_key)
+    }
 }
 CalcClockProvider satisfies Clock {
-    Clock::sleep = macos_sleep;
+    machine sleep(milliseconds: u32) reaches ClockObservation + ExecutionDelay invokes DarwinClock
+    {
+        macos_sleep(milliseconds);
+    }
 }
 
-data Main {
+data Main
+requires
+    self.pumped >= 0 && self.pumped <= 16 &&
+    self.frame >= 0 && self.frame <= 16384 &&
+    self.i >= 0 && self.i <= 4096 &&
+    self.pending >= 0 && self.pending <= 4 &&
+    self.cooldown >= 0 && self.cooldown <= 8 &&
+    self.last_key >= 0 && self.last_key <= 31 &&
+    self.row >= 0 && self.row <= 63 &&
+    self.col >= 0 && self.col <= 63 &&
+    self.segment >= 0 && self.segment <= 6 &&
+    self.local_x >= -4 && self.local_x <= 11 &&
+    self.local_y >= -1 && self.local_y <= 10 &&
+    self.button_row >= 0 && self.button_row <= 4 &&
+    self.button_col >= 0 && self.button_col <= 3 &&
+    self.button_code >= 0 && self.button_code <= 31 &&
+    self.button_lx >= 0 && self.button_lx <= 15 &&
+    self.button_ly >= 0 && self.button_ly <= 8 &&
+    self.title[10] == 0
+{
 
     cls: [u8; 7];
     title: [u8; 11];
@@ -168,33 +270,33 @@ machine Main::main(main: &mut Main) reaches
     // "#32770\0" -- the predefined dialog class. The earlier window samples
     // used "STATIC\0", but that is a control class and does not behave like a
     // real top-level app window in practice.
-    main.cls[0] = 35;
-    main.cls[1] = 51;
-    main.cls[2] = 50;
-    main.cls[3] = 55;
-    main.cls[4] = 55;
-    main.cls[5] = 48;
-    main.cls[6] = 0;
+    main.cls[0] = 0x23;
+    main.cls[1] = 0x33;
+    main.cls[2] = 0x32;
+    main.cls[3] = 0x37;
+    main.cls[4] = 0x37;
+    main.cls[5] = 0x30;
+    main.cls[6] = 0x00;
 
     // "omega calculator\0"
     // "omega calc\0" -- shortened to the wrapper's 11-byte title shape.
-    main.title[0] = 111;
-    main.title[1] = 109;
-    main.title[2] = 101;
-    main.title[3] = 103;
-    main.title[4] = 97;
-    main.title[5] = 32;
-    main.title[6] = 99;
-    main.title[7] = 97;
-    main.title[8] = 108;
-    main.title[9] = 99;
-    main.title[10] = 0;
+    main.title[0] = 0x6f;
+    main.title[1] = 0x6d;
+    main.title[2] = 0x65;
+    main.title[3] = 0x67;
+    main.title[4] = 0x61;
+    main.title[5] = 0x20;
+    main.title[6] = 0x63;
+    main.title[7] = 0x61;
+    main.title[8] = 0x6c;
+    main.title[9] = 0x63;
+    main.title[10] = 0x00;
 
     // BITMAPINFOHEADER: 64x64 top-down 32bpp BI_RGB.
     main.info[0] = 40;
     main.info[1] = 64;
     main.info[2] = 0 - 64;
-    main.info[3] = 2097153;
+    main.info[3] = 0x00200001;
 
     main.current = 0;
     main.accumulator = 0;
@@ -207,7 +309,7 @@ machine Main::main(main: &mut Main) reaches
     main.frame = 0;
 
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
-    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
+    let window: Window = Gui::window_create(main.cls, &main.title, 0x10cf0000, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 
@@ -251,7 +353,9 @@ machine Main::main(main: &mut Main) reaches
         main.dispatched = Gui::msg_dispatch(&window, main.message);
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
-    machine pump_next(main: &mut Main, window: Window) {
+    machine pump_next(main: &mut Main, window: Window)
+    requires main.pumped < 16
+    {
         main.pumped = main.pumped + 1;
         transition { _ -> pump_loop(main, window) }
     }
@@ -271,7 +375,7 @@ machine Main::main(main: &mut Main) reaches
     // Input is deliberately serialized: one accepted key per frame, with a
     // short repeat cooldown. This makes held keys visible but controlled.
     machine input_escape(main: &mut Main, window: Window) {
-        main.key = Input::key_state(27);
+        main.key = Input::key_state(0x1b);
         transition main.key > 0 { true -> quit_self(main, window) _ -> input_cooldown(main, window) }
     }
     machine input_cooldown(main: &mut Main, window: Window) {
@@ -286,87 +390,87 @@ machine Main::main(main: &mut Main) reaches
         transition { _ -> poll_clear(main, window) }
     }
     machine poll_clear(main: &mut Main, window: Window) {
-        main.key = Input::key_state(67);
+        main.key = Input::key_state(0x43);
         transition main.key > 0 { true -> hit_clear(main, window) _ -> poll_backspace(main, window) }
     }
     machine poll_backspace(main: &mut Main, window: Window) {
-        main.key = Input::key_state(8);
+        main.key = Input::key_state(0x08);
         transition main.key > 0 { true -> hit_backspace(main, window) _ -> poll_enter(main, window) }
     }
     machine poll_enter(main: &mut Main, window: Window) {
-        main.key = Input::key_state(13);
+        main.key = Input::key_state(0x0d);
         transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_equals_key(main, window) }
     }
     machine poll_equals_key(main: &mut Main, window: Window) {
-        main.key = Input::key_state(187);
+        main.key = Input::key_state(0xbb);
         transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_plus(main, window) }
     }
     machine poll_plus(main: &mut Main, window: Window) {
-        main.key = Input::key_state(107);
+        main.key = Input::key_state(0x6b);
         transition main.key > 0 { true -> hit_plus(main, window) _ -> poll_minus(main, window) }
     }
     machine poll_minus(main: &mut Main, window: Window) {
-        main.key = Input::key_state(109);
+        main.key = Input::key_state(0x6d);
         transition main.key > 0 { true -> hit_minus(main, window) _ -> poll_multiply(main, window) }
     }
     machine poll_multiply(main: &mut Main, window: Window) {
-        main.key = Input::key_state(106);
+        main.key = Input::key_state(0x6a);
         transition main.key > 0 { true -> hit_multiply(main, window) _ -> poll_divide(main, window) }
     }
     machine poll_divide(main: &mut Main, window: Window) {
-        main.key = Input::key_state(111);
+        main.key = Input::key_state(0x6f);
         transition main.key > 0 { true -> hit_divide(main, window) _ -> poll_sign(main, window) }
     }
     machine poll_sign(main: &mut Main, window: Window) {
-        main.key = Input::key_state(83);
+        main.key = Input::key_state(0x53);
         transition main.key > 0 { true -> hit_sign(main, window) _ -> poll_memory_add(main, window) }
     }
     machine poll_memory_add(main: &mut Main, window: Window) {
-        main.key = Input::key_state(77);
+        main.key = Input::key_state(0x4d);
         transition main.key > 0 { true -> hit_memory_add(main, window) _ -> poll_memory_recall(main, window) }
     }
     machine poll_memory_recall(main: &mut Main, window: Window) {
-        main.key = Input::key_state(82);
+        main.key = Input::key_state(0x52);
         transition main.key > 0 { true -> hit_memory_recall(main, window) _ -> poll_digit0(main, window) }
     }
     machine poll_digit0(main: &mut Main, window: Window) {
-        main.key = Input::key_state(48);
+        main.key = Input::key_state(0x30);
         transition main.key > 0 { true -> hit_digit0(main, window) _ -> poll_digit1(main, window) }
     }
     machine poll_digit1(main: &mut Main, window: Window) {
-        main.key = Input::key_state(49);
+        main.key = Input::key_state(0x31);
         transition main.key > 0 { true -> hit_digit1(main, window) _ -> poll_digit2(main, window) }
     }
     machine poll_digit2(main: &mut Main, window: Window) {
-        main.key = Input::key_state(50);
+        main.key = Input::key_state(0x32);
         transition main.key > 0 { true -> hit_digit2(main, window) _ -> poll_digit3(main, window) }
     }
     machine poll_digit3(main: &mut Main, window: Window) {
-        main.key = Input::key_state(51);
+        main.key = Input::key_state(0x33);
         transition main.key > 0 { true -> hit_digit3(main, window) _ -> poll_digit4(main, window) }
     }
     machine poll_digit4(main: &mut Main, window: Window) {
-        main.key = Input::key_state(52);
+        main.key = Input::key_state(0x34);
         transition main.key > 0 { true -> hit_digit4(main, window) _ -> poll_digit5(main, window) }
     }
     machine poll_digit5(main: &mut Main, window: Window) {
-        main.key = Input::key_state(53);
+        main.key = Input::key_state(0x35);
         transition main.key > 0 { true -> hit_digit5(main, window) _ -> poll_digit6(main, window) }
     }
     machine poll_digit6(main: &mut Main, window: Window) {
-        main.key = Input::key_state(54);
+        main.key = Input::key_state(0x36);
         transition main.key > 0 { true -> hit_digit6(main, window) _ -> poll_digit7(main, window) }
     }
     machine poll_digit7(main: &mut Main, window: Window) {
-        main.key = Input::key_state(55);
+        main.key = Input::key_state(0x37);
         transition main.key > 0 { true -> hit_digit7(main, window) _ -> poll_digit8(main, window) }
     }
     machine poll_digit8(main: &mut Main, window: Window) {
-        main.key = Input::key_state(56);
+        main.key = Input::key_state(0x38);
         transition main.key > 0 { true -> hit_digit8(main, window) _ -> poll_digit9(main, window) }
     }
     machine poll_digit9(main: &mut Main, window: Window) {
-        main.key = Input::key_state(57);
+        main.key = Input::key_state(0x39);
         transition main.key > 0 { true -> hit_digit9(main, window) _ -> render_prepare(main, window) }
     }
 
@@ -436,11 +540,11 @@ machine Main::main(main: &mut Main) reaches
     machine fill_cell(main: &mut Main, window: Window) {
         main.row = min_i32(max_i32(main.i / 64, 0), 63);
         main.col = min_i32(max_i32(main.i % 64, 0), 63);
-        main.px = 1318440 + ((main.frame % 32) * 1024);
+        main.px = 0x141e28 + ((main.frame % 32) * 1024);
         transition main.row < 16 { true -> display_pixel(main, window) _ -> keypad_region(main, window) }
     }
     machine display_pixel(main: &mut Main, window: Window) {
-        main.px = 461325;
+        main.px = 0x070a0d;
         transition main.row >= 2 && main.row < 13 && main.col >= 28 && main.col < 60 {
             true -> display_digit_slot(main, window)
             _ -> display_sign(main, window)
@@ -459,10 +563,12 @@ machine Main::main(main: &mut Main) reaches
         }
     }
     machine display_mark(main: &mut Main, window: Window) {
-        main.px = 16759616;
+        main.px = 0xffbb40;
         transition { _ -> write_pixel_guard(main, window) }
     }
-    machine display_digit_slot(main: &mut Main, window: Window) {
+    machine display_digit_slot(main: &mut Main, window: Window)
+    requires main.row >= 2 && main.row < 13 && main.col >= 28 && main.col < 60
+    {
         main.local_x = (main.col - 28) % 8;
         main.local_y = main.row - 2;
         transition main.col < 36 { true -> use_digit3(main, window) _ -> display_digit_slot1(main, window) }
@@ -599,14 +705,16 @@ machine Main::main(main: &mut Main) reaches
         transition main.segment != 4 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
     }
     machine segment_on(main: &mut Main, window: Window) {
-        main.px = 52991;
+        main.px = 0x00ceff;
         transition { _ -> write_pixel_guard(main, window) }
     }
 
     machine keypad_region(main: &mut Main, window: Window) {
         transition main.row >= 18 && main.row < 63 { true -> button_prepare(main, window) _ -> write_pixel_guard(main, window) }
     }
-    machine button_prepare(main: &mut Main, window: Window) {
+    machine button_prepare(main: &mut Main, window: Window)
+    requires main.row >= 18 && main.row < 63
+    {
         main.button_row = min_i32(max_i32((main.row - 18) / 9, 0), 4);
         main.button_col = min_i32(max_i32(main.col / 16, 0), 3);
         main.button_lx = main.col % 16;
@@ -689,11 +797,11 @@ machine Main::main(main: &mut Main) reaches
     machine button_code_backspace(main: &mut Main, window: Window) { main.button_code = 23; transition { _ -> button_paint(main, window) } }
 
     machine button_paint(main: &mut Main, window: Window) {
-        main.px = 2171169;
+        main.px = 0x212121;
         transition main.button_code == main.last_key { true -> button_active(main, window) _ -> button_border(main, window) }
     }
     machine button_active(main: &mut Main, window: Window) {
-        main.px = 5335039;
+        main.px = 0x5167ff;
         transition { _ -> button_border(main, window) }
     }
     machine button_border(main: &mut Main, window: Window) {
@@ -703,7 +811,7 @@ machine Main::main(main: &mut Main) reaches
         }
     }
     machine button_border_paint(main: &mut Main, window: Window) {
-        main.px = 8421504;
+        main.px = 0x808080;
         transition { _ -> write_pixel_guard(main, window) }
     }
     // Re-assert the in-button coordinates: button_hit computed them many
@@ -830,7 +938,7 @@ machine Main::main(main: &mut Main) reaches
         }
     }
     machine label_paint(main: &mut Main, window: Window) {
-        main.px = 15794175;
+        main.px = 0xf0ffff;
         transition { _ -> write_pixel_guard(main, window) }
     }
 
@@ -900,29 +1008,37 @@ machine Main::main(main: &mut Main) reaches
 
 machine Main::accept_digit(main: &mut Main, digit: i32, key_code: i32)
 requires
-    digit >= 0 && digit <= 9;
+    digit >= 0 && digit <= 9
 requires
-    key_code >= 0 && key_code <= 31;
+    key_code >= 0 && key_code <= 31
 {
     main.last_key = key_code;
     main.cooldown = 6;
     transition main.error > 0 { true -> digit_after_error(main, digit) _ -> digit_dispatch(main, digit) }
 
-    machine digit_after_error(main: &mut Main, digit: i32) {
+    machine digit_after_error(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         main.error = 0;
         main.pending = 0;
         main.accumulator = 0;
         main.current = digit as i32 in Saturating;
         main.typing = 1;
     }
-    machine digit_dispatch(main: &mut Main, digit: i32) {
+    machine digit_dispatch(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         transition main.typing > 0 { true -> digit_append(main, digit) _ -> digit_start(main, digit) }
     }
-    machine digit_start(main: &mut Main, digit: i32) {
+    machine digit_start(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         main.current = digit as i32 in Saturating;
         main.typing = 1;
     }
-    machine digit_append(main: &mut Main, digit: i32) {
+    machine digit_append(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         // Fused Saturating mul/add in operand position lower correctly since
         // the 2026-07-09d operand-position domain lowering (the clamp happens
         // at each operation node before the modulo).
@@ -932,55 +1048,79 @@ requires
 
 machine Main::accept_operator(main: &mut Main, op: i32, key_code: i32)
 requires
-    op >= 0 && op <= 4;
+    op >= 0 && op <= 4
 requires
-    key_code >= 0 && key_code <= 31;
+    key_code >= 0 && key_code <= 31
 {
     main.last_key = key_code;
     main.cooldown = 6;
     transition main.error > 0 { true -> done(main) _ -> operator_dispatch(main, op) }
 
-    machine operator_dispatch(main: &mut Main, op: i32) {
+    machine operator_dispatch(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 0 { true -> store_first(main, op) _ -> evaluate_for_operator(main, op) }
     }
-    machine store_first(main: &mut Main, op: i32) {
+    machine store_first(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.current;
         main.current = 0;
         main.typing = 0;
         main.pending = op;
     }
-    machine evaluate_for_operator(main: &mut Main, op: i32) {
+    machine evaluate_for_operator(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 1 { true -> eval_add(main, op) _ -> eval_sub_check(main, op) }
     }
-    machine eval_sub_check(main: &mut Main, op: i32) {
+    machine eval_sub_check(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 2 { true -> eval_sub(main, op) _ -> eval_mul_check(main, op) }
     }
-    machine eval_mul_check(main: &mut Main, op: i32) {
+    machine eval_mul_check(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 3 { true -> eval_mul(main, op) _ -> eval_div_check(main, op) }
     }
-    machine eval_div_check(main: &mut Main, op: i32) {
+    machine eval_div_check(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 4 { true -> eval_div_guard(main, op) _ -> finish_operator(main, op) }
     }
-    machine eval_add(main: &mut Main, op: i32) {
+    machine eval_add(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator + main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine eval_sub(main: &mut Main, op: i32) {
+    machine eval_sub(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator - main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine eval_mul(main: &mut Main, op: i32) {
+    machine eval_mul(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator * main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine eval_div_guard(main: &mut Main, op: i32) {
+    machine eval_div_guard(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.current == 0 { true -> divide_error(main) _ -> eval_div(main, op) }
     }
-    machine eval_div(main: &mut Main, op: i32) {
+    machine eval_div(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator / main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine finish_operator(main: &mut Main, op: i32) {
+    machine finish_operator(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.current = 0;
         main.typing = 0;
         main.pending = op;
@@ -1047,7 +1187,7 @@ machine Main::accept_equals(main: &mut Main) {
 
 machine Main::clear_all(main: &mut Main, key_code: i32)
 requires
-    key_code >= 0 && key_code <= 31;
+    key_code >= 0 && key_code <= 31
 {
     main.last_key = key_code;
     main.cooldown = 6;

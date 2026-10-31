@@ -14,6 +14,51 @@ pub struct NativeLocatorVocabulary {
     pub dll_import: SymbolHandle,
 }
 
+/// Build and Product retain distinct checked declarations even for the same
+/// core source bytes. An occurrence consumes its owner's admitted vocabulary;
+/// another purpose or an invisible activation cannot compete with that owner.
+pub fn vocabulary_for_owner(
+    typed: &TypedTrees,
+    owner: SymbolHandle,
+) -> Result<NativeLocatorVocabulary, Vec<Diagnostic>> {
+    let occurrence = typed
+        .symbols
+        .symbol_provenance_source_span(owner)
+        .filter(|span| span.span.start < span.span.end)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "native locator owner has no exact authored source occurrence",
+            )]
+        })?;
+    let sources = typed.symbols.source_map().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "native locator owner lost its checked source custody",
+        )]
+    })?;
+    let source = sources.file_at(occurrence).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "native locator owner has no admitted source instance",
+        )]
+    })?;
+    vocabulary(typed, |symbol| {
+        typed
+            .symbols
+            .symbol_source_span(symbol)
+            .is_some_and(|declaration| {
+                sources.file_at(declaration).is_some_and(|candidate| {
+                    candidate.dependency_scope == source.dependency_scope
+                        && sources.reference_can_see_declaration(occurrence, declaration)
+                })
+            })
+    })
+    .map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| error.with_source_span(occurrence))
+            .collect()
+    })
+}
+
 /// Validate the exact toolchain definitions before any descriptor labels are
 /// consumed. `in_scope` retains the caller's source admission boundary.
 pub fn vocabulary(
@@ -37,9 +82,31 @@ pub fn vocabulary(
     let bindings = exact("ForeignBinding");
     let imports = exact("DllImport");
     let ([binding], [dll_import]) = (bindings.as_slice(), imports.as_slice()) else {
-        return Err(vec![Diagnostic::error(
-            "native locator requires the unique compiler-owned ForeignBinding and DllImport vocabulary",
-        )]);
+        let owners = bindings
+            .iter()
+            .chain(&imports)
+            .filter_map(|definition| {
+                let span = typed.symbols.symbol_source_span(definition.symbol)?;
+                let source = typed.symbols.source_file(span)?;
+                Some(format!(
+                    "{} {:?}: source={:?}, scope={:?}, origin={:?}, stratum={:?}, root={}, path={}",
+                    definition.name,
+                    definition.symbol,
+                    span.source_id,
+                    source.dependency_scope,
+                    source.origin,
+                    source.resolution_stratum,
+                    source.package_root.display(),
+                    source.path.display(),
+                ))
+            })
+            .collect::<Vec<_>>();
+        return Err(vec![Diagnostic::error(format!(
+            "native locator requires the unique compiler-owned ForeignBinding and DllImport vocabulary; admitted ForeignBinding={}, DllImport={}; candidates=[{}]",
+            bindings.len(),
+            imports.len(),
+            owners.join("; "),
+        ))]);
     };
     let binding_parameters = exact_width_parameters(typed, binding)?;
     let import_parameters = exact_width_parameters(typed, dll_import)?;
