@@ -684,8 +684,9 @@ fn find_data_field<'program>(
 /// Spell one complete authored fact over exact parameter storage paths.
 /// Tag tests and payload paths retain their selected case identity. An ordinary
 /// predicate relation uses the shared independent equivalence judgment; its
-/// necessary consequence alone is insufficient. Unsupported arithmetic,
-/// indexed reads and borrowed fields remain outside this vocabulary.
+/// necessary consequence alone is insufficient. Closed builtin array selections
+/// retain their exact element coordinate. Unsupported arithmetic, runtime
+/// selectors and borrowed fields remain outside this vocabulary.
 struct FactSpelling<'a> {
     program: &'a dyn crate::CheckingInput,
     operators: &'a CheckedOperatorFacts,
@@ -1097,9 +1098,10 @@ impl FactSpelling<'_> {
         }
     }
 
-    /// Resolve a fact leaf (`value`, `inner.value`) to its path below the
-    /// prefix and the leaf's declared type. Only plain record-field chains
-    /// have a requirement spelling.
+    /// Resolve the complete owned-storage projection below this declaration.
+    /// A fixed array element is part of that path, just like a record field;
+    /// dropping it would publish a weaker contract than the source checked.
+    /// Index formation remains an independent source obligation.
     fn field_path(
         &self,
         expression: ExpressionHandle,
@@ -1190,6 +1192,30 @@ impl FactSpelling<'_> {
                     ),
                 ));
                 Some((path, field.type_reference))
+            }
+            ExpressionNode::Indexed(indexed) => {
+                if self.selects_declared_operator(expression) {
+                    return None;
+                }
+                let (mut path, collection) = self.field_path(indexed.collection)?;
+                let collection = self
+                    .program
+                    .type_reference_table
+                    .unconstrained_type_reference(collection);
+                let TypeReferenceNode::FixedArray { element_type, .. } = self
+                    .program
+                    .type_reference_table
+                    .type_reference(collection)
+                else {
+                    return None;
+                };
+                let index = self
+                    .program
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|index| u64::try_from(index).ok())?;
+                path.push(CheckedStructuralPredicatePathSegment::FixedIndex(index));
+                Some((path, *element_type))
             }
             ExpressionNode::Borrow(borrow) => self.field_path(borrow.target),
             _ => None,
