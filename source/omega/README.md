@@ -15,7 +15,9 @@ The entry is the sealed
 [standalone compiler request](../../wiki/spec/build/compiler_request.md):
 [`main.omg`](main.omg) reads one OCREQ V1 request from stdin and publishes
 exactly one OCOUT V1 outcome on stdout, exiting with the outcome's tag.
-Nothing outside the request supplies meaning. [`request/`](request) holds the
+Nothing outside the request supplies meaning. [`slots/review.omg`](slots/review.omg) re-admits the public slot records Psi
+checking publishes (returned-borrow origins and parameter qualification
+preconditions). [`request/`](request) holds the
 boundary: [`request.omg`](request/request.omg) stages the request (a private
 65,536-byte provision) and runs the framing and extent phases (0 and 1) and
 the subject and invocation field/tag phases (2 and 6);

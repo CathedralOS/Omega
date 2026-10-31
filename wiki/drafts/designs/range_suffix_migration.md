@@ -947,3 +947,29 @@ copied-header endpoint pairs accept zero and 255, and reject representable
 checksum exit values beyond 255 are not a runtime claim here. The focused
 three-sample gate passes their default empty-input oracles. Other hosted
 targets and the full parent migration remain open.
+
+
+### Indexed array owner predicates
+
+The indexed-storage cohort retains five lost positions from `7a9a7b8287e6`:
+`range/indexed_field_range_runtime_write_rejected` restores `Main.i <= 3`;
+`range/guarded_runtime_index_collection_write` and
+`range/runtime_guarded_runtime_index_increment_exit` each restore `Main.k <= 3`
+and the complete signed 0..16 predicate on all four `Main.tallies` elements.
+`Cell.value` retains its existing 0..7 meaning as a data `requires` predicate.
+The increment's detached scalar explicitly carries its zero floor into the
+nested call; a later `v < 16` condition does not replace the whole owner domain.
+
+The old negative interposed a disjoint write of 5 and expected a below-16 read
+to fail. That premise no longer describes an invalid program. Its replacement
+writes 16 and increments the same selected cell to 17, failing owner handback;
+the positive production writes 5, rereads it, and stores 6. This keeps both the
+complete original domain and the runtime-indexed operation.
+
+The [array owner fact](../../../samples/cli/facts/array_element_default_domain/README.md)
+transports the full requirement through all nine places. Its public observer
+must establish both bounds for arbitrary admitted callers. Missing one
+ceiling still rejects even when a convenient initializer happens to satisfy it.
+Separate productions exercise whole-owner zero establishment, restored writes,
+and the distinction between a saved value and a fresh read after mutation.
+The full parent migration remains open.

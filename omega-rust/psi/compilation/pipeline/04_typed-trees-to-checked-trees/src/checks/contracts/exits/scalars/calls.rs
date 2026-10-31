@@ -1,10 +1,11 @@
 //! Call operands transported through an exact normal-return guarantee.
 //! No source arithmetic, callee body, or current argument storage is replayed.
-use validation::canonical_place_from_expression_in_state;
 
 use super::{CheckedScalarExpressionRole, ExpressionHandle, FactPayload, Machine, ScalarValue};
 use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::return_values::is_result_reference;
+use crate::flow::state_statements;
+use crate::places::place_at;
 
 use crate::values::evaluate_checked_scalar;
 use crate::values::scalar_value_at_place;
@@ -34,7 +35,7 @@ impl ExitScalars<'_, '_> {
         ) {
             Some(expression)
         } else {
-            canonical_place_from_expression_in_state(
+            place_at(
                 self.program,
                 self.exit.state_symbol,
                 self.exit.statement_index,
@@ -355,10 +356,7 @@ impl ExitScalars<'_, '_> {
         let position = u32::try_from(position).ok()?;
         let caller_state =
             validation::find_state_in_machine(self.program, self.machine.symbol, state)?;
-        let statements = self
-            .program
-            .statement_table
-            .statements(caller_state.statement_nodes);
+        let statements = state_statements(self.program, caller_state.statement_nodes);
         let direct_binding_ordinal = match statements.get(call.statement_index)? {
             typed_trees::statement::StatementNode::LocalData(local)
                 if !local.is_mutable && local.initial_value == call_expression =>

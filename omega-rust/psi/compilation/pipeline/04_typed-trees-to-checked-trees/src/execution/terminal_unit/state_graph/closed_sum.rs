@@ -29,6 +29,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
 };
+use crate::places::place_at;
 use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
@@ -76,7 +77,7 @@ pub(super) fn build(
     )
     .and_then(|subject| {
         let source = facts.flow.control.operands.get(subject.source);
-        validation::canonical_place_from_expression_in_state(
+        place_at(
             program,
             source.state_symbol,
             source.statement_index,

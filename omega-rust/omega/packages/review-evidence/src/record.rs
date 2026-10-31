@@ -168,3 +168,7 @@ pub(crate) use signatures::{
     PackageReviewTraitShape, PackageReviewTypeIdentity, PackageReviewTypeParameter,
     PackageReviewTypeParameterKind,
 };
+pub use signatures::{
+    PackageReviewBorrowOrigin, PackageReviewParameterQualification,
+    PackageReviewReturnedBorrowOrigin,
+};

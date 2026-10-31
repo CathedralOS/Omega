@@ -323,6 +323,10 @@ impl NativeExecutionScope {
         Ok(())
     }
 
+    pub(crate) fn machines(&self) -> &[MachineId] {
+        &self.machines
+    }
+
     pub(crate) fn contains_machine(&self, machine: MachineId) -> bool {
         self.machines.binary_search(&machine).is_ok()
     }

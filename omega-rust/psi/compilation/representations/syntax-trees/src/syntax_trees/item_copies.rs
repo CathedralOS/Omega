@@ -452,6 +452,15 @@ impl SyntaxCopy<'_> {
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
+            conformance_bounds: data
+                .conformance_bounds
+                .iter()
+                .map(|bound| crate::item::GenericConformanceBound {
+                    binder: bound.binder.clone(),
+                    trait_name: bound.trait_name.clone(),
+                    arguments: self.copy_type_reference_handle_span(other, bound.arguments),
+                })
+                .collect(),
             generic_instance: data
                 .generic_instance
                 .map(|origin| self.copy_type_reference_handle(other, origin)),

@@ -11,7 +11,7 @@ use checked_trees::typed_trees::{
 
 pub(super) fn field_offset(
     typed: &TypedTrees,
-    target: target::NativeTarget,
+    target: layout::LayoutTarget,
     provenance: &crate::ProviderPlanProvenance,
     row: usize,
     field_name: &str,
@@ -81,8 +81,18 @@ pub(super) fn field_offset(
     if typed.primitive_type_reference(fields[ordinal].type_reference) != Some(PrimitiveType::Addr) {
         return Err("table dispatch field must have type addr".into());
     }
-    let mut layout = layout::BoundaryValueLayout::new(typed, target, &[], selections);
-    let (_, root) = layout.value_type(table_type)?;
+    let (representation_types, representation_uses) =
+        crate::boundary_value_recipes::representation_inputs(selections);
+    let mut preparation =
+        checked_trees::typed_trees::boundary_values::BoundaryValuePreparation::new(
+            typed,
+            &[],
+            &representation_types,
+        );
+    let recipe = preparation.value_type(table_type);
+    let recipes = preparation.finish();
+    let mut layout = layout::BoundaryValueLayout::new(target, &representation_uses);
+    let (_, root) = layout.value_type(&recipes, recipe)?;
     let (shapes, laid_fields, _) = layout.into_parts();
     let calling_conventions::BoundaryValueClass::Record {
         first_field,

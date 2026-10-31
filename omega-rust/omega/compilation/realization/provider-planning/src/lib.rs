@@ -22,6 +22,7 @@
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
+mod boundary_value_recipes;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub mod native_bindings;
@@ -37,8 +38,7 @@ pub mod program_entry;
 mod provider_identity;
 mod provider_instances;
 pub use provider_identity::{
-    ProviderReceiverApplication, provider_receiver_application, provider_row_matches,
-    provider_trait_application, provider_trait_requirement_matches,
+    provider_row_matches, provider_trait_application, provider_trait_requirement_matches,
 };
 pub use provider_instances::SelectedProviderSource;
 pub mod intrinsic_declarations;

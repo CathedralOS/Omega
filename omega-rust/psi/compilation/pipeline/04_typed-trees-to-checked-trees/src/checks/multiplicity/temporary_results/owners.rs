@@ -6,6 +6,8 @@
 use super::CheckFacts;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_carries_linear_obligation;
+use crate::flow::indexed_statements;
+use crate::places::place_at;
 use language_semantics::PermissionEventSource;
 
 /// How the consuming operation uses the anonymous owner.
@@ -75,12 +77,7 @@ fn owned_value_type(
     statement_index: usize,
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        argument,
-    )?;
+    let place = place_at(program, state_symbol, statement_index, argument)?;
     let anonymous_value =
         place.root == facts::PlaceRoot::Expression(argument) && place.segments.is_empty();
     let borrowed_value =
@@ -128,9 +125,7 @@ pub(crate) fn temporary_owners(
     state: &typed_trees::state::State,
     calls: &[checked_trees::FlowCallFact],
 ) -> Result<Vec<TemporaryOwner>, diagnostics::Diagnostic> {
-    let completed = program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
+    let completed = indexed_statements(program, state.statement_nodes)
         .map(|(statement_index, statement)| {
             crate::checks::ownership_occurrences::statement_steps(
                 program,
@@ -232,12 +227,9 @@ pub(crate) fn temporary_owners(
                 } else {
                     continue;
                 };
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    consumer.statement_index,
-                    borrowed,
-                ) else {
+                let Some(place) =
+                    place_at(program, state.symbol, consumer.statement_index, borrowed)
+                else {
                     continue;
                 };
                 let Some(expression) = place.root.as_expression() else {
@@ -798,12 +790,7 @@ fn owned_projection(
     {
         return None;
     }
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        consumer.statement_index,
-        argument,
-    )?;
+    let place = place_at(program, state, consumer.statement_index, argument)?;
     let expression = place.root.as_expression()?;
     if place.segments.is_empty() {
         return None;

@@ -55,6 +55,43 @@ pub(crate) struct ExternalBindingContext<'a> {
 }
 
 impl ExternalBindingContext<'_> {
+    /// Portable plans inherit the selected scope; scoped plans must name it.
+    /// Preparing an outside-scope candidate retains this refusal as review
+    /// content, while selected row extraction requires a successful binding.
+    fn layout_target(
+        &self,
+        plan: &effects::provider_plan::ProviderPlan,
+    ) -> Result<layout::LayoutTarget, Vec<Diagnostic>> {
+        let name = if plan.target.is_empty() {
+            self.selected_target
+        } else {
+            if self
+                .selected_target
+                .is_some_and(|selected| selected != plan.target)
+            {
+                return Err(vec![Diagnostic::error(
+                    "external ABI plan is outside the selected deployment scope",
+                )]);
+            }
+            Some(plan.target.as_str())
+        };
+        let layout_target = match name {
+            Some(name) => {
+                let profile = target::TargetProfile::from_canonical_target_name(name)
+                    .map_err(|error| vec![error])?;
+                layout::LayoutTarget::for_profile(profile)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+            }
+            None => self.native_target.into(),
+        };
+        if layout_target.native_target() != self.native_target {
+            return Err(vec![Diagnostic::error(
+                "external ABI layout names another selected native target",
+            )]);
+        }
+        Ok(layout_target)
+    }
+
     pub(crate) fn row(
         &self,
         plan: &effects::provider_plan::ProviderPlan,
@@ -77,19 +114,26 @@ impl ExternalBindingContext<'_> {
                 "external binding lost its original provider row",
             )]
         })?;
-        let binding = match &row.binding {
-            ProviderBinding::Import { evaluated } => ExternalBindingKind::Import {
-                // The selected plan already commits the atomic evaluation
-                // receipt; this ABI-facing row owns only physical locator
-                // coordinates.
-                locator: evaluated.locator().clone(),
-            },
-            ProviderBinding::Syscall { number } => ExternalBindingKind::Syscall { number: *number },
+        let (binding, layout_target) = match &row.binding {
+            ProviderBinding::Import { evaluated } => (
+                ExternalBindingKind::Import {
+                    // The selected plan already commits the atomic evaluation
+                    // receipt; this ABI-facing row owns only physical locator
+                    // coordinates.
+                    locator: evaluated.locator().clone(),
+                },
+                self.layout_target(plan)?,
+            ),
+            ProviderBinding::Syscall { number } => (
+                ExternalBindingKind::Syscall { number: *number },
+                self.layout_target(plan)?,
+            ),
             ProviderBinding::VtableField { field, .. }
             | ProviderBinding::TableFunction { field, .. } => {
+                let layout_target = self.layout_target(plan)?;
                 let byte_offset = table_dispatch::field_offset(
                     typed,
-                    native_target,
+                    layout_target,
                     provenance,
                     row_index,
                     field,
@@ -101,7 +145,7 @@ impl ExternalBindingContext<'_> {
                         row.method
                     ))]
                 })?;
-                match row.binding {
+                let binding = match row.binding {
                     ProviderBinding::VtableField { .. } => ExternalBindingKind::VtableField {
                         field: field.clone(),
                         byte_offset,
@@ -110,7 +154,8 @@ impl ExternalBindingContext<'_> {
                         field: field.clone(),
                         byte_offset,
                     },
-                }
+                };
+                (binding, layout_target)
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::VtableSlot { .. }
@@ -135,7 +180,7 @@ impl ExternalBindingContext<'_> {
             (None, Some(policy)) => {
                 crate::calling_policy_plans::evaluate_default_calling_application(
                     typed,
-                    native_target,
+                    layout_target,
                     plan.schema
                         .identity_text(plan.schema.declaration.trait_name),
                     plan.schema.declaration.trait_package_identity,

@@ -229,9 +229,13 @@ neutral schemas per target. Canonical-host admission still requires the exact
 accepted package, path and complete target-augmented schema digest. Native
 supplies retain exact declared-signature checks and validate every authored
 target's locator before narrowing realization; neither catalog presence nor a
-Product row supplies Build-host authority. Other source-schema consumers, default ABI signature
-materialization and canonical Terminal publication of the full catalog remain
-unfinished source dependencies.
+Product row supplies Build-host authority. Entry-role nomination, physical-entry
+planning and deferred Build adapter lookup use those prepared declarations too;
+their existing source-shape, source-custody and checked-body admission remain
+explicit. Reference dispatch no longer carries retired `Binding<R>` receiver
+applications or calling-plan inputs used only by them. Other source-schema
+consumers, default ABI signature materialization and canonical Terminal publication
+of the full catalog remain unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -312,6 +316,17 @@ Each step removes the replaced source-reading route across all its consumers;
 none is a separate implementation handoff. Native receiving admission remains
 source-free. Check and declaration review must still work without executable
 publication, and reviewed candidates never replace original compiler custody.
+
+Boundary-value layout now takes a source-free storage recipe graph. Psi's
+`typed-trees::boundary_values` closes applications, reference descriptors,
+runtime members, all admitted fixed-storage alternatives and opaque carrier correspondence;
+Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
+target without reading typed source. Ordinary calling signatures, entry storage
+and table dispatch all use this one route. The graph carries storage meaning,
+not type/contract authority or a representation grant. It currently remains an
+invocation-owned projection: canonical Terminal signature publication, exact
+callback/policy capture, and Terminal-first target orchestration are still open.
+In particular, this split does not establish source-discard/reload acceptance.
 
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust

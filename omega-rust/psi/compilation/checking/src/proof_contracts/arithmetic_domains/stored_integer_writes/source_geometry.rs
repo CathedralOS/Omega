@@ -97,7 +97,11 @@ fn coordinate_reach(
     let projection = typed_storage_projection(program, carrier, path)?;
     if let Some((field, _)) = projection.stored {
         return Ok(StoredIntegerReach {
-            requires_fit: field_requires_fit(program, field)?,
+            requires_fit: field_requires_fit(
+                program,
+                projection.storage_carrier.ok_or(())?,
+                field,
+            )?,
             has_open_parameters: false,
         });
     }
@@ -108,26 +112,26 @@ fn coordinate_reach(
     descendants_reach(program, reference, &mut Vec::new())
 }
 
-fn field_requires_fit(program: &dyn crate::CheckingInput, field: SymbolHandle) -> Result<bool, ()> {
-    for plan in &program.plan_laid_layouts {
-        if let Some(index) = plan
-            .field_symbols
-            .iter()
-            .position(|candidate| *candidate == field)
-        {
-            let geometry = plan
-                .geometry_for_target(program.typed_program(), program.layout_target())
-                .ok_or(())?;
-            if let Some(integer) = geometry
-                .integer_fields
-                .iter()
-                .find(|integer| integer.field_index == index)
-            {
-                return Ok(!integer.write_is_total);
-            }
-        }
-    }
-    Err(())
+fn field_requires_fit(
+    program: &dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
+    field: SymbolHandle,
+) -> Result<bool, ()> {
+    let plan = program.plan_laid_layout_for_type(carrier).ok_or(())?;
+    let index = plan
+        .field_symbols
+        .iter()
+        .position(|candidate| *candidate == field)
+        .ok_or(())?;
+    let geometry = plan
+        .geometry_for_target(program.typed_program(), program.layout_target())
+        .ok_or(())?;
+    let integer = geometry
+        .integer_fields
+        .iter()
+        .find(|integer| integer.field_index == index)
+        .ok_or(())?;
+    Ok(!integer.write_is_total)
 }
 
 fn descendants_reach(
@@ -186,7 +190,7 @@ fn descendants_reach(
                 continue;
             }
             if stored_integer_field_type(program, reference, field.symbol)?.is_some()
-                && field_requires_fit(program, field.symbol)?
+                && field_requires_fit(program, reference, field.symbol)?
             {
                 reach.requires_fit = true;
             }

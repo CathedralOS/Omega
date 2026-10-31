@@ -30,6 +30,8 @@ use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::execution::terminal_unit::types::{
     parameter_qualifications, supports_primitive_storage,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
@@ -132,16 +134,10 @@ fn plan_inner(
     // is zero-constructible. Structural values have a whole-shape zeroed
     // establishment root; plain primitives have a declaration-bound scalar
     // zero initializer. Both use their ordinary storage establishment below.
-    let uninit_zeroed = !program
-        .expression_table
-        .expression_is_valid(local.initial_value)
+    let uninit_zeroed = !expressions(program).expression_is_valid(local.initial_value)
         && validation::zeroed_structural_parts(program, local.type_reference)
         && !validation::type_requires_establishment(program, local.type_reference);
-    if !program
-        .expression_table
-        .expression_is_valid(local.initial_value)
-        && !uninit_zeroed
-    {
+    if !expressions(program).expression_is_valid(local.initial_value) && !uninit_zeroed {
         // An uninitialized structural local still declares its binding: a
         // later `&mut` borrow or out-parameter write is what establishes its
         // storage, and those writers rejoin against the binding row by
@@ -827,12 +823,7 @@ fn place_loan(
         CheckedStructuralAccess::Owned | CheckedStructuralAccess::WriteOnlyBorrow => return None,
     };
     let statement = usize::try_from(statement_index).ok()?;
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement,
-        formation.source,
-    )?;
+    let place = place_at(program, state.symbol, statement, formation.source)?;
     let symbol = place.root.as_symbol()?;
     // The loaned storage must root at a structural parameter this state
     // already writes through, or at an earlier local of this state — the

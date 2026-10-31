@@ -6,6 +6,7 @@
 use omega_language_std::console;
 use request::outcome;
 use request::request;
+use slots::review;
 
 data Main { }
 
@@ -16,6 +17,8 @@ blocks;
 {
     let mut request: Request;
     Request::clear(&mut request);
+    let mut slot_review: OmegaSlotReview;
+    OmegaSlotReview::prepare(&mut slot_review);
     transition { _ -> read(context, &mut request) }
 
     machine read(context: &mut Main, request: &mut Request) {

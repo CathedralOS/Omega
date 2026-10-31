@@ -1,0 +1,79 @@
+// Expected exit: 0
+use omega::language::core::layout;
+CompactBits satisfies FixedLayout<PackedFlags> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 1,
+        },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 1,
+            source_lsb: 0,
+            width: 3,
+        },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 4,
+            source_lsb: 0,
+            width: 2,
+        },
+    };
+    entries[3] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 6,
+            source_lsb: 2,
+            width: 2,
+        },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 4,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PackedFlags where mode <= 7, code <= 15 {
+    present: bool;
+    mode: u8;
+    code: u8;
+}
+
+machine modify(value: &mut LayoutStorage<PackedFlags, CompactBits>) {
+    value.mode = 7u8;
+    value.code = 2u8;
+}
+machine main() crashes Trap {
+    let mut value: LayoutStorage<PackedFlags, CompactBits>;
+    value.present = true;
+    value.mode = 5u8;
+    value.code = 10u8;
+    modify(&mut value);
+    let bytes: &[u8; 1] = &value as &[u8; 1];
+    transition value.present == true && value.mode == 7u8 && value.code == 2u8 && bytes[0] == 47u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

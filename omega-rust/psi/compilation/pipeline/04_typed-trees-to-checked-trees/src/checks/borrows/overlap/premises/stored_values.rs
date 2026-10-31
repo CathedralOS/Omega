@@ -22,8 +22,7 @@ pub(super) fn append(
     contexts: &[facts::FactContextHandle],
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
-    let mut visited = Vec::new();
-    let mut observations = None;
+    let mut places = Vec::new();
     for fact in contexts.iter().flat_map(|context| {
         facts
             .semantic
@@ -47,10 +46,22 @@ pub(super) fn append(
         }) else {
             continue;
         };
-        if visited.contains(&place) {
-            continue;
-        }
-        visited.push(place.clone());
+        let ordinal = places.len();
+        places.push((ordinal, place));
+    }
+    // Deduplicate the complete immutable context batch by exact structural
+    // identity, then restore first-occurrence order. Expanding a reflected
+    // record can contribute thousands of places: a growing linear membership
+    // scan makes every borrow compatibility check quadratic in that shape.
+    places.sort_unstable_by(|left, right| {
+        left.1
+            .compare_identity(&right.1)
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    places.dedup_by(|left, right| left.1 == right.1);
+    places.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+    let mut observations = None;
+    for (_, place) in places {
         let Some(symbol) =
             crate::values::immutable_owned_place_root(program, state, statement, &place)
         else {

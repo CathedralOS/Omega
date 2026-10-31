@@ -3,6 +3,7 @@
 //! satisfying state's arguments. Both place substitution and operand-epoch
 //! selection must use this same correspondence, including adapter offsets.
 
+use crate::places::place_at;
 use checked_trees::{ContractProofFact, ProofFacts};
 use symbols::SymbolHandle;
 
@@ -22,12 +23,7 @@ pub(crate) fn projected_argument_place(
     let [projection] = projections.as_slice() else {
         return None;
     };
-    let mut place = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement,
-        projection.expression,
-    )?;
+    let mut place = place_at(program, state, statement, projection.expression)?;
     place.extend_segments(&projection.remaining);
     Some(place)
 }

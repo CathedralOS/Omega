@@ -13,6 +13,7 @@
 //! conclusions do not become execution facts: executable operations still need
 //! their ordinary Terminal justification rows.
 
+use crate::flow::indexed_statements;
 use checked_trees::CheckFacts;
 
 /// Source roots remain available to checking; execution consumers exclude the
@@ -42,10 +43,7 @@ pub(crate) fn retire_fact_only_citations(
     let mut erased = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 if is_fact_only_citation(program, facts, statement) {
                     erased.push(ErasedCitationStatement {
                         state: state.symbol,

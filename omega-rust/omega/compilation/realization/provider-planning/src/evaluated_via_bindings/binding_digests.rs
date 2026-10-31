@@ -171,6 +171,13 @@ fn encode_usage(hash: &mut crate::digest_encoder::DomainDigestEncoder, usage: Ev
 fn encode_value(hash: &mut crate::digest_encoder::DomainDigestEncoder, value: &BuildTimeValue) {
     match value {
         BuildTimeValue::Unit => hash.byte(0),
+        BuildTimeValue::LayoutTarget(target) => {
+            hash.byte(9);
+            hash_field(hash, target.profile.as_bytes());
+            hash_u64(hash, target.pointer_size);
+            hash_u64(hash, target.pointer_alignment);
+            hash.byte(u8::from(target.little_endian));
+        }
         BuildTimeValue::Int(value) => {
             hash.byte(1);
             hash.raw(&value.to_le_bytes());

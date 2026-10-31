@@ -5,6 +5,7 @@
 //! to the receiving state. Field/index paths survive that join; spelling alone cannot keep a
 //! stale predecessor parameter current or authorize an unrelated binding.
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 mod captures;
@@ -589,12 +590,7 @@ impl<'field> RangeFacts<'field> {
         ) {
             return None;
         }
-        let descriptor = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            self.statement_index,
-            collection,
-        )?;
+        let descriptor = place_at(program, state.symbol, self.statement_index, collection)?;
         let mut reads = Vec::new();
         let complete = self.walk_reads(
             program,
@@ -795,7 +791,7 @@ impl<'field> RangeFacts<'field> {
             expression,
         )
         .and_then(|receiver| {
-            validation::canonical_place_from_expression_in_state(
+            place_at(
                 program,
                 scope.evaluation.symbol,
                 self.statement_index,

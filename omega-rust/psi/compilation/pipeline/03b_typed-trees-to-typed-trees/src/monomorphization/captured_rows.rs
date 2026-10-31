@@ -14,6 +14,16 @@ macro_rules! err {
     };
 }
 
+#[derive(Clone, Copy)]
+enum CaptureSupply {
+    /// A current declaration or selected Product operand, independently
+    /// reconstructed from its live source by frozen checking.
+    AuthoredSelection,
+    /// A lexical call carries an existing capture's source receipt; it cannot
+    /// replace a missing authored selection with that same derived receipt.
+    CarriedCapture,
+}
+
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let mut calls = Vec::new();
     for machine in program.machines() {
@@ -47,6 +57,14 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         .trait_implementation_applications
         .iter()
         .map(|(_, selected)| (selected.supplying_application, selected.application.clone()))
+        .chain(
+            program
+                .data_implementation_applications
+                .iter()
+                .map(|(_, selected)| {
+                    (selected.supplying_application, selected.application.clone())
+                }),
+        )
         .collect::<Vec<_>>();
     // Source formation also retains applications in unexecuted helpers. Only
     // a reached Build choice demands its owned realization's capture tuple.
@@ -79,9 +97,13 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             .filter(|row| row.source.owns_realization())
         {
             let before = program.captured_machine_applications.len();
-            if let Some(captured) =
-                realize_capture(program, &application, supplying, row.realization_machine)?
-                && program.captured_machine_applications.len() != before
+            if let Some(captured) = realize_capture(
+                program,
+                &application,
+                supplying,
+                row.realization_machine,
+                CaptureSupply::AuthoredSelection,
+            )? && program.captured_machine_applications.len() != before
             {
                 changed.push(captured.instance);
             }
@@ -98,6 +120,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             &application,
             supplying_application,
             realization_machine,
+            CaptureSupply::CarriedCapture,
         )?
         else {
             continue;
@@ -237,6 +260,7 @@ fn realize_capture(
     application: &typed_trees::typed_trees::ClosedConformanceApplication,
     supplying_application: typed_trees::static_applications::StaticMachineApplicationHandle,
     realization_machine: SymbolHandle,
+    supply: CaptureSupply,
 ) -> Result<Option<typed_trees::typed_trees::CapturedMachineApplication>, Vec<Diagnostic>> {
     let conformance = program
         .conformance_by_symbol(application.declaration)
@@ -274,10 +298,23 @@ fn realize_capture(
                     .lexical_owner
                     == supplying_owner
         })
-        .map(|(_, captured)| captured.clone())
+        .map(|(handle, captured)| (handle, captured.clone()))
         .collect::<Vec<_>>();
     let captured = match retained.as_slice() {
-        [captured] => captured.clone(),
+        [(handle, captured)] => {
+            let mut captured = captured.clone();
+            if let CaptureSupply::AuthoredSelection = supply {
+                // Bodies share by their full applied meaning and supplier,
+                // not by whichever source occurrence happened to arrive first.
+                // Elaboration can replace that occurrence. Retain the current
+                // independent selection while preserving the original body and
+                // binding tuple; frozen checking must rejoin and replay both.
+                captured.supplying_application = supplying_application;
+                captured.conformance_application = application.clone();
+                *program.captured_machine_applications.get_mut(*handle) = captured.clone();
+            }
+            captured
+        }
         [] => {
             let Some(index) = program.machine_position_by_symbol(realization_machine) else {
                 return Err(err!("selected capture application lost its owned body"));
@@ -355,13 +392,20 @@ fn realize_capture(
                         // fresh expression recipe used by contract views.
                         let reference = match application.const_arguments.get(const_ordinal) {
                                 Some(typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
-                                    ..
+                                    value, ..
                                 }) => {
                                     // Use the shared static-operand namespace:
                                     // integers retain literal identity; aggregate
                                     // atoms retain the original carrier display.
-                                    let atom = super::const_arguments::spelling(program, argument)
-                                        .ok_or_else(|| vec![Diagnostic::error("evaluated map capture lost its canonical source operand")])?;
+                                    let canonical = language_semantics::const_value::CanonicalConstValue::new(
+                                        value.type_name.clone(), value.encoding.clone(), "",
+                                    );
+                                    let selected_value = typed_trees::expression::StaticMachineArgument {
+                                        path: vec![typed_trees::name::Identifier::generated(canonical.atom())].into_boxed_slice(),
+                                        ..Default::default()
+                                    };
+                                    let atom = super::const_arguments::spelling(program, &selected_value)
+                                        .ok_or_else(|| vec![Diagnostic::error("evaluated map capture lost its canonical value identity")])?;
                                     program.type_reference_table.insert(
                                         typed_trees::types::TypeReferenceNode::Named {
                                             symbol: SymbolHandle::invalid(),

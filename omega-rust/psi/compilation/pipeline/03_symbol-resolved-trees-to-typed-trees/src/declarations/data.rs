@@ -39,6 +39,7 @@ fn lower_data_definition_contents(
         supply_mode: data_definition.supply_mode,
         lifetime_parameters: lower_names(&data_definition.lifetime_parameters),
         type_parameters: arena::HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         generic_instance: data_definition
             .generic_instance
             .as_ref()
@@ -118,6 +119,21 @@ fn lower_data_definition_contents(
         members: arena::HandleSpan::empty(),
     };
 
+    for bound in &data_definition.conformance_bounds {
+        let mut arguments = Vec::new();
+        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
+            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
+        }
+        typed_data_definition
+            .conformance_bounds
+            .push(typed::machine::GenericConformanceBound {
+                binder: bound.binder,
+                binder_name: crate::lowerer::name::lower_name(&bound.binder_name),
+                trait_symbol: bound.trait_symbol,
+                trait_name: crate::lowerer::name::lower_name(&bound.trait_name),
+                arguments,
+            });
+    }
     typed_data_definition.type_parameters =
         lower_type_parameters(lowerer, data_definition.type_parameters)?;
 

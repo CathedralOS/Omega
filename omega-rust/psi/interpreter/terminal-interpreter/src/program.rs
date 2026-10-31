@@ -385,6 +385,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &self.execution_program(installation, None),
             installation,
             recipes,
+            None,
         )
     }
 
@@ -786,6 +787,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &program,
             installation,
             structural_inputs.private_entry_ram,
+            scalar_admission.map(|admission| admission.primary()),
         )
         .map_err(TerminalArtifactInterpretError::Execution)?;
         for application in &requirements.scalar_applications {
@@ -927,6 +929,15 @@ impl TerminalProgram<'_> {
         };
         let installation = installation.ok_or_else(reject)?;
         let primary = admission.primary();
+        let entry = self.program.resolve_entry(Some(installation))?;
+        if self
+            .module()
+            .machine(entry)
+            .is_some_and(|row| row.declaration.is_some())
+            && !primary.admits_machine(self.module(), entry)
+        {
+            return Err(reject());
+        }
         let expected = TerminalRuntimeSupplies::from(primary.providers());
         if self.program.identity
             != terminal_codec::TerminalExecutionIdentity::portable(admission.terminal())
@@ -1019,8 +1030,17 @@ mod private_entry_target_tests {
             .clone();
         let machines =
             terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
-        let layouts =
-            terminal_installation::admit_target_layouts(artifact.view(), &machines).unwrap();
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &machines,
+            &terminal_installation::LayoutTargetFacts {
+                profile: "linux_x86_64".into(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let recipe = terminal_installation::admit_private_entry_ram(
             artifact.view(),
             &layouts,
@@ -1040,9 +1060,17 @@ mod private_entry_target_tests {
         for name in ["macos_arm64"] {
             let other_machines =
                 terminal_installation::admit_target_machine_selections(artifact.view(), name);
-            let other_layouts =
-                terminal_installation::admit_target_layouts(artifact.view(), &other_machines)
-                    .unwrap();
+            let other_layouts = terminal_installation::admit_target_layouts(
+                artifact.view(),
+                &other_machines,
+                &terminal_installation::LayoutTargetFacts {
+                    profile: name.into(),
+                    pointer_size: 8,
+                    pointer_alignment: 8,
+                    little_endian: true,
+                },
+            )
+            .unwrap();
             let installation = program
                 .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {
                     x86_flags: None,

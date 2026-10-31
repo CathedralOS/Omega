@@ -4,8 +4,8 @@
 //! offers an acceptance decision.
 
 use super::{RootBinding, arrival_requirement_contract, selected_program_entry_machine};
-use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject};
-use checked_trees::typed_trees::TypedTrees;
+use crate::{ProviderSelection, ProviderSelectionSubject};
+use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration, ServiceCatalog};
 use diagnostics::Diagnostic;
 use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputs};
 
@@ -13,12 +13,19 @@ use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputs};
 /// physical requirement. Same-spelled requirements in unrelated packages do
 /// not match; two schemas inheriting the selected requirement still reject.
 pub fn discover_explicit_entry_binding(
-    typed: &TypedTrees,
+    services: ServiceCatalog<'_>,
     root_bindings: &[RootBinding],
     target: Option<target::TargetProfile>,
     selections: &[ProviderSelection],
     inputs: &PackageCompilationInputs,
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    let context = services.context();
+    if context.scope != source::DependencyScope::Product {
+        return Err(vec![Diagnostic::error(
+            "program-entry discovery requires the Product service catalog",
+        )]);
+    }
+    let typed = context.typed;
     if !inputs.semantic_role_discovery() {
         return Ok(None);
     }
@@ -36,7 +43,6 @@ pub fn discover_explicit_entry_binding(
     if inputs.accepted_semantic_binding(role).is_some() {
         return Ok(None);
     }
-    let context = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut selected = None;
     for definition in typed.traits().iter().filter(|definition| {
         definition.is_boundary
@@ -77,8 +83,10 @@ pub fn discover_explicit_entry_binding(
         }
         // Calling applications are checked during the following selection;
         // entry-role schema identity deliberately excludes those target rows.
-        let schema = crate::service_schema::from_typed(context, &[], definition)
+        let prepared = services
+            .declaration(ProviderSchemaDeclaration::BoundaryTrait(definition.symbol))
             .ok_or_else(|| vec![Diagnostic::error("selected entry schema cannot be reified")])?;
+        let schema = crate::service_schema::attach_calling(&prepared, &[]);
         selected = Some(
             AcceptedSemanticBinding::new_service(
                 role,

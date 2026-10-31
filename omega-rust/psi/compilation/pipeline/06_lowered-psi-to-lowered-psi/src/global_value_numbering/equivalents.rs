@@ -12,8 +12,8 @@
 //! untouched; module validation already rejects them on the public entrance.
 
 use crate::retained_identities::proof_values::{
-    call_erased_arguments, crash_continuations, retain_crash_routes, retain_erased_arguments,
-    retain_proposition,
+    call_erased_arguments, crash_continuations, retain_contract_values, retain_crash_routes,
+    retain_erased_arguments, retain_proposition,
 };
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,16 +40,7 @@ pub(super) fn deduplicate(
     let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
     let mut retained_values = retained_values.clone();
     retained_values.extend(coverage.values.iter().copied());
-    for proposition in &machine.contract.requires {
-        retain_proposition(proposition, &mut retained_values);
-    }
-    for clause in &machine.contract.ensures {
-        retain_proposition(&clause.proposition, &mut retained_values);
-    }
-    for guarantee in &machine.contract.outcome_specific_ensures {
-        retain_proposition(&guarantee.proposition, &mut retained_values);
-    }
-    retain_crash_routes(&machine.contract.crash_routes, &mut retained_values);
+    retain_contract_values(&machine.contract, &mut retained_values);
     let operations = machine.operations().collect::<Vec<_>>();
     for operation in &operations {
         retain_crash_routes(crash_continuations(&operation.kind), &mut retained_values);

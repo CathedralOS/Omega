@@ -18,6 +18,6 @@ mod preparation;
 pub use preparation::{
     PreparationAdmission, PreparationRequest, PreparedProductRequirement, TypedPreparation,
     bind_pre_specialization_authored_selections, prepare_constant_execution,
-    prepare_product_operand_application, prepare_product_requirement_operand,
-    prepare_retained_product_application, prepare_typed_trees, specialize_static_machine_calls,
+    prepare_execution_applications, prepare_product_operand_application,
+    prepare_product_requirement_operand, prepare_retained_product_application, prepare_typed_trees,
 };

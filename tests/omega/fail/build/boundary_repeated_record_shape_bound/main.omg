@@ -1,0 +1,27 @@
+// A compact source DAG still has distinct native occurrences and must reach
+// the existing shape bound even when source recipes share their children.
+use omega_language_std::calling;
+
+RefuseCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "unexpected policy evaluation" }
+        }
+    }
+}
+
+data Leaf { value: u8; }
+data Record1 { left: Leaf; right: Leaf; }
+data Record2 { left: Record1; right: Record1; }
+data Record3 { left: Record2; right: Record2; }
+data Record4 { left: Record3; right: Record3; }
+data Record5 { left: Record4; right: Record4; }
+data Record6 { left: Record5; right: Record5; }
+data Record7 { left: Record6; right: Record6; }
+data Record8 { left: Record7; right: Record7; }
+
+boundary trait DeepBoundary: Calling<RefuseCalling> {
+    machine accept(value: Record8) -> u64 reaches;
+}
+
+machine main() {}

@@ -65,8 +65,9 @@ fn published_graph_preserves_nested_bindings_and_declaration_membership() {
         &portable_plan,
         &portable_calls,
     );
-    let source_members = source.membership("windows_x86_64", false, &[(symbol(6), symbol(7))]);
-    let portable_members = portable.membership("windows_x86_64", false, &[(106, 107)]);
+    let source_members =
+        source.membership("windows_x86_64", false, &[(symbol(6), symbol(7))], None);
+    let portable_members = portable.membership("windows_x86_64", false, &[(106, 107)], None);
     assert_eq!(
         portable_members.0,
         source_members
@@ -79,10 +80,13 @@ fn published_graph_preserves_nested_bindings_and_declaration_membership() {
     let mut machines = portable_members.0;
     machines.sort_unstable();
     assert_eq!(machines, [101, 102, 103, 104, 105, 106, 107, 108]);
-    assert_eq!(portable.membership("macos_arm64", false, &[]).0, [109]);
+    assert_eq!(
+        portable.membership("macos_arm64", false, &[], None).0,
+        [109]
+    );
     assert_eq!(
         portable
-            .membership("windows_x86_64", false, &[])
+            .membership("windows_x86_64", false, &[], None)
             .0
             .contains(&107),
         false
@@ -180,12 +184,12 @@ fn supplemental_membership_follows_bindings_cleanup_and_selected_providers() {
     let (plan, operational) = recorded_calls();
     let applications = ProofApplications::new(&plan, &operational);
     let mut members = applications
-        .membership("windows_x86_64", false, &[(symbol(6), symbol(7))])
+        .membership("windows_x86_64", false, &[(symbol(6), symbol(7))], None)
         .0;
     members.sort_unstable_by_key(|member| member.arena_index());
     assert_eq!(members, [1, 2, 3, 5, 6, 7].map(symbol));
     assert_eq!(
-        applications.membership("macos_arm64", false, &[]).0,
+        applications.membership("macos_arm64", false, &[], None).0,
         vec![symbol(9)]
     );
 }
@@ -216,13 +220,13 @@ fn retained_metadata_does_not_restore_pruned_seeds_or_provider_bodies() {
     assert_eq!(plan.machines.len(), captured_count);
     let applications = ProofApplications::new(&plan, &operational);
     let mut members = applications
-        .membership("windows_x86_64", false, &[(symbol(6), symbol(7))])
+        .membership("windows_x86_64", false, &[(symbol(6), symbol(7))], None)
         .0;
     members.sort_unstable_by_key(|member| member.arena_index());
     assert_eq!(members, [1, 2, 3, 5, 6].map(symbol));
     assert!(
         applications
-            .membership("macos_arm64", false, &[])
+            .membership("macos_arm64", false, &[], None)
             .0
             .is_empty()
     );

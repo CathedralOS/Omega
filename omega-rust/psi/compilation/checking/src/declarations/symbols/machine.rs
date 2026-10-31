@@ -143,17 +143,11 @@ impl<'program> MachineSymbols<'program> {
     }
 
     pub fn state(&self, name: &str) -> Option<&'program State> {
-        self.states
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.state)
+        super::named_value(&self.states, name, |e| e.name, |e| e.state)
     }
 
     pub fn callable_field_type(&self, name: &str) -> Option<&'program str> {
-        self.callable_fields
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.type_name)
+        super::named_value(&self.callable_fields, name, |e| e.name, |e| e.type_name)
     }
 
     pub fn has_member(&self, name: &str) -> bool {
@@ -165,19 +159,11 @@ impl<'program> MachineSymbols<'program> {
     }
 
     pub fn member_symbol(&self, name: &str) -> SymbolHandle {
-        self.member_symbols
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+        super::named_symbol(&self.member_symbols, name, |e| e.name, |e| e.symbol)
     }
 
     pub fn owned_data_symbol(&self, name: &str) -> SymbolHandle {
-        self.owned_data_symbols
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+        super::named_symbol(&self.owned_data_symbols, name, |e| e.name, |e| e.symbol)
     }
 }
 

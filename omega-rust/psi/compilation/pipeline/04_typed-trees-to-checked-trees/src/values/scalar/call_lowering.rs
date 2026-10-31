@@ -1,6 +1,7 @@
 //! Lowering call arguments into scalar plans: retained arguments, boundary
 //! calls, direct call bindings and qualified call expressions.
 
+use crate::flow::expressions;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::{ScalarLocal, located_binding_symbols};
 use crate::values::scalar::scalar_lowering::lower_return_expression;
@@ -647,11 +648,7 @@ pub(crate) fn lower_proof_term(
                 return None;
             }
             let mut fields = Vec::new();
-            for field in program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-            {
+            for field in expressions(program).struct_fields(literal.fields).iter() {
                 let declared = program
                     .data_constructor_field(expected_type, literal.type_symbol, field.field_symbol)?
                     .type_reference;

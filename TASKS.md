@@ -299,9 +299,6 @@ retired-syntax deletions to completion.
       all nine places).
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
-    - Extend public slot metadata with returned-borrow origins and parameter
-      qualification preconditions, consume the new records in package review,
-      and implement `source/psi/` and `source/omega/` producer/consumer parity.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
@@ -396,7 +393,7 @@ retired-syntax deletions to completion.
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
   - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 72 test files to boundary traits with explicit reach clauses, lift stage
+    plus 70 test files to boundary traits with explicit reach clauses, lift stage
     04's template-dependent result borrow-elision fence for `core/task.omg`'s
     generic `request_cancel` and `finish`, and preserve source-selected trait
     tokens (`samples/cli/probes/operator_requires_effects`).
@@ -789,10 +786,13 @@ helper that passes does not close an item.
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
-    and logical-evidence requirements. The single-semicolon boundary between
-    nested and enclosing operational clauses is **OWNER-BLOCKED** on the narrow
-    punctuation question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); explicit
-    distinct terminators and the other requirement forms remain engineering work.
+    and logical-evidence requirements. Apply the settled
+    [machine header delimiters](wiki/spec/language/state_contracts.md#machine-header-delimiters):
+    no clause-ending semicolons, including termination and operational clauses;
+    one final semicolon closes each bodyless callable. Remove the parser's
+    termination-clause semicolon requirement; reject extra same-level terminators
+    rather than treating them as a workaround. Keep distinct terminators for
+    genuinely nested declarations.
   - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
     after `asm`, including headers without predicates. Preserve label scopes,
     incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
@@ -810,6 +810,11 @@ helper that passes does not close an item.
   twins retain native/Terminal agreement (`omega run --both`). Exercise repeated
   predicates, mixed generic/call-entry constraints, nested callable contracts
   followed by outer clauses, and assembly with and without entry predicates.
+  Pin callbacks with combined `suspends blocks terminates`, termination followed
+  by another clause or a body, and correctly closed higher-order requirements;
+  reject clause separators and extra same-level terminators. Migrate both
+  producers' parsers, source examples and diagnostic expectations without
+  changing which callable owns each obligation.
   Reject each retired `where` form, unsatisfied predicates, wrong callable scope
   or kind, unjustified static specialization, invalid default-domain formation,
   and unproved assembly assertions or incorrect clobbers. No old parser mode or
@@ -884,6 +889,14 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
+    The unqualified [nested-reference descriptor witness](https://github.com/CathedralOS/Omega/blob/ac343388cae3444d9eda04a548139f2ec8a9dd9c/samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
+    remains follow-on acceptance: preserve its value 7 and pointee 43 checks,
+    with the original 256-width and mismatched-policy-argument reject controls.
+    Its exact source and unfinished repairs are retained at that checkpoint;
+    the completed storage/bit rows do not establish this composition.
+    [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
+    also remains unqualified: preserve its distinct environment/storage regions
+    and the same constant index through the original forwarding call.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring

@@ -444,3 +444,85 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         "canonical_roundtrip=ok exact_plan=admitted target_mismatch=rejected absent_plan=rejected repeated_plan=rejected digest_substitution=rejected equal_provider_substitution=rejected"
     );
 }
+
+#[test]
+fn review_records_dynamic_slot_origin_and_qualification() {
+    let target = "linux_x86_64";
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/traits/runtime_dyn_slot_metadata_exit/main.omg");
+    let prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("slot metadata fixture inputs");
+    let mut session = CompilationSession::default();
+    let build = execute_build(
+        &mut session,
+        CheckedCompileRequest {
+            package_inputs: prepared.package_inputs,
+            ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+        },
+    );
+    let reviewed = session
+        .review_package_build(build, usize::MAX)
+        .expect("public slot metadata review");
+    let window = reviewed
+        .evidence
+        .policy
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path().ends_with("Window"))
+        .expect("public Window trait");
+    let view = window
+        .requirements()
+        .iter()
+        .find(|requirement| requirement.identity().path().contains("view"))
+        .unwrap_or_else(|| {
+            panic!(
+                "view requirement missing from {}",
+                window
+                    .requirements()
+                    .iter()
+                    .map(|requirement| requirement.identity().path())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        });
+    let origins = view.returned_borrow_origins();
+    assert_eq!(origins.len(), 1, "returned-borrow origin roster");
+    assert_eq!(origins[0].parameter_index(), Some(0));
+    assert!(origins[0].invocation_carrier().is_none());
+    let qualifications = view.parameter_qualification_preconditions();
+    assert_eq!(qualifications.len(), 1, "qualification precondition roster");
+    assert_eq!(qualifications[0].structural_index(), 0);
+    assert!(
+        qualifications[0].domain().path().contains("Utf8"),
+        "{}",
+        qualifications[0].domain().path()
+    );
+    let bytes = reviewed
+        .evidence
+        .policy
+        .canonical_bytes()
+        .expect("encode slot metadata policy");
+    let recovered = package_evidence::record::PackagePolicyBaseline::recover_canonical(
+        &bytes,
+        package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+    )
+    .expect("recover slot metadata policy");
+    let recovered_view = recovered
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path().ends_with("Window"))
+        .expect("recovered Window")
+        .requirements()
+        .iter()
+        .find(|requirement| requirement.identity().path().contains("view"))
+        .expect("recovered view");
+    assert_eq!(
+        recovered_view.returned_borrow_origins(),
+        view.returned_borrow_origins()
+    );
+    assert_eq!(
+        recovered_view.parameter_qualification_preconditions(),
+        view.parameter_qualification_preconditions()
+    );
+}

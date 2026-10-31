@@ -383,14 +383,57 @@ fn closed_argument_identities(
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
-            closed_argument_identity(
-                syntax,
-                selection,
-                *argument,
-                parameter.kind.is_const_or_value(),
-            )
+            closed_parameter_argument_identity(syntax, selection, *argument, &parameter.kind)
         })
         .collect::<Option<Vec<_>>>()
+}
+
+/// Close an argument under its receiving declaration's actual parameter kind.
+/// Implementations do not enter the data namespace; unsupported static operand
+/// categories stay on the ordinary resolver/checker path.
+pub(in crate::preparation::generic_data) fn closed_parameter_argument_identity(
+    syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    handle: TypeReferenceHandle,
+    kind: &TypeParameterKind,
+) -> Option<ClosedArgumentIdentity> {
+    match kind {
+        TypeParameterKind::Type => closed_argument_identity(syntax, selection, handle, false),
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+            closed_argument_identity(syntax, selection, handle, true)
+        }
+        TypeParameterKind::Implementation => {
+            let origin = syntax.type_references.generic_application_origin(handle);
+            let handle = if origin.is_valid() { origin } else { handle };
+            let (name, arguments) = match syntax.type_references.type_reference(handle) {
+                TypeReferenceNode::Named(name) => (name, &[][..]),
+                TypeReferenceNode::Generic {
+                    base_name,
+                    lifetime_arguments,
+                    arguments,
+                } if lifetime_arguments.is_empty() => (
+                    base_name,
+                    syntax.type_references.type_reference_handles(*arguments),
+                ),
+                // This syntax owner has no selected lifetime binders. Preserve
+                // lifetime-bearing applications for ordinary typed identity.
+                _ => return None,
+            };
+            let declaration = selection?.implementation_item(syntax, name).ok()?;
+            let Item::Conformance(implementation) = syntax.root_item(declaration) else {
+                return None;
+            };
+            if !implementation.lifetime_parameters.is_empty() {
+                return None;
+            }
+            let parameters = syntax.items.type_parameters(implementation.type_parameters);
+            Some(ClosedArgumentIdentity::Implementation(
+                declaration,
+                closed_argument_identities(syntax, selection, parameters, arguments)?,
+            ))
+        }
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => None,
+    }
 }
 
 pub(crate) fn closed_argument_identity(

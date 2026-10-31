@@ -2,6 +2,7 @@
 //! installed slots and returned descriptors use this operation; neither may
 //! replay an initializer or confuse a descriptor cell with its pointee.
 use super::Execution;
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
@@ -30,14 +31,12 @@ impl Execution<'_, '_, '_> {
             }
             places
         } else {
-            vec![super::super::CapturedReferencePlace::unformed(
-                validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state.symbol,
-                    self.statement_index,
-                    actual.expression,
-                )?,
-            )]
+            vec![super::super::CapturedReferencePlace::unformed(place_at(
+                self.program,
+                self.state.symbol,
+                self.statement_index,
+                actual.expression,
+            )?)]
         };
         for (ordinal, segment) in path.iter().enumerate() {
             if matches!(

@@ -180,19 +180,29 @@ impl Evaluation {
         )>,
         LoweringError,
     > {
-        let mut places = self
-            .emitted_carriers(operations)
-            .map(|(place, _, _)| place)
-            .collect::<Vec<_>>();
-        places.sort_unstable();
-        places.dedup();
-        places
-            .into_iter()
-            .map(|place| {
-                self.carrier_multiplicity(place, operations)
-                    .map(|multiplicity| (place, multiplicity))
-            })
-            .collect()
+        // This expansion borrows one immutable emission cut. Group its exact
+        // declarations once instead of rescanning every emitted operation for
+        // each place; reflected aggregates can establish thousands of homes.
+        let mut carriers = self.emitted_carriers(operations).collect::<Vec<_>>();
+        carriers.sort_unstable_by_key(|(place, _, _)| *place);
+        let mut inventory = Vec::with_capacity(carriers.len());
+        let mut remaining = carriers.as_slice();
+        while let Some(&(place, structural_type, multiplicity)) = remaining.first() {
+            let end = remaining.partition_point(|(candidate, _, _)| *candidate == place);
+            if remaining[..end]
+                .iter()
+                .any(|(_, candidate_type, candidate_multiplicity)| {
+                    *candidate_type != structural_type || *candidate_multiplicity != multiplicity
+                })
+            {
+                return Err(LoweringError::Unsupported(
+                    "descriptor retirement has inconsistent carrier declarations",
+                ));
+            }
+            inventory.push((place, multiplicity));
+            remaining = &remaining[end..];
+        }
+        Ok(inventory)
     }
 
     /// Releasing a descriptor ends its own home, not its borrowed backing.

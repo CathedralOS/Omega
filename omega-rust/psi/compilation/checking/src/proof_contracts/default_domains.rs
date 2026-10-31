@@ -37,6 +37,7 @@ mod where_fact_intervals;
 pub use super::contract_entailment::data_predicates_admit_zero;
 pub use float_predicates::data_float_predicate;
 pub(crate) use float_predicates::float_field_literal_bound_meaning;
+pub(crate) use place_queries::data_predicate_fields;
 pub(crate) use place_queries::membership_field;
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;
@@ -140,6 +141,10 @@ fn analyze_default_domain_writes_with_frames(
     diagnostics: &mut Vec<Diagnostic>,
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
 ) {
+    proved_parameter_calls()
+        .lock()
+        .expect("parameter call proofs")
+        .clear();
     // Every call site resolves its target machine through this index; the
     // program is frozen for the pass so one build covers all lookups.
     let state_to_machine = state_to_machine_index(program);
@@ -292,7 +297,11 @@ fn analyze_default_domain_writes_with_frames(
         summaries.insert(symbol, data_rooted);
     }
 
-    let machine_results: Vec<(Vec<Diagnostic>, Vec<OpenInvariantCrashSite>)> =
+    let machine_results: Vec<(
+        symbols::SymbolHandle,
+        Vec<Diagnostic>,
+        Vec<OpenInvariantCrashSite>,
+    )> =
         crate::checking_thread_pool().install(|| {
             use rayon::prelude::*;
             program
@@ -472,14 +481,32 @@ fn analyze_default_domain_writes_with_frames(
                         machine_crash_sites.extend(walk.crash_sites);
                     }
                     (!machine_diagnostics.is_empty() || !machine_crash_sites.is_empty())
-                        .then_some((machine_diagnostics, machine_crash_sites))
+                        .then_some((machine.symbol, machine_diagnostics, machine_crash_sites))
                 })
                 .collect()
         });
-    for (machine_diagnostics, machine_crash_sites) in machine_results {
+    let proofs = proved_parameter_calls()
+        .lock()
+        .expect("parameter call proofs")
+        .clone();
+    for (symbol, machine_diagnostics, machine_crash_sites) in machine_results {
+        let attempts = proofs
+            .iter()
+            .filter(|(callee, _)| *callee == symbol)
+            .map(|(_, proved)| *proved)
+            .collect::<Vec<_>>();
+        if !attempts.is_empty() && attempts.iter().all(|proved| *proved) {
+            continue;
+        }
         diagnostics.extend(machine_diagnostics);
         crash_sites.extend(machine_crash_sites);
     }
+}
+
+fn proved_parameter_calls() -> &'static std::sync::Mutex<Vec<(symbols::SymbolHandle, bool)>> {
+    static PROOFS: std::sync::Mutex<Vec<(symbols::SymbolHandle, bool)>> =
+        std::sync::Mutex::new(Vec::new());
+    &PROOFS
 }
 
 /// One tracked place: its rendered spelling, its data definition, and the
@@ -525,6 +552,9 @@ struct TrackedPlace<'program> {
     /// on common-field writes; `None` means the case is unknown and a
     /// fact-mentioned payload write joins every candidate case's facts.
     active_case: Option<symbols::SymbolHandle>,
+    /// Each arm of a joined initializer. A later field write preserves the
+    /// domain only when every arm still proves it.
+    alternatives: Vec<Vec<(String, Option<symbolic_values::LiteralValue>)>>,
 }
 
 impl TrackedPlace<'_> {
@@ -532,6 +562,347 @@ impl TrackedPlace<'_> {
     /// opened, or one an element store opened.
     fn any_window_open(&self) -> bool {
         self.window_open || !self.element_windows.is_empty()
+    }
+}
+
+fn place_snapshots<'program>(
+    tracked: &[TrackedPlace<'program>],
+) -> Vec<(
+    String,
+    Vec<(String, Option<symbolic_values::LiteralValue>)>,
+    Option<symbols::SymbolHandle>,
+    &'program typed_trees::data::DataDefinition,
+)> {
+    tracked
+        .iter()
+        .map(|place| {
+            (
+                place.spelling.clone(),
+                place.fields.clone(),
+                place.active_case,
+                place.definition,
+            )
+        })
+        .collect()
+}
+
+fn seed_transported_initializer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    local: &typed_trees::statement::TableLocalData,
+    tracked: &mut Vec<TrackedPlace<'program>>,
+) {
+    if !local.initial_value.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(local.initial_value) {
+        typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+            let holder = crate::field_domains::owned_nominal_data_definition(
+                program,
+                local.type_reference,
+            );
+            for field in program.expression_table.struct_fields(literal.fields) {
+                let Some((case, fields, symbols)) = case_snapshot(program, field.value) else {
+                    continue;
+                };
+                let Some(holder) = holder else {
+                    continue;
+                };
+                let Some(declared) = program.data_members(holder).iter().find_map(|member| {
+                    member.as_field().filter(|candidate| {
+                        candidate.name.as_str() == field.name.as_str()
+                    })
+                }) else {
+                    continue;
+                };
+                let Some(definition) = crate::field_domains::owned_nominal_data_definition(
+                    program,
+                    declared.type_reference,
+                ) else {
+                    continue;
+                };
+                let spelling = format!("{}.{}", local.name.as_str(), field.name.as_str());
+                if tracked.iter().any(|place| place.spelling == spelling) {
+                    continue;
+                }
+                tracked.push(TrackedPlace {
+                    spelling,
+                    definition,
+                    fields,
+                    established_fields: Vec::new(),
+                    symbols,
+                    measures: Vec::new(),
+                    established: true,
+                    born_zero: false,
+                    window_open: false,
+                    elements: Vec::new(),
+                    element_windows: Vec::new(),
+                    active_case: Some(case),
+                    alternatives: Vec::new(),
+                });
+            }
+        }
+        typed_trees::expression::ExpressionNode::Match(matched) => {
+            let arms = program.expression_table.match_arms(matched.arms);
+            let snapshots = arms
+                .iter()
+                .filter_map(|arm| case_snapshot(program, arm.value))
+                .collect::<Vec<_>>();
+            if snapshots.len() != arms.len() || snapshots.is_empty() {
+                return;
+            }
+            let case = snapshots[0].0;
+            if snapshots.iter().any(|snapshot| snapshot.0 != case) {
+                return;
+            }
+            let Some(definition) = crate::field_domains::owned_nominal_data_definition(
+                program,
+                local.type_reference,
+            ) else {
+                return;
+            };
+            if tracked.iter().any(|place| place.spelling == local.name.as_str()) {
+                return;
+            }
+            tracked.push(TrackedPlace {
+                spelling: local.name.to_string(),
+                definition,
+                fields: Vec::new(),
+                established_fields: Vec::new(),
+                symbols: Vec::new(),
+                measures: Vec::new(),
+                established: true,
+                born_zero: false,
+                window_open: false,
+                elements: Vec::new(),
+                element_windows: Vec::new(),
+                active_case: Some(case),
+                alternatives: snapshots
+                    .into_iter()
+                    .map(|(_, fields, _)| fields)
+                    .collect(),
+            });
+        }
+        typed_trees::expression::ExpressionNode::Call(call) => {
+            let Some((case, fields, symbols)) =
+                machine_return_snapshot(program, call.target_symbol)
+            else {
+                return;
+            };
+            let Some(definition) = crate::field_domains::owned_nominal_data_definition(
+                program,
+                local.type_reference,
+            ) else {
+                return;
+            };
+            if tracked.iter().any(|place| place.spelling == local.name.as_str()) {
+                return;
+            }
+            tracked.push(TrackedPlace {
+                spelling: local.name.to_string(),
+                definition,
+                fields,
+                established_fields: Vec::new(),
+                symbols,
+                measures: Vec::new(),
+                established: true,
+                born_zero: false,
+                window_open: false,
+                elements: Vec::new(),
+                element_windows: Vec::new(),
+                active_case: Some(case),
+                alternatives: Vec::new(),
+            });
+        }
+        _ => {}
+    }
+}
+
+fn case_snapshot(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    Vec<(String, Option<symbolic_values::LiteralValue>)>,
+    Vec<(String, symbolic_values::SymbolicValue)>,
+)> {
+    let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let case = literal.case_symbol.filter(|symbol| symbol.is_valid())?;
+    let (fields, symbols) = symbolic_values::struct_literal_snapshot(program, expression);
+    Some((case, fields, symbols))
+}
+
+fn machine_return_snapshot(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    Vec<(String, Option<symbolic_values::LiteralValue>)>,
+    Vec<(String, symbolic_values::SymbolicValue)>,
+)> {
+    let machine = program.machine(target).or_else(|| {
+        // A call target may be the entry state rather than the machine.
+        program.machines().iter().find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target)
+        })
+    })?;
+    let state = program.machine_states(machine).first()?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let expression = match statements {
+        [typed_trees::statement::StatementNode::Expression(expression)] => *expression,
+        [typed_trees::statement::StatementNode::Transition(transition)] => {
+            let typed_trees::statement::TransitionTargetNode::Value(expression) = program
+                .statement_table
+                .transition_target(transition.target)
+            else {
+                return None;
+            };
+            *expression
+        }
+        _ => return None,
+    };
+    case_snapshot(program, expression)
+}
+
+fn visit_calls(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    calls: &mut Vec<typed_trees::expression::TableCallExpression>,
+) {
+    if !program.expression_table.expression_is_valid(expression) {
+        return;
+    }
+    let node = program.expression_table.expression(expression);
+    match &node {
+        typed_trees::expression::ExpressionNode::Call(call) => calls.push(call.clone()),
+        node => crate::expression_traversal::children(program, node, |child| {
+            visit_calls(program, child, calls);
+        }),
+    }
+}
+
+fn restore_parameter_write<'program>(
+    program: &'program dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    state_to_machine: &StateToMachine,
+    saved_places: &[(
+        String,
+        Vec<(String, Option<symbolic_values::LiteralValue>)>,
+        Option<symbols::SymbolHandle>,
+        &'program typed_trees::data::DataDefinition,
+    )],
+    tracked: &mut Vec<TrackedPlace<'program>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(machine) = program.machine(target).or_else(|| {
+        state_to_machine
+            .get(&target)
+            .and_then(|symbol| program.machine(*symbol))
+    }) else {
+        return;
+    };
+    let Some(state) = program.machine_states(machine).first() else {
+        return;
+    };
+    let parameters = program.state_parameters(state);
+    let mut entry_valuations = Vec::new();
+    let mut actuals = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let Some(spelling) = place_queries::write_place_spelling(program, *argument) else {
+            continue;
+        };
+        let Some(place) = saved_places.iter().find(|place| place.0 == spelling) else {
+            continue;
+        };
+        entry_valuations.push((
+            parameter.name.as_str().to_string(),
+            place.1.clone(),
+            place.2,
+        ));
+        actuals.push((spelling, parameter.name.as_str().to_string()));
+    }
+    if entry_valuations.is_empty() {
+        return;
+    }
+    let mut callee_diagnostics = Vec::new();
+    let mut crash_sites = Vec::new();
+    walk_state(
+        program,
+        None,
+        machine,
+        state,
+        &[],
+        &entry_valuations,
+        &[],
+        &symbols::SymbolKeyMap::default(),
+        state_to_machine,
+        false,
+        true,
+        &mut callee_diagnostics,
+        &mut crash_sites,
+        false,
+    );
+    let proved = callee_diagnostics.is_empty();
+    proved_parameter_calls()
+        .lock()
+        .expect("parameter call proofs")
+        .push((machine.symbol, proved));
+    if !proved {
+        diagnostics.extend(callee_diagnostics);
+        return;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    for statement in statements {
+        let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
+            continue;
+        };
+        let Some(target) = place_queries::write_place_spelling(program, assignment.target) else {
+            continue;
+        };
+        for (actual, parameter) in &actuals {
+            let Some(field) = target.strip_prefix(&format!("{parameter}.")) else {
+                continue;
+            };
+            let written = symbolic_values::literal_value(program, assignment.value);
+            if let Some(place) = tracked.iter_mut().find(|place| place.spelling == *actual) {
+                if let Some(slot) = place.fields.iter_mut().find(|(name, _)| name == field) {
+                    slot.1 = written;
+                } else {
+                    place.fields.push((field.to_string(), written));
+                }
+                place.window_open = false;
+                place.established = true;
+            } else if let Some(saved) = saved_places.iter().find(|place| place.0 == *actual) {
+                let mut fields = saved.1.clone();
+                if let Some(slot) = fields.iter_mut().find(|(name, _)| name == field) {
+                    slot.1 = written;
+                } else {
+                    fields.push((field.to_string(), written));
+                }
+                tracked.push(TrackedPlace {
+                    spelling: actual.clone(),
+                    definition: saved.3,
+                    fields,
+                    established_fields: Vec::new(),
+                    symbols: Vec::new(),
+                    measures: Vec::new(),
+                    established: true,
+                    born_zero: false,
+                    window_open: false,
+                    elements: Vec::new(),
+                    element_windows: Vec::new(),
+                    active_case: saved.2,
+                    alternatives: Vec::new(),
+                });
+            }
+        }
     }
 }
 
@@ -671,6 +1042,7 @@ fn walk_state(
             // (ch11): every open window must have closed. After that check,
             // R5 summaries preserve exact valuations outside known writes.
             StatementNode::Call(call) => {
+                let saved_places = place_snapshots(&tracked);
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                 preserve_proven_establishment(&tracked, &mut call_established);
                 let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
@@ -702,8 +1074,18 @@ fn walk_state(
                 if let Some(established) = summaries.get(&target_machine) {
                     call_established.extend(established.iter().cloned());
                 }
+                restore_parameter_write(
+                    program,
+                    call.target_symbol,
+                    program.expression_table.expression_handles(call.arguments),
+                    &state_to_machine,
+                    &saved_places,
+                    &mut tracked,
+                    diagnostics,
+                );
             }
             StatementNode::Expression(expression) => {
+                let saved_places = place_snapshots(&tracked);
                 if expression_contains_call(program, *expression) {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                     preserve_proven_establishment(&tracked, &mut call_established);
@@ -717,8 +1099,22 @@ fn walk_state(
                         &mut call_established,
                     );
                 }
+                if let typed_trees::expression::ExpressionNode::Call(call) =
+                    program.expression_table.expression(*expression)
+                {
+                    restore_parameter_write(
+                        program,
+                        call.target_symbol,
+                        program.expression_table.expression_handles(call.arguments),
+                        state_to_machine,
+                        &saved_places,
+                        &mut tracked,
+                        diagnostics,
+                    );
+                }
             }
             StatementNode::LocalData(local) => {
+                let saved_places = place_snapshots(&tracked);
                 if local.initial_value.is_valid()
                     && expression_contains_call(program, local.initial_value)
                 {
@@ -733,6 +1129,19 @@ fn walk_state(
                         summaries,
                         &mut call_established,
                     );
+                    let mut calls = Vec::new();
+                    visit_calls(program, local.initial_value, &mut calls);
+                    for call in calls {
+                        restore_parameter_write(
+                            program,
+                            call.target_symbol,
+                            program.expression_table.expression_handles(call.arguments),
+                            state_to_machine,
+                            &saved_places,
+                            &mut tracked,
+                            diagnostics,
+                        );
+                    }
                 }
                 // Initializer admission remains the ordinary construction/call
                 // obligation. Retain its independently completed case at this
@@ -760,13 +1169,19 @@ fn walk_state(
                         program,
                         local.initial_value,
                     );
-                    tracked.push(TrackedPlace {
+                tracked.push(TrackedPlace {
                         spelling: local.name.to_string(), definition,
                         fields, established_fields: Vec::new(), symbols, measures: Vec::new(),
                         established: true, born_zero: false, window_open: false,
                         elements: Vec::new(), element_windows: Vec::new(), active_case: Some(active_case),
+                        alternatives: Vec::new(),
                     });
                 }
+                seed_transported_initializer(
+                    program,
+                    local,
+                    &mut tracked,
+                );
             }
             StatementNode::Transition(transition) => {
                 if matches!(
@@ -805,6 +1220,7 @@ fn walk_state(
                 // statement is. The crash-site evidence above was collected
                 // first so this poisoning cannot erase it.
                 let evaluated = transition_evaluated_expressions(program, transition);
+                let saved_places = place_snapshots(&tracked);
                 if evaluated
                     .iter()
                     .any(|expression| expression_contains_call(program, *expression))
@@ -822,6 +1238,21 @@ fn walk_state(
                             &mut call_established,
                         );
                     }
+                }
+                let mut calls = Vec::new();
+                for expression in &evaluated {
+                    visit_calls(program, *expression, &mut calls);
+                }
+                for call in calls {
+                    restore_parameter_write(
+                        program,
+                        call.target_symbol,
+                        program.expression_table.expression_handles(call.arguments),
+                        state_to_machine,
+                        &saved_places,
+                        &mut tracked,
+                        diagnostics,
+                    );
                 }
             }
             _ => {}

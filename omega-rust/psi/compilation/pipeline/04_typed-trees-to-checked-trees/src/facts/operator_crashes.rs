@@ -5,6 +5,7 @@ use super::crash_entry_values::{
     entry_operand_projected, formal_member_projection, substitute_entry_projected,
 };
 use super::declared_parameter_names;
+use crate::flow::expressions;
 
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorFacts, CheckedOperatorOccurrence,
@@ -474,8 +475,7 @@ fn unreachable_match_arm(
             return false;
         };
         if dispatch.arms.handle_at(arm_ordinal) == source_arm {
-            return program
-                .expression_table
+            return expressions(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .take(ordinal)

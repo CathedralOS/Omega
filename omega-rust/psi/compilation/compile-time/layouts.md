@@ -15,16 +15,14 @@ The compiler supplies authorized schema/target facts, checks compile-time
 admission, evaluates and validates a plan, and retains the representation for
 all storage and ABI consumers. Build grants no per-layout blessing.
 
-The current `plan_laid/desugaring.rs` still recognizes a non-generic data name
-with an attached plan machine and clones plain record fields under a synthetic
-name. That is legacy implementation, not genuine generic alias support or the
-accepted policy authoring surface. Existing supported paths below remain
-behavioral evidence for their exact inputs, not evidence that the new aliases,
-family contract, standard conversions or programmable case layout are complete.
-`LIBRARY-REPRESENTATION-FAMILIES` and `PREFIX-CASE-IDENTITIES` in
-[TASKS.md](../../../../TASKS.md) retain implementation and source migration;
-`WIRE-CODEC-LIBRARY` retains authored reflection/codec execution. Retire the
-superseded recognizer rather than preserving it as another source dialect.
+The selected Core `LayoutStorage<T, Policy>` constructor carries the semantic
+value and exact named implementation identity. Policies implement ordinary
+`FixedLayout<T>::plan(schema, target)` members; attached plan machines, empty
+policy data and synthetic record shells are retired. This establishes the
+explicit fixed-policy application path. Transparent aliases, conversion
+families and programmable case layouts retain their separate task acceptance
+under `LIBRARY-REPRESENTATION-FAMILIES`, `PREFIX-CASE-IDENTITIES` and
+`WIRE-CODEC-LIBRARY` in [TASKS.md](../../../../TASKS.md).
 
 ## Ownership
 
@@ -35,12 +33,16 @@ operations. Seeding inaccessible decisions deduplicates keys across fragments,
 not obligations across fields. `ACCESS-POLICY-VOCABULARY` owns the coordinated
 core, consumer, internal-identifier and fixture migration in [TASKS.md](../../../../TASKS.md).
 
-`layout_plans/` reflects checked schemas, evaluates authored plans, and
-validates them. `plan_laid/` owns pre-resolution desugaring and post-typing
-installation. `placed_views/`, `access_plans/` and `wire_plans.rs` own concrete
-view probing, policy-governed access policy evaluation and wire-plan installation. Omega
-schedules these target-neutral services and supplies target realization inputs;
-it does not reinterpret their semantics.
+`layout_plans/` reflects checked schemas, evaluates authored plans and validates
+them. `plan_laid.rs` discovers exact closed representation applications in the
+existing Psi checking facade; `plan_laid/layout_installation.rs` installs the
+validated result. Build supplies explicit deployment roots, selected providers
+and immutable target facts. The facade preserves package selection authority
+while ordinary compile-time admission checks the complete policy closure.
+An inactive target scope with no application needs no layout facts.
+`placed_views/`, `access_plans/` and `wire_plans.rs` own their respective probes
+and installations. Omega supplies target inputs through those services rather
+than reinterpreting policy semantics or reopening source initializers.
 
 The [layout-plans foundation](../../foundation/layout-plans/src/layout_reports/mod.rs) holds
 normalized geometry and the conventional report carriers, including the
@@ -116,12 +118,24 @@ Terminal execution. The receipt keeps the original canonical artifact identity;
 selection neither rewrites that artifact nor supplies new proof authority. The
 complete artifact conservatively retains the policy bodies and their dependencies.
 
-The current family Schema ABI supports records with at most 32 nonzero live
-fields of scalar or fixed nested-record shape. Active cases, retired identities,
-nested target-dependent schemas and nested policy geometry that has not yet been
-materialized reject explicitly. Private callback layout demands also require a
-separate target-closed publication route. An unresolved family is never treated
-as ordinary packing by legacy typed-layout consumers.
+Schema ABI 3 retains per-target scalar geometry, complete member and retirement
+identities, and exact policy application custody. Source references use their
+source-visible geometry; engine-private loan descriptors do not change it.
+Nested by-value representations are evaluated with their explicit target
+inputs and lexical owners. References do not demand pointee placement.
+Programmable case/tag placement and private-callback publication retain their
+separate acceptance; a reflected schema alone does not establish those paths.
+
+The retired attached-policy surface allowed an authored narrower schema input.
+Ordinary `FixedLayout` has the canonical `Schema` signature instead. The former
+`schema_identity_payload_*` fixtures therefore do not survive as custom
+host-payload predicate coverage. Their replacement
+`canonical_schema_stable_identity_*` pair checks exact `Optional<u64>` stable
+identity transport and ordinary plan validation. General authored case-payload
+predicates remain covered separately by `data/closed_literal_nested_predicates`
+and `data/closed_literal_selected_case_false`, and canonical const arguments by
+`generics/const_index_active_case_predicates_exit` and
+`generics/const_index_active_case_false`.
 
 ## Conventional sum materialization
 

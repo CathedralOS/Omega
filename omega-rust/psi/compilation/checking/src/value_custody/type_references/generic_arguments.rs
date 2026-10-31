@@ -8,6 +8,7 @@ use symbols::SymbolHandle;
 use typed_trees::data::{
     DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
+use typed_trees::expression::StaticMachineArgument;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod closed_expressions;
@@ -23,6 +24,23 @@ pub fn check_closed_const_expression(
     expression: typed_trees::expression::ExpressionHandle,
     carrier: TypeReferenceHandle,
 ) -> Result<Option<CanonicalConstValue>, Vec<Diagnostic>> {
+    check_closed_const_expression_in_carrier(
+        program,
+        lexical_owner,
+        expression,
+        AppliedValueCarrier::ordinary(carrier),
+    )
+}
+
+/// Normalize only after formation in the complete simultaneous receiving scope.
+/// Supplied actual descendants retain their original caller telescope.
+pub(crate) fn check_closed_const_expression_in_carrier(
+    program: &dyn crate::CheckingInput,
+    lexical_owner: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    carrier: AppliedValueCarrier<'_>,
+) -> Result<Option<CanonicalConstValue>, Vec<Diagnostic>> {
+    let resolved = carrier.resolved(program);
     let mut diagnostics = Vec::new();
     let mut formation_obligations = Vec::new();
     crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
@@ -32,8 +50,8 @@ pub fn check_closed_const_expression(
         &[],
         None,
         expression,
-        program.primitive_type_reference(carrier),
-        program.arithmetic_domain_for_type_reference(carrier),
+        program.primitive_type_reference(resolved.reference),
+        program.arithmetic_domain_for_type_reference(resolved.reference),
         "closed const argument",
         &mut diagnostics,
         &mut formation_obligations,
@@ -47,7 +65,9 @@ pub fn check_closed_const_expression(
     if !formation_obligations.is_empty() {
         return Ok(None);
     }
-    normalize_closed_const_expression(program, lexical_owner, expression, carrier)
+    // The shared normalizer independently replays each decoded node against
+    // this complete applied carrier before producing the canonical value.
+    normalize_closed_const_expression_in_carrier(program, lexical_owner, expression, carrier)
         .map_err(|message| vec![Diagnostic::error(message)])
 }
 
@@ -384,6 +404,8 @@ pub(crate) struct AppliedValueCarrier<'application> {
     reference: TypeReferenceHandle,
     parameters: &'application [TypeParameter],
     arguments: &'application [TypeReferenceHandle],
+    static_arguments: Option<&'application [StaticMachineArgument]>,
+    values: &'application [(SymbolHandle, &'application CanonicalConstIdentity)],
 }
 
 impl<'application> AppliedValueCarrier<'application> {
@@ -392,6 +414,8 @@ impl<'application> AppliedValueCarrier<'application> {
             reference,
             parameters: &[],
             arguments: &[],
+            static_arguments: None,
+            values: &[],
         }
     }
 
@@ -404,10 +428,58 @@ impl<'application> AppliedValueCarrier<'application> {
             reference,
             parameters,
             arguments,
+            static_arguments: None,
+            values: &[],
         }
     }
 
-    fn resolved(self, program: &dyn crate::CheckingInput) -> Self {
+    /// Borrow the original static tuple, including literal operands with no
+    /// type-table node. Completed values remain associated with their exact
+    /// preceding declaration slot; no interning lookup reconstructs actuals.
+    pub(crate) fn applied_operands(
+        reference: TypeReferenceHandle,
+        parameters: &'application [TypeParameter],
+        arguments: &'application [StaticMachineArgument],
+        values: &'application [(SymbolHandle, &'application CanonicalConstIdentity)],
+    ) -> Self {
+        Self {
+            reference,
+            parameters,
+            arguments: &[],
+            static_arguments: Some(arguments),
+            values,
+        }
+    }
+
+    fn type_argument(
+        self,
+        program: &dyn crate::CheckingInput,
+        position: usize,
+    ) -> Option<TypeReferenceHandle> {
+        if let Some(arguments) = self.static_arguments {
+            let argument = arguments.get(position)?;
+            if argument.type_reference.is_valid() {
+                return Some(argument.type_reference);
+            }
+            // A selected nominal type retains its resolved declaration symbol.
+            // This is an exact arena association, never a literal/name search.
+            return argument
+                .symbol
+                .is_valid()
+                .then(|| {
+                    program
+                        .type_reference_table
+                        .find_named_type_reference(argument.symbol)
+                })
+                .flatten();
+        }
+        self.arguments
+            .get(position)
+            .copied()
+            .filter(|argument| argument.is_valid())
+    }
+
+    pub(crate) fn resolved(self, program: &dyn crate::CheckingInput) -> Self {
         if !self.reference.is_valid() {
             return self;
         }
@@ -418,14 +490,19 @@ impl<'application> AppliedValueCarrier<'application> {
         };
         self.parameters
             .iter()
-            .zip(self.arguments)
-            .find_map(|(parameter, argument)| {
+            .enumerate()
+            .find_map(|(position, parameter)| {
                 (symbol.is_valid()
                     && parameter.symbol == *symbol
                     && matches!(parameter.kind, TypeParameterKind::Type))
-                .then_some(Self::ordinary(*argument))
+                .then(|| self.type_argument(program, position).map(Self::ordinary))
+                .flatten()
             })
             .unwrap_or(self)
+    }
+
+    pub(crate) fn reference(self) -> TypeReferenceHandle {
+        self.reference
     }
 
     fn child(self, reference: TypeReferenceHandle) -> Self {
@@ -437,6 +514,49 @@ impl<'application> AppliedValueCarrier<'application> {
         program: &dyn crate::CheckingInput,
         actual: TypeReferenceHandle,
     ) -> bool {
+        self.identity(program)
+            .is_some_and(|expected| expected == program.normalized_type_identity(actual))
+    }
+
+    fn identity(
+        self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+        if let Some(arguments) = self.static_arguments {
+            let mut values = Vec::new();
+            for (position, (parameter, argument)) in
+                self.parameters.iter().zip(arguments).enumerate()
+            {
+                match parameter.kind {
+                    TypeParameterKind::Type => {
+                        let Some(actual) = self.type_argument(program, position) else {
+                            return None;
+                        };
+                        values.push((
+                            parameter.symbol,
+                            typed_trees::type_identity::IndexIdentityArgument::TypeArgument(actual),
+                        ));
+                    }
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                        values.push((
+                            parameter.symbol,
+                            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                                argument,
+                            ),
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            // One tuple makes every supplied operand simultaneous. In
+            // particular, a supplied Type's descendants cannot acquire a
+            // sibling receiving Const replacement.
+            return program.scoped_type_identity_with_index_arguments(
+                typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference),
+                &[],
+                &values,
+            );
+        }
         let substitutions = self
             .parameters
             .iter()
@@ -457,7 +577,13 @@ impl<'application> AppliedValueCarrier<'application> {
                 ..typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference)
             },
         );
-        expected.is_valid() && expected == program.normalized_type_identity(actual)
+        expected.is_valid().then_some(expected)
+    }
+
+    fn identity_text(self, program: &dyn crate::CheckingInput) -> Result<String, String> {
+        self.identity(program)
+            .and_then(|identity| program.type_identity_text(identity))
+            .ok_or_else(|| "const carrier lost its complete applied identity".to_owned())
     }
 
     fn array_length(
@@ -468,6 +594,18 @@ impl<'application> AppliedValueCarrier<'application> {
         match length {
             FixedArrayLength::Literal(length) => Some(*length),
             FixedArrayLength::ConstParameter { symbol, .. } => {
+                if self.static_arguments.is_some() {
+                    let (_, value) = self
+                        .values
+                        .iter()
+                        .find(|(parameter, _)| parameter == symbol)?;
+                    return match value.decode_encoding()? {
+                        DecodedCanonicalConstValue::Integer { value, .. } => {
+                            usize::try_from(value).ok()
+                        }
+                        _ => None,
+                    };
+                }
                 let argument = self.parameters.iter().zip(self.arguments).find_map(
                     |(parameter, argument)| (parameter.symbol == *symbol).then_some(*argument),
                 )?;
@@ -518,6 +656,18 @@ pub(crate) fn validate_const_data_argument(
 ) {
     let carrier = carrier.resolved(program);
     let parameter_type = carrier.reference;
+    validate_const_argument_expression_formation(
+        program,
+        base_name,
+        parameter,
+        carrier,
+        argument,
+        type_parameter_scope,
+        prior_facts,
+        local_formation,
+        diagnostics,
+        formation_obligations,
+    );
     // Ordinary value binders retain a runtime subject, independently of its
     // carrier. Const binders continue through static admission below.
     if matches!(parameter.kind, TypeParameterKind::Value { .. })
@@ -564,19 +714,6 @@ pub(crate) fn validate_const_data_argument(
                 parameter.name, canonical_carrier_label(program, carrier),
             )));
         }
-        crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
-            program,
-            type_parameter_scope.lexical_owner,
-            &parameters,
-            prior_facts,
-            local_formation,
-            *expression,
-            program.primitive_type_reference(parameter_type),
-            program.arithmetic_domain_for_type_reference(parameter_type),
-            &format!("value argument `{}` of `{base_name}`", parameter.name),
-            diagnostics,
-            formation_obligations,
-        );
         return;
     }
     let primitive = program.type_reference_table.primitive_type(parameter_type);
@@ -742,6 +879,62 @@ pub(crate) fn validate_const_data_argument(
     }
 }
 
+/// Every expression operand forms before its receiving binder or selected
+/// implementation may use it. A pending const recipe retains evaluation work;
+/// it does not waive the supplying declaration's arithmetic obligations.
+pub(super) fn validate_const_argument_expression_formation(
+    program: &dyn crate::CheckingInput,
+    base_name: &str,
+    parameter: &TypeParameter,
+    carrier: AppliedValueCarrier<'_>,
+    argument: TypeReferenceHandle,
+    scope: TypeParameterScope<'_>,
+    prior_facts: &[typed_trees::expression::ExpressionHandle],
+    local_formation: Option<crate::proof_contracts::arithmetic_domains::LocalValueFormation<'_>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    let TypeReferenceNode::ConstExpression(expression) =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return;
+    };
+    let carrier = carrier.resolved(program);
+    let mut parameters = declaration_parameters(program, scope.lexical_owner);
+    for parameter in scope.type_parameters {
+        let (type_reference, is_const) = match parameter.kind {
+            TypeParameterKind::Const { type_reference } => (type_reference, true),
+            TypeParameterKind::Value { type_reference } => (type_reference, false),
+            _ => continue,
+        };
+        if !parameters
+            .iter()
+            .any(|known| known.symbol == parameter.symbol)
+        {
+            parameters.push(typed_trees::signature::StateParameter {
+                symbol: parameter.symbol,
+                name: parameter.name.clone(),
+                type_reference,
+                is_const,
+                ..Default::default()
+            });
+        }
+    }
+    crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
+        program,
+        scope.lexical_owner,
+        &parameters,
+        prior_facts,
+        local_formation,
+        *expression,
+        program.primitive_type_reference(carrier.reference),
+        program.arithmetic_domain_for_type_reference(carrier.reference),
+        &format!("value argument `{}` of `{base_name}`", parameter.name),
+        diagnostics,
+        formation_obligations,
+    );
+}
+
 /// Replay one compiler-generated structured const atom against its exact typed
 /// carrier. Encoded type and field names are canonical-format consistency
 /// checks only; data selection always follows the resolved symbol carried by
@@ -810,7 +1003,7 @@ pub(crate) fn validate_exact_const_identity_in_carrier(
         TypeReferenceNode::FixedArray { .. }
     ) && exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new())
     {
-        program.normalized_type_identity_text(expected_type)
+        carrier.identity_text(program)?
     } else {
         let value = CanonicalConstValue::new(
             identity.type_name.clone(),
@@ -846,7 +1039,7 @@ pub fn validate_exact_const_value_encoding(
     )
 }
 
-fn validate_exact_const_value_encoding_in_carrier(
+pub(crate) fn validate_exact_const_value_encoding_in_carrier(
     program: &dyn crate::CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     encoding: &str,

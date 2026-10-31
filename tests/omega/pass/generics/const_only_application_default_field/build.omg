@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "const_replay_const_index_default_field");
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

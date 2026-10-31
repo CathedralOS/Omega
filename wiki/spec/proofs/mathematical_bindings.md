@@ -214,14 +214,16 @@ machine existence_follows<
 requires machine Step(value: A)
     requires P(value)
     ensures Q(value);
-ensures core::Squash<Witness<u,w,A,Q>>;
+ensures core::Squash<Witness<u,w,A,Q>>
 {
     // Checked squash-elimination proof described below; not an empty proof.
 }
 ```
 
-The terminating semicolon on the nested `requires machine` contract separates its
-clauses from the enclosing theorem's clauses. The `Step` argument may cite named
+The declaration-ending semicolon on the nested `requires machine` contract
+separates its clauses from the enclosing theorem's clauses. The outer `ensures`
+has no semicolon before the body; neither do clauses within `Step` before its
+final declaration terminator. The `Step` argument may cite named
 theorem evidence or a term already checked against that logical requirement;
 the latter must not be forced through executable declaration lookup.
 

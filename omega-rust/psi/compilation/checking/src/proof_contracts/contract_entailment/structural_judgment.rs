@@ -1768,11 +1768,23 @@ impl<'program> StructuralJudge<'program> {
                     collection,
                     index,
                 } => {
+                    let collection = self.resolve_at(*collection, depth + 1);
+                    let index = self.resolve_at(*index, depth + 1);
+                    // A complete uniform value records every cell, including
+                    // the zero representation supplied by construction. Select
+                    // only a closed in-bounds coordinate; neither the desired
+                    // predicate nor an empty array can supply a missing cell.
+                    if let Some(element) =
+                        super::observed_projections::uniform_element(&collection, &index)
+                    {
+                        term = element;
+                        continue;
+                    }
                     let resolved = StructuralTerm::IndexedValue {
                         element_type,
                         element_identity,
-                        collection: Box::new(self.resolve_at(*collection, depth + 1)),
-                        index: Box::new(self.resolve_at(*index, depth + 1)),
+                        collection: Box::new(collection),
+                        index: Box::new(index),
                     };
                     if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();

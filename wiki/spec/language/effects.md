@@ -11,9 +11,9 @@ in [values](../resources/authority.md); implementation trust is recorded by
 | --- | --- |
 | `reaches A + B` | Bounds service reach by the named boundary services and their boundary parents. |
 | `reaches` with no members | Explicitly bounds service reach by the empty set. |
-| `invokes handler;` | May synchronously enter that binding before returning. |
-| `suspends;` | May park the current activation. |
-| `blocks;` | May occupy its worker while waiting. |
+| `invokes handler` | May synchronously enter that binding before returning. |
+| `suspends` | May park the current activation. |
+| `blocks` | May occupy its worker while waiting. |
 | `crashes Cause` with route guards | May leave without a successor or cleanup under a covered guard. |
 
 Boundary traits supply identities that may be named in `reaches`; declaring or
@@ -40,11 +40,13 @@ any nonempty derived service row. Omission requests inference and is distinct
 from an explicit empty clause. Reach does not count local mutation as a service,
 and empty reach promises neither termination nor absence of blocking or crashes.
 
-`reaches` has no clause-ending semicolon. A following clause or body delimits
-its row. A bodyless declaration still has its final declaration semicolon:
-`machine call() reaches;` ends the declaration, whereas `reaches` followed by
-`terminates;` puts that terminator after the final clause. Do not insert a
-semicolon after `reaches` between header clauses.
+All machine clauses have no clause-ending semicolon. A following clause or body
+delimits the current clause. A bodyless declaration still has its final
+declaration semicolon: `machine call() reaches suspends blocks;` ends one complete
+declaration with three clauses. A checked body writes `reaches suspends blocks`
+followed directly by `{ ... }`. Termination is not an exception. Nested callable
+requirements use the same [header delimiters](state_contracts.md#machine-header-delimiters);
+do not insert semicolons between their clauses.
 
 Boundary requirements publish their explicit ceilings. Opaque supplies inherit
 the governing requirement's admitted contract, not an inferred native-body

@@ -10,6 +10,7 @@ use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
+use crate::flow::expressions;
 use typed_trees::state::State;
 use typed_trees::statement::TransitionGuardNode;
 
@@ -581,10 +582,7 @@ fn pure_guard_or_calls(
     depth: usize,
     admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
 ) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
         return false;
     };
     let mut inert = |expression| {
@@ -653,19 +651,17 @@ fn pure_guard_or_calls(
                     expression,
                 ))
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| inert(field.value)),
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(items) => expressions(program)
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_all(dispatch, &mut inert),
+        ExpressionNode::Match(dispatch) => {
+            expressions(program).match_deep_all(dispatch, &mut inert)
+        }
         ExpressionNode::Call(call) => {
             // A call admitted by the caller's bar keeps every subterm pure
             // the way transition actuals are; the caller decides which
@@ -673,8 +669,7 @@ fn pure_guard_or_calls(
             // write frame separately.
             admit_call(call)
                 && (!call.receiver.is_valid() || inert(call.receiver))
-                && program
-                    .expression_table
+                && expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| inert(*argument))

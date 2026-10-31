@@ -25,18 +25,20 @@ account for terminal outcomes separately; ranking alone does not prove release.
 The source clause family separates a public promise from implementation evidence:
 
 ```omega
-terminates;
-terminates by remaining;
-terminates by items -> Slice::Length;
-terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+terminates
+terminates by remaining
+terminates by items -> Slice::Length
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit
 ```
 
-Each termination clause requires its trailing semicolon, including before
-another header clause or an implementation body. Omitting it is a syntax error.
-On a bodyless declaration the final semicolon may also terminate the declaration;
-when more clauses follow, the termination clause still ends with its own semicolon.
+These are alternative clause forms, not statements. Like every machine header
+clause, termination has no clause-ending semicolon, including before another
+clause or an implementation body. A bodyless declaration has one final
+declaration terminator: in `machine finish() terminates;`, the semicolon ends
+`finish`, not a termination clause. Nested callable requirements follow the same
+[header delimiter rule](state_contracts.md#machine-header-delimiters).
 
-Bare `terminates;` authors the promise. Omission on a bodyless requirement or
+Bare `terminates` authors the promise. Omission on a bodyless requirement or
 export publishes no guarantee, even when the current checked body is acyclic.
 An implementation satisfying a requirement inherits its guarantee and premises;
 it need not repeat the promise. A witness discharges that promise rather than

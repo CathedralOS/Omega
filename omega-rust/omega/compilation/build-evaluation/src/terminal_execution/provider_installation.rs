@@ -55,8 +55,12 @@ pub(super) fn prepare<'host, 'code>(
         artifact.view(),
         profile.target_name(),
     );
-    let layouts = terminal_installation::admit_target_layouts(artifact.view(), &targets)
-        .map_err(|error| format!("Build helper layouts: {error:?}"))?;
+    let target_facts = profile
+        .layout_target_facts()
+        .ok_or("Build helper target has no representation facts")?;
+    let layouts =
+        terminal_installation::admit_target_layouts(artifact.view(), &targets, &target_facts)
+            .map_err(|error| format!("Build helper layouts: {error:?}"))?;
     let mut bindings = Vec::new();
     for boundary in &request.requirement.boundaries {
         let receiving = receiver
@@ -108,6 +112,7 @@ pub(super) fn prepare<'host, 'code>(
         let completed = build_time_evaluation::complete_scalar_applications(
             artifact,
             profile.target_name(),
+            None,
             &requirements.scalar_applications,
             Some(account),
             accounting,
@@ -115,6 +120,10 @@ pub(super) fn prepare<'host, 'code>(
                 let scope_profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    application_roots: None,
+                    layout_target: scope_profile
+                        .layout_target_facts()
+                        .ok_or("scalar evaluation target has no immutable layout catalogue")?,
                     targets: terminal_installation::admit_target_machine_selections(
                         artifact.view(),
                         scope,

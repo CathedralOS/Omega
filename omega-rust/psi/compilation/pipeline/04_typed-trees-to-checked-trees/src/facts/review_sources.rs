@@ -11,6 +11,7 @@ use language_semantics::declaration_selection::{
 use source::SourceSpan;
 use validation::{CallSite, collect_call_sites_in_statement};
 
+use crate::flow::expressions;
 use crate::semantic::calls::dispatch_subjects;
 use checked_trees::{FlowCallResult, FlowCallSite};
 use typed_trees::statement::StatementNode;
@@ -184,10 +185,7 @@ fn authored_call_span(
         ),
         CallSite::Expression { expression, call } => {
             let mut call_occurrences = Vec::new();
-            for occurrence in program
-                .expression_table
-                .authored_selection_occurrences(*expression)
-            {
+            for occurrence in expressions(program).authored_selection_occurrences(*expression) {
                 let Some(selection) = program.authored_declaration_selections().get(occurrence)
                 else {
                     return Err(vec![Diagnostic::error(format!(

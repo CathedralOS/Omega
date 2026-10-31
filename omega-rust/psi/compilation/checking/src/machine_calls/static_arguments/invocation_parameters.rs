@@ -70,18 +70,10 @@ impl Extend<SymbolHandle> for ApplicationReferences {
 
 impl TypedReferences for ApplicationReferences {
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        if self.types.contains(&reference) {
-            return false;
-        }
-        self.types.push(reference);
-        true
+        crate::machine_calls::record_reference(&mut self.types, reference)
     }
 
     fn expression(&mut self, expression: ExpressionHandle) -> bool {
-        if self.expressions.contains(&expression) {
-            return false;
-        }
-        self.expressions.push(expression);
-        true
+        crate::machine_calls::record_reference(&mut self.expressions, expression)
     }
 }

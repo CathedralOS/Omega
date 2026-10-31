@@ -67,40 +67,27 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1. Which callable owns an operational clause after one semicolon?
+### 1. How should users select interpreted execution and a possible future JIT?
 
-The bundled task and blocking-executor APIs need callbacks with several
-independent operational axes, such as `Target(...) -> T suspends; blocks;`.
-An enclosing forwarding machine may independently declare its own crash or
-blocking ceiling. This is a language scope question for those public contracts,
-not a request to approve an implementation technique.
+AOT remains the established native execution path. How should users explicitly
+trigger standalone Terminal Psi interpretation? If we add a JIT later, should
+it be another explicitly selected execution mode, or should an opted-in runtime
+automatically compile hot code? Keep `--both` as a separate native/interpreter
+comparison choice rather than conflating comparison with engine selection.
 
-[Requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
-say that a nested callable's terminating semicolon closes its contract before
-subsequent clauses resume the enclosing declaration.
-[Termination](wiki/spec/language/termination.md) also requires the termination
-clause's own semicolon even before another header clause, and permits that
-semicolon to terminate a bodyless declaration. Neither passage specifies which
-role wins when the next operational clause could belong to either callable:
+The concrete customer is running an ordinary Omega program through the chosen
+engine, including running it without first generating a native executable.
+The current CLI exposes native `omega run` and comparison through `--both`, but
+no interpreter-only option. This asks for the user-facing selection policy, not
+an implementation change or a decision that JIT must be built.
 
-```omega
-machine invoke<machine Step>() -> u64
-requires machine Step() -> u64 terminates;
-crashes Trap
-{ Step() }
-```
-
-Does the single semicolon close `Step`, leaving `crashes Trap` on `invoke`, or
-continue `Step`'s operational contract so that an explicit additional semicolon
-is required to resume `invoke`? The rule must also express a callback with both
-`suspends` and `blocks` without silently moving either ceiling to its enclosing
-machine. An explicit operational terminator followed by a distinct callable
-terminator (`terminates;; crashes Trap`) is unambiguous and remains engineering
-work; its current parser refusal is not owner-blocked.
-
-The original single-semicolon refusal and separate explicit-terminator refusal
-are retained under `build/content-provider/callback/parser-review92ee/` at
-producer `b7b9c993509eb8aec4d8e49b90e121cb47cd477a`. No acceptance or new
-punctuation default is inferred from those observations. Only the ambiguous
-single-semicolon boundary in `REQUIRES-UNIFICATION` is owner-blocked; explicit
-termination, other requirement forms and the callback migration continue.
+Contracts checked: [embedding's engine/target separation](wiki/spec/build/embedding.md#target-environments-and-execution-engines)
+already treats interpreted and native execution independently from OS targets;
+[separate Terminal consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+allows compilation to stop at Terminal Psi for later interpretation or native
+lowering. The embedding execution contract says no JIT is required, and its
+[implementation ownership](wiki/spec/build/embedding.md#authority-evidence-and-ownership-of-implementation)
+treats the CLI as a library client. These establish independent interpretation
+but do not settle a standalone CLI selection surface or a future JIT trigger
+policy. Any future automatic JIT policy would be an explicit new design choice,
+not an implicit requirement of the existing interpreter contract.

@@ -1,0 +1,24 @@
+// Imported selected generic policy: the exact policy and its own Const argument survive named constant materialization.
+// Expected exit: 0
+use omega::language::core::layout;
+use leaf::values;
+const ZERO: u64 = 0u64;
+const EIGHT: u64 = 8u64;
+machine make() -> LayoutStorage<leaf::values::Pair, leaf::values::PairLayout<ZERO>> {
+    let mut value: LayoutStorage<leaf::values::Pair, leaf::values::PairLayout<ZERO>>;
+    value.lo = 42u64;
+    value.hi = 9u64;
+    value
+}
+const SAVED: LayoutStorage<leaf::values::Pair, leaf::values::PairLayout<ZERO>> = make();
+machine main() crashes Trap {
+    let value: LayoutStorage<leaf::values::Pair, leaf::values::PairLayout<EIGHT>> = SAVED;
+    let difference: u64 = value.lo - 42u64;
+    let bytes: &[u8; 16] = &value as &[u8; 16];
+    transition difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

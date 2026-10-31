@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -158,10 +159,7 @@ pub(super) fn state_has_proven_self_loop(
                 };
                 // Equal trees name the same immutable inputs, not matching text.
                 // Otherwise a guard's minimum must cover the step's maximum.
-                if program
-                    .expression_table
-                    .expressions_structurally_equal(bound, subtraction.right)
-                {
+                if expressions(program).expressions_structurally_equal(bound, subtraction.right) {
                     return true;
                 }
                 preserved_bounds(program, machine, state, bound, frames, prefix).is_some_and(

@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 use symbols::SymbolHandle;
 
@@ -579,8 +580,7 @@ pub(super) fn index_expression_extent<'p>(
             // immutable-bound vocabulary gets a chance -- `1 + 2` denotes the
             // point 3 even though it normalizes to no symbol identity.
             || {
-                program
-                    .expression_table
+                expressions(program)
                     .constant_integer_value(expression)
                     .map(NormalizedBound::Integer)
                     .or_else(|| {
@@ -806,12 +806,10 @@ pub(super) fn normalized_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    if program
-        .expression_table
+    if expressions(program)
         .indexed_node(expression)
         .is_some_and(|indexed| {
-            program
-                .expression_table
+            expressions(program)
                 .constant_integer_value(indexed.index)
                 .is_none()
         })
@@ -868,8 +866,7 @@ pub(super) fn normalized_bound(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
-        ExpressionNode::Name(path) => program
-            .expression_table
+        ExpressionNode::Name(path) => expressions(program)
             .name_path_is_single_member(path)
             .then_some(NormalizedBound::Symbol {
                 symbol: path.symbol,

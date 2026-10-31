@@ -1,8 +1,8 @@
 use super::{
-    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayLength,
-    FixedArrayTypeReference, FixedArrayTypeReferenceStorage, GenericTypeReference,
-    GenericTypeReferenceStorage, TypeConstraint, TypeConstraintNode, TypeReference,
-    TypeReferenceNode, TypeReferenceTable,
+    ConstExpressionTypeReference, ConstrainedTypeReference, ConstrainedTypeReferenceStorage,
+    FixedArrayLength, FixedArrayTypeReference, FixedArrayTypeReferenceStorage,
+    GenericTypeReference, GenericTypeReferenceStorage, TypeConstraint, TypeConstraintNode,
+    TypeReference, TypeReferenceNode, TypeReferenceTable,
 };
 use crate::expression::ExpressionTable;
 use crate::name::DiagnosticName;
@@ -170,7 +170,7 @@ fn normalization_with_owned_expressions_matches_snapshot_copies() {
                 constraints: range,
             },
         }),
-        TypeReference::ConstExpression(maximum),
+        TypeReference::ConstExpression(ConstExpressionTypeReference::new(maximum)),
     ]);
     let reference = TypeReference::Generic(GenericTypeReference {
         storage: GenericTypeReferenceStorage {

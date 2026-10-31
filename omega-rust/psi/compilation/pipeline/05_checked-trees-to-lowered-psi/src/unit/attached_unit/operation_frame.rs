@@ -730,6 +730,7 @@ impl OperationFrame<'_, '_> {
                     self.evaluation,
                 )?;
                 self.evaluation.prepare_immutable_local_borrow(
+                    identities,
                     self.checked,
                     self.state,
                     source.structural_storage_root(),

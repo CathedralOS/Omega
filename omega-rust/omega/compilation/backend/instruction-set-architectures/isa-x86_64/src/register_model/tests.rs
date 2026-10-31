@@ -34,6 +34,17 @@ use register_model::{
 };
 use target::NativeTarget;
 
+/// A changed catalog must be refused with the target-semantic mismatch it
+/// introduced.
+macro_rules! mismatch {
+    ($catalog:expr, $model:expr, $key:expr) => {
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog($catalog, $model),
+            Err(X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch($key))
+        );
+    };
+}
+
 #[test]
 fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
     let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();

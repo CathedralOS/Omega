@@ -928,7 +928,7 @@ impl<'program> ShapeNormalizer<'program> {
                     .tables
                     .bodies
                     .expressions
-                    .display_name(*expression)
+                    .display_name(expression.expression)
             ),
             TypeReference::DynamicTrait {
                 symbol,

@@ -107,6 +107,12 @@ pub(crate) fn evaluated_declaration_value(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<language_core::constant_value::EvaluatedConstant, String> {
     use language_core::constant_value::EvaluatedConstant;
+    if let Some(normalization) = &definition.normalization {
+        // This is provisional producer output, not accepted value evidence.
+        // PendingInitializer independently re-encodes the resolved payload
+        // before substitution or publication of this resolution result.
+        return Ok(normalization.result_value.clone());
+    }
     if let syntax_trees::expression::ExpressionNode::UndeterminedNaN(format) =
         syntax.expressions.expression(definition.value)
     {
@@ -213,6 +219,12 @@ pub(crate) fn validate_const_definition(
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
+    if definition.normalization.is_some() {
+        // Materialized receipts use the one post-binding payload validator.
+        // Ordinary typed declaration eligibility, destination establishment
+        // and independent authored-result replay remain mandatory afterward.
+        return Ok(());
+    }
     if definition.pending_target_observation {
         // The late scalar evaluator owns the same carrier landing once the
         // target closes. Aggregate and qualified destinations need their own
@@ -303,7 +315,8 @@ pub(crate) fn retain_const_initializer(
 ) -> Result<ExpressionHandle, Diagnostic> {
     let pending =
         lowerer.const_resolution_mode != crate::resolution::lowerer::ConstResolutionMode::Complete;
-    if !pending && !has_scalar_initializer(syntax, definition) {
+    if !pending && definition.normalization.is_none() && !has_scalar_initializer(syntax, definition)
+    {
         if crate::preparation::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
             crate::preparation::generic_data::canonicalize_declared_const_definition(

@@ -596,8 +596,11 @@ fn prepare_target_provider_publication(
             (target, prepared)
         })
         .collect::<Vec<_>>();
+    let deployment = source.build.config.provider_deployment()?;
     Ok(
         provider_planning::target_machines::TargetProviderPreparationRequest {
+            application_roots: deployment.roots.as_deref(),
+            application_scopes: &deployment.scopes,
             context: provider_planning::ProviderPlanningContext::new(
                 &source.program.typed,
                 source::DependencyScope::Product,

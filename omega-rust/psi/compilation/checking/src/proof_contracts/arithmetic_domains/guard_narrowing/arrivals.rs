@@ -1161,7 +1161,6 @@ impl ArrivalWalk<'_, '_> {
                         self.machine,
                         source,
                         statement_index,
-                        statement,
                     );
                     let mut selected = None;
                     let mut fallback = None;
@@ -1232,7 +1231,6 @@ impl ArrivalWalk<'_, '_> {
                 self.machine,
                 source,
                 statement_index,
-                statement,
             );
             match statement {
                 StatementNode::Transition(_) => unreachable!(),
@@ -1556,7 +1554,6 @@ impl ArrivalWalk<'_, '_> {
                 self.machine,
                 source,
                 statement_index,
-                statement,
             );
         }
         match statement {

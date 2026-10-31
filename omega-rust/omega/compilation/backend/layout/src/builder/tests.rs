@@ -18,6 +18,10 @@ fn typed_fixture(source: &str) -> TypedTrees {
 
 fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees::PlanLaidLayout {
     typed_trees::typed_trees::PlanLaidLayout {
+        application: Default::default(),
+        semantic_type: Default::default(),
+        policy_application: Default::default(),
+        target_inputs: Vec::new(),
         data_name: "Spread<ForeignRecord>".to_owned(),
         data_symbol: symbols::SymbolHandle::from_arena_index(1),
         field_symbols: vec![symbols::SymbolHandle::from_arena_index(2)],
@@ -77,7 +81,7 @@ fn fixture_geometry_mut(
 ) -> &mut typed_trees::PlanLaidGeometry {
     match &mut plan.realizations {
         typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
-        typed_trees::PlanLaidRealizations::TargetFamily(_) => panic!("fixture must be invariant"),
+        typed_trees::PlanLaidRealizations::TargetInputs(_) => panic!("fixture must be invariant"),
     }
 }
 

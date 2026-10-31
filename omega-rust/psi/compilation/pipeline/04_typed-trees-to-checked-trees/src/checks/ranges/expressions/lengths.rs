@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -49,8 +50,7 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
         }),
         ExpressionNode::Name(path) => facts.local_length(
             path.symbol,
-            program
-                .expression_table
+            expressions(program)
                 .name_path_members(path.members)
                 .last()
                 .map(|name| name.as_str()),

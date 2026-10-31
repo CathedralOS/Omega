@@ -55,6 +55,13 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
         .or_else(|| range_constraint_interval(program, handle))
         .map(|proven| proven.intersect(type_range))
         .unwrap_or(type_range);
+    let interval = walk
+        .state
+        .and_then(|state| {
+            walk.environment
+                .captured_integer_interval(state.symbol, expression)
+        })
+        .map_or(interval, |captured| interval.intersect(captured));
     // R2 rung 3 slice 7 (READER HYPOTHESES): a domain-carrying place's standing
     // where facts refine the read -- sound because the write net is TOTAL and
     // gated reads are access-gated, so the facts hold at every legal

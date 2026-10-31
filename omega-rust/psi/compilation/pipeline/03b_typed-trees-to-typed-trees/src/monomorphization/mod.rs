@@ -46,6 +46,7 @@ mod cleanup_applications;
 mod contextual_calls;
 mod domain_applications;
 mod explicit_arguments;
+mod layout_storage_policies;
 mod native_query_lifetimes;
 mod placed_primitives;
 mod provider_tuple_closure;
@@ -194,6 +195,8 @@ struct CallSelection {
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
+    /// First failed proposal, retained only for the owning refusal diagnostic.
+    conflict_reason: Option<String>,
     /// An authored argument exceeded its binder-kind capacity before inference.
     explicit_argument_overflow: bool,
 }
@@ -292,6 +295,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
+        layout_storage_policies::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -299,6 +303,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let captured_owners = captured_rows::close(program)?;
         let captures_changed = !captured_owners.is_empty();
         changed_owners.extend(captured_owners);
+        // Projected receivers and captured results can complete operands after
+        // the initial inference pass. Settle their dependent subjects before
+        // collecting consumers or declaring the round unchanged.
+        let subjects = result_locals::materialize_dispatch_subjects(program);
+        if !subjects.is_empty() {
+            changed_owners.extend(subjects);
+            continue;
+        }
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
@@ -682,8 +694,67 @@ fn incomplete_selection_diagnostic(
     } else {
         String::new()
     };
+    let mut details = Vec::new();
+    if let Some(reason) = &selection.conflict_reason {
+        details.push(reason.clone());
+    }
+    for ((_, name), binding) in candidate
+        .template
+        .type_parameters
+        .iter()
+        .zip(&selection.type_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Type slot `{name}` has no proposal"));
+        }
+    }
+    for ((_, name, _), binding) in candidate
+        .template
+        .const_parameters
+        .iter()
+        .zip(&selection.const_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Const slot `{name}` has no proposal"));
+        }
+    }
+    for ((_, name, _), binding) in candidate
+        .template
+        .machine_parameters
+        .iter()
+        .zip(&selection.machine_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Machine slot `{name}` has no proposal"));
+        }
+    }
+    for (ordinal, binding) in selection.evidence_bindings.iter().enumerate() {
+        if binding.is_none() {
+            details.push(format!(
+                "evidence slot `{}` has no proposal",
+                candidate.template.evidence_parameters[ordinal].binder_name
+            ));
+        }
+    }
+    for (kind, unresolved) in [
+        ("Type", selection.unresolved_type_parameters),
+        ("Const", selection.unresolved_const_parameters),
+        ("Machine", selection.unresolved_machine_parameters),
+        ("evidence", selection.unresolved_evidence_parameters),
+    ] {
+        if unresolved {
+            details.push(format!(
+                "{kind} proposals retain an open supplying parameter"
+            ));
+        }
+    }
+    let detail = if details.is_empty() {
+        String::new()
+    } else {
+        format!(": {}", details.join("; "))
+    };
     let diagnostic = Diagnostic::error(format!(
-        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}",
+        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}{detail}",
         candidate.template.template_name,
     ));
     match selection.site {

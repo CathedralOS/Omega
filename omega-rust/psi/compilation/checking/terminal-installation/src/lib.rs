@@ -52,3 +52,6 @@ pub use target_layouts::{
     AdmittedTargetLayouts, TargetLayoutClosure, TargetLayoutGeometry, TargetLayoutSelectionError,
     admit_target_layouts,
 };
+
+// Representation facts are supplied by the receiving target catalog.
+pub use layout_plans::LayoutTargetFacts;

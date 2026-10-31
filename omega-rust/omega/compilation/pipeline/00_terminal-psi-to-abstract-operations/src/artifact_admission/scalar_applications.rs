@@ -23,6 +23,7 @@ impl<'request> NativeScalarApplications<'request> {
         layouts: &AdmittedTargetLayouts,
         selection: &super::NativeExecutionSelection<'_>,
         scalar_demand: &[semantic_vocabulary::ScalarApplicationId],
+        execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<&'request AdmittedScalarApplications, String> {
         let completed = self.completed;
         let primary = completed.primary();
@@ -34,6 +35,16 @@ impl<'request> NativeScalarApplications<'request> {
                 "native scalar closure belongs to another artifact, target or layout selection"
                     .into(),
             );
+        }
+        for &machine in execution_machines {
+            if artifact
+                .semantic_module()
+                .machine(machine)
+                .is_some_and(|row| row.declaration.is_some())
+                && !primary.admits_machine(artifact.semantic_module(), machine)
+            {
+                return Err("native execution reaches an authored body outside the completed scalar application closure".into());
+            }
         }
         for inputs in std::iter::once(primary).chain(completed.supplemental()) {
             let profile =

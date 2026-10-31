@@ -61,9 +61,7 @@ pub fn encode_aapcs64_frame_protocol(
     probe: Aarch64StackProbe,
     slots: &[Aarch64FrameSlot],
 ) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
-    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
-    }
+    require_canonical_model(model)?;
     if !frame_size_bytes.is_multiple_of(16) || frame_size_bytes > u64::from(u32::MAX) {
         return Err(Aarch64FrameProtocolError::InvalidFrameSize);
     }
@@ -184,6 +182,15 @@ enum Register {
     Q(u8),
 }
 
+fn require_canonical_model(
+    model: &ValidatedPhysicalRegisterModel,
+) -> Result<(), Aarch64FrameProtocolError> {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    Ok(())
+}
+
 fn register(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -256,9 +263,7 @@ pub fn encode_aarch64_frame_memory(
     load: bool,
     address_scratch: RegisterViewId,
 ) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
-    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
-    }
+    require_canonical_model(model)?;
     let value_register = register(model, view)?;
     let Register::X(scratch) = register(model, address_scratch)? else {
         return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(
@@ -292,9 +297,7 @@ pub fn encode_aarch64_pointer_memory(
     byte_size: u8,
     load: bool,
 ) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
-    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
-    }
+    require_canonical_model(model)?;
     let value_register = register(model, view)?;
     let Register::X(base_register) = register(model, base)? else {
         return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(base));
@@ -321,9 +324,7 @@ pub fn encode_aarch64_frame_address(
     view: RegisterViewId,
     offset_bytes: u32,
 ) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
-    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
-    }
+    require_canonical_model(model)?;
     let Register::X(destination) = register(model, view)? else {
         return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view));
     };
@@ -343,9 +344,7 @@ pub fn encode_aarch64_aligned_frame_address(
     alignment_bytes: u16,
     member_offset_bytes: u32,
 ) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
-    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
-    }
+    require_canonical_model(model)?;
     let Register::X(destination) = register(model, view)? else {
         return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view));
     };
@@ -365,9 +364,7 @@ pub fn encode_aarch64_integer_constant(
     view: RegisterViewId,
     value: u64,
 ) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
-    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
-    }
+    require_canonical_model(model)?;
     let Register::X(destination) = register(model, view)? else {
         return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view));
     };

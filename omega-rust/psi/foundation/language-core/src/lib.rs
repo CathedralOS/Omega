@@ -20,6 +20,7 @@ pub mod cast_form;
 pub mod constant_value;
 pub mod data_layout_queries;
 pub mod inline_assembly;
+pub mod layout_storage;
 pub mod operator_spelling;
 mod source_semantics;
 

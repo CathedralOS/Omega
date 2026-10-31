@@ -16,6 +16,7 @@ use super::call_places::{
     ArgumentScope, call_argument_place, call_result_place, call_result_value_place,
 };
 use super::reference_bounds::reference_boundary_before_statement;
+use crate::flow::expressions;
 use crate::flow::{
     self,
     stored_values::{StoredObservation, StoredOperand},
@@ -259,10 +260,7 @@ fn resolve_captures(
                 continue;
             }
         }
-        if !program
-            .expression_table
-            .expression_is_valid(capture.expression)
-        {
+        if !expressions(program).expression_is_valid(capture.expression) {
             return None;
         }
         let direct = matches!(

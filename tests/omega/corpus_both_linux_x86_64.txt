@@ -2450,7 +2450,7 @@ pass/domains/runtime_qualified_ieee_field_read_exit built 7174ms exit:0 interpre
 pass/domains/runtime_structural_contract_erasure_exit built 2621ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_terminal_result_context_exit built 21919ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/drops/reference_rebinding_preserves_pointee_exit built 1767ms exit:0 interpreter-exit:0 interpreter:agrees @5fe2ed4548de
-pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit built 2666ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
+pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit built 2444ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @52cc0c6da477
 pass/drops/runtime_empty_array_owner_cleanup_sites_exit built 3842ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/drops/runtime_named_linear_container_cleanup_exit built 9852ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
 pass/drops/runtime_nominal_state_loan_alias_exit built 3011ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
@@ -2459,9 +2459,8 @@ pass/drops/runtime_nominal_state_loan_crash_exit built 4912ms exit:signal signal
 pass/drops/runtime_nominal_state_loan_nonlending_branch_exit built 2418ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 3586ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
-pass/drops/runtime_shared_nominal_state_loan_exit built 3202ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
-pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit rejected 3575ms interpreter:unchecked regressed-from:built+exit:0+stdout:match+interpreter-exit:0+interpreter-stdout:match+interpreter:agrees @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "scope", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/drops/runtime_shared_nominal_state_loan_exit built 3078ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @52cc0c6da477
+pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit built 3133ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @52cc0c6da477
 pass/drops/state_loan_restores_nominal_cleanup_prerequisite built 4605ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/expressions/call_result_comparison_operands_exit built 8410ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/expressions/runtime_comparison_store_integer_exit built 6122ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -7654,7 +7653,6 @@ pass/layouts/runtime_target_layout_queries_exit built 2873ms exit:0 interpreter-
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1381ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_identity_payload_within_predicate checked 1364ms @a92f16431042
 pass/layouts/single_bool_array_layout_compile checked 1688ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1332ms @a92f16431042
 pass/layouts/single_float_member_layout_compile checked 4143ms @a92f16431042
@@ -9175,6 +9173,7 @@ pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit built 6529ms 
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 5833ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_selector_crash_refined_exit built 2788ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/traits/runtime_dyn_slot_metadata_exit built 1969ms exit:0 interpreter-exit:0 interpreter:agrees @e7be0895dec5+wt
 pass/traits/runtime_dyn_stored_byte_input rejected 1131ms interpreter:unchecked @a92f16431042
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete

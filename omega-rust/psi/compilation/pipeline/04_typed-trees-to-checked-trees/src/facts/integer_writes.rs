@@ -5,6 +5,7 @@
 //! here lets call admission ask about every value written, including a value
 //! overwritten before return. This is body evidence, not a published precondition
 //! or a claim that a transitive call's writes have already been admitted.
+use crate::flow::indexed_statements;
 use checked_trees::{
     CheckedOperatorFacts, CheckedValueFacts, CheckedValueOrigin, CheckedValueStatementRole,
     FlowFacts, MutationFacts, PerformedIntegerWrite,
@@ -56,10 +57,7 @@ pub(super) fn retain(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let flow_state = flow.control.state(machine.symbol, state.symbol);
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Some(assignment) = statement.as_assignment() else {
                     continue;
                 };

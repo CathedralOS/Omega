@@ -12,6 +12,7 @@ mod segments;
 pub(super) use self::premises::append_statement_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
 use self::segments::place_segments_compatibility;
+use crate::flow::expressions;
 
 /// Produced evaluation facts shared by source debt and executable planning.
 /// Borrow only these fields so recording cleanup invocations stays independent.
@@ -408,8 +409,7 @@ fn expression_mentions_field(
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => program
-            .expression_table
+        ExpressionNode::Name(path) => expressions(program)
             .name_path_members(path.members)
             .last()
             .is_some_and(|member| member.as_str() == field),

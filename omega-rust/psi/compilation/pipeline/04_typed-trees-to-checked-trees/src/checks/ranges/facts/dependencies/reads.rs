@@ -1,8 +1,9 @@
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use crate::checks::ranges::facts::RangeCallContext;
+use crate::flow::expressions;
+use crate::places::place_at;
 use validation::CallSite;
 use validation::CanonicalPlace;
-use validation::canonical_place_from_expression_in_state;
 
 use checked_trees::CheckedOperatorFacts;
 mod atomics;
@@ -197,12 +198,9 @@ impl ReadWalk<'_, '_, '_> {
                     // expression's root decides which footprint applies — the
                     // same split `collect_member_reads` makes for temporary
                     // receivers.
-                    if let Some(place) = canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        expression,
-                    ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
+                    if let Some(place) =
+                        place_at(program, state.symbol, statement_index, expression)
+                        && matches!(place.root, facts::PlaceRoot::Symbol(_))
                     {
                         self.descend_and_capture_symbol_place(expression, place, depth)
                     } else {
@@ -222,15 +220,13 @@ impl ReadWalk<'_, '_, '_> {
                     && (!range.end.is_valid() || self.collect_operand_reads(range.end, depth))
             }
             // Every array literal element is evaluated at the literal site.
-            ExpressionNode::ArrayLiteral(elements) => program
-                .expression_table
+            ExpressionNode::ArrayLiteral(elements) => expressions(program)
                 .expression_handles(*elements)
                 .iter()
                 .all(|element| self.collect_operand_reads(*element, depth)),
             // Authored and synthesized erased-field initializers alike are
             // evaluated where the literal appears.
-            ExpressionNode::StructLiteral(literal) => program
-                .expression_table
+            ExpressionNode::StructLiteral(literal) => expressions(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .all(|field| self.collect_operand_reads(field.value, depth)),
@@ -244,10 +240,11 @@ impl ReadWalk<'_, '_, '_> {
                         dispatch.arms,
                         |arm_pattern, arm_value| {
                             (match arm_pattern {
-                                typed_trees::expression::MatchPattern::Destructure(_) => program
-                                    .expression_table
-                                    .match_pattern_operands(arm_pattern)
-                                    .all(|operand| self.collect_operand_reads(operand, depth)),
+                                typed_trees::expression::MatchPattern::Destructure(_) => {
+                                    expressions(program)
+                                        .match_pattern_operands(arm_pattern)
+                                        .all(|operand| self.collect_operand_reads(operand, depth))
+                                }
                                 typed_trees::expression::MatchPattern::Value(pattern) => {
                                     self.collect_operand_reads(pattern, depth)
                                 }

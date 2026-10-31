@@ -4,6 +4,7 @@
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::expressions;
 use crate::flow::transfers::contextual_expression_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
@@ -271,8 +272,7 @@ pub(super) fn append_element_replacement_predicates(
     // An entry candidate is not evidence after an overlapping replacement.
     // A read of one element inherits only per-byte classes from its live
     // container. UTF-8 membership alone says nothing about one selected byte.
-    let source_element_facts = program
-        .expression_table
+    let source_element_facts = expressions(program)
         .indexed_node(source_expression)
         .filter(|_| crate::values::operator_is_builtin(contexts.operators, source_expression))
         .and_then(|indexed| {

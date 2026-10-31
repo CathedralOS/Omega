@@ -26,6 +26,18 @@ nominal_identity!(
     semantic_vocabulary::BoundaryMachineId,
 );
 
+// This is an artifact-local proof coordinate, including the vocabulary's zero
+// absence value. Scalar-root admission independently requires an exact Callable
+// declaration; decoding this inert candidate grants no application membership.
+impl RecordValue for terminal_psi::ProofDeclarationId {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        self.0.write(output)
+    }
+    fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+        Ok(Self(u32::read(input)?))
+    }
+}
+
 impl RecordValue for semantic_vocabulary::PackageKeyIdentity {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.digest().write(output)

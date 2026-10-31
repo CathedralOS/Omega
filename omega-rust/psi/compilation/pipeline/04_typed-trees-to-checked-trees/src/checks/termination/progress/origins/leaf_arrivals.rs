@@ -4,7 +4,9 @@ use validation::CanonicalPlace;
 use super::reference_bounds::*;
 
 use super::FlowStateFact;
+use crate::flow::state_statements;
 use crate::flow::{self};
+use crate::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -67,9 +69,7 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let statements = program
-        .statement_table
-        .statements(typed_state.statement_nodes);
+    let statements = state_statements(program, typed_state.statement_nodes);
     let root = place.root.as_symbol()?;
     // Only an owned local's declaration supplies the boundary's frame type; a
     // parameter or member root keeps its access path unchanged.
@@ -271,12 +271,7 @@ where
         return None;
     }
     let projection = projections.remove(0);
-    let mut candidate = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        index,
-        projection.expression,
-    )?;
+    let mut candidate = place_at(program, state.state_symbol, index, projection.expression)?;
     candidate.segments.extend_from_slice(&projection.remaining);
     match candidate.root {
         PlaceRoot::Symbol(_) => Some(candidate),

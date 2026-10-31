@@ -43,7 +43,14 @@ pub(super) fn retain_supplied_operand_owner(
     typed_trees: &mut typed::TypedTrees,
     reference: typed::types::TypeReferenceHandle,
     owner: resolved::types::OperandLifetimeOwnerHandle,
+    lexical_owner: symbols::SymbolHandle,
 ) -> Result<(), Diagnostic> {
+    if lexical_owner.is_valid() {
+        typed_trees
+            .type_reference_table
+            .retain_operand_lifetime_owner(reference, lexical_owner)
+            .map_err(Diagnostic::error)?;
+    }
     if !owner.is_valid() {
         return Ok(());
     }

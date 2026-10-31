@@ -50,15 +50,16 @@ where Storage == [u8; Capacity]
 
 public data UnusedRegisters {
     bytes: [u8; placed_byte_count()];
-    nested: InnerPlacement<InnerRegisters>;
+    nested: LayoutStorage<InnerRegisters, InnerPlacement>;
 }
 
 public machine placed_byte_count() -> u64 { unused_slot_count() }
 
 public data InnerRegisters { status: u32; }
-public data InnerPlacement {}
 
-machine InnerPlacement::plan(schema: Schema) -> Plan {
+
+public InnerPlacement satisfies FixedLayout<InnerRegisters> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -72,13 +73,16 @@ machine InnerPlacement::plan(schema: Schema) -> Plan {
         align: 4,
     }
 }
+}
 
 // Merely discovering another layout record does not demand its policy body.
-data UnselectedLayout { value: InvalidPlacement<InnerRegisters>; }
-data InvalidPlacement {}
-machine InvalidPlacement::plan(schema: Schema) -> Plan {
+data UnselectedLayout { value: LayoutStorage<InnerRegisters, InvalidPlacement>; }
+
+InvalidPlacement satisfies FixedLayout<InnerRegisters> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let invalid: u64 = abs(1, 2);
     Plan {}
+}
 }
 
 public data UnusedPlacement {}

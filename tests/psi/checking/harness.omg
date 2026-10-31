@@ -13,6 +13,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::checking::checker;
+use psi::checking::slot_review;
 use psi::checks::checks;
 use psi::typing::typer;
 
@@ -464,7 +465,7 @@ blocks;
 
 
 // Versioned canonical checking observation. Every scalar coordinate and
-// count is little-endian u64. The stream begins with `OMGCHK1\0`, version 2,
+// count is little-endian u64. The stream begins with `OMGCHK1\0`, version 3,
 // the acceptance byte, the rejection count and each rejection's diagnostic
 // tag and source span in the order checking found them, then the machine
 // count and each machine's crash routes as five bytes: declares Trap,
@@ -482,7 +483,7 @@ crashes Trap
     CheckingHarness::write_byte(checking_harness, 75);
     CheckingHarness::write_byte(checking_harness, 49);
     CheckingHarness::write_byte(checking_harness, 0);
-    CheckingHarness::write_u64(checking_harness, 2);
+    CheckingHarness::write_u64(checking_harness, 3);
     let accepted: u8 = CheckingHarness::boolean_tag(output.accepted);
     CheckingHarness::write_byte(checking_harness, accepted);
     CheckingHarness::write_u64(checking_harness, output.diagnostic_count as u64 in Trapping);
@@ -511,8 +512,55 @@ crashes Trap
     machine machine(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
         transition index < output.machine_count {
             true -> routes(checking_harness, output, index)
-            _ -> done()
+            _ -> slots(checking_harness, output)
         }
+    }
+
+    machine slots(checking_harness: &mut CheckingHarness, output: &Checks) {
+        let mut review: SlotReview;
+        SlotReview::prepare(&mut review);
+        let admits: bool = SlotReview::admits(&review, output);
+        CheckingHarness::write_u64(checking_harness, output.slot_origin_count as u64 in Trapping);
+        transition { _ -> origin(checking_harness, output, admits, 0) }
+    }
+
+    machine origin(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+        transition index < output.slot_origin_count {
+            true -> one_origin(checking_harness, output, admits, index)
+            _ -> qualifications(checking_harness, output, admits)
+        }
+    }
+
+    machine one_origin(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+        let row: SlotReturnedBorrowOrigin = Checks::slot_origin(output, index);
+        let tag: u8 = CheckingHarness::origin_tag(row.kind);
+        CheckingHarness::write_byte(checking_harness, tag);
+        CheckingHarness::write_u64(checking_harness, row.parameter_index as u64 in Trapping);
+        transition { _ -> origin(checking_harness, output, admits, index + 1) }
+    }
+
+    machine qualifications(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool) {
+        CheckingHarness::write_u64(checking_harness, output.slot_qualification_count as u64 in Trapping);
+        transition { _ -> qualification(checking_harness, output, admits, 0) }
+    }
+
+    machine qualification(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+        transition index < output.slot_qualification_count {
+            true -> one_qualification(checking_harness, output, admits, index)
+            _ -> review(checking_harness, admits)
+        }
+    }
+
+    machine one_qualification(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+        let row: SlotParameterQualification = Checks::slot_qualification(output, index);
+        CheckingHarness::write_u64(checking_harness, row.parameter_index as u64 in Trapping);
+        CheckingHarness::write_u64(checking_harness, row.domain_item as u64 in Trapping);
+        transition { _ -> qualification(checking_harness, output, admits, index + 1) }
+    }
+
+    machine review(checking_harness: &mut CheckingHarness, admits: bool) {
+        let tag: u8 = CheckingHarness::boolean_tag(admits);
+        CheckingHarness::write_byte(checking_harness, tag);
     }
 
     machine routes(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
@@ -531,6 +579,17 @@ crashes Trap
     }
 
     machine done() {}
+}
+
+machine CheckingHarness::origin_tag(kind: SlotOriginKind) -> u8 {
+    transition kind {
+        SlotOriginKind::Parameter -> tag(1)
+        SlotOriginKind::Invocation -> tag(2)
+    }
+
+    machine tag(number: u8) -> u8 {
+        number
+    }
 }
 
 machine CheckingHarness::boolean_tag(value: bool) -> u8 {

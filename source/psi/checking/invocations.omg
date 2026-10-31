@@ -166,10 +166,10 @@ crashes Trap
             false -> invalid(graph)
         }
     }
-    machine reversed(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, machine: u64 in Trapping) -> bool
-    requires machine < 10240
+    machine reversed(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, callee: u64 in Trapping) -> bool
+    requires callee < 10240
     {
-        let next: u64 in Trapping = graph.reverse_first[machine] as u64 in Trapping;
+        let next: u64 in Trapping = graph.reverse_first[callee] as u64 in Trapping;
         transition { _ -> publish(graph, owner, expression, target, next) }
     }
     machine publish(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, reverse_next: u64 in Trapping) -> bool {
@@ -199,10 +199,10 @@ crashes Trap
             false -> invalid(graph)
         }
     }
-    machine retain_reverse(graph: &mut InvocationGraph, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
-    requires machine < 10240
+    machine retain_reverse(graph: &mut InvocationGraph, callee: u64 in Trapping, handle: u64 in Trapping) -> bool
+    requires callee < 10240
     {
-        graph.reverse_first[machine] = handle as u64;
+        graph.reverse_first[callee] = handle as u64;
         true
     }
     machine invalid(graph: &mut InvocationGraph) -> bool { graph.complete = false; false }

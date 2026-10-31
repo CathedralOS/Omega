@@ -8,6 +8,7 @@
 //! Validation and checked binding share exact sealed contract and format
 //! recognition. Binding records identity; it does not itself prove equality.
 
+use crate::flow::expressions;
 use checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
@@ -349,12 +350,7 @@ fn direct_machine_parameter_source(
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
     let path = program.expression_table.name_path_node(fact.source)?;
-    if program
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        != 1
-    {
+    if expressions(program).name_path_members(path.members).len() != 1 {
         return None;
     }
     let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
@@ -387,12 +383,7 @@ fn direct_block_parameter_source(
     symbols::SymbolHandle,
 )> {
     let path = program.expression_table.name_path_node(fact.source)?;
-    if program
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        != 1
-    {
+    if expressions(program).name_path_members(path.members).len() != 1 {
         return None;
     }
     let (owner_machine, owner_state) = direct_machine_contract_owner(carriers, fact)?;
@@ -425,9 +416,9 @@ fn proof_fact_roots(
         typed_trees::domain::ProofFact::Membership(membership) => {
             std::slice::from_ref(&membership.value)
         }
-        typed_trees::domain::ProofFact::Proposition(application) => program
-            .expression_table
-            .expression_handles(application.arguments),
+        typed_trees::domain::ProofFact::Proposition(application) => {
+            expressions(program).expression_handles(application.arguments)
+        }
     }
 }
 
@@ -718,10 +709,7 @@ fn imported_operation_operand_key(
     use_site: CheckedFloatUseSite,
     use_expression: typed_trees::expression::ExpressionHandle,
 ) -> CheckedFloatProjectionSourceKey {
-    if program
-        .expression_table
-        .names_reserved_result(invocation.source)
-    {
+    if expressions(program).names_reserved_result(invocation.source) {
         return CheckedFloatProjectionSourceKey::DirectOperationResult {
             use_site,
             use_expression,
@@ -1265,9 +1253,9 @@ fn bind_declaration_semantic_applications(
             typed_trees::domain::ProofFact::Membership(membership) => {
                 std::slice::from_ref(&membership.value)
             }
-            typed_trees::domain::ProofFact::Proposition(application) => program
-                .expression_table
-                .expression_handles(application.arguments),
+            typed_trees::domain::ProofFact::Proposition(application) => {
+                expressions(program).expression_handles(application.arguments)
+            }
         };
         for root in roots {
             bind_semantic_applications_in_expression(

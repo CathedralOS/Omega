@@ -1,5 +1,6 @@
 mod runtime_calls;
 
+use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     CheckFacts, CheckedEvidenceTerm, CheckedPropositionApplication, ContractEvidenceArgument,
@@ -575,8 +576,7 @@ fn instantiated_call_proposition(
     } else {
         call_target_parameters(program, call.target_state_symbol)?
     };
-    let argument_labels = program
-        .expression_table
+    let argument_labels = expressions(program)
         .expression_handles(application.arguments)
         .iter()
         .map(|argument| {

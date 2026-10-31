@@ -44,6 +44,17 @@ pub(crate) fn require_established_arguments(
             TypeReferenceNode::Reference { referee, .. } => *referee,
             _ => parameter.type_reference,
         };
+        if let BuildTimeValue::LayoutTarget(facts) = value {
+            facts.validate()?;
+            let symbol = program.type_reference_table.type_symbol(destination);
+            if !program.core_layout_declaration(symbol, "LayoutTarget") {
+                return Err(
+                    "compiler target context must arrive at the exact core LayoutTarget carrier"
+                        .into(),
+                );
+            }
+            continue;
+        }
         let value = literal(&mut probe, destination, value)
             .map_err(|reason| format!("policy argument `{}`: {reason}", parameter.name))?;
         // Receive the root through an ordinary declared field as well. Merely

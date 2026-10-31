@@ -25,18 +25,10 @@ pub(super) fn validate_construction(
     diagnostics: &mut Vec<Diagnostic>,
     statement_index: usize,
 ) -> Vec<CheckedStoredIntegerWrite> {
-    if program.plan_laid_layout(literal.type_symbol).is_none() {
+    let carrier = super::super::construction_application(program, expression);
+    if !carrier.is_valid() || program.plan_laid_layout_for_type(carrier).is_none() {
         return Vec::new();
     }
-    let Some(carrier) = program
-        .type_reference_table
-        .find_named_type_reference(literal.type_symbol)
-    else {
-        diagnostics.push(Diagnostic::error(format!(
-            "IntegerAt construction in {owner} lost its exact type"
-        )));
-        return Vec::new();
-    };
     let Ok(targets) = crate::layout_checking_targets(program, [carrier]) else {
         diagnostics.push(Diagnostic::error(format!(
             "IntegerAt construction in {owner} has no complete layout alternative roster"
@@ -75,14 +67,15 @@ fn validate_alternative(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    literal: &TableStructLiteral,
+    _literal: &TableStructLiteral,
     field: &TableStructLiteralField,
     scalar: &ConstructionScalarValue,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
     statement_index: usize,
 ) -> Option<CheckedStoredIntegerWrite> {
-    let plan = program.plan_laid_layout(literal.type_symbol)?;
+    let carrier = super::super::construction_application(program, expression);
+    let plan = program.plan_laid_layout_for_type(carrier)?;
     let field_index = plan
         .field_symbols
         .iter()
@@ -101,11 +94,7 @@ fn validate_alternative(
     {
         return None;
     }
-    let stored = program
-        .type_reference_table
-        .find_named_type_reference(literal.type_symbol)
-        .ok_or(())
-        .and_then(|carrier| stored_integer_field_type(program, carrier, field.field_symbol));
+    let stored = stored_integer_field_type(program, carrier, field.field_symbol);
     let Ok(Some(stored)) = stored else {
         diagnostics.push(Diagnostic::error(format!(
             "IntegerAt store in {owner} has no exact stored field geometry"

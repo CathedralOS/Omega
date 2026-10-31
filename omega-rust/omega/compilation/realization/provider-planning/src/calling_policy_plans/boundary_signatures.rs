@@ -19,8 +19,11 @@ use calling_conventions::{
     nominal_callback_native_parameter_id,
 };
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::boundary_values::{
+    BoundaryTypeBinding, BoundaryValuePreparation, substitute_boundary_type_reference,
+};
 use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use layout::{BoundaryTypeBinding, BoundaryValueLayout, substitute_boundary_type_reference};
+use layout::BoundaryValueLayout;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
@@ -301,7 +304,7 @@ pub(crate) fn call_signature_from_top_level_requirement(
     requirement: &checked_trees::typed_trees::machine::Machine,
     entry: &checked_trees::typed_trees::state::State,
     owner_requirement_identity: &str,
-    native_target: NativeTarget,
+    layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
     if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -315,6 +318,7 @@ pub(crate) fn call_signature_from_top_level_requirement(
         );
     }
 
+    let native_target = layout_target.native_target();
     let runtime_parameters = typed.state_parameters(entry);
     if runtime_parameters.len() > PARAMETER_CAPACITY {
         return Err(format!(
@@ -323,12 +327,15 @@ pub(crate) fn call_signature_from_top_level_requirement(
         ));
     }
 
-    let mut values =
-        BoundaryValueLayout::new(typed, native_target, &[], opaque_representation_selections);
+    let (representation_types, representation_uses) =
+        crate::boundary_value_recipes::representation_inputs(opaque_representation_selections);
+    let mut preparation = BoundaryValuePreparation::new(typed, &[], &representation_types);
+    let mut values = BoundaryValueLayout::new(layout_target, &representation_uses);
     let mut parameters = Vec::with_capacity(runtime_parameters.len());
     let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
     for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
-        let (_, root) = values.value_type(parameter.type_reference)?;
+        let recipe = preparation.value_type(parameter.type_reference);
+        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         parameters.push(root);
         let native_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "top-level boundary requirement has too many runtime parameters")?;
@@ -353,7 +360,8 @@ pub(crate) fn call_signature_from_top_level_requirement(
     }
 
     let result = if entry.return_type.is_valid() {
-        let (_, root) = values.value_type(entry.return_type)?;
+        let recipe = preparation.value_type(entry.return_type);
+        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         Some(root)
     } else {
         None
@@ -501,15 +509,10 @@ pub(crate) fn call_signature_from_typed(
     signature: &checked_trees::typed_trees::signature::StateSignature,
     bindings: &[BoundaryTypeBinding],
     owner_requirement_identity: &str,
-    native_target: NativeTarget,
+    layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
-    let mut values = BoundaryValueLayout::new(
-        typed,
-        native_target,
-        bindings,
-        opaque_representation_selections,
-    );
+    let native_target = layout_target.native_target();
     let mut parameters = Vec::new();
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
@@ -641,6 +644,10 @@ pub(crate) fn call_signature_from_typed(
     }
     direct_callback_parameters.sort_unstable_by_key(|parameter| parameter.native_ordinal);
 
+    let (representation_types, representation_uses) =
+        crate::boundary_value_recipes::representation_inputs(opaque_representation_selections);
+    let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
+    let mut values = BoundaryValueLayout::new(layout_target, &representation_uses);
     let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
     let mut next_native_ordinal = 0u32;
     for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
@@ -652,7 +659,8 @@ pub(crate) fn call_signature_from_typed(
                 .checked_add(1)
                 .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
         }
-        let (_, root) = values.value_type(parameter.type_reference)?;
+        let recipe = preparation.value_type(parameter.type_reference);
+        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         parameters.push(root);
         let type_reference =
             substitute_boundary_type_reference(typed, parameter.type_reference, bindings);
@@ -680,7 +688,8 @@ pub(crate) fn call_signature_from_typed(
             .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
     }
     let result = if signature.return_type.is_valid() {
-        let (_, root) = values.value_type(signature.return_type)?;
+        let recipe = preparation.value_type(signature.return_type);
+        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         Some(root)
     } else {
         None

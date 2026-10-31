@@ -8,6 +8,7 @@ use crate::facts::crash_calls::summary_predicates::{
     summary_closed_float_relation,
 };
 use crate::flow::active_context_handles;
+use crate::places::place_at;
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -421,7 +422,7 @@ impl StructuralArgumentSubstitution<'_> {
             } else if crate::flow::operand_binds_stable_copy(self.program, parameter.type_reference)
             {
                 (
-                    validation::canonical_place_from_expression_in_state(
+                    place_at(
                         self.program,
                         operand.state_symbol,
                         operand.statement_index,
