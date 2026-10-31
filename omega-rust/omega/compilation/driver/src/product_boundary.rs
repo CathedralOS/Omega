@@ -961,7 +961,7 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
         &[".traits()", ".machines()", "trait_machine_signatures"],
     );
     assert!(defaults.contains("declaration.default_eligible"));
-    assert!(computation.contains("std::ptr::eq(&checked.typed, services.context().typed)"));
+    assert!(computation.contains("std::ptr::eq(&*checked.typed, services.context().typed)"));
     let catalog = include_str!(
         "../../../../psi/compilation/representations/typed-trees/src/service_declarations/catalog.rs"
     );
