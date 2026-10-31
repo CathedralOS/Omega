@@ -9,12 +9,14 @@
 
 use super::super::super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
 };
 use super::super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
-    PermissionEventSource, StatementNode, SymbolHandle,
+    CheckFacts, CheckedStructuralAccess as StructuralAccess,
+    CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralParameterPlan as ParameterPlan,
+    CheckedUnitStructuralResultBindingPlan as BindingPlan, Multiplicity, PermissionEventSource,
+    StatementNode, SymbolHandle,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -83,8 +85,8 @@ fn replacement_owns_release(
 fn normal_call_disposes_backing(
     facts: &CheckFacts,
     state: SymbolHandle,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &[CheckedUnitEffectOperationPlan],
+    results: &[(BindingPlan, facts::PlaceRoot)],
+    operations: &[OperationPlan],
     binding: u32,
 ) -> bool {
     let values = &facts.values.structural_values;
@@ -106,14 +108,14 @@ fn normal_call_disposes_backing(
         .take_while(|operation| {
             matches!(
                 operation,
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                OperationPlan::ContinuationCleanup {
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_),
                     ..
                 }
             )
         })
         .any(|operation| {
-            let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            let OperationPlan::ContinuationCleanup {
                 boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                 cleanup_actions,
                 ..
@@ -123,12 +125,8 @@ fn normal_call_disposes_backing(
             };
             cleanup_actions.iter().any(|action| {
                 let expression = match *action.source() {
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression,
-                    } => expression,
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } => {
+                    SourcePlan::StructuralExpression { expression } => expression,
+                    SourcePlan::StructuralResult { binding_ordinal } => {
                         let Some((_, owner)) = results
                             .iter()
                             .find(|(result, _)| result.binding_ordinal == binding_ordinal)
@@ -172,12 +170,12 @@ fn normal_call_disposes_backing(
 /// Source groups identify named loan resources. A computed descriptor has no
 /// such group, so its exact result occurrence identifies its one release.
 pub(in crate::execution::terminal_unit) fn release_matches(
-    operation: &CheckedUnitEffectOperationPlan,
-    result: &CheckedUnitStructuralResultBindingPlan,
+    operation: &OperationPlan,
+    result: &BindingPlan,
     loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
 ) -> bool {
     operation.with_value_calls().any(|operation| {
-        let CheckedUnitEffectOperationPlan::ReleaseReference {
+        let OperationPlan::ReleaseReference {
             loans: released,
             source,
             path,
@@ -191,7 +189,7 @@ pub(in crate::execution::terminal_unit) fn release_matches(
         }
         if loans.is_empty() {
             *source
-                == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                == (SourcePlan::StructuralResult {
                     binding_ordinal: result.binding_ordinal,
                 })
         } else {
@@ -207,11 +205,8 @@ pub(in crate::execution::terminal_unit) fn release_matches(
 /// Only statement-entry actions are final during sequencing. Call and
 /// replacement actions are still provisional until temporary-action selection;
 /// their transfer and replacement judgments remain separate below.
-fn whole_result_discarded(
-    operation: &CheckedUnitEffectOperationPlan,
-    result: &CheckedUnitStructuralResultBindingPlan,
-) -> bool {
-    let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+fn whole_result_discarded(operation: &OperationPlan, result: &BindingPlan) -> bool {
+    let OperationPlan::ContinuationCleanup {
         boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
         cleanup_actions,
         ..
@@ -221,7 +216,7 @@ fn whole_result_discarded(
     };
     cleanup_actions.iter().any(|action| {
         matches!(action, checked_trees::CheckedNormalCleanupAction::Discard(discard)
-            if discard.source == CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            if discard.source == SourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             }
                 && discard.path.is_empty()
@@ -236,9 +231,9 @@ fn custody_transferred(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, facts::PlaceRoot)],
     binding_ordinal: u32,
-    operations: &[CheckedUnitEffectOperationPlan],
+    operations: &[OperationPlan],
 ) -> Option<bool> {
     Some(
         super::reference_retirement::transferred_paths(
@@ -258,7 +253,7 @@ fn custody_transferred(
 /// locally or returned by a call. Scheduling and custody accounting must join
 /// that exact holder rather than select retirement by producer family.
 pub(in crate::execution::terminal_unit) struct CapturedReferenceResult<'operation> {
-    pub result: &'operation CheckedUnitStructuralResultBindingPlan,
+    pub result: &'operation BindingPlan,
     pub loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
     /// Scalar siblings and borrows of the carrier home can outlive its last
     /// descriptor observation. Whole disposal must retain both inventories.
@@ -275,8 +270,8 @@ fn captured_storage_lifetime(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    result: &CheckedUnitStructuralResultBindingPlan,
+    results: &[(BindingPlan, facts::PlaceRoot)],
+    result: &BindingPlan,
 ) -> Option<(u32, Vec<arena::Handle<checked_trees::BorrowLoanFact>>)> {
     let mut owners = results.iter().filter(|(binding, _)| binding == result);
     let (_, owner) = owners.next()?;
@@ -308,18 +303,18 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operation: &'operation CheckedUnitEffectOperationPlan,
-    operations: &[CheckedUnitEffectOperationPlan],
+    results: &[(BindingPlan, facts::PlaceRoot)],
+    operation: &'operation OperationPlan,
+    operations: &[OperationPlan],
 ) -> Option<CapturedReferenceResult<'operation>> {
     let direct = match operation {
-        CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
+        OperationPlan::EstablishReference { result, .. } => {
             super::reference_retirement::local_reference_loans(
                 facts, machine, state, result, results,
             )
             .map(|loans| (result, loans))
         }
-        CheckedUnitEffectOperationPlan::EstablishLocal(
+        OperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
         ) if facts.values.structural_values.nodes.is_valid(*value)
             && validation::reference_result_custody::stored_loan_parts(
@@ -458,8 +453,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: u32,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    results: &[(BindingPlan, facts::PlaceRoot)],
+    operations: &mut Vec<OperationPlan>,
     trace: &super::super::super::LocalConstructionTrace,
 ) -> Option<()> {
     trace.phase("reference retirement: transport");
@@ -469,7 +464,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         && !operations
             .iter()
             .chain(prepared_calls.operations_for(machine, state))
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
             .any(|operation| {
                 // Every materialized descriptor has a retirement owner,
                 // including an exact, proven-empty source loan roster.
@@ -523,7 +518,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     for operation in operations
         .iter()
         .rev()
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        .flat_map(OperationPlan::with_value_calls)
     {
         trace.phase("reference retirement: selected complements");
         let complements = super::reference_retirement::selections::complement_completions(
@@ -534,7 +529,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         )?;
         for (position, complement) in complements {
             trace.phase("reference retirement: complement receiver");
-            let CheckedUnitEffectOperationPlan::ReleaseReference {
+            let OperationPlan::ReleaseReference {
                 selection_complements,
                 ..
             } = pending.get_mut(position)?
@@ -560,7 +555,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 operations
                     .iter()
                     .chain(&pending)
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .flat_map(OperationPlan::with_value_calls)
                     .any(|operation| whole_result_discarded(operation, result))
             })
         {
@@ -624,12 +619,12 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 && !operations
                     .iter()
                     .chain(&pending)
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .flat_map(OperationPlan::with_value_calls)
                     .any(|operation| release_matches(operation, result, loans))
             {
-                pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
+                pending.push(OperationPlan::ReleaseReference {
                     statement_index,
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    source: SourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     },
                     path: Vec::new(),
@@ -653,7 +648,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 || operations
                     .iter()
                     .chain(&pending)
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .flat_map(OperationPlan::with_value_calls)
                     .any(|operation| release_matches(operation, result, loans))
             {
                 continue;
@@ -786,12 +781,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         {
             continue;
         }
-        let leaf_releases = if retains_siblings {
-            local_loans
-                .into_iter()
-                .rev()
-                .filter(|(source, group)| {
-                    facts.borrow.loan_group(*group).is_some_and(|mut loans| {
+        let leaf_releases =
+            if retains_siblings {
+                local_loans
+                    .into_iter()
+                    .rev()
+                    .filter(|(source, group)| {
+                        facts.borrow.loan_group(*group).is_some_and(|mut loans| {
                             loans.all(|(loan, _)| retirement.children_retired(loan))
                         }) && !transferred_paths.iter().any(|path| {
                             path.starts_with(&source.path) || source.path.starts_with(path)
@@ -802,18 +798,20 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                         })
                         .is_some_and(|boundary| {
                             order.at_or_before(boundary as usize, statement_index as usize)
-                        }) && !operations.iter().chain(&pending)
-                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                        .any(|operation| {
-                            matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+                        }) && !operations
+                            .iter()
+                            .chain(&pending)
+                            .flat_map(OperationPlan::with_value_calls)
+                            .any(|operation| {
+                                matches!(operation, OperationPlan::ReleaseReference {
                             loans: released, ..
                         } if *released == *group)
-                        })
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
         if retains_siblings && leaf_releases.is_empty() {
             continue;
         }
@@ -840,9 +838,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // is completed from the exact released-path complement during lowering.
         if retains_siblings {
             for (source, group) in leaf_releases {
-                pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
+                pending.push(OperationPlan::ReleaseReference {
                     statement_index,
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    source: SourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     },
                     path: source.path,
@@ -857,7 +855,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             continue;
         }
         retired.push(result.binding_ordinal);
-        pending.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        pending.push(OperationPlan::ContinuationCleanup {
             selected_regions: Vec::new(),
             boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
             cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
@@ -932,7 +930,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         .iter()
         .rposition(|operation| {
             !matches!(operation,
-        CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        OperationPlan::ContinuationCleanup {
             boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
         } if order.precedes(coordinate.statement_index as usize, statement_index as usize))
         })
@@ -955,8 +953,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    results: &[(BindingPlan, facts::PlaceRoot)],
+    operations: &mut Vec<OperationPlan>,
     trace: &super::super::LocalConstructionTrace,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
@@ -965,7 +963,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         && !operations
             .iter()
             .chain(prepared_calls.operations_for(machine, state))
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
             .any(|operation| {
                 // Every materialized descriptor has a retirement owner,
                 // including an exact, proven-empty source loan roster.
@@ -986,10 +984,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     // Retained call operands own real descriptor occurrences. Their output
     // transfers into the enclosing value, but borrowed input holders still
     // retire after that receiving value and before their backing homes.
-    for operation in operations
-        .iter()
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-    {
+    for operation in operations.iter().flat_map(OperationPlan::with_value_calls) {
         if let Some(captured) = captured_reference_result(
             program, facts, machine, state, results, operation, operations,
         ) {
@@ -998,7 +993,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             trace.statement(Some(result.statement_index));
             if operations
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .any(|operation| whole_result_discarded(operation, result))
             {
                 continue;
@@ -1057,7 +1052,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     .ok()?;
             if !operations
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .any(|operation| release_matches(operation, result, loans))
                 && !pending
                     .iter()
@@ -1065,9 +1060,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             {
                 pending.push((
                     boundary,
-                    CheckedUnitEffectOperationPlan::ReleaseReference {
+                    OperationPlan::ReleaseReference {
                         statement_index: boundary,
-                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        source: SourcePlan::StructuralResult {
                             binding_ordinal: result.binding_ordinal,
                         },
                         path: Vec::new(),
@@ -1137,7 +1132,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             super::reference_retirement::selections::complement_completions(&retirement)?;
         if !complements.is_empty() {
             for (position, complement) in complements {
-                let CheckedUnitEffectOperationPlan::ReleaseReference {
+                let OperationPlan::ReleaseReference {
                     selection_complements,
                     ..
                 } = scheduled.get_mut(position)?
@@ -1150,13 +1145,10 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         let mut next = None;
         for (index, (_, operation, storage_loans)) in pending.iter().enumerate() {
-            let CheckedUnitEffectOperationPlan::ReleaseReference { loans, source, .. } = operation
-            else {
+            let OperationPlan::ReleaseReference { loans, source, .. } = operation else {
                 return None;
             };
-            let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
-                source
-            else {
+            let SourcePlan::StructuralResult { binding_ordinal } = source else {
                 return None;
             };
             let (result, _) = results
@@ -1188,7 +1180,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         for operation in operations
             .iter()
             .rev()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
         {
             releases.extend(super::reference_retirement::stores::releases(
                 &retirement,
@@ -1208,7 +1200,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         .rposition(|operation| {
             !matches!(
                 operation,
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                OperationPlan::ContinuationCleanup {
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_),
                     ..
                 }
@@ -1216,8 +1208,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         })
         .map_or(0, |position| position + 1);
     for index in 0..scheduled.len() {
-        if let CheckedUnitEffectOperationPlan::ReleaseReference {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+        if let OperationPlan::ReleaseReference {
+            source: SourcePlan::StructuralResult { binding_ordinal },
             path,
             ..
         } = &scheduled[index]
@@ -1226,7 +1218,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         {
             let captured = operations
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .filter_map(|operation| {
                     captured_reference_result(
                         program, facts, machine, state, results, operation, operations,
@@ -1252,16 +1244,15 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     .borrow
                     .loan_group(captured.loans)?
                     .all(|(loan, _)| retirement.children_retired(loan))
-                && let CheckedUnitEffectOperationPlan::ReleaseReference { defer_to_exit, .. } =
-                    &mut scheduled[index]
+                && let OperationPlan::ReleaseReference { defer_to_exit, .. } = &mut scheduled[index]
             {
                 *defer_to_exit = false;
             }
         }
     }
     for release in &scheduled {
-        if let CheckedUnitEffectOperationPlan::ReleaseReference {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+        if let OperationPlan::ReleaseReference {
+            source: SourcePlan::StructuralResult { binding_ordinal },
             defer_to_exit: false,
             ..
         } = release
@@ -1313,7 +1304,7 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     statement: u32,
-    operations: &mut [CheckedUnitEffectOperationPlan],
+    operations: &mut [OperationPlan],
 ) -> Option<()> {
     let Some((_, receipt)) = facts
         .flow
@@ -1339,15 +1330,11 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
         }
         let storage =
             super::super::super::local_storage::source(program, state, operations, source.symbol)?;
-        let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } = storage
-        else {
+        let SourcePlan::StructuralResult { binding_ordinal } = storage else {
             // Rebinding already transferred the RHS producer to current named
             // storage. Selection owns that occurrence; its immutable birth
             // has no unconditional return debt to retire again.
-            if matches!(
-                storage,
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            ) {
+            if matches!(storage, SourcePlan::StructuralLocal { .. }) {
                 continue;
             }
             return None;
@@ -1402,8 +1389,8 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
 /// owns earlier locals. Each owner updates its own disposal debt, while source
 /// custody independently rejoins every operand across that boundary.
 pub(in crate::execution::terminal_unit) fn consume_retained_results(
-    operations: &mut [CheckedUnitEffectOperationPlan],
-    consumer: &CheckedUnitEffectOperationPlan,
+    operations: &mut [OperationPlan],
+    consumer: &OperationPlan,
 ) -> Option<()> {
     let Some(call) = consumer.call() else {
         return Some(());
@@ -1430,8 +1417,8 @@ pub(in crate::execution::terminal_unit) fn consume_retained_results(
 
 pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
     facts: &CheckFacts,
-    results: &mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
-    operations: &mut [CheckedUnitEffectOperationPlan],
+    results: &mut Vec<(BindingPlan, facts::PlaceRoot)>,
+    operations: &mut [OperationPlan],
     calls: &[checked_trees::CheckedStructuralValueCall],
 ) -> Option<()> {
     for call in calls {
@@ -1443,7 +1430,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             .operands()
             .iter()
             .chain(call.operation())
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
         {
             let Some(result) = operand.structural_result_binding() else {
                 continue;
@@ -1457,16 +1444,16 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                 expression
             } else {
                 match operand {
-                    CheckedUnitEffectOperationPlan::EstablishLocal(
+                    OperationPlan::EstablishLocal(
                         checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                             value, ..
                         },
                     ) => facts.values.structural_values.nodes.get(*value).expression,
-                    CheckedUnitEffectOperationPlan::EstablishReference {
+                    OperationPlan::EstablishReference {
                         formation_expression,
                         ..
                     }
-                    | CheckedUnitEffectOperationPlan::MoveStructuralField {
+                    | OperationPlan::MoveStructuralField {
                         expression: formation_expression,
                         ..
                     } => *formation_expression,
@@ -1489,9 +1476,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             .operands()
             .iter()
             .chain(call.operation())
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
         {
-            if let CheckedUnitEffectOperationPlan::EstablishLocal(
+            if let OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) = operation
             {
@@ -1504,8 +1491,8 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
 }
 
 pub(in crate::execution::terminal_unit) fn consume_results(
-    operations: &mut [CheckedUnitEffectOperationPlan],
-    consumer: &CheckedUnitEffectOperationPlan,
+    operations: &mut [OperationPlan],
+    consumer: &OperationPlan,
 ) -> Option<()> {
     {
         for (binding_ordinal, access, projected) in consumer
@@ -1536,9 +1523,9 @@ pub(in crate::execution::terminal_unit) fn consume_results(
 }
 
 pub(in crate::execution::terminal_unit) fn consume_result(
-    operations: &mut [CheckedUnitEffectOperationPlan],
+    operations: &mut [OperationPlan],
     binding_ordinal: u32,
-    access: CheckedStructuralAccess,
+    access: StructuralAccess,
     projected: bool,
 ) -> Option<()> {
     let mut producers = operations.iter_mut().filter(|operation| {
@@ -1554,10 +1541,7 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     // return discard. Whole and projected uses keep the same owned-value
     // rules; source ownership and residual cleanup account for every child.
     // Its original place's restoration debt remains in OpenWindows.
-    if matches!(
-        producer,
-        CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-    ) {
+    if matches!(producer, OperationPlan::MoveStructuralField { .. }) {
         return Some(());
     }
     // Copying a whole value or a selected subtree leaves the producer's
@@ -1571,13 +1555,11 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     {
         return Some(());
     }
-    let reference_carrier = matches!(
-        producer,
-        CheckedUnitEffectOperationPlan::EstablishReference { .. }
-    ) || producer
-        .call()
-        .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
-        .is_some_and(|custody| !custody.reference_loans.is_empty());
+    let reference_carrier = matches!(producer, OperationPlan::EstablishReference { .. })
+        || producer
+            .call()
+            .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
+            .is_some_and(|custody| !custody.reference_loans.is_empty());
     if reference_carrier {
         // Formation and call results own the same permission carrier. Lending
         // its referent leaves disposal with the producer; it does not require
@@ -1590,18 +1572,18 @@ pub(in crate::execution::terminal_unit) fn consume_result(
         // its referent path. Both leave disposal here; argument admission owns
         // that type/path distinction, not the cleanup scheduling flag.
         return match access {
-            CheckedStructuralAccess::Owned => !projected,
-            CheckedStructuralAccess::SharedBorrow
-            | CheckedStructuralAccess::MutableBorrow
-            | CheckedStructuralAccess::WriteOnlyBorrow => true,
+            StructuralAccess::Owned => !projected,
+            StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow => true,
         }
         .then_some(());
     }
     if matches!(
         access,
-        CheckedStructuralAccess::SharedBorrow
-            | CheckedStructuralAccess::MutableBorrow
-            | CheckedStructuralAccess::WriteOnlyBorrow
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
     ) {
         // A borrow argument rejoins the producer's loan, not its disposal
         // debt: borrow custody rides the selected edge's claim partition, so
@@ -1617,7 +1599,7 @@ pub(in crate::execution::terminal_unit) fn consume_result(
         // and independent Terminal replay reject a second use of that claim.
         if result.multiplicity == Multiplicity::Linear
             && !*discard_result_on_return
-            && access == CheckedStructuralAccess::Owned
+            && access == StructuralAccess::Owned
             && !projected
         {
             return Some(());
@@ -1655,12 +1637,12 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    structural_parameters: &[ParameterPlan],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     statement_ordinal: u32,
-    results: &mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    results: &mut Vec<(BindingPlan, facts::PlaceRoot)>,
+    operations: &mut Vec<OperationPlan>,
     structural_count: &mut usize,
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
@@ -1709,8 +1691,8 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
 pub(in crate::execution::terminal_unit) fn consume_value_places(
     facts: &CheckFacts,
     root: checked_trees::CheckedStructuralValueHandle,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &mut [CheckedUnitEffectOperationPlan],
+    results: &[(BindingPlan, facts::PlaceRoot)],
+    operations: &mut [OperationPlan],
 ) -> Option<()> {
     let plans = &facts.values.structural_values;
     let mut pending = vec![(root, false)];

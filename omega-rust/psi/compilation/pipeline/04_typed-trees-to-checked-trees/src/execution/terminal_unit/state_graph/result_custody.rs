@@ -25,14 +25,15 @@
 //! cannot stand in for cleanup on a sibling, and terminal local aliases name
 //! only the current occupant after any body-level replacement.
 use super::{
-    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
-    CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan as TerminatorPlan,
+    CheckedStructuralAccess as StructuralAccess, CheckedStructuralControlSuccessorPlan,
+    CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan, Multiplicity, PermissionEventKind,
     PermissionEventSource, StatementNode, control, local_results,
 };
 use crate::execution::permission_events;
 use checked_trees::{
-    CheckedConditionalReturnArm, CheckedUnitStructuralArgumentPlan,
+    CheckedConditionalReturnArm as ReturnArm, CheckedUnitStructuralArgumentPlan as ArgumentPlan,
     CheckedUnitStructuralParameterPlan,
 };
 
@@ -51,8 +52,8 @@ pub(super) fn account<'calls>(
         checked_trees::CheckedUnitStructuralResultBindingPlan,
         facts::PlaceRoot,
     )],
-    operations: &mut [CheckedUnitEffectOperationPlan],
-    terminator: &CheckedComposedUnitControlTerminatorPlan,
+    operations: &mut [OperationPlan],
+    terminator: &TerminatorPlan,
     selected_exit: Option<checked_trees::FlowClaimJoinExit>,
     completion: checked_trees::CheckedNormalCompletion,
     trace: &control::LocalConstructionTrace,
@@ -71,17 +72,13 @@ pub(super) fn account<'calls>(
     // in for unconditional ownership. The retained computation itself owns
     // short-circuit alternatives inside this guard.
     let entry_guard = match terminator {
-        CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. }
-        | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { guard, .. }
-        | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { guard, .. } => {
-            Some(guard.clone())
-        }
-        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
-            arms.first().map(|arm| arm.guard().clone())
-        }
+        TerminatorPlan::Conditional { guard, .. }
+        | TerminatorPlan::ConditionalReturn { guard, .. }
+        | TerminatorPlan::ConditionalCompletion { guard, .. } => Some(guard.clone()),
+        TerminatorPlan::GuardedJumps { arms, .. } => arms.first().map(|arm| arm.guard().clone()),
         // Guarded value returns account for each guard prefix together with
         // its selected return below, as scalar exit computations already do.
-        CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => None,
+        TerminatorPlan::Guarded { .. } => None,
         _ => None,
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations.iter())?;
@@ -109,7 +106,7 @@ pub(super) fn account<'calls>(
         .map(|arm| construction_local_uses(facts, state.symbol, arm.operation_dependencies()))
         .collect::<Option<Vec<_>>>()?;
     let guarded_return_construction_uses = match terminator {
-        CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => return_values
+        TerminatorPlan::Guarded { return_values, .. } => return_values
             .iter()
             .map(|value| construction_local_uses(facts, state.symbol, std::iter::once(value)))
             .collect::<Option<Vec<_>>>()?,
@@ -143,7 +140,7 @@ pub(super) fn account<'calls>(
             } else {
                 Default::default()
             };
-        let occupies_result = |source: &CheckedUnitStructuralArgumentSourcePlan, before: usize| {
+        let occupies_result = |source: &SourcePlan, before: usize| {
             let source = super::super::local_storage::operand_source(
                 program,
                 state,
@@ -152,7 +149,7 @@ pub(super) fn account<'calls>(
                 source,
             );
             matches!(source,
-                Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal })
+                Some(SourcePlan::StructuralResult { binding_ordinal })
                     if binding_ordinal == result.binding_ordinal)
         };
         let construction_owns_result =
@@ -160,7 +157,7 @@ pub(super) fn account<'calls>(
                 occupies_result(&argument.source, before)
                     && argument.type_identity == result.type_identity
                     && (result.multiplicity == Multiplicity::Unrestricted
-                        || argument.access == CheckedStructuralAccess::Owned)
+                        || argument.access == StructuralAccess::Owned)
                     && argument.path.is_empty()
             };
         // An edge's complete operand sequence consumes existing homes just as
@@ -179,7 +176,7 @@ pub(super) fn account<'calls>(
                     0
                 } else {
                     edge.operand_calls()
-                        .flat_map(CheckedUnitEffectOperationPlan::structural_operands)
+                        .flat_map(OperationPlan::structural_operands)
                         .filter(|argument| construction_owns_result(argument, operations.len()))
                         .count()
                         + constructions.iter().filter(|(_, argument)| {
@@ -200,7 +197,7 @@ pub(super) fn account<'calls>(
             .enumerate()
             .skip(producer_index + 1)
             .filter_map(|(operation_index, operation)| match operation {
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                OperationPlan::ContinuationCleanup {
                     boundary,
                     cleanup_actions,
                     ..
@@ -278,14 +275,14 @@ pub(super) fn account<'calls>(
             // a record wrapper does not erase that completed disposition.
             operations[producer_index + 1..]
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .filter(|operation| {
                     control::statement_sequence::release_matches(operation, released, loans)
                 })
                 .fold((0, 0), |(immediate, deferred), operation| {
                     if matches!(
                         operation,
-                        CheckedUnitEffectOperationPlan::ReleaseReference {
+                        OperationPlan::ReleaseReference {
                             defer_to_exit: true,
                             ..
                         }
@@ -347,11 +344,9 @@ pub(super) fn account<'calls>(
                                         state,
                                         &operations[..boundary],
                                         source.symbol,
-                                    ) == Some(
-                                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                            binding_ordinal: result.binding_ordinal,
-                                        },
-                                    )
+                                    ) == Some(SourcePlan::StructuralResult {
+                                        binding_ordinal: result.binding_ordinal,
+                                    })
                                 })
                     })
                 });
@@ -362,7 +357,7 @@ pub(super) fn account<'calls>(
         // the release. Resolve the source once so every control family applies
         // the same exact-root and descendant-path test.
         let view_source = match operation {
-            CheckedUnitEffectOperationPlan::EstablishLocal(
+            OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) if facts.values.structural_values.nodes.is_valid(*value) => {
                 let node = facts.values.structural_values.nodes.get(*value);
@@ -401,12 +396,12 @@ pub(super) fn account<'calls>(
             };
             match (&argument.source, &view_source.source) {
                 (
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                    SourcePlan::Parameter { parameter_index },
+                    SourcePlan::StructuralLocal { symbol },
                 ) => parameter_symbol(*parameter_index) == Some(*symbol),
                 (
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                    SourcePlan::StructuralLocal { symbol },
+                    SourcePlan::Parameter { parameter_index },
                 ) => Some(*symbol) == parameter_symbol(*parameter_index),
                 _ => argument.source == view_source.source,
             }
@@ -417,9 +412,9 @@ pub(super) fn account<'calls>(
                 return false;
             };
             let observed_source = match source.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
-                    symbol, ..
-                } => CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                SourcePlan::StructuralLocalBorrow { symbol, .. } => {
+                    SourcePlan::StructuralLocal { symbol }
+                }
                 _ => source.source.clone(),
             };
             // A local borrow names referent storage; its root type need not
@@ -438,11 +433,11 @@ pub(super) fn account<'calls>(
                 && matches!(
                     (view_source.access, source.access),
                     (
-                        CheckedStructuralAccess::MutableBorrow,
+                        StructuralAccess::MutableBorrow,
                         checked_trees::checked_borrowed_access_pair_pattern!(),
                     ) | (
-                        CheckedStructuralAccess::SharedBorrow,
-                        CheckedStructuralAccess::SharedBorrow,
+                        StructuralAccess::SharedBorrow,
+                        StructuralAccess::SharedBorrow,
                     )
                 )
         };
@@ -461,7 +456,7 @@ pub(super) fn account<'calls>(
         // need not expose one syntactic backing source after a join.
         let affine_view = result.multiplicity == Multiplicity::Affine
             && matches!(operation,
-            CheckedUnitEffectOperationPlan::EstablishLocal(
+            OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. }
             ) if facts.values.structural_values.nodes.is_valid(*value)
                 && super::super::types::borrowed_slice_result(
@@ -516,8 +511,8 @@ pub(super) fn account<'calls>(
                 operations,
             )?)
         };
-        let moves_occurrence = |argument: &CheckedUnitStructuralArgumentPlan| {
-            argument.access == CheckedStructuralAccess::Owned
+        let moves_occurrence = |argument: &ArgumentPlan| {
+            argument.access == StructuralAccess::Owned
                 && occupies_result(&argument.source, operations.len())
         };
         // The emitted affine frontier solver owns whole no-work custody
@@ -528,7 +523,7 @@ pub(super) fn account<'calls>(
         // cleanup; that solver never invents a death for a vacant root.
         // Descriptor/loan release remains a distinct owner as well.
         let no_code_completion_owner = result.multiplicity == Multiplicity::Affine
-            && result.local.access == CheckedStructuralAccess::Owned
+            && result.local.access == StructuralAccess::Owned
             && shapes
                 .types
                 .get(&result.type_identity)
@@ -570,9 +565,9 @@ pub(super) fn account<'calls>(
                 .flat_map(|edge| edge.operand_calls())
                 .chain(return_arms.iter().flat_map(|arm| {
                     arm.operation_dependencies()
-                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                        .flat_map(OperationPlan::with_value_calls)
                 }))
-                .flat_map(CheckedUnitEffectOperationPlan::structural_operands)
+                .flat_map(OperationPlan::structural_operands)
                 .any(|argument| moves_occurrence(argument));
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
             // A closed dispatch retains the selected arm even after its call
@@ -638,7 +633,7 @@ pub(super) fn account<'calls>(
             .skip(producer_index + 1)
             .filter_map(|operation| {
                 operation.installed_value().filter(|value| {
-                    value.access == CheckedStructuralAccess::Owned
+                    value.access == StructuralAccess::Owned
                         && value.source_structural_result_binding_ordinal()
                             == Some(result.binding_ordinal)
                 })
@@ -670,7 +665,7 @@ pub(super) fn account<'calls>(
             // result and a projected descriptor; a child's whole release is
             // that child's obligation, not another receipt for this parent.
             paths.extend(consumers.iter().filter_map(|operation| {
-                let CheckedUnitEffectOperationPlan::ReleaseReference {
+                let OperationPlan::ReleaseReference {
                     source,
                     path,
                     defer_to_exit: false,
@@ -680,7 +675,7 @@ pub(super) fn account<'calls>(
                     return None;
                 };
                 (source
-                    == &(CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    == &(SourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     })
                     && !path.is_empty())
@@ -712,22 +707,20 @@ pub(super) fn account<'calls>(
         // consumes it, or when the return retires it. Abnormal completion
         // abandons custody; it must not invent a normal disposal obligation
         // or run cleanup.
-        let return_arm_owns =
-            |arm: &CheckedConditionalReturnArm,
-             uses: &[(usize, CheckedUnitStructuralArgumentPlan)]| {
-                !arm.has_normal_continuation()
-                    || arm.definite_call_transfers(
-                        &facts.values,
-                        call_schedules,
-                        state.symbol,
-                        operation,
-                        terminal_local,
-                    ) == 1
-                    || uses
-                        .iter()
-                        .any(|(_, argument)| construction_owns_result(argument, operations.len()))
-                    || permits_disposal(arm.statement_ordinal(), false)
-            };
+        let return_arm_owns = |arm: &ReturnArm, uses: &[(usize, ArgumentPlan)]| {
+            !arm.has_normal_continuation()
+                || arm.definite_call_transfers(
+                    &facts.values,
+                    call_schedules,
+                    state.symbol,
+                    operation,
+                    terminal_local,
+                ) == 1
+                || uses
+                    .iter()
+                    .any(|(_, argument)| construction_owns_result(argument, operations.len()))
+                || permits_disposal(arm.statement_ordinal(), false)
+        };
         // With no normal exit there is no transfer/disposal owner here to
         // count beside an earlier in-sequence consumption.
         let has_normal_exit = successors
@@ -750,7 +743,7 @@ pub(super) fn account<'calls>(
                 || (transfers == 0 && permits_disposal(Some(statement), continuation))
         };
         let consumed = match terminator {
-            CheckedComposedUnitControlTerminatorPlan::Guarded {
+            TerminatorPlan::Guarded {
                 arms,
                 fallback,
                 return_values,
@@ -810,7 +803,7 @@ pub(super) fn account<'calls>(
             // the same lexical state-exit disposal whatever the result kind:
             // an affine owner through the exit permit, an unrestricted value
             // through dominance. The returned binding itself is the return's.
-            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            TerminatorPlan::ReturnScalar {
                 completion: completion @ checked_trees::CheckedScalarReturnPlan::Exits(_),
             } => {
                 // Scalar completion keeps its selected computations outside
@@ -837,21 +830,20 @@ pub(super) fn account<'calls>(
                         completion_owns(*transfers, *statement_ordinal, *is_continuation)
                     })
             }
-            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
+            TerminatorPlan::ReturnUnit | TerminatorPlan::ReturnScalar { .. } => {
                 permits_disposal(None, false)
             }
-            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
+            TerminatorPlan::ReturnStructural { result: returned } => {
                 matches!(returned.source,
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+                    SourcePlan::StructuralResult { binding_ordinal }
                         if binding_ordinal == result.binding_ordinal)
                     || permits_disposal(None, false)
             }
-            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
-            | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
-            | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. } => {
+            TerminatorPlan::Jump { .. }
+            | TerminatorPlan::Conditional { .. }
+            | TerminatorPlan::ConditionalReturn { .. }
+            | TerminatorPlan::ConditionalCompletion { .. }
+            | TerminatorPlan::GuardedJumps { .. } => {
                 // Each selected exit owns its own disposition. A returning
                 // call consumes operands just as a successor's operand call
                 // does, regardless of its result type. Mutually exclusive
@@ -870,7 +862,7 @@ pub(super) fn account<'calls>(
                         .zip(&return_construction_uses)
                         .all(|(arm, uses)| return_arm_owns(arm, uses))
             }
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+            TerminatorPlan::ClosedSum { cases, .. } => {
                 // Each selected case owns a disposition, just as an
                 // ordinary conditional does. A shared view can end on a
                 // non-transferring edge through its local dominance
@@ -886,7 +878,7 @@ pub(super) fn account<'calls>(
                             ) => !successor.has_normal_caller_completion() || transferred(successor) || permits_disposal(Some(successor.statement_ordinal), successor.is_continuation),
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
                                 let exact_reborrow = matches!(arm,
-                                    CheckedConditionalReturnArm::Structural(returned)
+                                    ReturnArm::Structural(returned)
                                         if returned
                                             .established_reference_source(&facts.values.structural_values)
                                             .is_some_and(|source| exact_view_reborrow(source, operations.len())));
@@ -946,9 +938,9 @@ pub(super) fn account<'calls>(
                 }
             }
             // A crash abandons custody; it owns no normal disposal.
-            CheckedComposedUnitControlTerminatorPlan::Crash { .. }
-            | CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
-            | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => false,
+            TerminatorPlan::Crash { .. }
+            | TerminatorPlan::InvokeNoNormal { .. }
+            | TerminatorPlan::EvaluateNoNormal => false,
         } || selection_source_disposition;
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.
@@ -1048,10 +1040,8 @@ pub(super) fn account<'calls>(
         // On an all-return guarded state the same one release therefore
         // restores the carrier's physical discard row; it is not a second
         // source-custody disposition in `total` below.
-        let returning_view_disposal = (matches!(
-            terminator,
-            CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
-        ) || closed_sum_all_reference_returns)
+        let returning_view_disposal = (matches!(terminator, TerminatorPlan::Guarded { .. })
+            || closed_sum_all_reference_returns)
             && view_releases == 1;
         // A byte replacement copies the completed live prefix and length;
         // it neither moves an affine owner nor invents a disposal receipt.
@@ -1073,7 +1063,7 @@ pub(super) fn account<'calls>(
         let observed_by_call = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..]
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::structural_operands)
+                .flat_map(OperationPlan::structural_operands)
                 .any(|argument| {
                     argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
@@ -1152,7 +1142,7 @@ pub(super) fn account<'calls>(
 fn producer_claim_paths(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    producer: &CheckedUnitEffectOperationPlan,
+    producer: &OperationPlan,
 ) -> Option<Vec<Vec<checked_trees::CheckedUnitStructuralPathSegment>>> {
     if let Some(call) = producer.call() {
         return Some(
@@ -1163,7 +1153,7 @@ fn producer_claim_paths(
                 .collect(),
         );
     }
-    let CheckedUnitEffectOperationPlan::EstablishLocal(
+    let OperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
     ) = producer
     else {
@@ -1244,7 +1234,7 @@ fn view_loan_releases(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    producer: &CheckedUnitEffectOperationPlan,
+    producer: &OperationPlan,
     installed_claims: &[language_semantics::PermissionClaimIdentity],
 ) -> Result<(bool, bool, usize), &'static str> {
     // The producer names its holder even for an anonymous return operand,
@@ -1252,7 +1242,7 @@ fn view_loan_releases(
     let owner = if result.local.symbol.is_valid() {
         facts::PlaceRoot::Symbol(result.local.symbol)
     } else {
-        let CheckedUnitEffectOperationPlan::EstablishLocal(
+        let OperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
         ) = producer
         else {
@@ -1415,10 +1405,10 @@ fn view_formation_claims(
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    producer: &CheckedUnitEffectOperationPlan,
+    producer: &OperationPlan,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Option<Vec<language_semantics::PermissionClaimIdentity>> {
-    let CheckedUnitEffectOperationPlan::EstablishLocal(
+    let OperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
     ) = producer
     else {
@@ -1471,12 +1461,12 @@ fn installed_view_claims(
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    producer: &CheckedUnitEffectOperationPlan,
+    producer: &OperationPlan,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    following: &[CheckedUnitEffectOperationPlan],
+    following: &[OperationPlan],
 ) -> Option<Vec<language_semantics::PermissionClaimIdentity>> {
     let mut installations = following.iter().filter_map(|operation| {
-        let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+        let OperationPlan::Store(store) = operation else {
             return None;
         };
         let (checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
@@ -1489,7 +1479,7 @@ fn installed_view_claims(
         (*type_identity == result.type_identity
             && supplied.type_identity == result.type_identity
             && supplied.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-            && supplied.access == CheckedStructuralAccess::Owned
+            && supplied.access == StructuralAccess::Owned
             && supplied.path.is_empty())
         .then_some(store.statement_index)
     });
@@ -1553,7 +1543,7 @@ fn installed_view_claims(
 fn construction_local_uses<'operation>(
     facts: &CheckFacts,
     state: symbols::SymbolHandle,
-    operations: impl IntoIterator<Item = &'operation CheckedUnitEffectOperationPlan>,
+    operations: impl IntoIterator<Item = &'operation OperationPlan>,
 ) -> Option<Vec<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)>> {
     use checked_trees::{CheckedStructuralRecordFieldValue, CheckedStructuralValueKind};
 
@@ -1562,7 +1552,7 @@ fn construction_local_uses<'operation>(
     let mut pending = Vec::new();
     let mut visited = Vec::new();
     for (index, operation) in operations.into_iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::EstablishLocal(
+        let OperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
         ) = operation
         else {
@@ -1630,12 +1620,12 @@ fn construction_local_uses<'operation>(
 /// owned whole arguments the same way an in-sequence call does: the argument
 /// names the exact result binding it moves into the call's custody.
 pub(in super::super) fn terminator_call_consumes_result(
-    operation: &CheckedUnitEffectOperationPlan,
+    operation: &OperationPlan,
     binding_ordinal: u32,
 ) -> bool {
     operation.structural_operands().iter().any(|argument| {
         argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-            && argument.access == CheckedStructuralAccess::Owned
+            && argument.access == StructuralAccess::Owned
             && argument.path.is_empty()
     })
 }
@@ -1645,7 +1635,7 @@ pub(in super::super) fn terminator_call_consumes_result(
 /// establishment and call-transfer receipts instead of state-exit cleanup.
 /// An inline argument construction also belongs to its consuming call when
 /// copyable; other unrestricted locals retain their reusable statement owner.
-pub(in super::super) fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
+pub(in super::super) fn call_owns_result(producer: &OperationPlan) -> bool {
     // Custody belongs to the produced value, not its source idiom. An
     // extracted old referent owns the same affine obligation as a call or
     // constructor result. Unrestricted inline operands alone retain their
@@ -1655,7 +1645,7 @@ pub(in super::super) fn call_owns_result(producer: &CheckedUnitEffectOperationPl
         .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
         || matches!(
             producer,
-            CheckedUnitEffectOperationPlan::EstablishLocal(
+            OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                     operand_source: Some(
                         checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
@@ -1669,7 +1659,7 @@ pub(in super::super) fn call_owns_result(producer: &CheckedUnitEffectOperationPl
 /// An available structural binding, independently of whether its producer
 /// carries disposal debt. An actual automatic return discard retires it.
 pub(in super::super) fn retained_structural_result(
-    operation: &CheckedUnitEffectOperationPlan,
+    operation: &OperationPlan,
 ) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
     if operation
         .discardable_structural_result()
@@ -1685,12 +1675,10 @@ pub(in super::super) fn retained_structural_result(
 /// position, so its statement is the call's — any local declared on that
 /// statement is a sibling, never this construction's binding. Such rows must
 /// not stand in for a local's unique producer.
-pub(in super::super) fn operand_owned_construction(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> bool {
+pub(in super::super) fn operand_owned_construction(operation: &OperationPlan) -> bool {
     matches!(
         operation,
-        CheckedUnitEffectOperationPlan::EstablishLocal(
+        OperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                 operand_source: Some(_),
                 ..

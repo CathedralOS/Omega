@@ -6,7 +6,7 @@ use super::{
     parameter_qualifications, projected_result_qualifications,
 };
 use crate::execution::terminal_unit::types::borrowed_slice_result;
-use checked_trees::{CheckedControlResultPlan, CheckedStructuralResultPlan};
+use checked_trees::{CheckedControlResultPlan as ResultPlan, CheckedStructuralResultPlan};
 
 /// Retain the authored entry result and its domains independently of body
 /// routing, executed result production, and normal-return receiving bindings.
@@ -34,9 +34,9 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     reference: TypeReferenceHandle,
-) -> Option<CheckedControlResultPlan> {
+) -> Option<ResultPlan> {
     if is_unit(program, reference) {
-        return Some(CheckedControlResultPlan::Unit);
+        return Some(ResultPlan::Unit);
     }
     if let Some(primitive_type) = program.primitive_type_reference(reference) {
         // A primitive result is one returned scalar value. An arithmetic
@@ -45,7 +45,7 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
         // publishes and each exit proves. Semantic atoms retain their separate
         // result custody rather than disappearing behind a scalar carrier.
         return validation::scalar_result_contract_is_represented(program, reference)
-            .then_some(CheckedControlResultPlan::Scalar { primitive_type });
+            .then_some(ResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     // A returned pointer transports its exact loan descriptor, independently
@@ -159,17 +159,10 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
     // sent mixed values and arrays into sequence-only completion, which cannot
     // retain their distinct returning edges and cleanup obligations. Erased
     // members remain semantic fields, never runtime result operands.
-    Some(CheckedControlResultPlan::Structural(
-        CheckedStructuralResultPlan {
-            type_identity,
-            multiplicity,
-            qualifications,
-            projected_qualifications: projected_result_qualifications(
-                program,
-                shapes,
-                reference,
-                &[],
-            )?,
-        },
-    ))
+    Some(ResultPlan::Structural(CheckedStructuralResultPlan {
+        type_identity,
+        multiplicity,
+        qualifications,
+        projected_qualifications: projected_result_qualifications(program, shapes, reference, &[])?,
+    }))
 }

@@ -7,11 +7,12 @@ use crate::execution::terminal_unit::types::{
     structural_access_for_type_reference, terminal_field_identity,
 };
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, Multiplicity, SignatureContractKind, StateParameter,
-    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
+    CheckFacts, CheckedScalarExpressionRole as ExpressionRole,
+    CheckedStructuralAccess as StructuralAccess, CheckedStructuralScalarParameterPlan,
+    CheckedUnitCallCoordinate as CallCoordinate, CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment as PathSegment,
+    Multiplicity, SignatureContractKind, StateParameter, StatementNode, SymbolHandle,
+    TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::flow::expressions;
 use crate::places::place_at;
@@ -20,7 +21,7 @@ use typed_trees::expression::ExpressionHandle;
 pub(crate) fn checked_call_scalar_arguments(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
+    coordinate: CallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
     boundary: bool,
 ) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
@@ -29,12 +30,12 @@ pub(crate) fn checked_call_scalar_arguments(
         .enumerate()
         .map(|(argument_ordinal, parameter)| {
             let role = if boundary {
-                CheckedScalarExpressionRole::BoundaryCallArgument {
+                ExpressionRole::BoundaryCallArgument {
                     call_ordinal: coordinate.call_ordinal,
                     argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                 }
             } else {
-                CheckedScalarExpressionRole::UnitCallArgument {
+                ExpressionRole::UnitCallArgument {
                     call_ordinal: coordinate.call_ordinal,
                     argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                 }
@@ -92,7 +93,7 @@ pub(crate) fn checked_call_erased_proof_arguments(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
+    coordinate: CallCoordinate,
     parameters: &[checked_trees::CheckedErasedProofParameterPlan],
 ) -> Option<Vec<checked_trees::CheckedProofTerm>> {
     parameters
@@ -160,14 +161,14 @@ fn proof_term_type_matches(
 pub(crate) fn checked_call_erased_scalar_arguments(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
+    coordinate: CallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
     parameters
         .iter()
         .enumerate()
         .map(|(erased_ordinal, parameter)| {
-            let role = CheckedScalarExpressionRole::ErasedUnitCallArgument {
+            let role = ExpressionRole::ErasedUnitCallArgument {
                 call_ordinal: coordinate.call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).ok()?,
             };
@@ -197,10 +198,7 @@ pub(crate) fn projected_borrowed_path(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &validation::CanonicalPlace,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     projected_argument_path(
         program,
         state_symbol,
@@ -218,9 +216,9 @@ pub(crate) fn projected_borrowed_path(
 pub(crate) fn borrowed_argument_endpoint(
     program: &dyn ::validation::CheckingInput,
     mut selected: TypeReferenceHandle,
-    mut path: Vec<CheckedUnitStructuralPathSegment>,
+    mut path: Vec<PathSegment>,
     formal: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     let Some(requested) = validation::reference_shell(program, formal) else {
         return Some((selected, path));
     };
@@ -252,7 +250,7 @@ pub(crate) fn borrowed_argument_endpoint(
         {
             return None;
         }
-        path.push(CheckedUnitStructuralPathSegment::Referent);
+        path.push(PathSegment::Referent);
         selected = shell.referee;
     }
     None
@@ -274,19 +272,14 @@ pub(crate) fn projected_selected_path(
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedRuntimeIndex>,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     projected_argument_path(
         program,
         state_symbol,
         statement_index,
         place,
         Some(machine),
-        Some(&|expression| {
-            local_selector(expression).map(CheckedUnitStructuralPathSegment::RuntimeIndex)
-        }),
+        Some(&|expression| local_selector(expression).map(PathSegment::RuntimeIndex)),
     )
 }
 
@@ -303,10 +296,7 @@ pub(crate) fn projected_observed_path(
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedRuntimeIndex>,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     let (mut projected, mut path) = projected_selected_path(
         program,
         machine,
@@ -329,7 +319,7 @@ pub(crate) fn projected_observed_path(
             if !validation::stores_reference_shape(program, reference, &[]) {
                 break;
             }
-            crossings.push(CheckedUnitStructuralPathSegment::Referent);
+            crossings.push(PathSegment::Referent);
             reference = shell.referee;
         }
         crossings.append(&mut path);
@@ -346,7 +336,7 @@ pub(crate) fn projected_observed_path(
             .iter()
             .any(|segment| !matches!(segment, facts::PlaceSegment::Case { .. }))
         {
-            path.push(CheckedUnitStructuralPathSegment::Referent);
+            path.push(PathSegment::Referent);
         }
         projected = shell.referee;
     }
@@ -361,12 +351,8 @@ pub(crate) fn projected_evaluated_path(
     state: SymbolHandle,
     statement: usize,
     place: &validation::CanonicalPlace,
-    selector: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
-    >,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+    selector: Option<&dyn Fn(typed_trees::expression::ExpressionHandle) -> Option<PathSegment>>,
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     projected_argument_path(program, state, statement, place, Some(machine), selector)
 }
 
@@ -398,14 +384,9 @@ pub(crate) fn projected_argument_path(
     place: &validation::CanonicalPlace,
     runtime_index_machine: Option<SymbolHandle>,
     local_selector: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
+        &dyn Fn(typed_trees::expression::ExpressionHandle) -> Option<PathSegment>,
     >,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     let mut path = Vec::with_capacity(place.segments.len());
     // A borrowed root's own declared reference shells denote storage the
     // rooted subject already names — a `&`-parameter's member projection
@@ -465,7 +446,7 @@ pub(crate) fn projected_argument_path(
                 reference = shell.referee;
             }
             for _ in 0..crossings.saturating_sub(consumed_carrier_crossings) {
-                path.push(CheckedUnitStructuralPathSegment::Referent);
+                path.push(PathSegment::Referent);
             }
             consumed_carrier_crossings = crossings;
         }
@@ -479,14 +460,12 @@ pub(crate) fn projected_argument_path(
                     Some(_) => return None,
                     None => terminal_field_identity(program, *symbol)?,
                 };
-                path.push(CheckedUnitStructuralPathSegment::Field(identity));
+                path.push(PathSegment::Field(identity));
             }
             facts::PlaceSegment::FixedIndex { index } => {
                 let container = prefix_container(position)?;
                 fixed_index_within_extent(program, container, *index)?;
-                path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(*index).ok()?,
-                ));
+                path.push(PathSegment::FixedIndex(u64::try_from(*index).ok()?));
             }
             facts::PlaceSegment::Index { expression } => {
                 // An immutable local scalar initialized to a literal is a
@@ -498,9 +477,7 @@ pub(crate) fn projected_argument_path(
                 if let Some(index) = constant_local_index(program, state_symbol, *expression) {
                     let container = prefix_container(position)?;
                     fixed_index_within_extent(program, container, index)?;
-                    path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                        u64::try_from(index).ok()?,
-                    ));
+                    path.push(PathSegment::FixedIndex(u64::try_from(index).ok()?));
                     continue;
                 }
                 // The runtime-selector route is admitted only in a machine
@@ -530,7 +507,7 @@ pub(crate) fn projected_argument_path(
                                     *expression,
                                 )
                             })
-                            .map(CheckedUnitStructuralPathSegment::RuntimeIndex)
+                            .map(PathSegment::RuntimeIndex)
                     })?;
                 path.push(runtime_index);
             }
@@ -544,7 +521,7 @@ pub(crate) fn projected_argument_path(
                 // runtime bound evidence of its own.
                 let container = prefix_container(position)?;
                 fixed_byte_range_within_extent(program, container, *start, *end)?;
-                path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
+                path.push(PathSegment::FixedByteRange {
                     start: u64::try_from(*start).ok()?,
                     end: u64::try_from(*end).ok()?,
                 });
@@ -580,7 +557,7 @@ pub(crate) fn projected_argument_path(
                 if cases.next().is_some() || fields.next().is_some() {
                     return None;
                 }
-                path.push(CheckedUnitStructuralPathSegment::Case(
+                path.push(PathSegment::Case(
                     checked_trees::CheckedMemberIdentity::of_member(
                         case.identity,
                         case.name.clone(),
@@ -633,18 +610,14 @@ pub(crate) fn borrowed_index_segment(
     state: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitStructuralPathSegment> {
+) -> Option<PathSegment> {
     if let Some(index) = constant_local_index(program, state, expression) {
-        return Some(CheckedUnitStructuralPathSegment::FixedIndex(
-            u64::try_from(index).ok()?,
-        ));
+        return Some(PathSegment::FixedIndex(u64::try_from(index).ok()?));
     }
     let runtime_index = runtime_index_parameter_position(program, state, expression)
         .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
         .or_else(|| runtime_index_field_selector(program, state, statement_index, expression))?;
-    Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
-        runtime_index,
-    ))
+    Some(PathSegment::RuntimeIndex(runtime_index))
 }
 
 /// A value projection consumes the same checked scalar operands as other
@@ -658,7 +631,7 @@ pub(crate) fn value_index_segment(
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<CheckedUnitStructuralPathSegment> {
+) -> Option<PathSegment> {
     let reference = validation::expression_type_reference_in_state(
         program,
         state.symbol,
@@ -703,7 +676,7 @@ pub(crate) fn value_index_segment(
         ),
         _ => return None,
     };
-    Some(CheckedUnitStructuralPathSegment::RuntimeIndex(runtime))
+    Some(PathSegment::RuntimeIndex(runtime))
 }
 
 /// The literal index an immutable local scalar names: `let i: u64 = 2`
@@ -920,7 +893,7 @@ pub(crate) fn fixed_byte_array_range_path(
     statement_index: usize,
     place: &validation::CanonicalPlace,
     target: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     let (facts::PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()?
     else {
         return None;
@@ -950,7 +923,7 @@ pub(crate) fn open_byte_range_path(
     statement_index: usize,
     place: &validation::CanonicalPlace,
     target: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     let (facts::PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
         return None;
     };
@@ -984,7 +957,7 @@ fn byte_array_range_path(
     start: usize,
     end: Option<usize>,
     target: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     if !fields
         .iter()
         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
@@ -1011,7 +984,7 @@ fn byte_array_range_path(
     {
         return None;
     }
-    path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
+    path.push(PathSegment::FixedByteRange {
         start: u64::try_from(start).ok()?,
         end: u64::try_from(end).ok()?,
     });
@@ -1030,9 +1003,9 @@ pub(crate) fn projected_call_contracts_are_represented(
     caller_state: &typed_trees::state::State,
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
-    arguments: &[CheckedUnitStructuralArgumentPlan],
+    arguments: &[ArgumentPlan],
 ) -> bool {
-    let projected = |argument: &CheckedUnitStructuralArgumentPlan| {
+    let projected = |argument: &ArgumentPlan| {
         !argument.path.is_empty() && !super::view_subslice::is_view_subslice(argument)
     };
     if !arguments.iter().any(projected) {
@@ -1070,7 +1043,7 @@ pub(crate) fn projected_call_contracts_are_represented(
             let retained_loan = argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
-                && argument.access != CheckedStructuralAccess::Owned;
+                && argument.access != StructuralAccess::Owned;
             structural_access_for_type_reference(program, parameter.type_reference)
                 == Some(argument.access)
                 && (retained_loan
@@ -1209,17 +1182,17 @@ pub(crate) fn byte_sequence_literal_argument(
     program: &dyn ::validation::CheckingInput,
     parameter_type: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
+) -> Option<ArgumentPlan> {
     let bytes = program.expression_table.string_node(expression)?;
     let access = structural_access_for_type_reference(program, parameter_type)?;
     match (byte_sequence_carrier(program, parameter_type, &[])?, access) {
         (
             checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
-            CheckedStructuralAccess::SharedBorrow,
+            StructuralAccess::SharedBorrow,
         ) => {}
         (
             checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity },
-            CheckedStructuralAccess::Owned,
+            StructuralAccess::Owned,
         ) if program.type_multiplicity(parameter_type) == Multiplicity::Unrestricted
             && u64::try_from(bytes.len()).ok()? <= capacity =>
         {
@@ -1241,7 +1214,7 @@ pub(crate) fn byte_sequence_literal_argument(
         }
         _ => return None,
     }
-    Some(CheckedUnitStructuralArgumentPlan {
+    Some(ArgumentPlan {
         projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
             bytes: bytes.to_vec(),

@@ -4,9 +4,9 @@ use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use std::collections::BTreeSet;
 
 use super::{
-    CheckedProviderAttachmentRequirementPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, DataMember,
+    CheckedProviderAttachmentRequirementPlan as RequirementPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldPlan as FieldPlan, CheckedUnitStructuralFieldType as FieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape as TypeShape, DataMember,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -23,18 +23,18 @@ pub(super) fn checked_provider_attachment_requirements(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     calls: &[checked_trees::FlowCallFact],
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
+) -> Option<Vec<RequirementPlan>> {
     let attachment = shapes.types.get(&attachment_type_identity)?;
-    let CheckedUnitStructuralTypeShape::Record { fields, .. } = &attachment.shape else {
+    let TypeShape::Record { fields, .. } = &attachment.shape else {
         return Some(Vec::new());
     };
     let provider_fields = fields
         .iter()
         .filter_map(|field| match &field.field_type {
-            CheckedUnitStructuralFieldType::ProviderBacked {
+            FieldType::ProviderBacked {
                 provider_type_identity,
             }
-            | CheckedUnitStructuralFieldType::BindingBacked {
+            | FieldType::BindingBacked {
                 provider_type_identity,
                 ..
             } => Some((field, provider_type_identity)),
@@ -244,7 +244,7 @@ pub(super) fn checked_provider_attachment_requirements(
             }) {
                 return None;
             }
-            requirements.push(CheckedProviderAttachmentRequirementPlan {
+            requirements.push(RequirementPlan {
                 field_identity: field.identity.clone(),
                 provider_type_identity: **provider_type_identity,
                 boundary: call.target_symbol,
@@ -280,12 +280,12 @@ pub(super) fn checked_provider_attachment_requirements(
 fn attachment_record_fields<'a>(
     shapes: &'a ShapeCollector<'_>,
     attachment_type_identity: typed_trees::type_identity::TypeIdentityId,
-) -> &'a [CheckedUnitStructuralFieldPlan] {
+) -> &'a [FieldPlan] {
     let Some(plan) = shapes.types.get(&attachment_type_identity) else {
         return &[];
     };
     match &plan.shape {
-        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.as_slice(),
+        TypeShape::Record { fields, .. } => fields.as_slice(),
         _ => &[],
     }
 }
@@ -324,7 +324,7 @@ fn type_carries_unsupported_provider<'a>(
     let Some(plan) = shapes.types.get(&type_identity) else {
         return false;
     };
-    if let CheckedUnitStructuralTypeShape::FixedArray {
+    if let TypeShape::FixedArray {
         element_type_identity,
         ..
     } = &plan.shape
@@ -337,9 +337,9 @@ fn type_carries_unsupported_provider<'a>(
         );
     }
     shape_fields(&plan.shape).any(|field| match &field.field_type {
-        CheckedUnitStructuralFieldType::ProviderBacked { .. } => true,
-        CheckedUnitStructuralFieldType::BindingBacked { .. } => !allow_fused,
-        CheckedUnitStructuralFieldType::Structural { type_identity } => {
+        FieldType::ProviderBacked { .. } => true,
+        FieldType::BindingBacked { .. } => !allow_fused,
+        FieldType::Structural { type_identity } => {
             type_carries_unsupported_provider(shapes, *type_identity, allow_fused, visited)
         }
         _ => false,
@@ -348,18 +348,14 @@ fn type_carries_unsupported_provider<'a>(
 
 /// Every field position of a record, sum, or mixed shape in one flat view, so
 /// the provider-carrier walk does not repeat the case fan-out at each level.
-fn shape_fields(
-    shape: &CheckedUnitStructuralTypeShape,
-) -> impl Iterator<Item = &CheckedUnitStructuralFieldPlan> + '_ {
+fn shape_fields(shape: &TypeShape) -> impl Iterator<Item = &FieldPlan> + '_ {
     let (fields, cases): (
-        &[CheckedUnitStructuralFieldPlan],
+        &[FieldPlan],
         &[checked_trees::CheckedUnitStructuralCasePlan],
     ) = match shape {
-        CheckedUnitStructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[]),
-        CheckedUnitStructuralTypeShape::Sum { cases } => (&[], cases.as_slice()),
-        CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
-            (fields.as_slice(), cases.as_slice())
-        }
+        TypeShape::Record { fields, .. } => (fields.as_slice(), &[]),
+        TypeShape::Sum { cases } => (&[], cases.as_slice()),
+        TypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
         _ => (&[], &[]),
     };
     fields
@@ -380,7 +376,7 @@ pub(super) fn checked_composed_provider_attachment_requirements(
         &[checked_trees::FlowCallFact],
         &[CheckedUnitEffectOperationPlan],
     )],
-) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
+) -> Option<Vec<RequirementPlan>> {
     let mut requirements = Vec::new();
     for &(owner, state, calls, operations) in leaves.iter() {
         requirements.extend(checked_provider_attachment_requirements(

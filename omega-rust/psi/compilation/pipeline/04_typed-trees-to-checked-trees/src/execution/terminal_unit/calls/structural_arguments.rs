@@ -27,12 +27,13 @@ use crate::execution::terminal_unit::types::{
     base_type_identity, is_unit, structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitClaimTransferPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, SymbolHandle,
-    strips_erased_parameter,
+    CheckFacts, CheckedStructuralAccess as StructuralAccess,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitClaimTransferPlan as TransferPlan,
+    CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan as BindingPlan, MachineSupplyMode, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity as ClaimIdentity, PermissionEventKind,
+    PermissionEventSource, SymbolHandle, strips_erased_parameter,
 };
 use crate::flow::state_statements;
 use crate::places::place_at;
@@ -51,10 +52,10 @@ pub(crate) fn structural_call_arguments(
     callee: super::CallTarget<'_>,
     call_site: &validation::CallSite<'_>,
     statement_index: usize,
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_structural_results: &[(BindingPlan, facts::PlaceRoot)],
     caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
-) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
+) -> Option<Vec<ArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = callee.parameters;
     // Erased borrow carriers name their captured referent's storage: the
@@ -291,7 +292,7 @@ pub(crate) fn structural_call_arguments(
                     access: language_semantics::ReferenceAccess::Shared,
                     ..
                 } => (
-                    CheckedStructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow,
                     shared_argument_referent(program, authored, target.type_reference)?.1,
                 ),
                 _ => return None,
@@ -344,9 +345,9 @@ pub(crate) fn structural_call_arguments(
                     owner_type,
                 )?;
             }
-            output.push(CheckedUnitStructuralArgumentPlan {
+            output.push(ArgumentPlan {
                 projection_evaluations,
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                source: SourcePlan::StructuralExpression {
                     expression: owner_expression,
                 },
                 path,
@@ -401,7 +402,7 @@ pub(crate) fn structural_call_arguments(
                                 && event.kind == PermissionEventKind::Transfer
                                 && event.multiplicity == Multiplicity::Affine
                                 && event.access == PermissionAccess::Owned
-                                && event.claim_identity == PermissionClaimIdentity::Unknown
+                                && event.claim_identity == ClaimIdentity::Unknown
                                 && !event.obligation_live
                                 && event.root == facts::PlaceRoot::Symbol(source_symbol)
                                 && facts
@@ -415,19 +416,19 @@ pub(crate) fn structural_call_arguments(
             if !place.segments.is_empty()
                 || local.type_identity != target_identity
                 || structural_access_for_type_reference(program, target.type_reference)?
-                    != CheckedStructuralAccess::Owned
+                    != StructuralAccess::Owned
                 || !exact_transfer
             {
                 return None;
             }
-            output.push(CheckedUnitStructuralArgumentPlan {
+            output.push(ArgumentPlan {
                 projection_evaluations: Default::default(),
-                source: CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+                source: SourcePlan::TrivialAffineLocal {
                     declaration_ordinal: local.declaration_ordinal,
                 },
                 path: Vec::new(),
                 type_identity: target_identity,
-                access: CheckedStructuralAccess::Owned,
+                access: StructuralAccess::Owned,
             });
             continue;
         }
@@ -475,10 +476,10 @@ pub(crate) fn structural_call_arguments(
         // changes the implementation, never the argument's source custody.
         if validation::is_closed_primitive_array_type(program, source.declaration.type_reference)
             && !(place.segments.is_empty()
-                && custody.access == CheckedStructuralAccess::Owned
+                && custody.access == StructuralAccess::Owned
                 && custody.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(program, target.type_reference)
-                && target_access == Some(CheckedStructuralAccess::Owned))
+                && target_access == Some(StructuralAccess::Owned))
         {
             return None;
         }
@@ -514,9 +515,9 @@ pub(crate) fn structural_call_arguments(
         }
         arm("call operation: structural arguments: parameter access");
         let target_access = target_access?;
-        output.push(CheckedUnitStructuralArgumentPlan {
+        output.push(ArgumentPlan {
             projection_evaluations: Default::default(),
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            source: SourcePlan::Parameter {
                 parameter_index: u32::try_from(source.index).ok()?,
             },
             path,
@@ -653,13 +654,11 @@ pub(crate) fn structural_call_arguments(
 fn alias_forwarded_access(
     aliases: &[ReceiverAlias],
     authored_place: &validation::CanonicalPlace,
-    authored_access: CheckedStructuralAccess,
-    target_access: CheckedStructuralAccess,
+    authored_access: StructuralAccess,
+    target_access: StructuralAccess,
     statement_index: usize,
-) -> Option<CheckedStructuralAccess> {
-    if authored_access != CheckedStructuralAccess::SharedBorrow
-        || !authored_place.segments.is_empty()
-    {
+) -> Option<StructuralAccess> {
+    if authored_access != StructuralAccess::SharedBorrow || !authored_place.segments.is_empty() {
         return None;
     }
     let owner = authored_place.root.as_symbol()?;
@@ -668,9 +667,9 @@ fn alias_forwarded_access(
         return None;
     }
     let forwarded = match alias.kind {
-        checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
-        checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
-        checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        checked_trees::BorrowAccessKind::Read => StructuralAccess::SharedBorrow,
+        checked_trees::BorrowAccessKind::Mutable => StructuralAccess::MutableBorrow,
+        checked_trees::BorrowAccessKind::WriteOnly => StructuralAccess::WriteOnlyBorrow,
     };
     (forwarded == target_access).then_some(target_access)
 }
@@ -765,7 +764,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
         || !matches!(target_parameters.len(), 2 | 3)
         || target_parameters.iter().any(|parameter| {
             structural_access_for_type_reference(program, parameter.type_reference)
-                != Some(CheckedStructuralAccess::SharedBorrow)
+                != Some(StructuralAccess::SharedBorrow)
         })
     {
         return None;
@@ -891,8 +890,8 @@ pub(crate) fn exact_structural_argument_access(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
     place: &validation::CanonicalPlace,
-    target_access: CheckedStructuralAccess,
-) -> Option<CheckedStructuralAccess> {
+    target_access: StructuralAccess,
+) -> Option<StructuralAccess> {
     let returned_loans = program
         .state_by_symbol(state)
         .and_then(|source_state| {
@@ -919,7 +918,7 @@ pub(crate) fn exact_structural_argument_access(
                     Some(captured)
                 });
             }
-            let result = CheckedUnitStructuralResultBindingPlan {
+            let result = BindingPlan {
                 statement_index: u32::try_from(call.statement_index).ok()?,
                 binding_ordinal: 0,
                 type_identity: program.normalized_type_identity(local.type_reference),
@@ -953,11 +952,11 @@ pub(crate) fn exact_structural_borrow_access(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
     place: &validation::CanonicalPlace,
-    target_access: CheckedStructuralAccess,
+    target_access: StructuralAccess,
     returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
-) -> Option<CheckedStructuralAccess> {
-    if target_access == CheckedStructuralAccess::Owned {
-        return Some(CheckedStructuralAccess::Owned);
+) -> Option<StructuralAccess> {
+    if target_access == StructuralAccess::Owned {
+        return Some(StructuralAccess::Owned);
     }
     // The borrow model roots an attached-data field at the field's own symbol,
     // while a place reaching that field through the attached machine roots at
@@ -1002,7 +1001,7 @@ pub(crate) fn exact_structural_borrow_access(
     if kinds.iter().any(|candidate| *candidate != *first) {
         return None;
     }
-    if target_access == CheckedStructuralAccess::MutableBorrow
+    if target_access == StructuralAccess::MutableBorrow
         && **first == checked_trees::BorrowAccessKind::Read
         && segments.is_empty()
         && let Some(root_symbol) = root.as_symbol()
@@ -1016,21 +1015,21 @@ pub(crate) fn exact_structural_borrow_access(
             returned_loans,
         )
     {
-        return Some(CheckedStructuralAccess::MutableBorrow);
+        return Some(StructuralAccess::MutableBorrow);
     }
     Some(match *first {
-        checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
+        checked_trees::BorrowAccessKind::Read => StructuralAccess::SharedBorrow,
         // The checked source loan is exclusive, but the entered callable can
         // only observe it through its declared shared formal. Publish that
         // shared presentation for every call kind, while the borrow roster
         // retains the original exclusive access and its conflict checks.
         checked_trees::BorrowAccessKind::Mutable
-            if target_access == CheckedStructuralAccess::SharedBorrow =>
+            if target_access == StructuralAccess::SharedBorrow =>
         {
-            CheckedStructuralAccess::SharedBorrow
+            StructuralAccess::SharedBorrow
         }
-        checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
-        checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        checked_trees::BorrowAccessKind::Mutable => StructuralAccess::MutableBorrow,
+        checked_trees::BorrowAccessKind::WriteOnly => StructuralAccess::WriteOnlyBorrow,
     })
 }
 
@@ -1046,9 +1045,9 @@ pub(crate) fn call_claim_transfers(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    arguments: &[CheckedUnitStructuralArgumentPlan],
-) -> Result<Vec<CheckedUnitClaimTransferPlan>, &'static str> {
+    caller_structural_results: &[(BindingPlan, facts::PlaceRoot)],
+    arguments: &[ArgumentPlan],
+) -> Result<Vec<TransferPlan>, &'static str> {
     let events = call_claim_events(&facts.flow, machine, state, call);
     let mut output = Vec::new();
     let caller_state = program
@@ -1056,13 +1055,11 @@ pub(crate) fn call_claim_transfers(
         .ok_or("claim transfer: caller state is missing")?;
     let source_parameters = program.state_parameters(caller_state);
     for (argument_index, argument) in arguments.iter().enumerate() {
-        if argument.access != CheckedStructuralAccess::Owned {
+        if argument.access != StructuralAccess::Owned {
             continue;
         }
-        if matches!(
-            argument.source,
-            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-        ) || view_subslice::is_view_subslice(argument)
+        if matches!(argument.source, SourcePlan::PrimitiveLocal { .. })
+            || view_subslice::is_view_subslice(argument)
         {
             return Err("claim transfer: owned argument has no structural owner");
         }
@@ -1078,7 +1075,7 @@ pub(crate) fn call_claim_transfers(
         // custody operation as reseating a local's child: join the current
         // call events at its exact owner and selected path.
         let root = match argument.source {
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            SourcePlan::Parameter { parameter_index } => {
                 let parameter = caller_parameters
                     .get(parameter_index as usize)
                     .ok_or("claim transfer: argument parameter is missing")?;
@@ -1087,16 +1084,14 @@ pub(crate) fn call_claim_transfers(
                     .ok_or("claim transfer: parameter source is missing")?;
                 facts::PlaceRoot::Symbol(source.symbol)
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+            SourcePlan::StructuralResult { binding_ordinal } => {
                 caller_structural_results
                     .iter()
                     .find(|(result, _)| result.binding_ordinal == binding_ordinal)
                     .ok_or("claim transfer: evaluated argument result is missing")?
                     .1
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                facts::PlaceRoot::Symbol(symbol)
-            }
+            SourcePlan::StructuralLocal { symbol } => facts::PlaceRoot::Symbol(symbol),
             _ if argument.source_local_declaration_ordinal().is_some()
                 && argument.path.is_empty() =>
             {
@@ -1117,18 +1112,15 @@ pub(crate) fn call_claim_transfers(
         )
         .ok_or("claim transfer: owner path has no unique transferable claim")?
         {
-            if output
-                .iter()
-                .any(|transfer: &CheckedUnitClaimTransferPlan| {
-                    (claim_identity != PermissionClaimIdentity::Unknown
-                        && transfer.claim_identity == claim_identity)
-                        || (usize::try_from(transfer.argument_index).ok() == Some(argument_index)
-                            && transfer.path == path)
-                })
-            {
+            if output.iter().any(|transfer: &TransferPlan| {
+                (claim_identity != ClaimIdentity::Unknown
+                    && transfer.claim_identity == claim_identity)
+                    || (usize::try_from(transfer.argument_index).ok() == Some(argument_index)
+                        && transfer.path == path)
+            }) {
                 return Err("claim transfer: two arguments carry the same linear claim");
             }
-            output.push(CheckedUnitClaimTransferPlan {
+            output.push(TransferPlan {
                 claim_identity,
                 argument_index: u32::try_from(argument_index)
                     .map_err(|_| "claim transfer: argument ordinal exceeds its representation")?,
@@ -1196,7 +1188,7 @@ fn owner_claim_crossings(
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<
     Vec<(
-        PermissionClaimIdentity,
+        ClaimIdentity,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     )>,
 > {
@@ -1261,7 +1253,7 @@ fn claim_crossings_at_place(
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<
     Vec<(
-        PermissionClaimIdentity,
+        ClaimIdentity,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     )>,
 > {
@@ -1294,7 +1286,7 @@ fn claim_crossings_at_place(
         validation::structural_owned_path(program, root_type, &owner.segments).ok()?;
     selected_path.extend_from_slice(path);
     let mut claims: Vec<(
-        PermissionClaimIdentity,
+        ClaimIdentity,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     )> = Vec::new();
     for event in crossing_events {
@@ -1334,7 +1326,7 @@ fn claim_crossings_at_place(
         // name from the actual completed argument, never from an annotation.
         if event.kind != PermissionEventKind::Transfer
             || claims.iter().any(|(identity, existing_path)| {
-                (event.claim_identity != PermissionClaimIdentity::Unknown
+                (event.claim_identity != ClaimIdentity::Unknown
                     && *identity == event.claim_identity)
                     || existing_path.as_slice() == relative
             })
@@ -1410,19 +1402,16 @@ pub(crate) fn computed_call_claim_transfers(
     machine: SymbolHandle,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
-    operands: &[(
-        typed_trees::expression::ExpressionHandle,
-        &CheckedUnitStructuralArgumentPlan,
-    )],
-) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
+    operands: &[(typed_trees::expression::ExpressionHandle, &ArgumentPlan)],
+) -> Option<Vec<TransferPlan>> {
     let events = call_claim_events(flow, machine, state, call);
     let mut output = Vec::new();
     for (argument_index, (expression, argument)) in operands.iter().enumerate() {
-        if argument.access != CheckedStructuralAccess::Owned {
+        if argument.access != StructuralAccess::Owned {
             continue;
         }
         let root = match argument.source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+            SourcePlan::StructuralExpression { expression } => {
                 facts::PlaceRoot::Expression(expression)
             }
             _ => place_at(program, state, call.statement_index, *expression)?.root,
@@ -1438,18 +1427,15 @@ pub(crate) fn computed_call_claim_transfers(
             root,
             &argument.path,
         )? {
-            if output
-                .iter()
-                .any(|transfer: &CheckedUnitClaimTransferPlan| {
-                    (claim_identity != PermissionClaimIdentity::Unknown
-                        && transfer.claim_identity == claim_identity)
-                        || (usize::try_from(transfer.argument_index).ok() == Some(argument_index)
-                            && transfer.path == path)
-                })
-            {
+            if output.iter().any(|transfer: &TransferPlan| {
+                (claim_identity != ClaimIdentity::Unknown
+                    && transfer.claim_identity == claim_identity)
+                    || (usize::try_from(transfer.argument_index).ok() == Some(argument_index)
+                        && transfer.path == path)
+            }) {
                 return None;
             }
-            output.push(CheckedUnitClaimTransferPlan {
+            output.push(TransferPlan {
                 claim_identity,
                 argument_index: u32::try_from(argument_index).ok()?,
                 path,

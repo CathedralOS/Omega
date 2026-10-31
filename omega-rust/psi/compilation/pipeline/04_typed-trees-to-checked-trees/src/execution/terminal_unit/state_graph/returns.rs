@@ -3,9 +3,9 @@
 //! binding or exit roster an ordinary single-state body retains.
 use super::super::CheckedUnitEntryClaimPlan;
 use super::{
-    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TransitionExit,
-    TransitionTargetNode, control,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan,
+    CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitStructuralParameterPlan,
+    Multiplicity, StatementNode, TransitionExit, TransitionTargetNode, control,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, parameter_qualifications};
@@ -83,13 +83,10 @@ pub(super) fn guarded(
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     claims: &[CheckedUnitEntryClaimPlan],
-    operations: &[CheckedUnitEffectOperationPlan],
+    operations: &[OperationPlan],
     start: usize,
     trace: &control::LocalConstructionTrace,
-) -> Option<(
-    CheckedComposedUnitControlTerminatorPlan,
-    Vec<CheckedUnitEffectOperationPlan>,
-)> {
+) -> Option<(CheckedComposedUnitControlTerminatorPlan, Vec<OperationPlan>)> {
     if is_unit(program, state.return_type)
         || program.type_multiplicity(state.return_type) == Multiplicity::Linear
     {
@@ -181,11 +178,11 @@ pub(super) fn guarded(
 }
 
 /// First free structural binding ordinal after every producer in `operations`. Terminator-side return values number into the same roster.
-pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan]) -> Option<usize> {
+pub(super) fn next_result_ordinal(operations: &[OperationPlan]) -> Option<usize> {
     operations
         .iter()
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+        .flat_map(OperationPlan::with_value_calls)
+        .filter_map(OperationPlan::structural_result_binding)
         .map(|result| result.binding_ordinal)
         .max()
         .map(|ordinal| usize::try_from(ordinal).ok()?.checked_add(1))
@@ -210,15 +207,12 @@ pub(super) fn return_value_operation(
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     claims: &[CheckedUnitEntryClaimPlan],
-    preamble: &[CheckedUnitEffectOperationPlan],
+    preamble: &[OperationPlan],
     count: &mut usize,
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
     trace: &control::LocalConstructionTrace,
-) -> Option<(
-    CheckedUnitEffectOperationPlan,
-    Vec<CheckedUnitEffectOperationPlan>,
-)> {
+) -> Option<(OperationPlan, Vec<OperationPlan>)> {
     if let Some(operation) = literal_result_operation(
         program,
         shapes,
@@ -277,7 +271,7 @@ pub(super) fn return_value_operation(
     )?;
     if completion == checked_trees::CheckedValueCompletion::NoNormal {
         return Some((
-            CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+            OperationPlan::EvaluateStructuralValue {
                 statement_index: statement_ordinal,
                 value: root.root,
                 calls,
@@ -325,7 +319,7 @@ pub(in crate::execution::terminal_unit) fn literal_result_operation(
     count: &mut usize,
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitEffectOperationPlan> {
+) -> Option<OperationPlan> {
     let bytes = match control::statement_sequence::bounded_byte_values::expression_octets(
         program,
         state.return_type,
@@ -359,7 +353,7 @@ pub(in crate::execution::terminal_unit) fn literal_result_operation(
     result.binding_ordinal = u32::try_from(*count).ok()?;
     let qualifications = parameter_qualifications(program, shapes, state.return_type, binders)?;
     *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishLocal(
+    Some(OperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
             result,
             value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),

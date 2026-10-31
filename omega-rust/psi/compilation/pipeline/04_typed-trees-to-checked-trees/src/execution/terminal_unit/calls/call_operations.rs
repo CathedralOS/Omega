@@ -25,13 +25,14 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{is_unit, machine_binders};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
-    PrimitiveType, SymbolHandle, strips_erased_parameter,
+    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan, Multiplicity, PrimitiveType, SymbolHandle,
+    strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
-    CheckedUnitCallTarget, CheckedUnitCallTransfers,
+    CheckedUnitCallTarget, CheckedUnitCallTransfers as CallTransfers,
 };
 use validation::exact_external_leaf_boundary_requirement;
 
@@ -131,9 +132,9 @@ pub(in crate::execution) fn build_call_operation(
     call: &checked_trees::FlowCallFact,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    caller_operations: &[CheckedUnitEffectOperationPlan],
+    caller_operations: &[OperationPlan],
     trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
+) -> Option<OperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
         call_ordinal: u32::try_from(call.call_ordinal).ok()?,
@@ -212,7 +213,7 @@ pub(in crate::execution) fn build_call_operation(
         {
             return None;
         }
-        return Some(CheckedUnitEffectOperationPlan::RegisterAccess {
+        return Some(OperationPlan::RegisterAccess {
             coordinate,
             operation,
             result: None,
@@ -478,7 +479,7 @@ pub(in crate::execution) fn build_call_operation(
                         binding: result.clone(),
                         discard_result_on_return: false,
                     },
-                    transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
+                    transfers: CallTransfers::StructuralCustody(Default::default()),
                 },
             );
         }
@@ -509,9 +510,9 @@ pub(in crate::execution) fn build_call_operation(
             scalar_arguments,
             structural_arguments,
             result: CheckedUnitCallResult::Unit,
-            transfers: CheckedUnitCallTransfers::Claims(transfers),
+            transfers: CallTransfers::Claims(transfers),
         })
-        .map(CheckedUnitEffectOperationPlan::Call);
+        .map(OperationPlan::Call);
     }
     // A result carrying linear claims, whole or beneath an affine owner,
     // binds them through its checked custody rather than an ownership-free
@@ -594,9 +595,9 @@ pub(in crate::execution) fn build_call_operation(
             scalar_arguments,
             structural_arguments,
             result: CheckedUnitCallResult::NoNormal,
-            transfers: CheckedUnitCallTransfers::Claims(transfers),
+            transfers: CallTransfers::Claims(transfers),
         })
-        .map(CheckedUnitEffectOperationPlan::Call)
+        .map(OperationPlan::Call)
     } else if boundary {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
@@ -609,14 +610,12 @@ pub(in crate::execution) fn build_call_operation(
             result: CheckedUnitCallResult::Unit,
             transfers: match completion {
                 semantic_vocabulary::BoundaryCompletion::NormalReturn => {
-                    CheckedUnitCallTransfers::CompletionReceipts(transfers)
+                    CallTransfers::CompletionReceipts(transfers)
                 }
-                semantic_vocabulary::BoundaryCompletion::External(_) => {
-                    CheckedUnitCallTransfers::Abandonment
-                }
+                semantic_vocabulary::BoundaryCompletion::External(_) => CallTransfers::Abandonment,
             },
         })
-        .map(CheckedUnitEffectOperationPlan::Call)
+        .map(OperationPlan::Call)
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
         super::structural_result_call::build(
             program,
@@ -666,8 +665,8 @@ pub(in crate::execution) fn build_call_operation(
             scalar_arguments,
             structural_arguments,
             result: CheckedUnitCallResult::Unit,
-            transfers: CheckedUnitCallTransfers::Claims(transfers),
+            transfers: CallTransfers::Claims(transfers),
         })
-        .map(CheckedUnitEffectOperationPlan::Call)
+        .map(OperationPlan::Call)
     }
 }

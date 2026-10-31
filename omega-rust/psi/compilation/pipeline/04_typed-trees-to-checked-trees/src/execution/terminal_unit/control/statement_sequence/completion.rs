@@ -16,15 +16,15 @@
 //! checked boundary without ending a loan needed by the final expression.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, Construction, Multiplicity, StatementNode,
-    StatementSequence, SymbolHandle, append_exit_reference_releases, append_reference_releases,
-    structural_operands,
+    CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan as BindingPlan,
+    Construction, Multiplicity, StatementNode, StatementSequence, SymbolHandle,
+    append_exit_reference_releases, append_reference_releases, structural_operands,
 };
 use crate::flow::expressions;
 use crate::places::place_at;
-use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan as ReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
@@ -35,15 +35,15 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) scalar_control: Option<checked_trees::CheckedUnitScalarControlPlan>,
-    pub(super) operations: Vec<CheckedUnitEffectOperationPlan>,
+    pub(super) operations: Vec<OperationPlan>,
     pub(super) place_loans: Vec<checked_trees::CheckedPlaceLoanPlan>,
     pub(super) scalar_count: usize,
     pub(super) structural_count: usize,
     pub(super) structural_local_symbols: Vec<SymbolHandle>,
     pub(super) windows: super::super::super::borrowed_windows::OpenWindows,
-    pub(super) returned_call: Option<CheckedUnitStructuralResultBindingPlan>,
+    pub(super) returned_call: Option<BindingPlan>,
     pub(super) returned_scalar_call: Option<CheckedUnitScalarResultBindingPlan>,
-    pub(super) structural_results: Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    pub(super) structural_results: Vec<(BindingPlan, facts::PlaceRoot)>,
     pub(super) call_count: usize,
 }
 
@@ -146,7 +146,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             let binding = returned_call.as_ref()?;
             let mut matching = operations
                 .iter()
-                .filter_map(CheckedUnitEffectOperationPlan::call)
+                .filter_map(OperationPlan::call)
                 .filter(|call| {
                     call.structural_result()
                         .is_some_and(|result| result.binding_ordinal == binding.binding_ordinal)
@@ -159,11 +159,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 coordinate: call.coordinate,
             })
         });
-    let return_binding = |binding| {
-        Some(CheckedUnitStructuralReturnPlan::from_binding(
-            binding, exit?,
-        ))
-    };
+    let return_binding = |binding| Some(ReturnPlan::from_binding(binding, exit?));
     // Completion consumes the current value graph, including a local's
     // current storage. A name-to-initial-binding shortcut returned an already
     // moved initializer after replacement and bypassed ordinary transfer.
@@ -211,7 +207,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 &mut windows,
             )?;
             if completion == checked_trees::CheckedValueCompletion::NoNormal {
-                operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                operations.push(OperationPlan::EvaluateStructuralValue {
                     statement_index: root.statement_ordinal,
                     value: root.root,
                     calls,
@@ -323,7 +319,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 expression,
                 state.return_type,
             )?;
-            let result = CheckedUnitStructuralResultBindingPlan {
+            let result = BindingPlan {
                 statement_index,
                 binding_ordinal: u32::try_from(structural_count).ok()?,
                 type_identity: shapes.add_type(state.return_type, binders, &[])?,
@@ -339,7 +335,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             for domain in &qualifications {
                 shapes.add_domain(*domain, state.return_type, binders)?;
             }
-            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+            operations.push(OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
                     qualifications,
                     source: checked_trees::CheckedArrayConstructionSource::Statement,
@@ -468,7 +464,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             };
             // Completion evaluates its actual expression after the preceding
             // operations. A final name reuses its value without replaying its call.
-            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+            operations.push(OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, value },
             ));
             scalar_count = scalar_count.checked_add(1)?;
@@ -531,7 +527,7 @@ fn forwarded_parameter(
     parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     root: &checked_trees::CheckedStructuralValueRoot,
-) -> Option<CheckedUnitStructuralReturnPlan> {
+) -> Option<ReturnPlan> {
     let checked_trees::CheckedStructuralValueKind::Place(value) =
         &facts.values.structural_values.nodes.get(root.root).kind
     else {
@@ -579,7 +575,7 @@ fn forwarded_parameter(
         {
             return None;
         }
-        return Some(CheckedUnitStructuralReturnPlan {
+        return Some(ReturnPlan {
             source: source_plan,
             completion: checked_trees::CheckedStructuralReturnCompletion::Value {
                 statement_index: root.statement_ordinal,
@@ -622,7 +618,7 @@ fn forwarded_parameter(
             return None;
         }
     }
-    Some(CheckedUnitStructuralReturnPlan {
+    Some(ReturnPlan {
         source: source_plan,
         completion: checked_trees::CheckedStructuralReturnCompletion::Value {
             statement_index: root.statement_ordinal,

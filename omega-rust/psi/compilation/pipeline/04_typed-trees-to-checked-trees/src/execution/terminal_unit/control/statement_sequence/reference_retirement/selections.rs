@@ -5,7 +5,7 @@
 //! original suppliers. This correspondence precedes parent retirement and is
 //! retained for emission rather than rediscovered from runtime source shapes.
 
-use super::{BorrowLoanFact, CheckedUnitEffectOperationPlan, Retirement};
+use super::{BorrowLoanFact, CheckedUnitEffectOperationPlan as OperationPlan, Retirement};
 use crate::borrow::owner_place_segments;
 use arena::{Handle, HandleSpan};
 use checked_trees::CheckedUnitSelectedReferenceRetirementPlan;
@@ -91,12 +91,11 @@ pub(super) fn supplies_group(
 pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_complements(
     retirement: &Retirement<'_>,
 ) -> Option<Vec<CheckedUnitSelectedReferenceRetirementPlan>> {
-    if !retirement.pending.iter().any(|operation| {
-        matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-        )
-    }) {
+    if !retirement
+        .pending
+        .iter()
+        .any(|operation| matches!(operation, OperationPlan::ReleaseReference { .. }))
+    {
         return Some(Vec::new());
     }
     let mut output = Vec::new();
@@ -175,9 +174,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
                 .operations
                 .iter()
                 .chain(retirement.pending)
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .any(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+                    matches!(operation, OperationPlan::ReleaseReference {
                         selection_complements, ..
                     } if selection_complements.iter().any(|complement| {
                         complement.selection == selection && complement.path == source.path
@@ -188,7 +187,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
             }
             if !retirement.facts.borrow.loan_group(loans)?.any(|(loan, _)| {
                 retirement.pending.iter().any(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. }
+                    matches!(operation, OperationPlan::ReleaseReference { loans: released, .. }
                         if supplies_group(retirement, loan, *released))
                 })
             }) {
@@ -223,9 +222,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn compleme
                     .enumerate()
                     .rev()
                     .find_map(|(index, operation)| {
-                        let CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. } =
-                            operation
-                        else {
+                        let OperationPlan::ReleaseReference { loans, .. } = operation else {
                             return None;
                         };
                         retirement
