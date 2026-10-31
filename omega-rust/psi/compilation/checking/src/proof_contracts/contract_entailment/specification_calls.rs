@@ -13,6 +13,7 @@ use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_terms::structural_term;
 use crate::expression_traversal::children;
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::machine_state_by_symbol;
 use crate::value_custody::content_conservation::{
     ContentDeclarationFormation, content_conservation_inputs,
@@ -168,7 +169,7 @@ pub(crate) fn validate_declaration_expression_formation(
             continue;
         }
         visited.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         children(program, node, |child| pending.push(child));
         let ExpressionNode::Call(call) = node else {
             continue;
@@ -179,7 +180,7 @@ pub(crate) fn validate_declaration_expression_formation(
                 Diagnostic::error(format!(
                     "{owner} constant expression call has no exact declared contract owner"
                 ))
-                .with_source_span(program.expression_table.source_span(expression)),
+                .with_source_span(expression_table(program).source_span(expression)),
             );
         }
     }
@@ -219,7 +220,7 @@ fn validate_declaration_value_arguments(
             Diagnostic::error(format!(
                 "{owner} constant expression call has incompatible argument arity"
             ))
-            .with_source_span(program.expression_table.source_span(expression)),
+            .with_source_span(expression_table(program).source_span(expression)),
         );
         return;
     }
@@ -236,7 +237,7 @@ fn validate_declaration_value_arguments(
             diagnostics.push(Diagnostic::error(format!(
                 "cannot form specification argument in {owner}: the logical subject's pending default domain cannot admit the nominal value required by parameter `{}`",
                 parameter.name,
-            )).with_source_span(program.expression_table.source_span(*argument)));
+            )).with_source_span(expression_table(program).source_span(*argument)));
             continue;
         }
         // This exact proof observation already has a checked place, carrier,
@@ -259,7 +260,7 @@ fn validate_declaration_value_arguments(
                 // Anonymous and literal structural operands keep the shared
                 // destination formation judgment. An unresolved computation
                 // never inherits a type from its expected destination.
-                (!matches!(program.expression_table.expression(*argument), ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Call(_))
+                (!matches!(expression_table(program).expression(*argument), ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Call(_))
                     || crate::has_anonymous_numeric_results(program, *argument))
                     && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *argument, required_type, &[])
             }, |actual| crate::value_custody::expression_types::completed_value_type_matches(program, actual, required_type));
@@ -270,7 +271,7 @@ fn validate_declaration_value_arguments(
             );
             diagnostics.push(Diagnostic::error(format!("{owner} constant expression call argument `{}` does not form parameter `{}` of `{}`: actual {actual}, required {}",
                     program.expression_table.display_name(*argument), parameter.name, owner_name(program, &selected), program.display_type_reference_with_constraints(required_type)))
-                    .with_source_span(program.expression_table.source_span(*argument)));
+                    .with_source_span(expression_table(program).source_span(*argument)));
         }
     }
 }
@@ -292,7 +293,7 @@ pub(crate) fn validate_declaration_call_requirements(
     {
         diagnostics.push(Diagnostic::error(format!(
             "cannot form named-domain membership in {owner}: the logical subject's own default domain is still pending admission"
-        )).with_source_span(program.expression_table.source_span(membership.value)));
+        )).with_source_span(expression_table(program).source_span(membership.value)));
         return;
     }
     let mut roots = Vec::new();
@@ -464,7 +465,7 @@ impl SpecificationPremises<'_> {
                 continue;
             }
             visited.push((expression, holds));
-            if let Some(binary) = program.expression_table.binary_node(expression)
+            if let Some(binary) = expression_table(program).binary_node(expression)
                 && ((holds && binary.operator == BinaryOperator::And)
                     || (!holds && binary.operator == BinaryOperator::Or))
             {
@@ -542,7 +543,7 @@ fn pending_data_subject<'program>(
             return Some(definition);
         }
         visited.push(expression);
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => {
                 return (path.symbol == definition.predicate_subject_symbol).then_some(definition);
             }
@@ -567,16 +568,15 @@ fn validate_pending_subject_materialization(
         return;
     };
     let mut operands = Vec::new();
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::StructLiteral(literal) => operands.extend(
-            program
-                .expression_table
+            expression_table(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .map(|field| field.value),
         ),
         ExpressionNode::ArrayLiteral(elements) => {
-            operands.extend(program.expression_table.expression_handles(*elements))
+            operands.extend(expression_table(program).expression_handles(*elements))
         }
         ExpressionNode::Borrow(borrow) => operands.push(borrow.target),
         ExpressionNode::Cast(cast) => operands.push(cast.value),
@@ -586,7 +586,7 @@ fn validate_pending_subject_materialization(
         if pending_data_subject(program, symbol, operand).is_some() {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot materialize the logical subject in {owner}: its complete default domain is still pending formation"
-            )).with_source_span(program.expression_table.source_span(operand)));
+            )).with_source_span(expression_table(program).source_span(operand)));
         }
     }
 }
@@ -599,7 +599,7 @@ fn validate_specification_payload_projection(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Member(member) = expression_table(program).expression(expression) else {
         return;
     };
     let Some(reference) = caller.expression_type(program, member.receiver) else {
@@ -648,7 +648,7 @@ fn validate_specification_payload_projection(
         diagnostics.push(Diagnostic::error(format!(
             "cannot form specification payload projection `{}` in {owner}: establish its exact active case before projecting the payload",
             member.member.as_str(),
-        )).with_source_span(program.expression_table.source_span(expression)));
+        )).with_source_span(expression_table(program).source_span(expression)));
     }
 }
 
@@ -700,12 +700,12 @@ fn validate_specification_expression_in_scope(
             Diagnostic::error(format!(
                 "cannot form cyclic retained specification expression in {owner}"
             ))
-            .with_source_span(program.expression_table.source_span(expression)),
+            .with_source_span(expression_table(program).source_span(expression)),
         );
         return;
     }
     visited.push(expression);
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     let diagnostics_before = diagnostics.len();
     if let ExpressionNode::Binary(binary) = node
         && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
@@ -814,7 +814,7 @@ fn validate_specification_expression_in_scope(
                 Diagnostic::error(format!(
                     "anonymous address cast operand cannot prove fit in `addr::Bound` in {owner}",
                 ))
-                .with_source_span(program.expression_table.source_span(cast.value)),
+                .with_source_span(expression_table(program).source_span(cast.value)),
             );
         }
     }
@@ -839,19 +839,17 @@ fn validate_specification_expression_in_scope(
             };
             let Some(selected) = selected else {
                 if call.authored_machine_application.is_valid()
-                    && program
-                        .expression_table
+                    && expression_table(program)
                         .static_machine_application(call.authored_machine_application)
                         .registration_operation
                         .is_valid()
                 {
                     diagnostics.push(Diagnostic::error(format!("cannot form specification call in {owner}: retained public contract owner is unavailable"))
-                        .with_source_span(program.expression_table.source_span(expression)));
+                        .with_source_span(expression_table(program).source_span(expression)));
                 }
                 return;
             };
-            let Some(arguments) = program
-                .expression_table
+            let Some(arguments) = expression_table(program)
                 .expression_handles(call.arguments)
                 .get(owner_leading_operands(&selected)..)
             else {
@@ -877,7 +875,7 @@ fn validate_specification_expression_in_scope(
                     (spelling, vec![binary.left, binary.right])
                 }
                 ExpressionNode::Indexed(indexed) => {
-                    if let Some(range) = program.expression_table.range_node(indexed.index) {
+                    if let Some(range) = expression_table(program).range_node(indexed.index) {
                         (
                             language_core::OperatorSpelling::Range,
                             vec![indexed.collection, range.start, range.end],
@@ -940,7 +938,7 @@ fn validate_specification_expression_in_scope(
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot form specification operator `{}` in {owner}: no exact selected meaning",
                     spelling.symbol(),
-                )).with_source_span(program.expression_table.source_span(expression)));
+                )).with_source_span(expression_table(program).source_span(expression)));
                 return;
             };
             let Some(selected_owner) =
@@ -997,7 +995,7 @@ fn validate_specification_expression_in_scope(
                 )
             {
                 diagnostics.push(Diagnostic::error(format!("anonymous address specification argument cannot prove fit in `addr::Bound` in {owner}"))
-                    .with_source_span(program.expression_table.source_span(*argument)));
+                    .with_source_span(expression_table(program).source_span(*argument)));
             }
         }
     }
@@ -1428,10 +1426,7 @@ pub(super) fn call_parameter_scope<'program>(
     };
     let mut substitutions = Vec::new();
     if application.is_valid() {
-        for binding in program
-            .expression_table
-            .static_machine_application_bindings(application)
-        {
+        for binding in expression_table(program).static_machine_application_bindings(application) {
             match binding.value {
                 typed_trees::static_applications::StaticMachineBindingValue::Type(reference)
                 | typed_trees::static_applications::StaticMachineBindingValue::Const(reference) => {
@@ -1462,8 +1457,7 @@ pub(super) fn call_parameter_scope<'program>(
                                     else {
                                         return None;
                                     };
-                                    program
-                                        .expression_table
+                                    expression_table(program)
                                         .name_path_node(*expression)
                                         .is_some_and(|path| {
                                             path.symbol == argument.symbol
@@ -1821,8 +1815,8 @@ fn structurally_substitutable_fact(
     if program.static_type_predicate_operands(expression).is_some() {
         return term(expression).is_some_and(|term| term_has_complete_substitution(program, &term));
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return matches!(program.expression_table.expression(expression), ExpressionNode::Call(_))
+    let Some(binary) = expression_table(program).binary_node(expression) else {
+        return matches!(expression_table(program).expression(expression), ExpressionNode::Call(_))
             && term(expression).is_some_and(|term| {
                 matches!(&term, StructuralTerm::Application { result_type, .. }
                     if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool))
@@ -2059,11 +2053,8 @@ pub(super) fn fact_roots(
     match fact {
         ProofFact::Expression(expression) => roots.push(*expression),
         ProofFact::Membership(membership) => roots.push(membership.value),
-        ProofFact::Proposition(application) => roots.extend_from_slice(
-            program
-                .expression_table
-                .expression_handles(application.arguments),
-        ),
+        ProofFact::Proposition(application) => roots
+            .extend_from_slice(expression_table(program).expression_handles(application.arguments)),
     }
 }
 
@@ -2143,7 +2134,7 @@ fn structural_static_binders_are_exact(
             let ExpressionNode::Name(path) = node else {
                 return false;
             };
-            let [name] = program.expression_table.name_path_members(path.members) else {
+            let [name] = expression_table(program).name_path_members(path.members) else {
                 return false;
             };
             parameters
@@ -2313,8 +2304,7 @@ fn names_are_unambiguous(
         let ExpressionNode::Name(name) = node else {
             return false;
         };
-        if let Some(head) = program
-            .expression_table
+        if let Some(head) = expression_table(program)
             .name_path_members(name.members)
             .first()
         {
@@ -2326,7 +2316,7 @@ fn names_are_unambiguous(
                 names.push((head.as_str().to_owned(), name.head_symbol));
             }
         }
-        let spelling = program.expression_table.display_name(expression);
+        let spelling = expression_table(program).display_name(expression);
         if let Some((_, symbol)) = names.iter().find(|(known, _)| *known == spelling) {
             *symbol != name.symbol
         } else {

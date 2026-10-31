@@ -5,6 +5,7 @@
 //! come from this occurrence's retained application, never an instance's erased
 //! runtime tuple. This join supplies carriers and identity, not proof or custody.
 
+use crate::frozen_program::expression_table;
 use std::borrow::Cow;
 
 use symbols::SymbolHandle;
@@ -126,16 +127,14 @@ pub fn selected_call_arguments<'program>(
         CallSite::TransitionNamed { .. } => Default::default(),
     };
     let runtime_bindings = if authored_application.is_valid() {
-        if program
-            .expression_table
+        if expression_table(program)
             .static_machine_application(authored_application)
             .lexical_owner
             != caller
         {
             return Err("selected Value application belongs to another lexical owner");
         }
-        program
-            .expression_table
+        expression_table(program)
             .static_machine_application_bindings(authored_application)
             .iter()
             .filter(|binding| {
@@ -359,7 +358,7 @@ pub(crate) fn call_binding_correspondence(
     if !handle.is_valid() {
         return Err("the call has no retained application header");
     }
-    let application = program.expression_table.static_machine_application(handle);
+    let application = expression_table(program).static_machine_application(handle);
     if application.lexical_owner != caller {
         return Err("the application header belongs to another caller");
     }
@@ -367,9 +366,7 @@ pub(crate) fn call_binding_correspondence(
         return requirement_binding_correspondence(program, caller, site, handle);
     };
     let header = program.machine_type_parameters(declaration);
-    let retained = program
-        .expression_table
-        .static_machine_application_bindings(handle);
+    let retained = expression_table(program).static_machine_application_bindings(handle);
     let mut parameters = Vec::with_capacity(header.len());
     let mut runtime_parameters = Vec::new();
     let public_owner;
@@ -604,7 +601,7 @@ fn requirement_binding_correspondence(
     if site.static_requirement_dispatch().is_some() {
         return Err("a realized requirement header has no authored machine declaration");
     }
-    let application = program.expression_table.static_machine_application(handle);
+    let application = expression_table(program).static_machine_application(handle);
     let (declared, public, declaration) = if let Some(signature) =
         program.machine_by_symbol(caller).and_then(|machine| {
             program.machine_parameter_signature_in(machine, application.binding_declaration)
@@ -628,26 +625,18 @@ fn requirement_binding_correspondence(
             let closed = program
                 .closed_requirement_application(public.symbol)
                 .ok_or("the applied requirement lost its exact closed declaration")?;
-            let supplied = program
-                .expression_table
-                .static_machine_application(closed.application);
-            let arguments = program
-                .expression_table
-                .static_machine_application_arguments(closed.application);
+            let supplied = expression_table(program).static_machine_application(closed.application);
+            let arguments =
+                expression_table(program).static_machine_application_arguments(closed.application);
             let header = program.requirement_invocation_contract_parameters(declared);
-            let retained = program
-                .expression_table
-                .static_machine_application_bindings(handle);
-            let lifetimes = program
-                .expression_table
-                .static_machine_application_lifetimes(handle);
+            let retained = expression_table(program).static_machine_application_bindings(handle);
+            let lifetimes = expression_table(program).static_machine_application_lifetimes(handle);
             if closed.template != declared.symbol
                 || closed.declaring_trait != declaring_trait.symbol
                 || application.registration_operation != declared.symbol
                 || arguments.len() != header.len()
                 || retained.len() != header.len()
-                || program
-                    .expression_table
+                || expression_table(program)
                     .static_machine_application_lifetimes(closed.application)
                     != lifetimes
                 || (!lifetimes.is_empty() && supplied.lexical_owner != application.lexical_owner)
@@ -675,9 +664,7 @@ fn requirement_binding_correspondence(
     };
     let header = program.requirement_invocation_contract_parameters(declared);
     let logical = program.requirement_invocation_contract_parameters(public);
-    let retained = program
-        .expression_table
-        .static_machine_application_bindings(handle);
+    let retained = expression_table(program).static_machine_application_bindings(handle);
     if header.len() != logical.len()
         || retained.len() != header.len()
         || retained.iter().any(|binding| {
@@ -869,7 +856,7 @@ fn open_runtime_source(
     }
     let mut root = *expression;
     while let typed_trees::expression::ExpressionNode::Member(member) =
-        program.expression_table.expression(root)
+        expression_table(program).expression(root)
     {
         if !member.member_symbol.is_valid() || member.case_variant.is_some() {
             return Err("the open runtime header projection has no exact field");
@@ -877,7 +864,7 @@ fn open_runtime_source(
         root = member.receiver;
     }
     let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-        program.expression_table.expression(root)
+        expression_table(program).expression(root)
     else {
         return Err("the open runtime header actual needs a completed argument");
     };
@@ -895,7 +882,7 @@ pub(crate) fn captured_argument_position(
     use typed_trees::expression::ValueCaptureOwner;
     program.saved_value_source(saved)?;
     match (
-        program.expression_table.value_capture(saved.capture).owner,
+        expression_table(program).value_capture(saved.capture).owner,
         site,
     ) {
         (

@@ -7,6 +7,7 @@
 //! so later storage writes cannot reinterpret them over replacement contents.
 
 use super::{StructuralJudge, StructuralTerm};
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -38,7 +39,7 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        let Some(comparison) = program.expression_table.binary_node(condition) else {
+        let Some(comparison) = expression_table(program).binary_node(condition) else {
             return;
         };
         let same_place =
@@ -523,7 +524,7 @@ impl StructuralJudge<'_> {
                 let symbol = match program.type_reference_table.type_reference(argument) {
                     TypeReferenceNode::ConstExpression(expression) => {
                         let typed_trees::expression::ExpressionNode::Name(path) =
-                            program.expression_table.expression(*expression)
+                            expression_table(program).expression(*expression)
                         else {
                             return None;
                         };
@@ -1108,8 +1109,7 @@ impl StructuralJudge<'_> {
                             StructuralTerm::BoundValue(*symbol)
                         }
                         TypeReferenceNode::ConstExpression(expression) => {
-                            if let Some(path) = program
-                                .expression_table
+                            if let Some(path) = expression_table(program)
                                 .name_path_node(*expression)
                                 .filter(|path| {
                                     path.symbol.is_valid()
@@ -1225,7 +1225,7 @@ impl StructuralJudge<'_> {
         bindings: &[(String, StructuralTerm)],
     ) {
         let program = self.program;
-        if let Some(binary) = program.expression_table.binary_node(expression) {
+        if let Some(binary) = expression_table(program).binary_node(expression) {
             if binary.operator == BinaryOperator::And {
                 self.intake_instantiated_predicate(owner, parameters, binary.left, bindings);
                 self.intake_instantiated_predicate(owner, parameters, binary.right, bindings);

@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
 use typed_trees::data::TypeParameter;
@@ -229,7 +230,7 @@ fn normalized_facts(
                 fact,
                 ProofFact::Expression(expression)
                     if matches!(
-                        program.expression_table.expression(*expression),
+                        expression_table(program).expression(*expression),
                         ExpressionNode::Boolean(true)
                     )
             ) {
@@ -240,11 +241,11 @@ fn normalized_facts(
             }
             let raw = match fact {
                 ProofFact::Expression(expression) => {
-                    program.expression_table.display_name(*expression)
+                    expression_table(program).display_name(*expression)
                 }
                 ProofFact::Membership(membership) => format!(
                     "{} in {}{}",
-                    program.expression_table.display_name(membership.value),
+                    expression_table(program).display_name(membership.value),
                     program.domain_path_members(membership.domain).joined_path(),
                     if membership.domain_arguments.is_empty() {
                         String::new()
@@ -267,11 +268,10 @@ fn normalized_facts(
                         .iter()
                         .map(|argument| argument.path.joined_path())
                         .collect::<Vec<_>>();
-                    let arguments = program
-                        .expression_table
+                    let arguments = expression_table(program)
                         .expression_handles(application.arguments)
                         .iter()
-                        .map(|argument| program.expression_table.display_name(*argument))
+                        .map(|argument| expression_table(program).display_name(*argument))
                         .collect::<Vec<_>>();
                     let binder_suffix = if binders.is_empty() {
                         String::new()
@@ -341,7 +341,8 @@ fn single_guarantee_left_prefix(
                 return false;
             };
             let mut prefix = *expression;
-            while let ExpressionNode::Binary(binary) = program.expression_table.expression(prefix) {
+            while let ExpressionNode::Binary(binary) = expression_table(program).expression(prefix)
+            {
                 if binary.operator != BinaryOperator::And {
                     break;
                 }
@@ -421,8 +422,8 @@ fn same_guarantee_expression(
     actual_parameters: &[StateParameter],
 ) -> bool {
     match (
-        program.expression_table.expression(required),
-        program.expression_table.expression(actual),
+        expression_table(program).expression(required),
+        expression_table(program).expression(actual),
     ) {
         (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
         (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
@@ -434,7 +435,7 @@ fn same_guarantee_expression(
             {
                 return true;
             }
-            let table = &program.expression_table;
+            let table = expression_table(program);
             let left_members = table.name_path_members(left.members);
             let right_members = table.name_path_members(right.members);
             let left_symbols = table.name_path_member_symbols(left.member_symbols);

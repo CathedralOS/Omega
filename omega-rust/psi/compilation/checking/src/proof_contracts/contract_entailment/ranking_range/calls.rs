@@ -12,6 +12,7 @@ use super::{
     meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
     validate_mapping,
 };
+use crate::frozen_program::expression_table;
 use crate::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use symbols::SymbolHandle;
 /// The exact transition site inside the caller's machine. `state` is the state
@@ -114,7 +115,7 @@ pub(crate) fn prove_ranking_range_call(
         ),
     ] {
         if range.is_valid()
-            && let ExpressionNode::Range(range) = program.expression_table.expression(range)
+            && let ExpressionNode::Range(range) = expression_table(program).expression(range)
         {
             for endpoint in [range.start, range.end] {
                 if !fields::endpoint_statically_formed(program, machine, state, endpoint) {
@@ -391,7 +392,7 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.requires_unsatisfiable
         && let Some((floor, ceiling, _)) = &source_range
     {
-        let range = program.expression_table.range_node(caller.range)?;
+        let range = expression_table(program).range_node(caller.range)?;
         for endpoint in &caller_deferred_endpoints {
             let polynomial = if *endpoint == range.start {
                 floor
@@ -493,7 +494,7 @@ pub(crate) fn prove_ranking_range_call(
         destination_expressions.push(limit);
     }
     if callee.range.is_valid()
-        && let ExpressionNode::Range(range) = program.expression_table.expression(callee.range)
+        && let ExpressionNode::Range(range) = expression_table(program).expression(callee.range)
     {
         destination_expressions.extend([range.start, range.end]);
     }
@@ -622,7 +623,7 @@ pub(crate) fn prove_ranking_range_call(
     // feeds must be a defined interval of the callee's carrier here, not only
     // inside the callee's own entry proof.
     if let Some((floor, ceiling, _)) = &destination_range {
-        let range = program.expression_table.range_node(callee.range)?;
+        let range = expression_table(program).range_node(callee.range)?;
         for endpoint in &callee_deferred_endpoints {
             let polynomial = if *endpoint == range.start {
                 floor
@@ -720,7 +721,7 @@ fn admit_member(
         meanings::admitted_carrier(program, member.machine, state, member.paired_subject, 0)?;
     }
     if member.range.is_valid() {
-        let range = program.expression_table.range_node(member.range)?;
+        let range = expression_table(program).range_node(member.range)?;
         for expression in [range.start, range.end] {
             meanings::admitted_carrier(program, member.machine, state, expression, 0)?;
         }
@@ -828,9 +829,7 @@ fn collect_destination_fields(
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
-        let node = program
-            .expression_table
-            .expression_at_depth(expression, depth)?;
+        let node = expression_table(program).expression_at_depth(expression, depth)?;
         match node {
             ExpressionNode::Member(member) => {
                 if let Some(coordinate) = fields::FieldCoordinate::resolve_field_projection(
@@ -884,9 +883,7 @@ fn collect_destination_lengths(
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
-        let node = program
-            .expression_table
-            .expression_at_depth(expression, depth)?;
+        let node = expression_table(program).expression_at_depth(expression, depth)?;
         match node {
             ExpressionNode::Member(member) => {
                 if member.case_variant.is_none()
@@ -1096,7 +1093,7 @@ fn installation_expressions(
     arguments: &[ExpressionHandle],
 ) -> Vec<ExpressionHandle> {
     if caller.range.is_valid()
-        && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+        && let ExpressionNode::Range(range) = expression_table(program).expression(caller.range)
     {
         expressions.extend([range.start, range.end]);
     }
@@ -1306,14 +1303,14 @@ fn entry_scalar_parameter(
 ) -> Option<()> {
     let mut subject = subject;
     let mut visited = Vec::new();
-    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(subject) {
+    while let ExpressionNode::Atomic(atomic) = expression_table(program).expression(subject) {
         if visited.contains(&subject) {
             return None;
         }
         visited.push(subject);
         subject = atomic.value;
     }
-    if let Some(_) = program.expression_table.member_node(subject) {
+    if let Some(_) = expression_table(program).member_node(subject) {
         // The projected leaf's declared type is the subject's carrier; every
         // step is an exact declared field of a non-self, non-const entry
         // formal's record.
@@ -1343,7 +1340,7 @@ fn member_call_range(
     if !member.range.is_valid() {
         return Some(None);
     }
-    let range = program.expression_table.range_node(member.range)?;
+    let range = expression_table(program).range_node(member.range)?;
     for endpoint in [range.start, range.end] {
         meanings::install_nonpolynomial_terms(program, member.machine, state, engine, endpoint, 0)?;
     }

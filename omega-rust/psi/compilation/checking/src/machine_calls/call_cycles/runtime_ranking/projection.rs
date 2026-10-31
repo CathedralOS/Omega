@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use crate::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
     find_declared_measure, measure_body_shape,
@@ -318,7 +319,7 @@ impl RankProjection {
             return None;
         }
 
-        let components = program.expression_table.expression_handles(measure.body);
+        let components = expression_table(program).expression_handles(measure.body);
         if components.is_empty() {
             return None;
         }
@@ -327,13 +328,10 @@ impl RankProjection {
             // Lexicographic syntax declares unqualified projections in its
             // exact owner. No arbitrary member expression or global name
             // search can contribute a ranking component.
-            let Some(component) = program.expression_table.name_path_node(*component) else {
+            let Some(component) = expression_table(program).name_path_node(*component) else {
                 return None;
             };
-            let [name] = program
-                .expression_table
-                .name_path_members(component.members)
-            else {
+            let [name] = expression_table(program).name_path_members(component.members) else {
                 return None;
             };
             let mut declarations = program
@@ -431,7 +429,7 @@ impl RankProjection {
         expression: ExpressionHandle,
         role: &dyn Fn(SymbolHandle) -> SymbolHandle,
     ) -> bool {
-        matches!(program.expression_table.expression(unwrapped(program, expression)),
+        matches!(expression_table(program).expression(unwrapped(program, expression)),
             ExpressionNode::Name(path) if role(path.symbol) == self.parameter)
     }
 
@@ -445,9 +443,8 @@ impl RankProjection {
         let RankOrder::Lexicographic { data: owner, .. } = self.order else {
             return false;
         };
-        let ExpressionNode::Member(member) = program
-            .expression_table
-            .expression(unwrapped(program, expression))
+        let ExpressionNode::Member(member) =
+            expression_table(program).expression(unwrapped(program, expression))
         else {
             return false;
         };
@@ -505,9 +502,7 @@ fn entry_parameter<'program>(
 /// rooted at an entry formal rather than a bare formal name.
 fn member_subject(program: &dyn crate::CheckingInput, subject: ExpressionHandle) -> bool {
     matches!(
-        program
-            .expression_table
-            .expression(unwrapped(program, subject)),
+        expression_table(program).expression(unwrapped(program, subject)),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
     )
 }

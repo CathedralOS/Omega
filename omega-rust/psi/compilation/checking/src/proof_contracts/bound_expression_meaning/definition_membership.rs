@@ -2,6 +2,7 @@
 //! Rejoin that exact binding before interpreting a subject or its fields.
 
 use super::{exact_case_membership_meaning, membership_subject_matches_owner};
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::{exact_data_member_field, unwrapped_type_reference};
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
@@ -61,8 +62,8 @@ fn owns_expression(
     expression: ExpressionHandle,
     comparison: &TableBinaryExpression,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression)
-        || !matches!(program.expression_table.expression(expression),
+    if !expression_table(program).expression_is_valid(expression)
+        || !matches!(expression_table(program).expression(expression),
             ExpressionNode::Binary(retained) if retained == comparison)
     {
         return false;
@@ -87,9 +88,7 @@ pub(super) fn facts_contain_expression(
             ProofFact::Expression(root) => collect(*root),
             ProofFact::Membership(membership) => collect(membership.value),
             ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
+                for argument in expression_table(program).expression_handles(application.arguments)
                 {
                     collect(*argument);
                 }
@@ -114,7 +113,7 @@ pub fn exact_domain_subject_type(
 ) -> Option<TypeReferenceHandle> {
     if !has_exact_domain_definition(program, domain)
         || !matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Name(_)
         )
     {
@@ -143,12 +142,10 @@ fn subject_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     let reference = match node {
         ExpressionNode::Name(path) => {
-            let [name] = program.expression_table.name_path_members(path.members) else {
+            let [name] = expression_table(program).name_path_members(path.members) else {
                 return None;
             };
             match owner {
@@ -162,18 +159,14 @@ fn subject_type(
                     if data.predicate_subject_symbol.is_valid()
                         && path.symbol == data.predicate_subject_symbol
                         && path.head_symbol == path.symbol
-                        && program
-                            .expression_table
-                            .name_path_member_symbols(path.member_symbols)
+                        && expression_table(program).name_path_member_symbols(path.member_symbols)
                             == [path.symbol]
                     {
                         return Some(data.predicate_subject_type);
                     }
                     if !path.symbol.is_valid()
                         || path.head_symbol != path.symbol
-                        || program
-                            .expression_table
-                            .name_path_member_symbols(path.member_symbols)
+                        || expression_table(program).name_path_member_symbols(path.member_symbols)
                             != [path.symbol]
                     {
                         return None;

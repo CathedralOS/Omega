@@ -4,6 +4,7 @@
 //! as one first captured in a local; address preservation alone cannot erase it.
 
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
 use crate::machine_calls::calls::write_frames::call_trees::parameter_relative_expression_preserves_transparent_result;
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
@@ -114,7 +115,7 @@ fn parameter_relative_place_origins_in(
             parameter_relative_place_origins_in(query, $expression, inference, admit_carrier_roots)
         };
     }
-    let origins = match program.expression_table.expression(expression) {
+    let origins = match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => {
             let mut origins = place_child!(inner.target)?;
             for origin in &mut origins {
@@ -210,7 +211,7 @@ fn parameter_relative_place_origins_in(
             // proven arm, and an arm that cannot resolve leaves the whole
             // expression opaque rather than selecting the provable side.
             let mut selected = Vec::new();
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
                 for origin in place_child!(arm.value)? {
                     push_unique_parameter_relative(&mut selected, origin);
                 }
@@ -351,8 +352,7 @@ fn parameter_relative_call_result_origins(
     } = query;
     if std::iter::once(call.receiver)
         .chain(
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .copied(),
@@ -417,8 +417,7 @@ fn parameter_relative_call_result_origins(
                 .iter()
                 .enumerate()
                 .find(|(_, parameter)| parameter.symbol == callee_parameter.symbol)?;
-            *program
-                .expression_table
+            *expression_table(program)
                 .expression_handles(call.arguments)
                 .get(argument_index)?
         };

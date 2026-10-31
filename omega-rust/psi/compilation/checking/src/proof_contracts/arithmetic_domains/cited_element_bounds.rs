@@ -27,6 +27,7 @@
 use super::guard_narrowing::projected_facts::{ProjectedOperand, contribute_projected_comparison};
 use super::ordered_values::{self, Operand};
 use super::{BinaryOperator, ExpressionHandle, Machine, State, ValueEnvironment, place_path};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
 
 /// `collection[index]` with a literal, non-negative `index` over a place
@@ -35,10 +36,8 @@ pub(crate) fn element_place_path(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    let indexed = program.expression_table.indexed_node(expression)?;
-    let index = program
-        .expression_table
-        .constant_integer_value(indexed.index)?;
+    let indexed = expression_table(program).indexed_node(expression)?;
+    let index = expression_table(program).constant_integer_value(indexed.index)?;
     let index = u64::try_from(index).ok()?;
     Some(format!(
         "{}[{index}]",
@@ -59,7 +58,7 @@ pub(crate) fn stable_element_place_path(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    let indexed = program.expression_table.indexed_node(expression)?;
+    let indexed = expression_table(program).indexed_node(expression)?;
     if let Some(element_index) = program
         .closed_integer_expression_value_in(indexed.index, machine.symbol)
         .and_then(|value| value.to_u64())
@@ -76,7 +75,7 @@ pub(crate) fn stable_element_place_path(
     }
     let state = state?;
     let parameter = |operand: ExpressionHandle| {
-        let name = program.expression_table.name_path_node(operand)?;
+        let name = expression_table(program).name_path_node(operand)?;
         if !name.symbol.is_valid() || name.symbol != name.head_symbol {
             return None;
         }
@@ -125,13 +124,11 @@ pub(crate) fn seed_cited_element_bounds(
         return;
     }
     let (target, static_arguments) = if call.authored_machine_application.is_valid() {
-        let application = program
-            .expression_table
-            .static_machine_application(call.authored_machine_application);
+        let application =
+            expression_table(program).static_machine_application(call.authored_machine_application);
         (
             application.registration_operation,
-            program
-                .expression_table
+            expression_table(program)
                 .static_machine_application_arguments(call.authored_machine_application),
         )
     } else {
@@ -206,11 +203,9 @@ struct Substitution<'program> {
 impl Substitution<'_> {
     /// The actual argument bound to the formal a callee-side name reads.
     fn actual(&self, formal: ExpressionHandle) -> Option<ExpressionHandle> {
-        let path = self.program.expression_table.name_path_node(formal)?;
+        let path = expression_table(self.program).name_path_node(formal)?;
         if !path.symbol.is_valid()
-            || self
-                .program
-                .expression_table
+            || expression_table(self.program)
                 .name_path_members(path.members)
                 .len()
                 != 1
@@ -416,7 +411,7 @@ impl Substitution<'_> {
         entry: &State,
         formal: ExpressionHandle,
     ) -> Option<ProjectedOperand> {
-        let indexed = self.program.expression_table.indexed_node(formal)?;
+        let indexed = expression_table(self.program).indexed_node(formal)?;
         let array = self.actual(indexed.collection)?;
         let state = self.state?;
         let declared = crate::declared_place_type_raw(self.program, callee, Some(entry), formal)?;
@@ -496,7 +491,7 @@ fn seed_conjunct(
     conjunct: ExpressionHandle,
     environment: &mut ValueEnvironment,
 ) {
-    let Some(comparison) = program.expression_table.binary_node(conjunct) else {
+    let Some(comparison) = expression_table(program).binary_node(conjunct) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {
@@ -531,7 +526,7 @@ fn seed_conjunct(
     }
     let side = |expression| {
         if let typed_trees::expression::ExpressionNode::Integer(literal) =
-            program.expression_table.expression(expression)
+            expression_table(program).expression(expression)
         {
             Some(ProjectedOperand::literal(literal))
         } else {

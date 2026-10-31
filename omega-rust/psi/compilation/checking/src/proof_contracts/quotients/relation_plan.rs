@@ -5,6 +5,7 @@
 //! two quotients over one carrier cannot collapse. It grants no execution
 //! authority and deliberately refuses nested/adapted result flow.
 
+use crate::frozen_program::expression_table;
 use std::fmt;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
@@ -846,8 +847,7 @@ fn derive_relation_and_representative(
 > {
     let mut representative = None;
     let mut input_relations = Vec::new();
-    for (position, argument) in program
-        .expression_table
+    for (position, argument) in expression_table(program)
         .expression_handles(call.arguments)
         .iter()
         .enumerate()
@@ -860,7 +860,7 @@ fn derive_relation_and_representative(
         );
         let Some(argument_type) = argument_type else {
             let is_closed_literal_candidate = matches!(
-                program.expression_table.expression(*argument),
+                expression_table(program).expression(*argument),
                 typed_trees::expression::ExpressionNode::Boolean(_)
                     | typed_trees::expression::ExpressionNode::Integer(_)
                     | typed_trees::expression::ExpressionNode::Float(_)

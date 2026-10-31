@@ -6,6 +6,7 @@
 //! this collection walk is not another fact-flow analysis. Laziness avoids a
 //! state walk when its constructions never need an occurrence environment.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{
     OccurrenceValueEnvironments, ValueEnvironment, occurrence_value_environments,
 };
@@ -108,16 +109,16 @@ impl<'program> ConstructionObservations<'program> {
         );
         let mut pending = Vec::new();
         for expression in nodes {
-            match self.program.expression_table.expression(expression) {
+            match expression_table(self.program).expression(expression) {
                 ExpressionNode::StructLiteral(literal) => pending.extend(
-                    self.program
-                        .expression_table
+                    expression_table(self.program)
                         .struct_fields(literal.fields)
                         .iter()
                         .map(|field| field.value),
                 ),
-                ExpressionNode::ArrayLiteral(elements) => pending
-                    .extend_from_slice(self.program.expression_table.expression_handles(*elements)),
+                ExpressionNode::ArrayLiteral(elements) => pending.extend_from_slice(
+                    expression_table(self.program).expression_handles(*elements),
+                ),
                 _ => {}
             }
         }
@@ -131,10 +132,9 @@ impl<'program> ConstructionObservations<'program> {
                 continue;
             }
             requests.push(expression);
-            match self.program.expression_table.expression(expression) {
+            match expression_table(self.program).expression(expression) {
                 ExpressionNode::Match(dispatch) => pending.extend(
-                    self.program
-                        .expression_table
+                    expression_table(self.program)
                         .match_arms(dispatch.arms)
                         .iter()
                         .map(|arm| arm.value),

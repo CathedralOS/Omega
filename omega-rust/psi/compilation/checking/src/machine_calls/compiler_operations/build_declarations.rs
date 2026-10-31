@@ -6,6 +6,7 @@
 //! Build cannot acquire authority merely by passing this type-level check.
 
 use super::exact_build_prelude_data;
+use crate::frozen_program::expression_table;
 use crate::selection_resolution::AuthoredSelectionResolutionTarget;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use language_semantics::declaration_selection::BuildOperation;
@@ -17,7 +18,7 @@ pub fn is_build_declaration_selection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return false;
     };
     BuildOperation::from_call_target(call.target.as_str()).is_some_and(|operation| {
@@ -39,8 +40,7 @@ pub fn resolve_build_static_operand(
     if !is_build_declaration_selection(program, expression) {
         return Err("static operand does not belong to an authenticated Build operation".into());
     }
-    let call = program
-        .expression_table
+    let call = expression_table(program)
         .call_node(expression)
         .ok_or("Build static operand has no retained call")?;
     let operation = BuildOperation::from_call_target(call.target.as_str())
@@ -118,8 +118,7 @@ pub fn is_provider_selection_call(
         == Some(BuildOperation::ProviderSelection)
         && has_explicit_build_argument(program, call)
         && (2..=3).contains(
-            &program
-                .expression_table
+            &expression_table(program)
                 .expression_handles(call.arguments)
                 .len(),
         )
@@ -134,10 +133,9 @@ pub(super) fn has_explicit_build_argument(
 ) -> bool {
     !call.target_symbol.is_valid()
         && call.receiver.is_valid()
-        && matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path)
+        && matches!(expression_table(program).expression(call.receiver), ExpressionNode::Name(path)
             if exact_build_prelude_data(program, path.symbol, "Build"))
-        && program
-            .expression_table
+        && expression_table(program)
             .expression_handles(call.arguments)
             .first()
             .is_some_and(|builder| exact_mutable_build_argument(program, *builder))
@@ -151,7 +149,7 @@ fn exact_mutable_build_argument(
     if !receiver.is_valid() {
         return false;
     }
-    if let Some(borrow) = program.expression_table.borrow_expression(receiver) {
+    if let Some(borrow) = expression_table(program).borrow_expression(receiver) {
         return borrow.access == language_semantics::ReferenceAccess::Mutable
             && crate::expression_type_symbol(program, borrow.target)
                 .is_some_and(|symbol| exact_build_prelude_data(program, symbol, "Build"));
@@ -170,7 +168,7 @@ pub fn build_operation(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<language_semantics::declaration_selection::BuildOperation> {
     let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         return None;
     };
@@ -192,12 +190,11 @@ pub fn build_product_request_intrinsic(
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind as Kind, BuildSelectionRequest, ProductOperandRole,
     };
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return Ok(None);
     };
-    let Some(BuildSelectionRequest::Declaration(request)) = program
-        .expression_table
-        .build_selection_request(call.build_selection)
+    let Some(BuildSelectionRequest::Declaration(request)) =
+        expression_table(program).build_selection_request(call.build_selection)
     else {
         return Ok(None);
     };

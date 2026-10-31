@@ -1,6 +1,7 @@
 //! Product nominal applications use the same source arithmetic, parameter
 //! correspondence and lexical region owners as ordinary static invocations.
 //! A closed selected tuple never supplies the facts needed to form its recipe.
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::ProductOperandRole;
 use typed_trees::{
@@ -91,9 +92,8 @@ pub(super) fn validate_parameter_correspondence(
         {
             diagnostics.push(error.with_source_span(application.operand.source_span));
         }
-        let source = typed
-            .expression_table
-            .static_machine_application(application.supplying_application);
+        let source =
+            expression_table(typed).static_machine_application(application.supplying_application);
         if let Err(error) = crate::conformance_applications::validate_conformance_lifetime_arguments(
             program,
             &application.argument,
@@ -144,8 +144,7 @@ pub(super) fn validate_source_recipes(
             // No state assumptions are available here. The original recipe
             // and ordinary supplying invocation remain separate obligations;
             // only an independently closed expression can form this operand.
-            let source = typed
-                .expression_table
+            let source = expression_table(typed)
                 .static_machine_application(application.supplying_application);
             for (parameter, argument) in parameters.iter().zip(arguments.arguments.iter()) {
                 let TypeParameterKind::Const { type_reference } = parameter.kind else {

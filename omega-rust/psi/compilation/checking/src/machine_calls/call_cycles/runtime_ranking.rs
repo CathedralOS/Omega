@@ -10,6 +10,7 @@ mod occurrences;
 mod prefix;
 mod projection;
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::proof_only::ProofOnlyClassification;
@@ -975,10 +976,10 @@ fn expression_is_inert_or_calls(
     }
     let mut inert =
         |expression| expression_is_inert_or_calls(program, machine, state, expression, admit_call);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_all(dispatch, &mut inert),
+    match expression_table(program).expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            expression_table(program).match_deep_all(dispatch, &mut inert)
+        }
         ExpressionNode::Atomic(atomic) => {
             crate::value_custody::atomic_operations::atomic_once_operands(program, atomic).is_none()
                 && inert(atomic.value)
@@ -992,13 +993,11 @@ fn expression_is_inert_or_calls(
         }
         ExpressionNode::Unary(unary) => inert(unary.operand),
         ExpressionNode::Cast(cast) => inert(cast.value),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| inert(field.value)),
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(items) => expression_table(program)
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
@@ -1020,7 +1019,7 @@ fn expression_is_inert_or_calls(
                 expression,
             ) =>
         {
-            let endpoints_inert = match program.expression_table.expression(indexed.index) {
+            let endpoints_inert = match expression_table(program).expression(indexed.index) {
                 ExpressionNode::Range(range) => [range.start, range.end]
                     .into_iter()
                     .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
@@ -1041,8 +1040,7 @@ fn expression_is_inert_or_calls(
             // write frame separately.
             admit_call(call)
                 && (!call.receiver.is_valid() || inert(call.receiver))
-                && program
-                    .expression_table
+                && expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| inert(*argument))

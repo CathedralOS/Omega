@@ -3,6 +3,7 @@
 //! application formation and membership. Desired rank bounds are never premises.
 
 use super::{BigInt, Engine, Machine, Polynomial, RankValue, RankingRangeMeasure};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::scoped_arithmetic::{
     calls::ScopedCalls, install_hypotheses,
 };
@@ -62,7 +63,7 @@ fn prove(
         return None;
     }
     let authored_range = if range.is_valid() {
-        Some(program.expression_table.range_node(range)?)
+        Some(expression_table(program).range_node(range)?)
     } else {
         None
     };

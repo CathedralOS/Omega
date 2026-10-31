@@ -1,6 +1,7 @@
 //! Builtin meaning required before interpreting place selectors as storage geometry.
 
 use super::{declared_indexed_projection_type, declared_place_type_raw};
+use crate::frozen_program::expression_table;
 use language_core::OperatorSpelling;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use typed_trees::machine::Machine;
@@ -14,9 +15,7 @@ pub fn collection_length_receiver(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let receiver = program
-        .expression_table
-        .authored_length_receiver(expression)?;
+    let receiver = expression_table(program).authored_length_receiver(expression)?;
     let receiver_type = declared_place_type_raw(program, machine, state, receiver)?;
     let receiver_type = super::unwrapped_type_reference(program, receiver_type)?;
     matches!(
@@ -94,7 +93,7 @@ pub fn subslice_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let operation = match program.expression_table.expression(expression) {
+    let operation = match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(borrow)
             if matches!(
                 borrow.access,
@@ -106,9 +105,9 @@ pub fn subslice_expression(
         ExpressionNode::Borrow(_) => return None,
         _ => expression,
     };
-    let indexed = program.expression_table.indexed_node(operation)?;
+    let indexed = expression_table(program).indexed_node(operation)?;
     matches!(
-        program.expression_table.expression(indexed.index),
+        expression_table(program).expression(indexed.index),
         ExpressionNode::Range(_)
     )
     .then_some(operation)
@@ -122,7 +121,7 @@ pub fn has_builtin_subslice_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+    let Some(indexed) = expression_table(program).indexed_node(expression) else {
         return false;
     };
     if program.expression_table.range_node(indexed.index).is_none() {
@@ -145,10 +144,10 @@ pub fn range_operator_establishes_endpoint_extent(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+    let Some(indexed) = expression_table(program).indexed_node(expression) else {
         return false;
     };
-    let Some(range) = program.expression_table.range_node(indexed.index) else {
+    let Some(range) = expression_table(program).range_node(indexed.index) else {
         return false;
     };
     let Some(collection) = declared_place_type_raw(program, machine, state, indexed.collection)
@@ -167,7 +166,7 @@ pub fn range_operator_establishes_endpoint_extent(
         program,
         OperatorSpelling::Range,
         &operands,
-        program.expression_table.source_span(expression),
+        expression_table(program).source_span(expression),
     );
     let [candidate] = candidates.as_slice() else {
         return false;
@@ -191,8 +190,8 @@ pub fn ensured_range_call_endpoints(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, ExpressionHandle)> {
-    let call = program.expression_table.call_node(expression)?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let call = expression_table(program).call_node(expression)?;
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let [_, start, end] = arguments else {
         return None;
     };
@@ -307,7 +306,7 @@ fn expression_establishes_endpoint_extent(
     if depth >= 128 {
         return false;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     if binary.operator == typed_trees::expression::BinaryOperator::And {
@@ -325,7 +324,7 @@ fn expression_establishes_endpoint_extent(
     [(binary.left, binary.right), (binary.right, binary.left)]
         .into_iter()
         .any(|(length, difference)| {
-            let Some(member) = program.expression_table.member_node(length) else {
+            let Some(member) = expression_table(program).member_node(length) else {
                 return false;
             };
             let Some((result_owner, result_type)) =
@@ -340,7 +339,7 @@ fn expression_establishes_endpoint_extent(
             {
                 return false;
             }
-            let Some(subtract) = program.expression_table.binary_node(difference) else {
+            let Some(subtract) = expression_table(program).binary_node(difference) else {
                 return false;
             };
             subtract.operator == typed_trees::expression::BinaryOperator::Subtract
@@ -386,10 +385,10 @@ fn expression_names_source_parameter(
     {
         return false;
     }
-    let Some(path) = program.expression_table.name_path_node(expression) else {
+    let Some(path) = expression_table(program).name_path_node(expression) else {
         return false;
     };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    let [name] = expression_table(program).name_path_members(path.members) else {
         return false;
     };
     name.as_str() == parameter.name.as_str()
@@ -438,7 +437,7 @@ pub fn indexed_operation_has_builtin_meaning(
     expression: ExpressionHandle,
     collection: Option<typed_trees::types::TypeReferenceHandle>,
 ) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+    let Some(indexed) = expression_table(program).indexed_node(expression) else {
         return false;
     };
     let Some(collection) = collection else {
@@ -446,7 +445,7 @@ pub fn indexed_operation_has_builtin_meaning(
     };
     let mut operands = [Some(collection), None, None];
     let (spelling, operand_count) =
-        if let Some(range) = program.expression_table.range_node(indexed.index) {
+        if let Some(range) = expression_table(program).range_node(indexed.index) {
             operands[1] = declared_place_type_raw(program, machine, state, range.start);
             operands[2] = declared_place_type_raw(program, machine, state, range.end);
             (OperatorSpelling::Range, 3)
@@ -470,7 +469,7 @@ pub fn indexed_operation_has_builtin_meaning(
         program,
         spelling,
         operands,
-        program.expression_table.source_span(expression),
+        expression_table(program).source_span(expression),
     )
     .is_empty()
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -499,8 +498,8 @@ pub fn whole_collection_view_source(
     if !has_builtin_subslice_meaning(program, machine, state, operation) {
         return None;
     }
-    let indexed = program.expression_table.indexed_node(operation)?;
-    let range = program.expression_table.range_node(indexed.index)?;
+    let indexed = expression_table(program).indexed_node(operation)?;
+    let range = expression_table(program).range_node(indexed.index)?;
     let integer = |expression| {
         // Closed arithmetic still belongs to the selected numeric owner;
         // syntax-only folding could substitute a declared token machine.
@@ -547,10 +546,10 @@ pub fn assignment_target_selectors(
     program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
-    assignment_target_indexes(&program.expression_table, target)
+    assignment_target_indexes(expression_table(program), target)
         .into_iter()
         .filter_map(
-            |expression| match program.expression_table.expression(expression) {
+            |expression| match expression_table(program).expression(expression) {
                 ExpressionNode::Indexed(indexed) => Some(indexed.index),
                 _ => None,
             },
@@ -613,7 +612,7 @@ pub fn value_element_has_builtin_coordinate(
     occurrence: ExpressionHandle,
     collection: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(occurrence) else {
+    let Some(indexed) = expression_table(program).indexed_node(occurrence) else {
         return false;
     };
     if program.expression_table.range_node(indexed.index).is_some() {
@@ -649,10 +648,7 @@ pub fn value_has_builtin_coordinates_with_types(
     collection_type: impl Fn(ExpressionHandle) -> Option<typed_trees::types::TypeReferenceHandle>,
 ) -> bool {
     for depth in 0..program.expression_table.expression_count() {
-        let Some(node) = program
-            .expression_table
-            .expression_at_depth(expression, depth)
-        else {
+        let Some(node) = expression_table(program).expression_at_depth(expression, depth) else {
             return false;
         };
         match node {
@@ -669,8 +665,7 @@ pub fn value_has_builtin_coordinates_with_types(
                 ) {
                     return false;
                 }
-                let bounds = program
-                    .expression_table
+                let bounds = expression_table(program)
                     .range_node(indexed.index)
                     .map_or([indexed.index, ExpressionHandle::invalid()], |range| {
                         [range.start, range.end]
@@ -730,10 +725,7 @@ fn builtin_coordinates(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expression_table(program).expression_at_depth(expression, depth) else {
         return false;
     };
     match node {
@@ -751,7 +743,7 @@ fn builtin_coordinates(
             if !builtin_coordinates(program, machine, state, indexed.collection, depth + 1) {
                 return false;
             }
-            if let Some(range) = program.expression_table.range_node(indexed.index) {
+            if let Some(range) = expression_table(program).range_node(indexed.index) {
                 // A window keeps its collection's backing rather than
                 // selecting an element type. Authenticate the range operator
                 // and each present bound before interpreting that geometry.

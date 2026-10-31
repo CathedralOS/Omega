@@ -10,6 +10,7 @@ use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
 };
 use super::type_capabilities::type_reference_is_reference;
+use crate::frozen_program::expression_table;
 use language_core::is_self_receiver;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -47,7 +48,7 @@ pub(super) fn stable_alias_place_origins(
     divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
     allow_isolated_local: bool,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let expression = match program.expression_table.expression(expression) {
+    let expression = match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     };
@@ -130,7 +131,7 @@ pub(super) fn expression_reborrows_reference_binding(
 ) -> bool {
     expression_has_exclusive_borrow(program, expression, &|target| {
         matches!(
-            program.expression_table.expression(target),
+            expression_table(program).expression(target),
             ExpressionNode::Name(_)
         ) && is_reference_binding(target)
     })
@@ -146,7 +147,7 @@ pub(super) fn expression_has_exclusive_borrow(
         if !expression.is_valid() {
             continue;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             node @ ExpressionNode::Match(_) => {
                 crate::expression_traversal::push_children_reversed(program, node, &mut pending)
             }
@@ -203,7 +204,7 @@ pub(super) fn validate_divergent_projections(
     }
     let invalid = super::caller_aliases::expression_any(program, expression, |expression| {
         if matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
         ) {
             if !divergent.iter().any(|(name, _)| {
@@ -227,7 +228,7 @@ pub(super) fn validate_divergent_projections(
             return projection() != Some(false);
         }
         if !matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Name(_)
         ) {
             return false;
@@ -283,7 +284,7 @@ pub(super) fn expression_mentions_place_roots(
         }) {
             return true;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             node @ ExpressionNode::Match(_) => {
                 crate::expression_traversal::push_children_reversed(program, node, &mut pending)
             }
@@ -305,9 +306,8 @@ pub(super) fn expression_may_rebind_mutable_alias(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
+    match expression_table(program).expression(expression) {
+        ExpressionNode::Match(dispatch) => expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .any(|arm| expression_may_rebind_mutable_alias(program, machine, state, arm.value)),

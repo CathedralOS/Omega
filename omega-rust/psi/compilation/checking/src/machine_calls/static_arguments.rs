@@ -6,6 +6,7 @@
 //! strings. Tuple derivation shares carrier readers so it cannot erase a named
 //! const's carrier or a literal's earlier landing.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
 use symbols::SymbolKind;
@@ -56,7 +57,7 @@ pub fn validate_source_const_recipes(
             formation_obligations,
         );
     };
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expression_table(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate(
                 StaticArgumentCall::Expression(handle, call),
@@ -102,7 +103,7 @@ pub fn validate_authored_static_arguments(
     }
     let scopes = requirement_predicates::CallScopes::build(program);
     let expression_states = expression_call_states(program);
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expression_table(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call(
                 program,
@@ -137,12 +138,9 @@ pub fn validate_authored_static_arguments(
     // uses. Preparation can derive these rows but cannot admit their operands
     // or substituted predicates on the checker's behalf.
     for application in program.closed_requirement_applications() {
-        let source = program
-            .expression_table
-            .static_machine_application(application.application);
-        let arguments = program
-            .expression_table
-            .static_machine_application_arguments(application.application);
+        let source = expression_table(program).static_machine_application(application.application);
+        let arguments =
+            expression_table(program).static_machine_application_arguments(application.application);
         let Some((owner, requirement)) = program.trait_machine_signature(application.template)
         else {
             diagnostics.push(Diagnostic::error(
@@ -304,7 +302,7 @@ fn ordinary_arguments<'program>(
     if !handle.is_valid() {
         return std::borrow::Cow::Borrowed(arguments);
     }
-    let application = program.expression_table.static_machine_application(handle);
+    let application = expression_table(program).static_machine_application(handle);
     let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
         return std::borrow::Cow::Borrowed(arguments);
     };
@@ -318,9 +316,7 @@ fn ordinary_arguments<'program>(
     if machine.conformance_bounds.is_empty() {
         return std::borrow::Cow::Borrowed(arguments);
     }
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(handle);
+    let bindings = expression_table(program).static_machine_application_bindings(handle);
     let mut consumed = vec![false; bindings.len()];
     std::borrow::Cow::Owned(
         arguments
@@ -365,7 +361,7 @@ fn expression_call_states<'program>(
                     );
                 }
                 states.extend(expressions.iter().filter_map(|expression| {
-                    program.expression_table.call_node(*expression)?;
+                    expression_table(program).call_node(*expression)?;
                     Some((*expression, state))
                 }));
             }
@@ -420,9 +416,7 @@ fn validate_call(
     let arguments = call.arguments(program);
     if let StaticArgumentCall::Expression(_, expression) = call
         && let Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(request)) =
-            program
-                .expression_table
-                .build_selection_request(expression.build_selection)
+            expression_table(program).build_selection_request(expression.build_selection)
     {
         match context {
             Some((machine, _)) => {
@@ -571,7 +565,7 @@ fn validate_types(
                 ));
                 if let StaticArgumentCall::Expression(handle, _) = source_call {
                     diagnostic =
-                        diagnostic.with_source_span(program.expression_table.source_span(handle));
+                        diagnostic.with_source_span(expression_table(program).source_span(handle));
                 }
                 diagnostics.push(diagnostic);
             }
@@ -633,7 +627,7 @@ pub fn is_runtime_value_expression(
     else {
         return false;
     };
-    program.expression_table.expression_is_valid(*expression)
+    expression_table(program).expression_is_valid(*expression)
 }
 
 /// The shape of one ordinary runtime subject admissible into a `Value`

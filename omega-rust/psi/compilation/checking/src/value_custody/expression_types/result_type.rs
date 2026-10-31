@@ -7,6 +7,7 @@
 //! input refinements. Guard candidate lookup remains separate: its conservative
 //! operand shells are selection inputs, not computed-result evidence.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::builtin_type_reference;
 use language_core::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
@@ -101,16 +102,14 @@ fn constructor_result_type_reference(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     if !matches!(
         node,
         ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
     ) {
         return None;
     }
-    let reference = program
-        .expression_table
-        .constructed_value_type_reference(expression);
+    let reference = expression_table(program).constructed_value_type_reference(expression);
     reference
         .is_valid()
         .then_some(reference)
@@ -227,13 +226,13 @@ fn result_type(
     // parameter. Preserve their declaration type before operator selection;
     // other names retain their exact scoped owner below, without foreign-binder
     // recovery or wildcard treatment of an absent type.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+    if let ExpressionNode::Name(path) = expression_table(program).expression(expression)
         && let Some(reference) = super::builtin_member_type_reference(program, path.symbol)
     {
         return Some(reference);
     }
     active.push(expression);
-    let result = match program.expression_table.expression(expression) {
+    let result = match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => program
             .saved_value_source(saved)
             .and_then(|subject| result_type(program, owner, subject, active)),
@@ -249,7 +248,7 @@ fn result_type(
             }
         }
         ExpressionNode::Match(dispatch) => {
-            let arms = program.expression_table.match_arms(dispatch.arms);
+            let arms = expression_table(program).match_arms(dispatch.arms);
             let references = arms
                 .iter()
                 .map(|arm| result_type(program, owner, arm.value, active))
@@ -345,9 +344,7 @@ fn result_type(
                 }
                 _ => None,
             };
-            let retained = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let retained = expression_table(program).constructed_value_type_reference(expression);
             let declared_result = retained
                 .is_valid()
                 .then_some(retained)
@@ -360,8 +357,7 @@ fn result_type(
                 && (call.exact_coercion_target.is_valid()
                     || selected_operator.is_none_or(|operator| !crate::machine_calls::calls::selected_float_operation_retains_argument_policy(program, operator.symbol)))
             { return Some(result); }
-            let operands: Vec<_> = program
-                .expression_table
+            let operands: Vec<_> = expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .map(|argument| result_type(program, owner, *argument, active))
@@ -414,20 +410,18 @@ fn result_type(
         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             // The target and qualification judgment describe the referent;
             // the expression itself produces the prepared loan descriptor.
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let reference = expression_table(program).constructed_value_type_reference(expression);
             reference.is_valid().then_some(reference)
         }
         ExpressionNode::Cast(cast) => cast_result_type_reference(program, cast),
         ExpressionNode::Indexed(indexed)
             if matches!(
-                program.expression_table.expression(indexed.index),
+                expression_table(program).expression(indexed.index),
                 ExpressionNode::Range(_)
             ) =>
         {
             (|| {
-                let range = program.expression_table.range_node(indexed.index)?;
+                let range = expression_table(program).range_node(indexed.index)?;
                 if range.end_inclusive {
                     return None;
                 }
@@ -449,7 +443,7 @@ fn result_type(
                     program,
                     OperatorSpelling::Range,
                     &operands,
-                    program.expression_table.source_span(expression),
+                    expression_table(program).source_span(expression),
                 )
                 .is_empty()
                     || !typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -530,7 +524,7 @@ fn result_type(
                 program,
                 OperatorSpelling::Index,
                 &operands,
-                program.expression_table.source_span(expression),
+                expression_table(program).source_span(expression),
             );
             if candidates.is_empty()
                 && typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -578,9 +572,7 @@ fn result_type(
         // Unprepared occurrences stay unresolved rather than masquerading as
         // by-value operands in inference or operator selection.
         ExpressionNode::Borrow(_) => {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let reference = expression_table(program).constructed_value_type_reference(expression);
             reference.is_valid().then_some(reference)
         }
         ExpressionNode::Integer(literal) => {
@@ -649,7 +641,7 @@ fn result_type(
                 )
             }
             ExpressionOwner::Domain(domain) => {
-                match program.expression_table.expression(expression) {
+                match expression_table(program).expression(expression) {
                     ExpressionNode::Name(_)
                         if typed_trees::domain::domain_subject_reference(
                             program, domain, expression,
@@ -968,7 +960,7 @@ fn binary_result(
             program,
             spelling,
             &operands,
-            program.expression_table.source_span(expression),
+            expression_table(program).source_span(expression),
         );
         let [selected] = candidates.as_slice() else {
             return None;

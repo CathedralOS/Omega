@@ -4,6 +4,7 @@
 //! judgments. It deliberately grants no effect, contract, `Respects`, custody,
 //! checked-tree, or executable authority.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -56,7 +57,7 @@ pub(in crate::proof_contracts::quotients) fn fallthrough_result_root(
         .and_then(|statement| {
             let expression = statement.as_expression()?;
             matches!(
-                program.expression_table.expression(*expression),
+                expression_table(program).expression(*expression),
                 ExpressionNode::Call(call) if call.quotient_operation.is_some()
             )
             .then_some(ImmutableAliasFallthroughRoot {
@@ -95,7 +96,7 @@ pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
             return None;
         }
         seen.push(local.symbol);
-        match program.expression_table.expression(local.initial_value) {
+        match expression_table(program).expression(local.initial_value) {
             ExpressionNode::Call(call) if call.quotient_operation.is_some() && position == 0 => {
                 return Some(ImmutableAliasFallthroughRoot {
                     request_expression: local.initial_value,
@@ -289,10 +290,9 @@ fn exact_local_name_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let path = program.expression_table.name_path_node(expression)?;
+    let path = expression_table(program).name_path_node(expression)?;
     (path.symbol.is_valid()
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1)

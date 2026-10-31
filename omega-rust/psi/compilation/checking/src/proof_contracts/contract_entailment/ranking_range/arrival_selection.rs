@@ -10,6 +10,7 @@ use super::{
     ExpressionHandle, ExpressionNode, Machine, RankSubjectCoordinate, RankingRangeMeasure,
     RankingRangePremises, State, StateEntryCorrespondence,
 };
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -272,7 +273,7 @@ pub fn ranking_range_required_coordinates(
 ) -> Option<Vec<RankSubjectCoordinate>> {
     let root = program.machine_states(machine).first()?;
     let mut expressions = if range.is_valid() {
-        let range = program.expression_table.range_node(range)?;
+        let range = expression_table(program).range_node(range)?;
         vec![range.start, range.end]
     } else {
         Vec::new()
@@ -316,9 +317,7 @@ fn collect_read_coordinates(
     coordinates: &mut Vec<RankSubjectCoordinate>,
     depth: usize,
 ) -> Option<()> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {}
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {

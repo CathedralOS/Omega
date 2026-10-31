@@ -7,14 +7,13 @@ use super::{
     StoredLocalOrigins, TopLevelSymbols, caller_aliases, stored_origins,
     type_reference_is_reference, value_origins,
 };
+use crate::frozen_program::expression_table;
 pub(super) fn call_expression(
     program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<&TableCallExpression> {
-    expression = program
-        .expression_table
-        .peeled_expression_handle(expression);
-    let call = program.expression_table.call_node(expression)?;
+    expression = expression_table(program).peeled_expression_handle(expression);
+    let call = expression_table(program).call_node(expression)?;
     Some(call)
 }
 
@@ -27,9 +26,7 @@ pub(super) fn call_origins(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let expression = program
-        .expression_table
-        .peeled_expression_handle(expression);
+    let expression = expression_table(program).peeled_expression_handle(expression);
     let call = call_expression(program, expression)?;
     let (_, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if !type_reference_is_reference(program, callee_state.return_type) {

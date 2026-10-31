@@ -1,6 +1,7 @@
 //! Rebuild typed constant-position operations from the owned source graph.
 //! Every operation remains ordinary typed source for later formation checking.
 use super::*;
+use crate::tables::expressions_of_mut;
 use expr::{ExpressionHandle, ExpressionNode as Node};
 impl Lower<'_> {
     /// Rejoin only coordinates captured from this source node's original
@@ -53,13 +54,10 @@ impl Lower<'_> {
             occurrences.push(occurrence);
         }
         let span = self.program.symbols.rejoin_product_occurrence(source_span);
-        self.program
-            .expression_table
-            .set_source_span(expression, span);
-        self.program
-            .expression_table
+        expressions_of_mut(self.program).set_source_span(expression, span);
+        expressions_of_mut(self.program)
             .attach_authored_selection_occurrences(expression, occurrences);
-        if let Node::Call(call) = self.program.expression_table.expression_mut(expression) {
+        if let Node::Call(call) = expressions_of_mut(self.program).expression_mut(expression) {
             call.authored_call_selection = call_selection;
         }
         Ok(())
@@ -86,10 +84,7 @@ impl Lower<'_> {
             .copied()
             .map(|value| self.expression(value))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(self
-            .program
-            .expression_table
-            .insert_expression_handles(values))
+        Ok(expressions_of_mut(self.program).insert_expression_handles(values))
     }
     fn source_subject(
         &mut self,
@@ -99,7 +94,7 @@ impl Lower<'_> {
             return Ok(*capture);
         }
         let subject = self.expression(self.graph.match_subjects.get(handle).subject)?;
-        let capture = self.program.expression_table.insert_match_subject(subject);
+        let capture = expressions_of_mut(self.program).insert_match_subject(subject);
         self.subjects.push((handle, capture));
         Ok(capture)
     }
@@ -137,7 +132,7 @@ impl Lower<'_> {
                 declared,
             )
             .ok_or_else(|| self.error("completed static actual has no ordinary const value"))?;
-            let result = self.program.expression_table.insert(node);
+            let result = expressions_of_mut(self.program).insert(node);
             self.retain_expression_source(
                 result,
                 value.source_span,
@@ -193,7 +188,7 @@ impl Lower<'_> {
                     target,
                     target,
                 ));
-                let target = self.program.expression_table.insert_tree(&owned);
+                let target = expressions_of_mut(self.program).insert_tree(&owned);
                 self.retain_expression_source(
                     target,
                     value.source_span,
@@ -281,8 +276,7 @@ impl Lower<'_> {
             } => {
                 let mut semantic_domain = HandleSpan::empty();
                 for name in self.identifiers(domain) {
-                    self.program
-                        .expression_table
+                    expressions_of_mut(self.program)
                         .push_name_path_member(&mut semantic_domain, name);
                 }
                 Node::Cast(expr::TableCastExpression {
@@ -338,17 +332,13 @@ impl Lower<'_> {
                 self.input_path = outer_path;
                 let machine_arguments = machine_arguments?.into_boxed_slice();
                 let target_name = self.identifier(target);
-                let authored_application = self
-                    .program
-                    .expression_table
+                let authored_application = expressions_of_mut(self.program)
                     .retain_static_machine_application(
                         target_symbol,
                         target_name,
                         &machine_arguments,
                     );
-                let source_application = self
-                    .program
-                    .expression_table
+                let source_application = expressions_of_mut(self.program)
                     .static_machine_application_mut(authored_application);
                 source_application.lexical_owner = self.author;
                 source_application.binding_declaration = target_symbol;
@@ -412,7 +402,7 @@ impl Lower<'_> {
                         .filter(|name| self.graph.names.get(*name).declaration.is_some())
                         .map(|name| self.symbol(name))
                         .transpose()?,
-                    fields: self.program.expression_table.insert_struct_fields(fields),
+                    fields: expressions_of_mut(self.program).insert_struct_fields(fields),
                 })
             }
             ProductExpressionKind::SavedSubject {
@@ -449,7 +439,7 @@ impl Lower<'_> {
                 Node::Match(expr::TableMatchExpression {
                     subject,
                     capture,
-                    arms: self.program.expression_table.insert_match_arms(arms),
+                    arms: expressions_of_mut(self.program).insert_match_arms(arms),
                 })
             }
             // Membership normalization owns source-domain lookup and executable
@@ -458,7 +448,7 @@ impl Lower<'_> {
                 "designated constant membership must be normalized by its source operation owner",
             )),
         };
-        let target = self.program.expression_table.insert(node);
+        let target = expressions_of_mut(self.program).insert(node);
         self.retain_expression_source(
             target,
             value.source_span,
@@ -518,13 +508,11 @@ impl Lower<'_> {
                     .collect::<Vec<_>>();
                 expr::MatchPattern::Destructure(expr::TableDestructurePattern {
                     head: self.expression(head)?,
-                    fields: self.program.expression_table.insert_match_fields(fields),
+                    fields: expressions_of_mut(self.program).insert_match_fields(fields),
                     has_rest,
                     guard: self.expression_optional(guard)?,
                     condition: self.expression_optional(condition)?,
-                    proof_selectors: self
-                        .program
-                        .expression_table
+                    proof_selectors: expressions_of_mut(self.program)
                         .insert_match_proof_selectors(selectors),
                 })
             }

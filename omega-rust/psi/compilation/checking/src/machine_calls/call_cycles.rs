@@ -9,6 +9,7 @@
 //! may be inferred; lexical ancestry contributes no ranking evidence.
 
 use super::graph_components::strongly_connected_components;
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::exact_data_member_field;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -316,10 +317,7 @@ fn collect_proposition_dependency_symbols(
     symbols: &mut Vec<SymbolHandle>,
 ) {
     push_dependency_symbol(symbols, application.proposition);
-    for argument in program
-        .expression_table
-        .expression_handles(application.arguments)
-    {
+    for argument in expression_table(program).expression_handles(application.arguments) {
         collect_expression_dependency_symbols(program, *argument, symbols);
     }
     for argument in &application.binder_arguments {
@@ -401,7 +399,7 @@ fn collect_expression_dependency_symbols(
     if !expression.is_valid() {
         return;
     }
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     if let ExpressionNode::Call(call) = node {
         push_dependency_symbol(symbols, call.target_symbol);
         symbols.extend(
@@ -809,7 +807,7 @@ fn collect_exact_proof_expression_edges(
             )
         };
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             for child in
                 crate::value_custody::atomic_operations::atomic_execution_children(program, atomic)
@@ -827,14 +825,13 @@ fn collect_exact_proof_expression_edges(
                         statement_index,
                         expression_ordinal,
                     },
-                    arguments: program
-                        .expression_table
+                    arguments: expression_table(program)
                         .expression_handles(call.arguments)
                         .to_vec(),
                 });
             }
             recurse!(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            for argument in expression_table(program).expression_handles(call.arguments) {
                 recurse!(*argument);
             }
         }
@@ -875,7 +872,7 @@ fn expression_member_path(
     root_symbol: SymbolHandle,
     root_type: TypeReferenceHandle,
 ) -> Option<(Vec<SymbolHandle>, TypeReferenceHandle)> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => {
             let (mut path, receiver_type) =
                 expression_member_path(program, member.receiver, root_symbol, root_type)?;

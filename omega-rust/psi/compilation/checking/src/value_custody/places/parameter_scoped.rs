@@ -4,6 +4,7 @@
 //! supplied telescope, then reuse nominal field and call-result queries.
 
 use super::unwrapped_type_reference;
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
@@ -68,9 +69,7 @@ fn expression_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     let child_type = |expression| expression_type(program, parameters, expression, depth + 1);
     let reference = match node {
         ExpressionNode::SavedSubject(saved) => child_type(program.saved_value_source(saved)?)?,
@@ -79,14 +78,12 @@ fn expression_type(
             // telescope membership test below is the resolved symbol's, so
             // the spelling contributes nothing a foreign declaration could
             // substitute past.
-            let [_] = program.expression_table.name_path_members(path.members) else {
+            let [_] = expression_table(program).name_path_members(path.members) else {
                 return None;
             };
             if !path.symbol.is_valid()
                 || path.head_symbol != path.symbol
-                || program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols)
+                || expression_table(program).name_path_member_symbols(path.member_symbols)
                     != [path.symbol]
             {
                 return None;
@@ -107,7 +104,7 @@ fn expression_type(
                 .type_reference
         }
         ExpressionNode::Indexed(indexed) => {
-            if program.expression_table.indexed_on_range(indexed) {
+            if expression_table(program).indexed_on_range(indexed) {
                 return None;
             }
             let collection_type = child_type(indexed.collection)?;
@@ -121,7 +118,7 @@ fn expression_type(
                     program,
                     language_core::OperatorSpelling::Index,
                     &operands,
-                    program.expression_table.source_span(expression),
+                    expression_table(program).source_span(expression),
                 )
                 .is_empty()
             {
@@ -149,9 +146,7 @@ pub(crate) fn has_retained_builtin_index_meaning(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
     use typed_trees::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
 
-    let mut occurrences = program
-        .expression_table
-        .authored_selection_occurrences(expression);
+    let mut occurrences = expression_table(program).authored_selection_occurrences(expression);
     let Some(occurrence) = occurrences.next() else {
         return false;
     };

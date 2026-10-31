@@ -6,6 +6,7 @@ use super::environments::{
     machine_environment,
 };
 use super::{Binding, ExecutableSite, InferredType, OwnerIndex, TypeEnvironment};
+use crate::frozen_program::expression_table;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use typed_trees::expression::ExpressionHandle;
@@ -67,7 +68,7 @@ pub(super) fn build_owner_environment_index(
             declaration.materialized_initializer,
         ]
         .into_iter()
-        .filter(|root| program.expression_table.expression_is_valid(*root))
+        .filter(|root| expression_table(program).expression_is_valid(*root))
         .flat_map(|root| super::reachable_expressions(program, root));
         index.add_all(reached, || TypeEnvironment {
             owner: declaration.symbol,
@@ -148,10 +149,7 @@ pub(super) fn proof_fact_reachable_expressions(
             reached.extend(super::reachable_expressions(program, membership.value));
         }
         typed_trees::domain::ProofFact::Proposition(application) => {
-            for root in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
+            for root in expression_table(program).expression_handles(application.arguments) {
                 reached.extend(super::reachable_expressions(program, *root));
             }
         }
@@ -258,10 +256,7 @@ pub(super) fn index_proposition_environments(
         let mut reached = HashSet::default();
         match body {
             PropositionFormula::Application(application) => {
-                for root in program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                {
+                for root in expression_table(program).expression_handles(application.arguments) {
                     reached.extend(super::reachable_expressions(program, *root));
                 }
             }
@@ -289,7 +284,7 @@ pub(super) fn index_measure_environments(
             continue;
         };
         let mut reached = HashSet::default();
-        for root in program.expression_table.expression_handles(measure.body) {
+        for root in expression_table(program).expression_handles(measure.body) {
             reached.extend(super::reachable_expressions(program, *root));
         }
         index.add_all(reached, || {
@@ -466,8 +461,7 @@ pub(super) fn proof_fact_value_contains_expression(
         typed_trees::domain::ProofFact::Membership(membership) => {
             super::expression_contains(program, membership.value, expression)
         }
-        typed_trees::domain::ProofFact::Proposition(application) => program
-            .expression_table
+        typed_trees::domain::ProofFact::Proposition(application) => expression_table(program)
             .expression_handles(application.arguments)
             .iter()
             .any(|root| super::expression_contains(program, *root, expression)),

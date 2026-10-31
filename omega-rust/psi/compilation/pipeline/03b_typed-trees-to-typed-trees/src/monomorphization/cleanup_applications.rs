@@ -4,6 +4,7 @@
 //! tuples select executable instances through the shared specialization cache.
 
 use super::{CalleeState, Diagnostic, SymbolHandle, TypedTrees, failed};
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let requests = program
@@ -27,8 +28,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
     let mut selected = Vec::new();
     let mut created = Vec::new();
     for request in requests {
-        let application = program
-            .expression_table
+        let application = expressions_of(program)
             .static_machine_application(request.application)
             .clone();
         let Some(machine_index) =
@@ -46,8 +46,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
         };
         let mut candidate = super::candidate::from_machine(program, machine_index);
         candidate.binding_application = request.application;
-        let arguments = program
-            .expression_table
+        let arguments = expressions_of(program)
             .static_machine_application_arguments(request.application)
             .to_vec();
         let callee = CalleeState {
@@ -102,8 +101,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
             )]);
         }
         let retained = super::applications::candidate_bindings(program, &candidate);
-        program
-            .expression_table
+        expressions_of_mut(program)
             .set_static_machine_application_bindings(request.application, &retained);
         if open {
             selected.push((request.application, SymbolHandle::invalid()));

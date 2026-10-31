@@ -7,6 +7,7 @@
 //! evaluation order in those same mandatory ownership checks.
 
 use super::expression_result_type_reference as declared_value_type;
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
@@ -28,8 +29,7 @@ pub fn match_subject_primitive_type(
     dispatch: &TableMatchExpression,
 ) -> Option<PrimitiveType> {
     retained_primitive(program, dispatch.subject).or_else(|| {
-        program
-            .expression_table
+        expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .find_map(|arm| {
@@ -46,7 +46,7 @@ fn retained_primitive(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<PrimitiveType> {
-    let reference = match program.expression_table.expression(expression) {
+    let reference = match expression_table(program).expression(expression) {
         ExpressionNode::Boolean(_) => return Some(PrimitiveType::Bool),
         ExpressionNode::Integer(_) => {
             crate::declarations::operators::landed_integer_literal_type_reference(
@@ -62,8 +62,7 @@ fn retained_primitive(
         }
         ExpressionNode::Cast(cast) => cast.target_type,
         ExpressionNode::Match(dispatch) => {
-            return program
-                .expression_table
+            return expression_table(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .find_map(|arm| retained_primitive(program, arm.value));
@@ -88,7 +87,7 @@ pub fn validate_match_dispatch(
     dispatch: &TableMatchExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let arms = program.expression_table.match_arms(dispatch.arms);
+    let arms = expression_table(program).match_arms(dispatch.arms);
     let structural = structural_match_subject_type(program, machine, state, dispatch);
     let mut covered_cases = Vec::new();
     let mut wildcard = false;
@@ -134,7 +133,7 @@ pub fn validate_match_dispatch(
             ),
             MatchPattern::Value(pattern) => {
                 if matches!(
-                    program.expression_table.expression(pattern),
+                    expression_table(program).expression(pattern),
                     ExpressionNode::ArrayLiteral(_)
                         | ExpressionNode::StructLiteral(_)
                         | ExpressionNode::Range(_)
@@ -145,7 +144,7 @@ pub fn validate_match_dispatch(
                     ).with_source_span(arm.source_span));
                     continue;
                 }
-                if let Some(value) = program.expression_table.boolean_node(pattern) {
+                if let Some(value) = expression_table(program).boolean_node(pattern) {
                     boolean_values[usize::from(*value)] = true;
                 }
                 if !is_scalar_value(program, machine, state, dispatch.subject)
@@ -176,7 +175,7 @@ pub fn validate_match_dispatch(
     {
         diagnostics.push(Diagnostic::error(
             "match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm",
-        ).with_source_span(program.expression_table.source_span(expression)));
+        ).with_source_span(expression_table(program).source_span(expression)));
     }
     if arms.is_empty() {
         return;
@@ -233,9 +232,9 @@ fn is_scalar_value(
             super::ValueClass::Numeric | super::ValueClass::Boolean
         );
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            let arms = program.expression_table.match_arms(dispatch.arms);
+            let arms = expression_table(program).match_arms(dispatch.arms);
             !arms.is_empty()
                 && arms
                     .iter()
@@ -257,8 +256,8 @@ fn check_compatible_values(
     message: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let Some(dispatch) = program.expression_table.match_node(value) {
-        for arm in program.expression_table.match_arms(dispatch.arms) {
+    if let Some(dispatch) = expression_table(program).match_node(value) {
+        for arm in expression_table(program).match_arms(dispatch.arms) {
             check_compatible_values(
                 program,
                 machine,
@@ -271,8 +270,8 @@ fn check_compatible_values(
         }
         return;
     }
-    if let Some(dispatch) = program.expression_table.match_node(peer) {
-        for arm in program.expression_table.match_arms(dispatch.arms) {
+    if let Some(dispatch) = expression_table(program).match_node(peer) {
+        for arm in expression_table(program).match_arms(dispatch.arms) {
             check_compatible_values(
                 program,
                 machine,
@@ -285,7 +284,7 @@ fn check_compatible_values(
         }
         return;
     }
-    let data_symbol = |expression| match program.expression_table.expression(expression) {
+    let data_symbol = |expression| match expression_table(program).expression(expression) {
         ExpressionNode::StructLiteral(literal) if literal.type_symbol.is_valid() => {
             Some(literal.type_symbol)
         }
@@ -331,14 +330,14 @@ fn check_compatible_values(
             (Some(_), None) => {
                 value_class.is_some()
                     || matches!(
-                        program.expression_table.expression(value),
+                        expression_table(program).expression(value),
                         ExpressionNode::ArrayLiteral(_)
                     )
             }
             (None, Some(_)) => {
                 peer_class.is_some()
                     || matches!(
-                        program.expression_table.expression(peer),
+                        expression_table(program).expression(peer),
                         ExpressionNode::ArrayLiteral(_)
                     )
             }
@@ -349,7 +348,7 @@ fn check_compatible_values(
     if mismatch {
         diagnostics.push(
             Diagnostic::error(message)
-                .with_source_span(program.expression_table.source_span(value)),
+                .with_source_span(expression_table(program).source_span(value)),
         );
     }
 }

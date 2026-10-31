@@ -4,6 +4,7 @@
 //! only facts that the write validator has already established at every legal
 //! observation point, and refuses cyclic or unsupported bounds.
 
+use crate::frozen_program::expression_table;
 use typed_trees::data::{DataDefinition, DataField, DataVariant};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -26,7 +27,7 @@ pub(crate) fn where_fact_interval(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
-    let member = program.expression_table.member_node(expression)?;
+    let member = expression_table(program).member_node(expression)?;
     let definition = data_definition_for_expression(program, machine, state, member.receiver)?;
     field_fact_interval(program, definition, member.member.as_str(), 0)
 }
@@ -81,7 +82,7 @@ fn field_fact_interval(
         })
         .collect::<Vec<_>>();
     while let Some(fact_expression) = conjuncts.pop() {
-        let Some(binary) = program.expression_table.binary_node(fact_expression) else {
+        let Some(binary) = expression_table(program).binary_node(fact_expression) else {
             continue;
         };
         if binary.operator == BinaryOperator::And {
@@ -98,7 +99,7 @@ fn field_fact_interval(
             binary.operator,
             BinaryOperator::LessOrEqual | BinaryOperator::Less
         ) && let ExpressionNode::Binary(product) =
-            program.expression_table.expression(binary.left)
+            expression_table(program).expression(binary.left)
             && matches!(product.operator, BinaryOperator::Multiply)
         {
             let factor = if side_selects_field(program, product.left, field_symbol) {
@@ -225,7 +226,7 @@ pub fn impossible_variant(program: &dyn crate::CheckingInput, variant: &DataVari
         .iter()
         .any(|fact| match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                match program.expression_table.expression(*expression) {
+                match expression_table(program).expression(*expression) {
                     ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
                     ExpressionNode::Boolean(value) => !*value,
                     _ => false,
@@ -264,7 +265,7 @@ fn field_intervals(
         .map(|fact| fact.as_expression().copied())
         .collect::<Option<Vec<_>>>()?;
     while let Some(conjunct) = conjuncts.pop() {
-        if let Some(binary) = program.expression_table.binary_node(conjunct)
+        if let Some(binary) = expression_table(program).binary_node(conjunct)
             && binary.operator == BinaryOperator::And
         {
             // Logical conjunction is a sealed compiler connective; authored
@@ -304,7 +305,7 @@ fn conjunct_field_intervals(
                 }
                 // Floats retain their own literal/carrier judgment; they are
                 // never replaced by an integer interval.
-                let value = program.expression_table.integer_node(bound.literal)?;
+                let value = expression_table(program).integer_node(bound.literal)?;
                 let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
                 let (low, high) = match bound.operator {
                     BinaryOperator::LessOrEqual => (None, Some(bound_value)),
@@ -333,7 +334,7 @@ fn literal_comparison_has_builtin_meaning(
     let Some(field) = fields.iter().find(|field| field.symbol == bound.field) else {
         return false;
     };
-    let Some(binary) = program.expression_table.binary_node(bound.conjunct) else {
+    let Some(binary) = expression_table(program).binary_node(bound.conjunct) else {
         return false;
     };
     let spelling = match binary.operator {
@@ -393,7 +394,7 @@ fn exact_predicate_field_intervals(
             if row.extent || row.argument != *actual {
                 return None;
             }
-            let path = program.expression_table.name_path_node(*actual)?;
+            let path = expression_table(program).name_path_node(*actual)?;
             let field = fields
                 .iter()
                 .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?;
@@ -469,7 +470,7 @@ pub(crate) fn data_where_field_representation_bounds(
         .collect::<Option<Vec<_>>>()?;
     let mut normalized = Vec::new();
     while let Some(conjunct) = conjuncts.pop() {
-        if let Some(binary) = program.expression_table.binary_node(conjunct)
+        if let Some(binary) = expression_table(program).binary_node(conjunct)
             && binary.operator == BinaryOperator::And
         {
             // Conjunction is sealed; no authored implementation can replace it.
@@ -527,7 +528,7 @@ fn field_literal_bounds(
         conjuncts.push(*expression);
     }
     while let Some(conjunct) = conjuncts.pop() {
-        let Some(binary) = program.expression_table.binary_node(conjunct) else {
+        let Some(binary) = expression_table(program).binary_node(conjunct) else {
             return None;
         };
         if binary.operator == BinaryOperator::And {
@@ -536,7 +537,7 @@ fn field_literal_bounds(
         }
         let is_literal = |expression| {
             matches!(
-                program.expression_table.expression(expression),
+                expression_table(program).expression(expression),
                 ExpressionNode::Integer(_) | ExpressionNode::Float(_)
             )
         };
@@ -604,10 +605,10 @@ pub(crate) fn stored_field_where_interval(
         if program.expression_table.member_node(target).is_some() {
             break;
         }
-        let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
+        let ExpressionNode::Name(path) = expression_table(program).expression(target) else {
             break;
         };
-        let [name] = program.expression_table.name_path_members(path.members) else {
+        let [name] = expression_table(program).name_path_members(path.members) else {
             break;
         };
         let Some(local) = program
@@ -619,10 +620,7 @@ pub(crate) fn stored_field_where_interval(
         else {
             break;
         };
-        if let Some(borrow) = program
-            .expression_table
-            .borrow_expression(local.initial_value)
-        {
+        if let Some(borrow) = expression_table(program).borrow_expression(local.initial_value) {
             if !matches!(
                 borrow.access,
                 language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::WriteOnly
@@ -634,7 +632,7 @@ pub(crate) fn stored_field_where_interval(
             target = local.initial_value;
         }
     }
-    let member = program.expression_table.member_node(target)?;
+    let member = expression_table(program).member_node(target)?;
     let definition =
         data_definition_for_expression(program, machine, Some(state), member.receiver)?;
     let field = program
@@ -658,8 +656,7 @@ fn side_selects_field(
     field: symbols::SymbolHandle,
 ) -> bool {
     field.is_valid()
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_node(expression)
             .is_some_and(|path| path.symbol == field)
 }
@@ -673,7 +670,7 @@ fn bound_source_interval(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Interval> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => {
             let literal = value
                 .decimal_value_i128()
@@ -732,7 +729,7 @@ fn factor_lower_bound(
     definition: &DataDefinition,
     factor: ExpressionHandle,
 ) -> Option<i64> {
-    let path = program.expression_table.name_path_node(factor)?;
+    let path = expression_table(program).name_path_node(factor)?;
     let factor_symbol = program
         .data_members(definition)
         .iter()
@@ -748,7 +745,7 @@ fn factor_lower_bound(
         let Some(expression) = fact.as_expression() else {
             continue;
         };
-        let Some(binary) = program.expression_table.binary_node(*expression) else {
+        let Some(binary) = expression_table(program).binary_node(*expression) else {
             continue;
         };
         let bound = match binary.operator {

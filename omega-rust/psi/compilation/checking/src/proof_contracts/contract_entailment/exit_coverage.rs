@@ -1,6 +1,7 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
 };
+use crate::frozen_program::expression_table;
 /// Arm-wise entailment judges listed arms. Reusing that result for every
 /// callable exit additionally requires that no implicit path was omitted.
 /// Unsupported coverage stays with the path-sensitive exit prover.
@@ -22,7 +23,7 @@ pub(crate) fn entailment_covers_all_exits(
             || guards.iter().any(|guard| match guard {
                 TransitionGuardNode::Always => true,
                 TransitionGuardNode::When(expression) => matches!(
-                    program.expression_table.expression(*expression),
+                    expression_table(program).expression(*expression),
                     ExpressionNode::Boolean(true)
                 ),
             })
@@ -45,7 +46,7 @@ fn equality_comparisons<T>(
             let TransitionGuardNode::When(expression) = guard else {
                 return None;
             };
-            let Some(comparison) = program.expression_table.binary_node(*expression) else {
+            let Some(comparison) = expression_table(program).binary_node(*expression) else {
                 return None;
             };
             (comparison.operator == BinaryOperator::Equal)
@@ -61,7 +62,7 @@ fn complementary_boolean_guards(
     guards: &[TransitionGuardNode],
 ) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
-        let polarity = program.expression_table.boolean_node(comparison.right)?;
+        let polarity = expression_table(program).boolean_node(comparison.right)?;
         Some(*polarity)
     });
     comparisons.iter().any(|(left, polarity)| {
@@ -76,7 +77,7 @@ fn complete_case_guards(
     guards: &[TransitionGuardNode],
 ) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
-        let Some(case) = program.expression_table.name_path_node(comparison.right) else {
+        let Some(case) = expression_table(program).name_path_node(comparison.right) else {
             return None;
         };
         Some(case.symbol)
@@ -107,8 +108,8 @@ fn same_condition(
     right: ExpressionHandle,
 ) -> bool {
     match (
-        program.expression_table.expression(left),
-        program.expression_table.expression(right),
+        expression_table(program).expression(left),
+        expression_table(program).expression(right),
     ) {
         (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
             return left.operator == right.operator
@@ -116,8 +117,8 @@ fn same_condition(
                 && same_condition(program, left.right, right.right);
         }
         (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
-            let arguments = program.expression_table.expression_handles(left.arguments);
-            let other_arguments = program.expression_table.expression_handles(right.arguments);
+            let arguments = expression_table(program).expression_handles(left.arguments);
+            let other_arguments = expression_table(program).expression_handles(right.arguments);
             let proof_only = crate::proof_only_classification(program);
             return left.target_symbol.is_valid()
                 && left.target_symbol == right.target_symbol
@@ -148,7 +149,7 @@ fn same_condition(
         _ => {}
     }
     fn scalar(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
             ExpressionNode::Name(path) => path.symbol.is_valid(),
             ExpressionNode::Binary(binary) => {
@@ -162,7 +163,5 @@ fn same_condition(
     // Integer equality here retains the full literal, not a lossy i64 view.
     scalar(program, left)
         && scalar(program, right)
-        && program
-            .expression_table
-            .expressions_structurally_equal(left, right)
+        && expression_table(program).expressions_structurally_equal(left, right)
 }

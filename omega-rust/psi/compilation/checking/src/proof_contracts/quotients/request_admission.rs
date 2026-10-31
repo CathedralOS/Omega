@@ -1,5 +1,6 @@
 //! All-or-nothing admission of exact selected quotient operation correspondences.
 
+use crate::frozen_program::expression_table;
 use language_semantics::quotient_correspondence::QuotientCorrespondenceJudgment;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -7,8 +8,7 @@ pub(super) fn extract(
     program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
 ) -> Result<Vec<super::ValidatedQuotientOperation>, Vec<String>> {
-    let requests = program
-        .expression_table
+    let requests = expression_table(program)
         .iter_expressions()
         .filter_map(|(handle, expression)| {
             matches!(expression, ExpressionNode::Call(call) if call.quotient_operation.is_some())
@@ -84,7 +84,7 @@ fn extract_one(
             "a request must be the unique exact terminal result of one owner state".to_owned(),
         );
     };
-    let Some(call) = program.expression_table.call_node(request_expression) else {
+    let Some(call) = expression_table(program).call_node(request_expression) else {
         return Err("the retained request is not a call".to_owned());
     };
     let request = call

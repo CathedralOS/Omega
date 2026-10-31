@@ -9,6 +9,7 @@
 //! references restore that declaration if Build also uses it. This is a typed
 //! input projection, not a checked judgment or post-check product pruning.
 
+use crate::frozen_program::expression_table;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -155,7 +156,7 @@ pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap
                 .then_some(selection.occurrence_id())
             }),
     );
-    let expressions = &original.expression_table;
+    let expressions = expression_table(original);
     program.expression_table.retain_expression_roots(|handle| {
         references.expressions.contains(&handle)
             || expressions
@@ -415,14 +416,12 @@ fn project_declarations(
     // that obligation's discharge site, exactly as in the original program.
     let expressions = selected_references.expressions;
     let excluded = &program.excluded_authored_selection_occurrences;
-    let orphan_obligations = original
-        .expression_table
+    let orphan_obligations = expression_table(original)
         .iter_expressions()
         .map(|(handle, _)| handle)
         .filter(|handle| {
             !original_references.expressions.contains(handle)
-                && original
-                    .expression_table
+                && expression_table(original)
                     .authored_selection_occurrences(*handle)
                     .any(|occurrence| !excluded.contains(occurrence))
         })
@@ -668,20 +667,15 @@ pub fn product_request_operand_occurrences(
 ) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
     let mut occurrences = HashSet::new();
-    for (expression, node) in program.expression_table.iter_expressions() {
+    for (expression, node) in expression_table(program).iter_expressions() {
         let typed_trees::expression::ExpressionNode::Call(call) = node else {
             continue;
         };
-        let Some(request) = program
-            .expression_table
-            .build_selection_request(call.build_selection)
+        let Some(request) = expression_table(program).build_selection_request(call.build_selection)
         else {
             continue;
         };
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+        for occurrence in expression_table(program).authored_selection_occurrences(expression) {
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
                 continue;
             };
@@ -748,8 +742,7 @@ fn materialized_product_operand_occurrences(
     let mut owners = Vec::new();
     for handle in typed.live_product_operand_applications() {
         let application = typed.product_operand_applications.get(handle);
-        let owner = typed
-            .expression_table
+        let owner = expression_table(typed)
             .static_machine_application(application.supplying_application)
             .lexical_owner;
         if !owners.contains(&owner) {

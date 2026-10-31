@@ -6,6 +6,7 @@
 //! as an initializer, call argument, operand, or result.
 
 use super::{Analysis, ExpressionWalk, NEUTRAL};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, dispatch_arm_environments,
 };
@@ -45,8 +46,7 @@ pub(super) fn analyze(
             )
         },
     );
-    for (arm, selected) in program
-        .expression_table
+    for (arm, selected) in expression_table(program)
         .match_arms(dispatch.arms)
         .iter()
         .zip(&environments)

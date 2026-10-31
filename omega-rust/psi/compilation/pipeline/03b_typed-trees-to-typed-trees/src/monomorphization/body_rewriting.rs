@@ -8,6 +8,7 @@
 //! arguments and requirements and `cloned_calls.rs` rewrites cloned calls
 //! and static machine transition targets.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use validation::collect_statement_expression_trees;
 
 mod cloned_calls;
@@ -117,8 +118,7 @@ fn retained_capture_operand(
     if !application.is_valid() {
         return None;
     }
-    program
-        .expression_table
+    expressions_of(program)
         .static_machine_application_bindings(application)
         .iter()
         .find_map(|binding| {
@@ -132,18 +132,18 @@ fn retained_capture_operand(
             if !expression.is_valid() {
                 return None;
             }
-            let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+            let ExpressionNode::Member(member) = expressions_of(program).expression(expression)
             else {
                 return None;
             };
             let ExpressionNode::SavedSubject(saved) =
-                program.expression_table.expression(member.receiver)
+                expressions_of(program).expression(member.receiver)
             else {
                 return None;
             };
             (member.member_symbol == descriptor
                 && program.saved_argument_source(member.receiver) == Some(source)
-                && program.expression_table.value_capture(saved.capture).owner == owner)
+                && expressions_of(program).value_capture(saved.capture).owner == owner)
                 .then_some(expression)
         })
 }
@@ -209,31 +209,27 @@ fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHan
                     ValueCaptureOwner::StatementArgument { call, position }
                 }
             };
-            let capture = program
-                .expression_table
-                .insert_call_operand_capture(source, owner);
-            let receiver = program
-                .expression_table
-                .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+            let capture = expressions_of_mut(program).insert_call_operand_capture(source, owner);
+            let receiver = expressions_of_mut(program).insert(ExpressionNode::SavedSubject(
+                TableSavedSubject {
                     capture,
                     pattern_head: ExpressionHandle::invalid(),
-                }));
+                },
+            ));
             let member = program.symbols.name(descriptor).into();
-            program
-                .expression_table
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver,
-                    member,
-                    member_symbol: descriptor,
-                    case_variant: None,
-                }))
+            expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                member,
+                member_symbol: descriptor,
+                case_variant: None,
+            }))
         }
         OperandPlan::Existing(expression) => expression,
         // Static application metadata must not alias the executable argument.
         // Ordinary operator binding reads this new occurrence in its caller.
-        OperandPlan::Recipe(expression) => program.expression_table.insert_copy(expression),
+        OperandPlan::Recipe(expression) => expressions_of_mut(program).insert_copy(expression),
         OperandPlan::Name(name, symbol) => {
-            insert_subject_name(&mut program.expression_table, name, symbol)
+            insert_subject_name(expressions_of_mut(program), name, symbol)
         }
         OperandPlan::Field {
             receiver_name,
@@ -242,15 +238,13 @@ fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHan
             field,
         } => {
             let receiver =
-                insert_subject_name(&mut program.expression_table, receiver_name, receiver);
-            program
-                .expression_table
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver,
-                    member_symbol: field,
-                    member: field_name,
-                    case_variant: None,
-                }))
+                insert_subject_name(expressions_of_mut(program), receiver_name, receiver);
+            expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                member_symbol: field,
+                member: field_name,
+                case_variant: None,
+            }))
         }
     }
 }
@@ -274,7 +268,7 @@ pub(super) fn cloned_runtime_call_subjects(
                 if (expression.arena_index() as usize) < expression_start {
                     continue;
                 }
-                let Some(call) = program.expression_table.call_node(expression) else {
+                let Some(call) = expressions_of(program).call_node(expression) else {
                     continue;
                 };
                 if state_symbols
@@ -371,7 +365,7 @@ pub(super) fn rewrite_selected_call_with_name(
             let authored_machine_application = if snapshot.authored_machine_application.is_valid() {
                 snapshot.authored_machine_application
             } else {
-                program.expression_table.retain_static_machine_application(
+                expressions_of_mut(program).retain_static_machine_application(
                     snapshot.target_symbol,
                     snapshot.target.clone(),
                     &snapshot.machine_arguments,
@@ -390,15 +384,14 @@ pub(super) fn rewrite_selected_call_with_name(
             stamp_field_subjects(program, authored_machine_application, subjects);
         }
         CallSite::Expression(handle) => {
-            let ExpressionNode::Call(snapshot) =
-                program.expression_table.expression(handle).clone()
+            let ExpressionNode::Call(snapshot) = expressions_of(program).expression(handle).clone()
             else {
                 return;
             };
             if snapshot.native_code_layout.is_some() {
                 // Retarget executable demand only. A query never acquires
                 // runtime operands, selected-machine preconditions or result.
-                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
                 else {
                     unreachable!()
                 };
@@ -408,21 +401,19 @@ pub(super) fn rewrite_selected_call_with_name(
             let authored_machine_application = if snapshot.authored_machine_application.is_valid() {
                 snapshot.authored_machine_application
             } else {
-                program.expression_table.retain_static_machine_application(
+                expressions_of_mut(program).retain_static_machine_application(
                     snapshot.target_symbol,
                     snapshot.target.clone(),
                     &snapshot.machine_arguments,
                 )
             };
-            let mut arguments = program
-                .expression_table
+            let mut arguments = expressions_of(program)
                 .expression_handles(snapshot.arguments)
                 .to_vec();
             insert_subject_operands(&mut arguments, subjects);
-            let new_arguments = program
-                .expression_table
-                .insert_expression_handles(arguments);
-            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            let new_arguments = expressions_of_mut(program).insert_expression_handles(arguments);
+            let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
+            else {
                 unreachable!();
             };
             call.target_symbol = target;
@@ -445,8 +436,7 @@ fn stamp_field_subjects(
     if !application.is_valid() {
         return;
     }
-    let mut bindings = program
-        .expression_table
+    let mut bindings = expressions_of(program)
         .static_machine_application_bindings(application)
         .to_vec();
     let mut operands = operands.iter().copied();
@@ -466,7 +456,5 @@ fn stamp_field_subjects(
             *expression = operand;
         }
     }
-    program
-        .expression_table
-        .set_static_machine_application_bindings(application, &bindings);
+    expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
 }

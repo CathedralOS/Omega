@@ -15,6 +15,7 @@ use super::theorem_schema::{
     TheoremLegalityPremise, TheoremRepresentativeApplication, collect_contract_facts,
 };
 use super::{PositionalRelation, RelationPlanError, RepresentativeTelescope};
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -226,9 +227,7 @@ fn conclusion_matches(
             {
                 return false;
             }
-            let [left, right] = program
-                .expression_table
-                .expression_handles(application.arguments)
+            let [left, right] = expression_table(program).expression_handles(application.arguments)
             else {
                 return false;
             };
@@ -238,7 +237,7 @@ fn conclusion_matches(
             let Some(expression) = actual.as_expression() else {
                 return false;
             };
-            let Some(binary) = program.expression_table.binary_node(*expression) else {
+            let Some(binary) = expression_table(program).binary_node(*expression) else {
                 return false;
             };
             if binary.operator != typed_trees::expression::BinaryOperator::Equal {
@@ -270,7 +269,7 @@ fn representative_application_matches(
     theorem_parameters: &[StateParameter],
     expected: &TheoremRepresentativeApplication,
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return false;
     };
     // The theorem's application must be the representative reached through
@@ -296,7 +295,7 @@ fn representative_application_matches(
     if call.receiver.is_valid() {
         return false;
     }
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     arguments.len() == expected_arguments.len()
         && arguments
             .iter()
@@ -315,7 +314,7 @@ fn expression_is_parameter(
     let Some(parameter) = parameters.get(position) else {
         return false;
     };
-    matches!(program.expression_table.expression(expression),
+    matches!(expression_table(program).expression(expression),
         ExpressionNode::Name(path) if parameter.symbol.is_valid() && path.symbol == parameter.symbol)
 }
 

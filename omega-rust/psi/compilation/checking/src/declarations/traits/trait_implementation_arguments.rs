@@ -4,6 +4,7 @@
 //! Generic forwarding checks the declared evidence contract, while concrete
 //! selection closes the named map and checks its complete trait application.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
@@ -366,11 +367,9 @@ fn validate_retained_implementation_arguments(
                 .map_err(str::to_owned)?;
             let reclosed =
                 close_conformance_application(program, &operand).map_err(|error| error.message)?;
-            let source = typed
-                .expression_table
-                .static_machine_application(selected.supplying_application);
-            let bindings = typed
-                .expression_table
+            let source =
+                expression_table(typed).static_machine_application(selected.supplying_application);
+            let bindings = expression_table(typed)
                 .static_machine_application_bindings(selected.supplying_application);
             if reclosed != selected.application
                 || source.lexical_owner != selected.lexical_owner
@@ -436,14 +435,11 @@ fn validate_retained_implementation_arguments(
         let operand = typed
             .static_operand_from_type_reference(selected.argument)
             .map_err(str::to_owned)?;
-        let source = typed
-            .expression_table
-            .static_machine_application(selected.supplying_application);
-        let arguments = typed
-            .expression_table
+        let source =
+            expression_table(typed).static_machine_application(selected.supplying_application);
+        let arguments = expression_table(typed)
             .static_machine_application_arguments(selected.supplying_application);
-        let bindings = typed
-            .expression_table
+        let bindings = expression_table(typed)
             .static_machine_application_bindings(selected.supplying_application);
         if source.lexical_owner != scope.argument_owner
             || source.registration_operation != scope.declaration.symbol

@@ -14,6 +14,7 @@
 //! carriers still need this check; declared semantic and provenance atoms are
 //! independent obligations even at an integer delivery.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -309,10 +310,7 @@ fn parameter_premise_atoms(
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
-            if !program
-                .expression_table
-                .names_parameter(membership.value, parameter)
-            {
+            if !expression_table(program).names_parameter(membership.value, parameter) {
                 continue;
             }
             append_declared_atom(
@@ -358,7 +356,7 @@ fn append_call_ensured_domain_atoms(
 ) {
     let mut inner = value;
     let call = loop {
-        match program.expression_table.expression(inner) {
+        match expression_table(program).expression(inner) {
             ExpressionNode::Borrow(borrow) => inner = borrow.target,
             ExpressionNode::Atomic(atomic) => inner = atomic.value,
             ExpressionNode::Call(call) => break call,
@@ -476,7 +474,7 @@ fn expression_atoms(
     value: ExpressionHandle,
 ) -> Vec<DomainAtom> {
     let mut atoms = Vec::new();
-    match program.expression_table.expression(value) {
+    match expression_table(program).expression(value) {
         ExpressionNode::Borrow(inner) => {
             return expression_atoms(program, machine, state, inner.target);
         }
@@ -727,9 +725,7 @@ fn qualification_cast_label(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> String {
-    let name = program
-        .expression_table
-        .name_path_string(cast.semantic_domain);
+    let name = expression_table(program).name_path_string(cast.semantic_domain);
     if cast.semantic_domain_arguments.is_empty() {
         return name;
     }

@@ -2,6 +2,7 @@
 //! This consumes its owned graph, resolves names in the original source scope,
 //! and uses the ordinary application owners before immutable checking. It does
 //! not execute a source call, choose a provider, or manufacture a new telescope.
+use crate::tables::expressions_of_mut;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -236,23 +237,17 @@ pub fn prepare_product_requirement_operand(
                 }
             })
             .collect::<Vec<_>>();
-        let application = lower
-            .program
-            .expression_table
-            .retain_static_machine_application(requirement, name, &authored_arguments);
-        let source = lower
-            .program
-            .expression_table
-            .static_machine_application_mut(application);
+        let application = expressions_of_mut(lower.program).retain_static_machine_application(
+            requirement,
+            name,
+            &authored_arguments,
+        );
+        let source = expressions_of_mut(lower.program).static_machine_application_mut(application);
         source.lexical_owner = author;
         source.binding_declaration = requirement;
-        lower
-            .program
-            .expression_table
+        expressions_of_mut(lower.program)
             .set_static_machine_application_bindings(application, &bindings);
-        lower
-            .program
-            .expression_table
+        expressions_of_mut(lower.program)
             .set_static_machine_application_lifetimes(application, &lifetimes);
         let instance = lower
             .program
@@ -552,7 +547,7 @@ impl Lower<'_> {
             let argument = self.operand(value.member);
             self.input_path.pop();
             let argument = argument?;
-            self.program.expression_table.insert_static_member(argument)
+            expressions_of_mut(self.program).insert_static_member(argument)
         } else {
             Handle::invalid()
         };

@@ -11,6 +11,7 @@
 //! any substituted capture still owes its complete definition-to-exit fence.
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::{
     exact_data_member_field, exact_self_field, unwrapped_type_reference,
 };
@@ -230,10 +231,7 @@ fn result_goal(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expression_table(program).expression_at_depth(expression, depth) else {
         return false;
     };
     match node {
@@ -279,7 +277,7 @@ impl ReturnReader<'_, '_> {
             return None;
         }
         let (returned, before) = self.capture(expression, statement, statement, 0)?;
-        if let Some(literal) = self.program.expression_table.integer_node(returned) {
+        if let Some(literal) = expression_table(self.program).integer_node(returned) {
             let value = literal.value_bignum()?;
             typed_trees::closed_numeric::land_integer(&value, self.primitive)?;
             return Some(IntegerRange {
@@ -309,7 +307,7 @@ impl ReturnReader<'_, '_> {
         if depth >= 128 {
             return None;
         }
-        if let Some(cast) = self.program.expression_table.cast_node(expression) {
+        if let Some(cast) = expression_table(self.program).cast_node(expression) {
             if !crate::proof_contracts::arithmetic_domains::unannotated_exact_cast(cast) {
                 return None;
             }
@@ -322,7 +320,7 @@ impl ReturnReader<'_, '_> {
             self.place_type(expression, before, depth + 1)?,
         )?;
         let mut bounds = carrier_bounds(primitive)?;
-        if let Some(path) = self.program.expression_table.name_path_node(expression)
+        if let Some(path) = expression_table(self.program).name_path_node(expression)
             && self
                 .program
                 .state_parameters(self.state)
@@ -368,7 +366,7 @@ impl ReturnReader<'_, '_> {
                 return None;
             }
             depth += 1;
-            let Some(path) = self.program.expression_table.name_path_node(expression) else {
+            let Some(path) = expression_table(self.program).name_path_node(expression) else {
                 break;
             };
             let statements = self
@@ -454,7 +452,7 @@ impl ReturnReader<'_, '_> {
         if !self.stable(condition, before, 0) {
             return;
         }
-        let Some(binary) = self.program.expression_table.binary_node(condition) else {
+        let Some(binary) = expression_table(self.program).binary_node(condition) else {
             return;
         };
         if (binary.operator == BinaryOperator::And && holds)
@@ -485,7 +483,7 @@ impl ReturnReader<'_, '_> {
             BinaryOperator::Equal | BinaryOperator::NotEqual
         ) {
             for (boolean, predicate) in [(binary.left, binary.right), (binary.right, binary.left)] {
-                if let Some(value) = self.program.expression_table.boolean_node(boolean) {
+                if let Some(value) = expression_table(self.program).boolean_node(boolean) {
                     self.refine(
                         predicate,
                         holds == (*value == (binary.operator == BinaryOperator::Equal)),
@@ -505,22 +503,16 @@ impl ReturnReader<'_, '_> {
         let Some((right, _)) = self.capture(binary.right, before, exit, depth + 1) else {
             return;
         };
-        let (endpoint, on_left) = if self
-            .program
-            .expression_table
+        let (endpoint, on_left) = if expression_table(self.program)
             .expressions_structurally_equal(left, returned)
         {
             (right, true)
-        } else if self
-            .program
-            .expression_table
-            .expressions_structurally_equal(right, returned)
-        {
+        } else if expression_table(self.program).expressions_structurally_equal(right, returned) {
             (left, false)
         } else {
             return;
         };
-        let Some(literal) = self.program.expression_table.integer_node(endpoint) else {
+        let Some(literal) = expression_table(self.program).integer_node(endpoint) else {
             return;
         };
         let Some(value) = literal.value_bignum() else {
@@ -561,10 +553,7 @@ impl ReturnReader<'_, '_> {
 
     fn stable(&self, expression: ExpressionHandle, before: usize, depth: usize) -> bool {
         if depth >= 128
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+            || !expression_table(self.program).expression_is_valid(expression)
             || !crate::has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
@@ -574,7 +563,7 @@ impl ReturnReader<'_, '_> {
         {
             return false;
         }
-        let children = match self.program.expression_table.expression(expression) {
+        let children = match expression_table(self.program).expression(expression) {
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 self.place_type(expression, before, depth + 1).is_some()
@@ -589,9 +578,7 @@ impl ReturnReader<'_, '_> {
                 self.stable(binary.left, before, depth + 1)
                     && self.stable(binary.right, before, depth + 1)
             }
-            ExpressionNode::ArrayLiteral(elements) => self
-                .program
-                .expression_table
+            ExpressionNode::ArrayLiteral(elements) => expression_table(self.program)
                 .expression_handles(*elements)
                 .iter()
                 .all(|element| self.stable(*element, before, depth + 1)),
@@ -620,7 +607,7 @@ impl ReturnReader<'_, '_> {
         if depth >= 128 {
             return false;
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(path) => {
                 let statements = self
                     .program
@@ -662,7 +649,7 @@ impl ReturnReader<'_, '_> {
         if depth >= 128 {
             return None;
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(path) => {
                 if crate::expression_traversal::single_segment_name_symbol(self.program, expression)
                     .is_none()
@@ -711,7 +698,7 @@ impl ReturnReader<'_, '_> {
             }
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.place_type(indexed.collection, before, depth + 1)?;
-                let index_type = match self.program.expression_table.expression(indexed.index) {
+                let index_type = match expression_table(self.program).expression(indexed.index) {
                     ExpressionNode::Integer(_) => None,
                     ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                         let reference = self.place_type(indexed.index, before, depth + 1)?;
@@ -724,10 +711,8 @@ impl ReturnReader<'_, '_> {
                 // request, before stage 04 publishes its intrinsic outcome.
                 // Rejoin that one exact occurrence and independently resolve
                 // both ordinary/trait and implicit-borrow indexed meanings.
-                let mut occurrences = self
-                    .program
-                    .expression_table
-                    .authored_selection_occurrences(expression);
+                let mut occurrences =
+                    expression_table(self.program).authored_selection_occurrences(expression);
                 let occurrence = occurrences.next()?;
                 if occurrences.next().is_some()
                     || self
@@ -747,7 +732,7 @@ impl ReturnReader<'_, '_> {
                         self.program,
                         language_core::OperatorSpelling::Index,
                         &[Some(collection), index_type],
-                        self.program.expression_table.source_span(expression),
+                        expression_table(self.program).source_span(expression),
                     )
                     .is_empty()
                 {

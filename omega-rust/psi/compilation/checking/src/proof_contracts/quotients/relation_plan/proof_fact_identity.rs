@@ -6,6 +6,7 @@
 //! identities and the complete static application.
 
 use super::{RepresentativeStaticApplication, RepresentativeStaticBinding};
+use crate::frozen_program::expression_table;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
@@ -380,9 +381,9 @@ pub(super) fn proof_facts_match(
                     })
                 && {
                     let left_arguments =
-                        program.expression_table.expression_handles(left.arguments);
+                        expression_table(program).expression_handles(left.arguments);
                     let right_arguments =
-                        program.expression_table.expression_handles(right.arguments);
+                        expression_table(program).expression_handles(right.arguments);
                     left_arguments.len() == right_arguments.len()
                         && left_arguments
                             .iter()
@@ -460,7 +461,7 @@ fn proof_expression_identity(
     crate::expression_traversal::collect_expression_tree(program, expression, &mut expressions);
     if expressions.iter().any(|expression| {
         matches!(
-            program.expression_table.expression(*expression),
+            expression_table(program).expression(*expression),
             ExpressionNode::SavedSubject(_)
         )
     }) {
@@ -482,13 +483,12 @@ fn expression_symbol_trace(
     values: &[ProofValueSubstitution],
 ) -> String {
     let trace = |expression| expression_symbol_trace(program, expression, values);
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             format!("saved-subject:{}", trace(saved.pattern_head))
         }
         ExpressionNode::Match(dispatch) => {
-            let arms = program
-                .expression_table
+            let arms = expression_table(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .map(|arm| {
@@ -499,8 +499,7 @@ fn expression_symbol_trace(
                         typed_trees::expression::MatchPattern::Wildcard => "wildcard".to_owned(),
                         typed_trees::expression::MatchPattern::Destructure(pattern) => format!(
                             "destructure:[{}]",
-                            program
-                                .expression_table
+                            expression_table(program)
                                 .match_pattern_dependencies(
                                     typed_trees::expression::MatchPattern::Destructure(pattern)
                                 )
@@ -516,7 +515,7 @@ fn expression_symbol_trace(
             format!("match:{}:[{arms}]", trace(dispatch.subject))
         }
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             if members.len() == 1
                 && let Some(value) = values
                     .iter()
@@ -548,8 +547,7 @@ fn expression_symbol_trace(
             } else {
                 Default::default()
             },
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .map(|argument| trace(*argument))
@@ -557,8 +555,7 @@ fn expression_symbol_trace(
                 .join(","),
         ),
         ExpressionNode::ArrayLiteral(values_span) => array_trace(
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(*values_span)
                 .iter()
                 .map(|value| trace(*value)),
@@ -583,8 +580,7 @@ fn expression_symbol_trace(
             "struct:{:?}:{:?}:[{}]",
             value.type_symbol,
             value.case_symbol,
-            program
-                .expression_table
+            expression_table(program)
                 .struct_fields(value.fields)
                 .iter()
                 .map(|field| format!("{:?}={}", field.field_symbol, trace(field.value)))

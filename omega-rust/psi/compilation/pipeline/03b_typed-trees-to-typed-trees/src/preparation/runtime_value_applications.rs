@@ -6,6 +6,7 @@
 //! proof recipes retain declaration staging; inferred result types already
 //! belong to completed operands and must not be evaluated again here.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -57,7 +58,7 @@ fn operands(
                         if let TypeReferenceNode::ConstExpression(expression) =
                             program.type_reference_table.type_reference(*actual)
                             && !matches!(
-                                program.expression_table.expression(*expression),
+                                expressions_of(program).expression(*expression),
                                 ExpressionNode::Integer(_)
                                     | ExpressionNode::Boolean(_)
                                     | ExpressionNode::Float(_)
@@ -192,9 +193,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<diagnostic
             program.statement_table.push_statement(&mut body, statement);
             let source = state.statement_nodes.handle_at(position as u32);
             let target = body.handle_at(body.count() - 1);
-            program
-                .expression_table
-                .relocate_statement_operand_captures(source, target);
+            expressions_of_mut(program).relocate_statement_operand_captures(source, target);
         }
         program.machine_states_mut(&machine)[state_index].statement_nodes = body;
         changed_owners.push(machine.symbol);

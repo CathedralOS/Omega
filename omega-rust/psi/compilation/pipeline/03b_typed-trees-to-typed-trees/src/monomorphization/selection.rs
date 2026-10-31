@@ -6,6 +6,7 @@
 //! `selection_assembly.rs` assembles selections from proposals,
 //! `static_bindings.rs` infers static, fixed-array and domain bindings.
 
+use crate::tables::expressions_of;
 use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
 
@@ -215,7 +216,7 @@ pub(super) fn collect_contract_call_selections(
             // but provide no state telescope for this ordinary call proposal.
             continue;
         };
-        let Some(call) = program.expression_table.call_node(scope.expression) else {
+        let Some(call) = expressions_of(program).call_node(scope.expression) else {
             continue;
         };
         if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
@@ -230,7 +231,7 @@ pub(super) fn collect_contract_call_selections(
             CallSite::Expression(scope.expression),
             call.target_symbol,
             &call.machine_arguments,
-            program.expression_table.expression_handles(call.arguments),
+            expressions_of(program).expression_handles(call.arguments),
             None,
             program
                 .typed_program()
@@ -355,7 +356,7 @@ pub(super) fn collect_call_selections(
                     continue;
                 }
 
-                let Some(call) = program.expression_table.call_node(expression) else {
+                let Some(call) = expressions_of(program).call_node(expression) else {
                     continue;
                 };
                 if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
@@ -371,7 +372,7 @@ pub(super) fn collect_call_selections(
                     CallSite::Expression(expression),
                     call.target_symbol,
                     &call.machine_arguments,
-                    program.expression_table.expression_handles(call.arguments),
+                    expressions_of(program).expression_handles(call.arguments),
                     expected_calls.get(&expression).copied().filter(|expected| {
                         program
                             .typed_program()
@@ -408,7 +409,7 @@ pub(super) fn collect_call_selections(
     // static-machine arguments still determine a complete tuple through the
     // authored machine requirement. Preserve the old all-expression scan for
     // precisely that case.
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expressions_of(program).iter_expressions() {
         if covered_expressions.contains(&handle)
             || contract_expressions.contains(&handle)
             || initializer_recipes.contains(&handle)

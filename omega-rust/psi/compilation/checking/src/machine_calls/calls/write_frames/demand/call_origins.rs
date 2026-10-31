@@ -4,6 +4,7 @@ use super::super::caller_aliases::{
     caller_statement_owner, prefix_reference_origins, with_caller_origin_context,
 };
 use super::{CallFrameResolver, ExpressionHandle, Machine, TableCall};
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames as frames;
 use symbols::JoinedPath;
 
@@ -150,7 +151,7 @@ impl<'program> CallFrameResolver<'program> {
                 program.statement_table.expression_handles(call.arguments),
             ),
             CallerWriteSite::Expression(expression) => {
-                let Some(call) = program.expression_table.call_node(expression) else {
+                let Some(call) = expression_table(program).call_node(expression) else {
                     return None;
                 };
                 let target = typed_trees::operator::resolve_named_expression_call(program, call)
@@ -160,7 +161,7 @@ impl<'program> CallFrameResolver<'program> {
                     call.target.as_str(),
                     call.receiver,
                     frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
-                    program.expression_table.expression_handles(call.arguments),
+                    expression_table(program).expression_handles(call.arguments),
                 )
             }
             CallerWriteSite::Transition(target) => {
@@ -233,16 +234,15 @@ impl<'program> CallFrameResolver<'program> {
                         CallerWriteSite::Call(call) => crate::machine_calls::calls::requirement_namespace_member(
                             program, call.receiver_symbol, call.target_symbol,
                         ),
-                        CallerWriteSite::Expression(expression) => program.expression_table.call_node(expression)
-                            .and_then(|call| program.expression_table.name_path_node(call.receiver)
+                        CallerWriteSite::Expression(expression) => expression_table(program).call_node(expression)
+                            .and_then(|call| expression_table(program).name_path_node(call.receiver)
                                 .map(|receiver| (receiver.symbol, call.target_symbol)))
                             .is_some_and(|(namespace, member)| crate::machine_calls::calls::requirement_namespace_member(
                                 program, namespace, member,
                             )),
                         _ => false,
                     } || match site {
-                    CallerWriteSite::Expression(expression) => program
-                        .expression_table
+                    CallerWriteSite::Expression(expression) => expression_table(program)
                         .call_node(expression)
                         .is_some_and(|call| program.call_has_no_runtime_receiver_for_target(call)),
                     CallerWriteSite::Call(call) => {

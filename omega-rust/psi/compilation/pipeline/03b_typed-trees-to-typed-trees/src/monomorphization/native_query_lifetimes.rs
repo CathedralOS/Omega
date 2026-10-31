@@ -2,6 +2,7 @@
 //! static application custody used by other nested machine selections.
 use super::{CallSite, Diagnostic, ExpressionNode, TypedTrees};
 use crate::expression_roots::append_statement_roots;
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut queries = Vec::new();
@@ -10,7 +11,7 @@ pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             let mut expressions = Vec::new();
             append_statement_roots(program, state, &mut expressions);
             for expression in expressions {
-                if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                if let ExpressionNode::Call(call) = expressions_of(program).expression(expression)
                     && let Some(query) = &call.native_code_layout
                 {
                     queries.push((expression, machine.symbol, query.operand.clone()));
@@ -26,8 +27,7 @@ pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         );
         let lifetimes =
             super::application_lifetimes::bind(program, operand.symbol, &operand, application)?;
-        if !program
-            .expression_table
+        if !expressions_of(program)
             .static_machine_application(application)
             .binding_declaration
             .is_valid()
@@ -38,13 +38,11 @@ pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 .find(|machine| program.machine_or_state_symbol(machine, operand.symbol))
                 .map(|machine| machine.symbol)
                 .unwrap_or(operand.symbol);
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .static_machine_application_mut(application)
                 .binding_declaration = declaration;
         }
-        program
-            .expression_table
+        expressions_of_mut(program)
             .set_static_machine_application_lifetimes(application, &lifetimes);
     }
     Ok(())
