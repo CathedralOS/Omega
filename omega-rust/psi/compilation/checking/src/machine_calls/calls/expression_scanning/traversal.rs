@@ -12,6 +12,7 @@
 
 use super::{CallExpressionUse, validate_expression_call_bounds};
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
@@ -28,7 +29,7 @@ pub(super) fn is_declaration_namespace(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(path) = program.expression_table.name_path_node(expression) else {
+    let Some(path) = expression_table(program).name_path_node(expression) else {
         return false;
     };
     let is_namespace = |symbol: symbols::SymbolHandle| {
@@ -52,8 +53,7 @@ pub(super) fn is_declaration_namespace(
     [path.head_symbol, path.symbol]
         .into_iter()
         .all(is_namespace)
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_member_symbols(path.member_symbols)
             .iter()
             .copied()
@@ -328,7 +328,7 @@ impl ScanContext<'_> {
         // The recursion below may revisit the same missing hop, so an identical
         // message is deduplicated rather than reported per level.
         if matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Member(_) | ExpressionNode::Name(_)
         ) && let Some((container, member)) =
             crate::value_custody::places::first_unknown_nested_field(
@@ -358,7 +358,7 @@ impl ScanContext<'_> {
         // exception, and only for MEMBER access: text carries a `.len` view, so `s.len`
         // is legal. An UNRESOLVED receiver or a struct / array / slice receiver is
         // left alone (those accesses are separate).
-        let primitive_receiver = match program.expression_table.expression(expression) {
+        let primitive_receiver = match expression_table(program).expression(expression) {
             ExpressionNode::Member(member) => Some((member.receiver, Some(member.member.as_str()))),
             ExpressionNode::Indexed(indexed) => Some((indexed.collection, None)),
             _ => None,
@@ -390,9 +390,8 @@ impl ScanContext<'_> {
         // is the current state; retained foreign binding identities cannot be
         // replaced by a coincidentally matching spelling. Qualified paths check
         // their root too, so member access cannot hide an implicit capture.
-        if let Some(path) = program.expression_table.name_path_node(expression)
-            && let Some(first) = program
-                .expression_table
+        if let Some(path) = expression_table(program).name_path_node(expression)
+            && let Some(first) = expression_table(program)
                 .name_path_members(path.members)
                 .first()
         {
@@ -402,8 +401,7 @@ impl ScanContext<'_> {
             } else {
                 path.symbol
             };
-            let bare_identity_matches = program
-                .expression_table
+            let bare_identity_matches = expression_table(program)
                 .name_path_members(path.members)
                 .len()
                 != 1
@@ -430,8 +428,7 @@ impl ScanContext<'_> {
             // remain Member expressions; synthesized runtime Names have one member.
             // Reuse the exact root reconstructed above, including a retained leaf
             // when the head is absent, so malformed custody cannot hide the binding.
-            if program
-                .expression_table
+            if expression_table(program)
                 .name_path_members(path.members)
                 .len()
                 > 1
@@ -458,8 +455,8 @@ impl ScanContext<'_> {
         // head and leaf symbols invalid and would silently read 0 (ZII) in value
         // position (native AND interpreter agree, so the differential cannot catch
         // it). Reject exactly that shape: both symbols unresolved.
-        if let Some(path) = program.expression_table.name_path_node(expression)
-            && let [scope, tail] = program.expression_table.name_path_members(path.members)
+        if let Some(path) = expression_table(program).name_path_node(expression)
+            && let [scope, tail] = expression_table(program).name_path_members(path.members)
             && !path.head_symbol.is_valid()
             && !path.symbol.is_valid()
         {
@@ -473,7 +470,7 @@ impl ScanContext<'_> {
                 tail.as_str(),
             )));
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 crate::value_custody::expression_types::validate_match_dispatch(
@@ -496,8 +493,7 @@ impl ScanContext<'_> {
                 self.scan(dispatch.subject, value_environment, executes);
                 let mut remaining_executes = executes;
                 let mut boolean_values = [false; 2];
-                for (arm, environment) in program
-                    .expression_table
+                for (arm, environment) in expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .zip(&environments)
@@ -505,7 +501,7 @@ impl ScanContext<'_> {
                     let selected = match arm.pattern {
                         typed_trees::expression::MatchPattern::Destructure(_) => {
                             for operand in
-                                program.expression_table.match_pattern_operands(arm.pattern)
+                                expression_table(program).match_pattern_operands(arm.pattern)
                             {
                                 self.scan(operand, environment, remaining_executes);
                             }
@@ -514,12 +510,12 @@ impl ScanContext<'_> {
                         typed_trees::expression::MatchPattern::Wildcard => Some(true),
                         typed_trees::expression::MatchPattern::Value(pattern) => {
                             self.scan(pattern, value_environment, remaining_executes);
-                            if let Some(value) = program.expression_table.boolean_node(pattern) {
+                            if let Some(value) = expression_table(program).boolean_node(pattern) {
                                 boolean_values[usize::from(*value)] = true;
                             }
                             match (
-                            program.expression_table.expression(dispatch.subject),
-                            program.expression_table.expression(pattern),
+                            expression_table(program).expression(dispatch.subject),
+                            expression_table(program).expression(pattern),
                         ) {
                             (
                                 ExpressionNode::Boolean(subject),
@@ -567,7 +563,7 @@ impl ScanContext<'_> {
                 let call = call.clone();
                 if executes
                     && call.exact_coercion_target.is_valid()
-                    && let [operand] = program.expression_table.expression_handles(call.arguments)
+                    && let [operand] = expression_table(program).expression_handles(call.arguments)
                 {
                     crate::value_custody::expression_types::validate_exact_float_coercion(
                         program,
@@ -618,7 +614,7 @@ impl ScanContext<'_> {
             {
                 self.scan(call.receiver, value_environment, executes);
             }
-                for argument in program.expression_table.expression_handles(call.arguments) {
+                for argument in expression_table(program).expression_handles(call.arguments) {
                     self.scan(*argument, value_environment, executes);
                 }
             }
@@ -669,7 +665,7 @@ impl ScanContext<'_> {
                         && !matches!(
                             (
                                 binary.operator,
-                                program.expression_table.expression(binary.left)
+                                expression_table(program).expression(binary.left)
                             ),
                             (BinaryOperator::And, ExpressionNode::Boolean(false))
                                 | (BinaryOperator::Or, ExpressionNode::Boolean(true))
@@ -749,13 +745,13 @@ impl ScanContext<'_> {
             }
             ExpressionNode::ArrayLiteral(elements) => {
                 let elements = *elements;
-                for element in program.expression_table.expression_handles(elements) {
+                for element in expression_table(program).expression_handles(elements) {
                     self.scan(*element, value_environment, executes);
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
                 let fields = literal.fields;
-                for field in program.expression_table.struct_fields(fields) {
+                for field in expression_table(program).struct_fields(fields) {
                     self.scan(field.value, value_environment, executes);
                 }
             }

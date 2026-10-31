@@ -3,6 +3,7 @@
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, ProofFact,
 };
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{DispatchSelection, dispatch_arm_contexts};
 fn proof_builtin_type(
     program: &dyn crate::CheckingInput,
@@ -69,7 +70,7 @@ pub fn proof_integer_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Call(call)
             if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) =>
         {
@@ -212,7 +213,7 @@ fn validate_proof_integer_formation(
             )
         };
     }
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+    if let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) {
         let diagnostics_before = diagnostics.len();
         form_child!(dispatch.subject, selections);
         let subject_formed = diagnostics.len() == diagnostics_before;
@@ -224,8 +225,7 @@ fn validate_proof_integer_formation(
         let stable = subject_formed
             && crate::CallFrameResolver::new(program).is_some_and(|frames| {
                 frames.declaration_expression_has_empty_write_frame(expression, &|expression| {
-                    program
-                        .expression_table
+                    expression_table(program)
                         .binary_node(expression)
                         .is_some_and(|binary| meaning.selected_binary_meaning(expression, binary))
                 })
@@ -251,8 +251,7 @@ fn validate_proof_integer_formation(
                 }
             },
         );
-        for (arm, context) in program
-            .expression_table
+        for (arm, context) in expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .zip(&contexts)
@@ -265,12 +264,12 @@ fn validate_proof_integer_formation(
     // does not normalize the child (notably integer quotient and remainder).
     crate::expression_traversal::children(
         program,
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         |child| {
             form_child!(child, selections);
         },
     );
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Cast(cast) => {
             if program
                 .named_type_reference(cast.target_type)
@@ -339,10 +338,7 @@ pub(crate) fn validate_proof_fact_integer_formation(
             diagnostics,
         ),
         ProofFact::Proposition(application) => {
-            for argument in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
+            for argument in expression_table(program).expression_handles(application.arguments) {
                 validate_proof_integer_formation(
                     program,
                     owner_symbol,

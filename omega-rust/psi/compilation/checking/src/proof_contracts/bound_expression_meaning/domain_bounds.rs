@@ -7,6 +7,7 @@ use super::builtin_type_reference;
 use super::definition_membership::{
     exact_domain_subject_type, facts_contain_expression, has_exact_domain_definition,
 };
+use crate::frozen_program::expression_table;
 use language_core::OperatorSpelling;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -25,13 +26,11 @@ pub fn has_exact_integer_domain_subject(
     if !has_exact_domain_definition(program, domain) {
         return false;
     }
-    let subject_type = match program.expression_table.expression(expression) {
+    let subject_type = match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             if crate::expression_traversal::single_segment_name_symbol(program, expression)
                 .is_none()
-                || program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols)
+                || expression_table(program).name_path_member_symbols(path.member_symbols)
                     != [path.symbol]
             {
                 return false;
@@ -91,14 +90,14 @@ pub fn has_builtin_domain_decomposed_guard_meaning(
     domain: &DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression)
+    if !expression_table(program).expression_is_valid(expression)
         || !has_exact_domain_definition(program, domain)
         || !facts_contain_expression(program, domain.facts, expression)
     {
         return false;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return matches!(program.expression_table.expression(expression),
+    let Some(binary) = expression_table(program).binary_node(expression) else {
+        return matches!(expression_table(program).expression(expression),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot);
     };
     let spelling = match binary.operator {
@@ -128,7 +127,7 @@ fn operand_type(
     domain: &DomainDefinition,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(_) => {
             exact_domain_subject_type(program, domain, expression).or_else(|| {
                 crate::value_custody::expression_types::domain_expression_result_type_reference(

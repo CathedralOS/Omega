@@ -5,6 +5,7 @@
 //! every finite arithmetic node, before publishing its value to its parent.
 
 use super::{ScopedArithmeticExpression, ScopedArithmeticHypothesis, calls, install_hypotheses};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::arithmetic_judgment::Engine;
 use typed_trees::machine::Machine;
 use typed_trees::types::PrimitiveType;
@@ -28,10 +29,7 @@ pub fn scoped_declared_integer_application_is_formed(
     let Some(formal) = declaration.parameter.as_ref() else {
         return false;
     };
-    if program
-        .expression_table
-        .expression_handles(declaration.body)
-        != [expression.expression]
+    if expression_table(program).expression_handles(declaration.body) != [expression.expression]
         || program.primitive_type_reference(declaration.return_type) != Some(result)
     {
         return false;

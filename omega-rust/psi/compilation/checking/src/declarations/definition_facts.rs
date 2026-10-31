@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use arena::{Handle, HandleSpan};
 use typed_trees::data::DataMember;
 use typed_trees::domain::ProofFact;
@@ -128,10 +129,7 @@ fn visit_proof_fact_expressions(
         ProofFact::Expression(expression) => visit(*expression),
         ProofFact::Membership(membership) => visit(membership.value),
         ProofFact::Proposition(application) => {
-            for argument in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
+            for argument in expression_table(program).expression_handles(application.arguments) {
                 visit(*argument);
             }
         }
@@ -172,11 +170,11 @@ fn append_expression_dependency_places<D>(
     if !expression.is_valid() {
         return;
     }
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     match node {
         ExpressionNode::Member(member)
             if matches!(
-                program.expression_table.expression(member.receiver),
+                expression_table(program).expression(member.receiver),
                 ExpressionNode::Call(_)
             ) =>
         {
@@ -255,15 +253,14 @@ fn append_data_expression_place(
 ) -> PlaceHandle {
     use typed_trees::expression::ExpressionNode;
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => {
             append_data_expression_place(program, facts, data, inner.target)
         }
         ExpressionNode::Name(path) => {
-            let member_names = program.expression_table.name_path_members(path.members);
-            let member_symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let member_names = expression_table(program).name_path_members(path.members);
+            let member_symbols =
+                expression_table(program).name_path_member_symbols(path.member_symbols);
             if member_names.is_empty() {
                 return facts.append_place_from_expression(program, expression);
             }
@@ -409,7 +406,7 @@ fn append_domain_expression_place(
 ) -> PlaceHandle {
     use typed_trees::expression::ExpressionNode;
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => {
             append_domain_expression_place(program, facts, domain_target, inner.target)
         }

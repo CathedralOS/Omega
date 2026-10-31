@@ -2,6 +2,7 @@
 //! This classifies the named storage only; flow checking must establish its
 //! availability and each selected transfer's residual ownership independently.
 
+use crate::frozen_program::expression_table;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -16,7 +17,7 @@ pub fn value_preserving_cast_operand(
     statement: usize,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let cast = program.expression_table.cast_node(expression)?;
+    let cast = expression_table(program).cast_node(expression)?;
     if cast.form.is_recast()
         || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
         || program.primitive_type_reference(cast.target_type).is_some()
@@ -70,10 +71,9 @@ pub fn whole_owned_value_source(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let path = program.expression_table.name_path_node(expression)?;
+    let path = expression_table(program).name_path_node(expression)?;
     if path.symbol != path.head_symbol
-        || program
-            .expression_table
+        || expression_table(program)
             .name_path_members(path.members)
             .len()
             != 1

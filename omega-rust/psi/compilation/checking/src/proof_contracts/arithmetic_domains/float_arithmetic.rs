@@ -4,6 +4,7 @@
 //! Exact coercions require integrality; named conversions may truncate. Both
 //! consume the same source evidence without replaying operand syntax.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
 use crate::proof_contracts::arithmetic_domains::value_environment::{
@@ -24,7 +25,7 @@ pub(crate) fn float_literal_value(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<f64> {
-    let node = program.expression_table.peeled_expression(value);
+    let node = expression_table(program).peeled_expression(value);
     match node {
         ExpressionNode::Float(literal) => Some(literal.landed_f64()),
         ExpressionNode::Cast(cast) => {
@@ -48,7 +49,7 @@ pub(crate) fn float_literal_value(
             if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
                 return None;
             }
-            let [operand] = program.expression_table.expression_handles(call.arguments) else {
+            let [operand] = expression_table(program).expression_handles(call.arguments) else {
                 return None;
             };
             let value = float_literal_value(program, *operand)?;
@@ -175,8 +176,8 @@ pub(crate) fn float_source_bounds(
     let primitive = reference
         .and_then(|reference| program.primitive_type_reference(reference))
         .filter(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))?;
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
-        let arms = program.expression_table.match_arms(dispatch.arms);
+    if let ExpressionNode::Match(dispatch) = expression_table(program).expression(value) {
+        let arms = expression_table(program).match_arms(dispatch.arms);
         if !arms.is_empty() {
             let mut minimum = f64::INFINITY;
             let mut maximum = f64::NEG_INFINITY;
@@ -203,8 +204,7 @@ pub(crate) fn float_source_bounds(
     }
     let declared =
         reference.and_then(|reference| float_range_constraint_interval(program, reference));
-    let guaranteed = program
-        .expression_table
+    let guaranteed = expression_table(program)
         .call_node(value)
         .filter(|call| call.selects_only_nominal_route())
         .and_then(|call| {
@@ -221,7 +221,7 @@ pub(crate) fn float_source_bounds(
     // A still-anonymous literal receives its format from the authenticated
     // observation type. Round its decimal directly, especially for f32;
     // already-landed literals keep the ordinary closed-value query.
-    let literal = match program.expression_table.peeled_expression(value) {
+    let literal = match expression_table(program).peeled_expression(value) {
         ExpressionNode::Float(literal) if literal.landing().is_none() => Some(match primitive {
             PrimitiveType::F32 => f64::from(literal.value_f32()),
             PrimitiveType::F64 => literal.value_f64(),
@@ -266,7 +266,7 @@ fn numeric_conversion_bounds(
     expression: ExpressionHandle,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<FloatInterval> {
-    if let Some(cast) = program.expression_table.cast_node(expression) {
+    if let Some(cast) = expression_table(program).cast_node(expression) {
         if cast.form.is_recast() {
             return None;
         }
@@ -277,10 +277,10 @@ fn numeric_conversion_bounds(
         // a rounded output enclosure cannot discharge that obligation.
         return converted_float_interval(&bounds, target);
     }
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
     let (source, target) = crate::numeric_float_conversion_contract(program, operator)?;
-    let [operand] = program.expression_table.expression_handles(call.arguments) else {
+    let [operand] = expression_table(program).expression_handles(call.arguments) else {
         return None;
     };
     if let Some((integer, converted, minimum, maximum)) =

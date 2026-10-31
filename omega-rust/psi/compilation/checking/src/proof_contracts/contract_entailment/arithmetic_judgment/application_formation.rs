@@ -3,6 +3,7 @@
 //! complete produced value and its proven carrier facts may escape.
 
 use super::{Engine, Polynomial};
+use crate::frozen_program::expression_table;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
@@ -22,10 +23,7 @@ impl Engine<'_> {
         if !formal.symbol.is_valid() || program.symbols.get(formal.symbol).parent != measure {
             return None;
         }
-        let [body] = program
-            .expression_table
-            .expression_handles(declaration.body)
-        else {
+        let [body] = expression_table(program).expression_handles(declaration.body) else {
             return None;
         };
         let primitive = program.primitive_type_reference(declaration.return_type)?;
@@ -74,7 +72,7 @@ fn formed_value(
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
         return engine.normalize(expression);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => formed_value(engine, program, atomic.value, depth + 1),
         ExpressionNode::Cast(cast)
             if !cast.form.is_recast()
@@ -122,7 +120,7 @@ fn formed_value(
             let mut has_children = false;
             crate::expression_traversal::executable_children(
                 program,
-                program.expression_table.expression(expression),
+                expression_table(program).expression(expression),
                 |_| has_children = true,
             );
             if has_children {

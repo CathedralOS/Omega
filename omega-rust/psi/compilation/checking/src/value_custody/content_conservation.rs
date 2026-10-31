@@ -10,6 +10,7 @@ mod normalization;
 
 pub use normalization::{data_variant_name, push_structural_field};
 
+use crate::frozen_program::expression_table;
 use normalization::{NormalizationContext, normalize_equation};
 
 use arena::Arena;
@@ -377,7 +378,7 @@ fn collect_content_conservation_plans(
     // Arena allocation is not executable ownership: callable application can
     // leave replaced proof copies behind. Inspect live non-contract uses;
     // sharing a handle with a proof occurrence does not excuse an executable use.
-    for (handle, node) in program.expression_table.iter_expressions() {
+    for (handle, node) in expression_table(program).iter_expressions() {
         let ExpressionNode::Call(call) = node else {
             continue;
         };
@@ -487,8 +488,8 @@ fn collect_callable_plans(
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "callable `{label}` publishes more than one content-conservation equation for the same qualification owner and algebra (facts `{}` and `{}`); author one normalized equation per outcome row and qualification owner",
-                    program.expression_table.display_name(first.source_expression),
-                    program.expression_table.display_name(*expression),
+                    expression_table(program).display_name(first.source_expression),
+                    expression_table(program).display_name(*expression),
                 )));
                 continue;
             }
@@ -577,7 +578,7 @@ pub(crate) fn intrinsic_result_type_reference(
     {
         return None;
     }
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     match function {
         BuiltinFunction::ContentOld if arguments.len() == 1 => operand_type(arguments[0]),
         BuiltinFunction::ContentSeparate if arguments.len() >= 2 => {
@@ -626,7 +627,7 @@ fn expression_uses_content_surface(
     if !expression.is_valid() {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
                 .any(|child| expression_uses_content_surface(program, projections, child))
@@ -636,8 +637,7 @@ fn expression_uses_content_surface(
                 || is_separate_call(program, call)
                 || projection_plan_for_call(program, projections, call).is_some()
                 || expression_uses_content_surface(program, projections, call.receiver)
-                || program
-                    .expression_table
+                || expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| {
@@ -671,13 +671,11 @@ fn expression_uses_content_surface(
             expression_uses_content_surface(program, projections, range.start)
                 || expression_uses_content_surface(program, projections, range.end)
         }
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(items) => expression_table(program)
             .expression_handles(*items)
             .iter()
             .any(|item| expression_uses_content_surface(program, projections, *item)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_uses_content_surface(program, projections, field.value)),
@@ -698,7 +696,7 @@ fn collect_expression_nodes(
     }
     crate::expression_traversal::children(
         program,
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         |child| collect_expression_nodes(program, child, nodes),
     );
 }

@@ -26,6 +26,7 @@
 mod row_descriptions;
 pub use row_descriptions::{describe_dynamic_conformances, normalized_dynamic_row_identities};
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -94,7 +95,7 @@ pub fn collect_dynamic_implementation_selections(
             &mut selections,
             &mut diagnostics,
         );
-        if let Some(cast) = program.expression_table.cast_node(root)
+        if let Some(cast) = expression_table(program).cast_node(root)
             && matches!(
                 program
                     .type_reference_table
@@ -129,7 +130,7 @@ fn collect_selections_in(
         return;
     }
     visited.push(expression);
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     crate::expression_traversal::children(program, node, |child| {
         collect_selections_in(
             program,
@@ -154,7 +155,7 @@ fn collect_selections_in(
     else {
         return;
     };
-    let implementation = match program.expression_table.expression(cast.value) {
+    let implementation = match expression_table(program).expression(cast.value) {
         ExpressionNode::Name(name)
             if name.symbol.is_valid()
                 && program.symbols.get(name.symbol).kind == symbols::SymbolKind::Conformance =>
@@ -164,7 +165,7 @@ fn collect_selections_in(
         _ => {
             diagnostics.push(Diagnostic::error(format!(
                 "`{}` converts a value to `dyn {trait_name}`; a selector is constructed from a named implementation (`Implementation as dyn {trait_name}<...>`) and the data is passed to each call",
-                cast.display_name(&program.expression_table)
+                cast.display_name(expression_table(program))
             )));
             return;
         }
@@ -352,7 +353,7 @@ fn collect_call_demands_in(
         return;
     }
     visited.push(expression);
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     crate::expression_traversal::children(program, node, |child| {
         collect_call_demands_in(program, machine, state, child, visited, push)
     });
@@ -379,7 +380,7 @@ pub fn dynamic_expression_call_demand(
             call.receiver,
         ),
         call.target_symbol,
-        program.expression_table.expression_handles(call.arguments),
+        expression_table(program).expression_handles(call.arguments),
     )
 }
 
@@ -698,14 +699,14 @@ fn collect_dynamic_expression_call_updates(
             )
         };
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             for child in crate::expression_traversal::match_children(program, *dispatch) {
                 visit!(child);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
+            for element in expression_table(program).expression_handles(*elements) {
                 visit!(*element);
             }
         }
@@ -741,8 +742,7 @@ fn collect_dynamic_expression_call_updates(
                     None
                 }
             };
-            let namespace = program
-                .expression_table
+            let namespace = expression_table(program)
                 .name_path_node(receiver_expression)
                 .map_or_else(symbols::SymbolHandle::invalid, |path| path.symbol);
             // Preparation can already have closed this target. Its authored
@@ -761,7 +761,7 @@ fn collect_dynamic_expression_call_updates(
                     program.trait_definition_by_symbol(namespace).is_some(),
                     call.target.as_str(),
                     call.target_symbol,
-                    program.expression_table.source_span(expression),
+                    expression_table(program).source_span(expression),
                     diagnostics,
                 )
                 && !updates
@@ -771,7 +771,7 @@ fn collect_dynamic_expression_call_updates(
                 updates.push((expression, requirement));
             }
             visit!(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            for argument in expression_table(program).expression_handles(call.arguments) {
                 visit!(*argument);
             }
         }
@@ -786,7 +786,7 @@ fn collect_dynamic_expression_call_updates(
             visit!(range.end);
         }
         ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
+            for field in expression_table(program).struct_fields(literal.fields) {
                 visit!(field.value);
             }
         }

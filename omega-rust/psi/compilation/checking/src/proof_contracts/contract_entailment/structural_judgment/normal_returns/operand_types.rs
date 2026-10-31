@@ -10,6 +10,7 @@
 use super::super::super::specification_calls::{
     SelectedCallContract, call_parameter_scope, owner_leading_operands, selected_call_contract,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::TypeReferenceHandle;
@@ -55,8 +56,7 @@ pub(super) fn receiving_types(
                 crate::CallSite::Expression { expression, call },
             )?;
             let leading = owner_leading_operands(&owner);
-            if program
-                .expression_table
+            if expression_table(program)
                 .expression_handles(call.arguments)
                 .len()
                 != leading + parameters.len()
@@ -77,15 +77,13 @@ pub(super) fn receiving_types(
             )?;
             Some(vec![
                 element;
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(*elements)
                     .len()
             ])
         }
         ExpressionNode::StructLiteral(literal) => Some(
-            program
-                .expression_table
+            expression_table(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .map(|field| {

@@ -1,5 +1,6 @@
 //! Expressions whose exact metadata/field coordinates enter one range judgment.
 use super::{ExpressionHandle, Machine, RankingRangeMeasure, RankingRangePremises, State};
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionNode, TableRangeExpression};
 
 pub(super) fn expressions(
@@ -48,9 +49,7 @@ pub(super) fn for_each_projection_expression(
         .map(|expression| (*expression, 0))
         .collect::<Vec<_>>();
     while let Some((expression, depth)) = pending.pop() {
-        let node = program
-            .expression_table
-            .expression_at_depth(expression, depth)?;
+        let node = expression_table(program).expression_at_depth(expression, depth)?;
         let mut visit = |child: ExpressionHandle| {
             if child.is_valid() {
                 pending.push((child, depth + 1));

@@ -1,5 +1,6 @@
 //! Conservative symbolic evaluation for default-domain invariant checks.
 
+use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
@@ -42,7 +43,7 @@ pub(super) fn literal_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<LiteralValue> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => value.decimal_value_i128().map(LiteralValue::Integer),
         ExpressionNode::Float(value) => {
             use numerics::float_semantics::{FloatFormat, FloatSemantics};
@@ -104,11 +105,11 @@ pub(super) fn struct_literal_snapshot(
     Vec<(String, Option<LiteralValue>)>,
     Vec<(String, SymbolicValue)>,
 ) {
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
+    let ExpressionNode::StructLiteral(literal) = expression_table(program).expression(expression)
     else {
         return (Vec::new(), Vec::new());
     };
-    let fields = program.expression_table.struct_fields(literal.fields);
+    let fields = expression_table(program).struct_fields(literal.fields);
     let values = fields
         .iter()
         .map(|field| {
@@ -135,7 +136,7 @@ pub(super) fn mentions_float(
     definition: &typed_trees::data::DataDefinition,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Name(path) => {
             let is_float_field = |field: &typed_trees::data::DataField| {
@@ -182,7 +183,7 @@ pub(super) fn integer_literal_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<i128> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => value.decimal_value_i128(),
         ExpressionNode::Borrow(inner) => integer_literal_value(program, inner.target),
         _ => None,
@@ -202,7 +203,7 @@ pub(super) fn fold(
     active_case: Option<symbols::SymbolHandle>,
     expression: ExpressionHandle,
 ) -> Option<i128> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             // Application views retain authored predicate symbols. A static
             // binder reads its exact application argument, never a field's
@@ -213,8 +214,7 @@ pub(super) fn fold(
                 return applied_const_integer(program, definition, path.symbol)
                     .map(|(_, value)| value);
             }
-            let last = program
-                .expression_table
+            let last = expression_table(program)
                 .name_path_members(path.members)
                 .last()?
                 .as_str();
@@ -231,11 +231,10 @@ pub(super) fn fold(
         ExpressionNode::Member(member)
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
-            let Some(path) = program.expression_table.name_path_node(member.receiver) else {
+            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
                 return None;
             };
-            let field = program
-                .expression_table
+            let field = expression_table(program)
                 .name_path_members(path.members)
                 .last()?
                 .as_str();
@@ -268,8 +267,7 @@ pub(super) fn fold(
             // unknown case stays unknown. Either side of `||` can carry the
             // predicate, and either side of `&&` can refute it.
             if binary.operator == BinaryOperator::CaseMembership
-                || program
-                    .expression_table
+                || expression_table(program)
                     .authored_selection_occurrences(expression)
                     .any(|occurrence| {
                         program
@@ -399,10 +397,10 @@ fn subject_field(
     definition: &typed_trees::data::DataDefinition,
     receiver: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(receiver) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(receiver) else {
         return false;
     };
-    let members = program.expression_table.name_path_members(path.members);
+    let members = expression_table(program).name_path_members(path.members);
     members.len() == 1
         && (path.symbol == definition.predicate_subject_symbol || members[0].as_str() == "self")
 }
@@ -415,12 +413,11 @@ fn case_membership_value(
     active_case: Option<symbols::SymbolHandle>,
 ) -> Option<i128> {
     let active = active_case.filter(|symbol| symbol.is_valid())?;
-    let path = program.expression_table.name_path_node(case)?;
+    let path = expression_table(program).name_path_node(case)?;
     if path.resolved_symbol() == Some(active) {
         return Some(1);
     }
-    let spelled = program
-        .expression_table
+    let spelled = expression_table(program)
         .name_path_members(path.members)
         .last()?
         .as_str();
@@ -504,7 +501,7 @@ pub(super) fn expression_symbolic_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolicValue> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => {
             Some(SymbolicValue::Atom(path.symbol))
         }
@@ -570,10 +567,9 @@ fn symbolic_operand(
     symbols: &[(String, SymbolicValue)],
     expression: ExpressionHandle,
 ) -> Option<SymbolicValue> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
-            let field = program
-                .expression_table
+            let field = expression_table(program)
                 .name_path_members(path.members)
                 .last()?
                 .as_str();
@@ -599,7 +595,7 @@ pub(super) fn expression_sequence_measures(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(Option<i128>, Option<i128>)> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::String(literal) => {
             let measure = i128::try_from(literal.len()).ok();
             Some((measure, measure))

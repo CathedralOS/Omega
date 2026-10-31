@@ -10,6 +10,7 @@
 //! evidence; no declaration-only or initializer-replay engine fills it in.
 //! Predicate discharge and authorized provenance remain independent obligations.
 
+use crate::frozen_program::expression_table;
 use crate::program_validation::{ExpressionInterval, expression_interval};
 use crate::{ScopedArithmeticValue, StrictArithmeticImplicationJudgment};
 use diagnostics::Diagnostic;
@@ -25,7 +26,7 @@ pub(crate) fn validate(
     // Preparation leaves replaced recipes in the arena. Only expressions
     // reached from the current declarations still owe value judgments.
     let references = typed_trees::references::collect_program_references(program.typed_program());
-    for (expression, node) in program.expression_table.expression_entries() {
+    for (expression, node) in expression_table(program).expression_entries() {
         if let ExpressionNode::Cast(cast) = node
             && !cast.semantic_domain.is_empty()
             && references.expressions.contains(&expression)
@@ -50,9 +51,7 @@ fn judge_qualification_cast(
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let members = program
-        .expression_table
-        .name_path_members(cast.semantic_domain);
+    let members = expression_table(program).name_path_members(cast.semantic_domain);
     let base_name = members.joined_path();
     let mut name = base_name.clone();
     if !cast.semantic_domain_arguments.is_empty() {
@@ -158,7 +157,7 @@ fn operand_mint_judgment(
     cast: &TableCastExpression,
     source: Option<&ExpressionInterval>,
 ) -> MintJudgment {
-    let value = if let Some(literal) = program.expression_table.integer_node(cast.value)
+    let value = if let Some(literal) = expression_table(program).integer_node(cast.value)
         && let Some(value) = literal.decimal_value_bignum()
     {
         ScopedArithmeticValue::Integer(value)

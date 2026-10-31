@@ -7,6 +7,7 @@
 //! statement before it; the judgment is statement order.
 
 use super::source_liveness::{expression_uses_symbol, statement_uses_symbol};
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -59,9 +60,8 @@ fn whole_local_target(
     program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let path = program.expression_table.name_path_node(target)?;
-    (program
-        .expression_table
+    let path = expression_table(program).name_path_node(target)?;
+    (expression_table(program)
         .name_path_members(path.members)
         .len()
         == 1

@@ -3,6 +3,7 @@ use super::{
     ExpressionNode, Machine, ReferenceAccess, State, TypeReferenceHandle, TypeReferenceNode,
     WriteOnlyRoot, receiver,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::statement::TableLocalData;
 
 /// Resolve a formation once, including selector evaluation and exact referee
@@ -27,8 +28,8 @@ pub(super) fn validate(
         "machine `{}` state `{}` captures `{}` of type `{}` as `&write {}`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected",
         machine.name,
         state.name,
-        program.expression_table.display_name(
-            match program.expression_table.expression(local.initial_value) {
+        expression_table(program).display_name(
+            match expression_table(program).expression(local.initial_value) {
                 ExpressionNode::Borrow(borrow) => borrow.target,
                 _ => local.initial_value,
             }
@@ -50,11 +51,7 @@ fn capture(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
-    if local.is_mutable
-        || !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-    {
+    if local.is_mutable || !expression_table(program).expression_is_valid(local.initial_value) {
         return None;
     }
     let TypeReferenceNode::Reference {
@@ -67,10 +64,7 @@ fn capture(
     else {
         return None;
     };
-    let Some(borrow) = program
-        .expression_table
-        .borrow_expression(local.initial_value)
-    else {
+    let Some(borrow) = expression_table(program).borrow_expression(local.initial_value) else {
         return None;
     };
     if borrow.access != ReferenceAccess::WriteOnly

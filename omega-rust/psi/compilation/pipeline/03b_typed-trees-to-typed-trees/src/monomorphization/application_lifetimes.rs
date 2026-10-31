@@ -3,6 +3,7 @@
 //! authored argument; no borrow occurrence may guess away that telescope.
 
 use super::{Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees, failed};
+use crate::tables::expressions_of;
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineLifetimeBinding,
 };
@@ -30,8 +31,7 @@ pub(super) fn bind(
             "nested machine lifetime arguments do not match its complete declared telescope",
         )]);
     }
-    let owner = program
-        .expression_table
+    let owner = expressions_of(program)
         .static_machine_application(invocation)
         .lexical_owner;
     let owner = program.machine_by_symbol(owner).ok_or_else(|| {

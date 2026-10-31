@@ -4,6 +4,7 @@
 //! must-meet for transported literal valuations. It does not schedule the
 //! fixpoint, walk statements, or emit diagnostics.
 
+use crate::frozen_program::expression_table;
 use typed_trees::state::State;
 use typed_trees::statement::TransitionTargetNode;
 
@@ -78,8 +79,7 @@ pub(super) fn state_edges(
                             .iter()
                             .position(|candidate| candidate.symbol == path.symbol)
                             .or_else(|| {
-                                program
-                                    .expression_table
+                                expression_table(program)
                                     .name_path_members(path.members)
                                     .last()
                                     .and_then(|target_name| {

@@ -16,6 +16,7 @@ use super::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, ScopedCallCompletion,
 };
 use crate::expression_traversal::children;
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -165,11 +166,7 @@ impl<'program> ScopedCalls<'program> {
             return Some(prepared.clone());
         }
         self.step()?;
-        if !self
-            .program
-            .expression_table
-            .expression_is_valid(source.expression)
-        {
+        if !expression_table(self.program).expression_is_valid(source.expression) {
             return None;
         }
         let mut prepared = source.clone();
@@ -189,7 +186,7 @@ impl<'program> ScopedCalls<'program> {
             {
                 continue;
             }
-            let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+            let ExpressionNode::Call(call) = expression_table(self.program).expression(expression)
             else {
                 continue;
             };
@@ -253,10 +250,7 @@ impl<'program> ScopedCalls<'program> {
                     .map(numerics::bignum::BigInt::from_i64),
             };
             let parameters = owner_parameters(self.program, &owner);
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments);
+            let arguments = expression_table(self.program).expression_handles(call.arguments);
             if independent && parameters.len() == arguments.len() {
                 let bindings = self.completed_bindings(
                     owner,
@@ -296,7 +290,7 @@ impl<'program> ScopedCalls<'program> {
         } = completion;
         let occurrence = match site {
             crate::CallSite::Expression { expression, call } => {
-                if self.program.expression_table.call_node(expression)? != call
+                if expression_table(self.program).call_node(expression)? != call
                     || crate::integer_embedding_argument(self.program, expression).is_some()
                     || (result.is_none() && result_observations.is_empty())
                 {
@@ -477,7 +471,7 @@ impl<'program> ScopedCalls<'program> {
             // Only the authenticated conjunction grants each independent
             // conjunct. An unsupported neighboring subject need not erase a
             // usable guarantee about the completed result.
-            if let Some(binary) = self.program.expression_table.binary_node(guarantee)
+            if let Some(binary) = expression_table(self.program).binary_node(guarantee)
                 && binary.operator == typed_trees::expression::BinaryOperator::And
                 && match owner {
                     SelectedCallContract::Concrete(machine, state) => {
@@ -583,17 +577,13 @@ impl<'program> ScopedCalls<'program> {
                 ordered.push(expression);
                 continue;
             }
-            if !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
-            {
+            if !expression_table(self.program).expression_is_valid(expression) {
                 return None;
             }
             pending.push((expression, true));
             children(
                 self.program,
-                self.program.expression_table.expression(expression),
+                expression_table(self.program).expression(expression),
                 |child| pending.push((child, false)),
             );
         }
@@ -638,7 +628,7 @@ impl<'program> ScopedCalls<'program> {
                 continue;
             }
             visited.push(expression);
-            let node = self.program.expression_table.expression(expression);
+            let node = expression_table(self.program).expression(expression);
             if let ExpressionNode::Call(call) = node
                 && let Some(nested) = selected_call_contract(self.program, symbol, call)
                 && !self.independent(nested, active, complete)?

@@ -1,6 +1,7 @@
 //! Form designated boundary and implementation applications through the same
 //! owned graph and ordinary Type/Const application owners as callable operands.
 use super::*;
+use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::product_operand::{ProductApplicationDemand, ProductOperandApplication};
 use typed_trees::trait_definition::TraitApplicationArguments;
@@ -115,13 +116,10 @@ fn prepare(
         if demand == ProductApplicationDemand::Selected {
             let retained = program.product_operand_applications.get(existing);
             let supplying = retained.supplying_application;
-            let lexical_owner = program
-                .expression_table
+            let lexical_owner = expressions_of(program)
                 .static_machine_application(supplying)
                 .lexical_owner;
-            let [whole] = program
-                .expression_table
-                .static_machine_application_arguments(supplying)
+            let [whole] = expressions_of(program).static_machine_application_arguments(supplying)
             else {
                 return Err(refuse("Product application lost its whole closed operand"));
             };
@@ -309,18 +307,12 @@ fn prepare(
         }
         _ => unreachable!("nominal roles checked above"),
     };
-    let supplying = lower
-        .program
-        .expression_table
-        .retain_static_machine_application(
-            declaration,
-            Identifier::generated(&operand.path),
-            std::slice::from_ref(&closed),
-        );
-    let application = lower
-        .program
-        .expression_table
-        .static_machine_application_mut(supplying);
+    let supplying = expressions_of_mut(lower.program).retain_static_machine_application(
+        declaration,
+        Identifier::generated(&operand.path),
+        std::slice::from_ref(&closed),
+    );
+    let application = expressions_of_mut(lower.program).static_machine_application_mut(supplying);
     application.binding_declaration = declaration;
     application.lexical_owner = lexical_owner;
     if let Some(implementation) = &implementation {

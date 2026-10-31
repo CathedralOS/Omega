@@ -28,6 +28,7 @@
 //! these exact arguments.
 
 use super::integer_sets::IntegerSet;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
 use std::collections::VecDeque;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -351,7 +352,7 @@ impl Scope<'_> {
                 has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
             }
             Self::Declaration { owner, .. } => {
-                let Some(binary) = program.expression_table.binary_node(expression) else {
+                let Some(binary) = expression_table(program).binary_node(expression) else {
                     return false;
                 };
                 let Some(spelling) =
@@ -671,7 +672,7 @@ fn target_exit(
     }
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Value(result) => {
-            if let Some(call) = program.expression_table.call_node(*result) {
+            if let Some(call) = expression_table(program).call_node(*result) {
                 return tail_call_exit(program, frame, atoms, call);
             }
             let result = evaluate_boolean(program, frame, atoms, *result)?;
@@ -713,7 +714,7 @@ fn tail_call_exit(
     let checked_caller = matches!(frame.scope, Scope::State { .. });
     let machine = admitted_predicate_machine(program, call.target_symbol, checked_caller)
         .ok_or(Stop::Unsupported)?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     enter(program, frame, atoms, machine, 0, arguments)
 }
 
@@ -834,10 +835,10 @@ pub(crate) fn evaluate(
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
 ) -> Result<Value, Stop> {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return Err(Stop::Unsupported);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Call(call) => {
             if let Some((_, value)) = frame
                 .completed_calls
@@ -884,8 +885,7 @@ pub(crate) fn evaluate(
             carrier: None,
         }),
         ExpressionNode::Name(path) => {
-            if program
-                .expression_table
+            if expression_table(program)
                 .name_path_members(path.members)
                 .len()
                 != 1

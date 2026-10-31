@@ -4,6 +4,7 @@
 //! exposing its home retires that relationship. These queries never replay an
 //! initializer and never supply current referent contents.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::state::State;
@@ -95,9 +96,9 @@ fn selects_collection_contents(
     mut expression: ExpressionHandle,
 ) -> bool {
     let mut visited = 0;
-    while program.expression_table.expression_is_valid(expression) && visited < 128 {
+    while expression_table(program).expression_is_valid(expression) && visited < 128 {
         visited += 1;
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Borrow(borrow) => expression = borrow.target,
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(_) => return true,
@@ -195,7 +196,7 @@ pub(crate) fn binding_has_write_effects(
     }
     nodes
         .iter()
-        .any(|node| match program.expression_table.expression(*node) {
+        .any(|node| match expression_table(program).expression(*node) {
             ExpressionNode::Call(call) => {
                 call.receiver.is_valid()
                     && borrow_root_symbol(program, call.receiver) == Some(symbol)
@@ -248,9 +249,9 @@ fn borrow_root_symbol(
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut visited = 0;
-    while program.expression_table.expression_is_valid(expression) && visited < 128 {
+    while expression_table(program).expression_is_valid(expression) && visited < 128 {
         visited += 1;
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Borrow(borrow) => expression = borrow.target,
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(indexed) => expression = indexed.collection,
@@ -315,7 +316,7 @@ pub fn place_has_immutable_denotation(
     crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
     nodes
         .into_iter()
-        .all(|node| match program.expression_table.expression(node) {
+        .all(|node| match expression_table(program).expression(node) {
             ExpressionNode::Name(path) => {
                 let symbol = path.head_symbol;
                 let reference = if let Some(parameter) =
@@ -357,18 +358,17 @@ pub(crate) fn immutable_value_origin(
     mut expression: ExpressionHandle,
 ) -> Option<(usize, ExpressionHandle)> {
     loop {
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expression_table(program).expression_is_valid(expression) {
             return None;
         }
-        let Some(path) = program.expression_table.name_path_node(expression) else {
+        let Some(path) = expression_table(program).name_path_node(expression) else {
             return Some((before, expression));
         };
         if !path.symbol.is_valid() {
             return None;
         }
         if path.head_symbol != path.symbol
-            || program
-                .expression_table
+            || expression_table(program)
                 .name_path_members(path.members)
                 .len()
                 != 1

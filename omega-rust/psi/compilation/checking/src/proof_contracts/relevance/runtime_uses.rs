@@ -2,6 +2,7 @@ use super::{
     Context, argument_position_context, call_targets_proof_machine, callee_parameters,
     erased_fields,
 };
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
 use symbols::SymbolHandle;
@@ -37,18 +38,17 @@ pub(super) fn validate_expression(
             )
         };
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             if context == Context::Runtime {
                 let mut reported = false;
-                for symbol in program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols)
+                for symbol in
+                    expression_table(program).name_path_member_symbols(path.member_symbols)
                 {
                     reported |= report_runtime_erased_field(program, *symbol, diagnostics)
                         || report_runtime_erased_binding(program, state, *symbol, diagnostics);
                 }
-                let members = program.expression_table.name_path_members(path.members);
+                let members = expression_table(program).name_path_members(path.members);
                 if !reported && members.len() == 2 && members[0].is_self_receiver() {
                     report_runtime_erased_attached_field(
                         program,
@@ -121,8 +121,7 @@ pub(super) fn validate_expression(
                 visit_expression!(call.receiver, context);
             }
             let parameters = callee_parameters(program, call.target_symbol);
-            for (position, argument) in program
-                .expression_table
+            for (position, argument) in expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .enumerate()
@@ -172,7 +171,7 @@ fn validate_struct_literal(
         };
     }
     let Some(definition) = program.data_definition_by_symbol(literal.type_symbol) else {
-        for field in program.expression_table.struct_fields(literal.fields) {
+        for field in expression_table(program).struct_fields(literal.fields) {
             visit_expression!(field.value, context);
         }
         return;
@@ -205,7 +204,7 @@ fn validate_struct_literal(
     let declared_erased = literal_fields(program, definition, literal.case_name.as_ref())
         .filter(|field| field.relevance.is_erased())
         .collect::<Vec<_>>();
-    let authored = program.expression_table.struct_fields(literal.fields);
+    let authored = expression_table(program).struct_fields(literal.fields);
     for erased in &declared_erased {
         if !unsupported_bare_generic && !authored.iter().any(|field| field.name == erased.name) {
             diagnostics.push(Diagnostic::error(format!(

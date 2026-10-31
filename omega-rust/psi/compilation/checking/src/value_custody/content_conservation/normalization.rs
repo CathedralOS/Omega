@@ -2,6 +2,7 @@ use super::{
     ContentProjectionFormation, algebra_key, domain_label, is_old_call, is_separate_call,
     projection_label, projection_plan_for_call, structural_place_label,
 };
+use crate::frozen_program::expression_table;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentCaseSegment, ContentConservationEquation,
     ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot, ContentPlaceSegment,
@@ -29,7 +30,7 @@ pub(super) fn normalize_equation(
     expression: ExpressionHandle,
     formations: &mut Vec<ContentProjectionFormation>,
 ) -> Result<(ContentAlgebraIdentity, ContentConservationEquation), String> {
-    let Some(binary) = context.program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(context.program).binary_node(expression) else {
         return Err(
             "the contract must be one equality over exact projection and `separate(...)` terms"
                 .to_owned(),
@@ -55,10 +56,10 @@ fn normalize_term(
     expression: ExpressionHandle,
     formations: &mut Vec<ContentProjectionFormation>,
 ) -> Result<(ContentConservationTerm, ContentAlgebraIdentity), String> {
-    let Some(call) = context.program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(context.program).call_node(expression) else {
         return Err(format!(
             "term `{}` is not an exact content projection or `separate(...)` composition",
-            context.program.expression_table.display_name(expression),
+            expression_table(context.program).display_name(expression),
         ));
     };
 
@@ -66,10 +67,7 @@ fn normalize_term(
         if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
             return Err("`separate(...)` is a receiverless compiler-owned proof intrinsic and accepts no static machine arguments".to_owned());
         }
-        let arguments = context
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(context.program).expression_handles(call.arguments);
         if arguments.len() < 2 {
             return Err("`separate(...)` requires at least two content terms".to_owned());
         }
@@ -100,17 +98,13 @@ fn normalize_term(
         .ok_or_else(|| {
             format!(
                 "call `{}` is not the exact owner-unique `Content<Owner, A>::project` conformance machine; there is no generic `content(...)` intrinsic",
-                context.program.expression_table.display_name(expression),
+                expression_table(context.program).display_name(expression),
             )
         })?;
     if !call.machine_arguments.is_empty() {
         return Err("a content projection call accepts no static machine arguments".to_owned());
     }
-    let [argument] = context
-        .program
-        .expression_table
-        .expression_handles(call.arguments)
-    else {
+    let [argument] = expression_table(context.program).expression_handles(call.arguments) else {
         return Err(
             "an exact content projection call requires exactly one borrowed subject place"
                 .to_owned(),
@@ -141,17 +135,14 @@ fn normalize_projection_subject(
     expression: ExpressionHandle,
     projection: &ContentProjectionPlan,
 ) -> Result<ContentStructuralPlace, String> {
-    let (version, borrowed) = match context.program.expression_table.expression(expression) {
+    let (version, borrowed) = match expression_table(context.program).expression(expression) {
         ExpressionNode::Call(call) if is_old_call(context.program, call) => {
             if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
                 return Err(
                     "`old(place)` is a receiverless compiler-owned proof intrinsic".to_owned(),
                 );
             }
-            let [argument] = context
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
+            let [argument] = expression_table(context.program).expression_handles(call.arguments)
             else {
                 return Err(
                     "`old(place)` requires exactly one parameter, `self`, or structural subplace"
@@ -166,7 +157,7 @@ fn normalize_projection_subject(
     // An explicit shared wrapper and implicit shared lending observe the same
     // structural place. Reject explicit exclusive lending here; the type walk
     // independently requires readable access through every enclosing reference.
-    let borrowed = match context.program.expression_table.expression(borrowed) {
+    let borrowed = match expression_table(context.program).expression(borrowed) {
         ExpressionNode::Borrow(inner)
             if inner.access == language_semantics::ReferenceAccess::Shared =>
         {
@@ -280,15 +271,13 @@ fn collect_structural_place(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Result<(String, SymbolHandle, Vec<ContentPlaceSegment>), String> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
-            let names = program.expression_table.name_path_members(path.members);
+            let names = expression_table(program).name_path_members(path.members);
             if names.is_empty() {
                 return Err("an empty name path is not a structural place".to_owned());
             }
-            let symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let symbols = expression_table(program).name_path_member_symbols(path.member_symbols);
             let root_name = names[0].as_str().to_owned();
             let root_symbol = symbols.first().copied().unwrap_or(path.head_symbol);
             let mut segments = Vec::new();
@@ -318,7 +307,7 @@ fn collect_structural_place(
         ExpressionNode::Indexed(indexed) => {
             let (root, symbol, mut segments) =
                 collect_structural_place(program, indexed.collection)?;
-            let Some(index) = program.expression_table.integer_node(indexed.index) else {
+            let Some(index) = expression_table(program).integer_node(indexed.index) else {
                 return Err(
                     "old/current structural places admit only literal fixed-array indices"
                         .to_owned(),
@@ -334,7 +323,7 @@ fn collect_structural_place(
         }
         _ => Err(format!(
             "`{}` is not a parameter, `self`, `result`, or structural subplace",
-            program.expression_table.display_name(expression),
+            expression_table(program).display_name(expression),
         )),
     }
 }

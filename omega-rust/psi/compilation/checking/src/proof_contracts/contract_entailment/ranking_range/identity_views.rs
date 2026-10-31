@@ -8,6 +8,7 @@
 
 use super::super::Engine;
 use super::fields::declared_field;
+use crate::frozen_program::expression_table;
 use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
@@ -91,7 +92,7 @@ pub fn computation_body_shape(
     program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<ComputationBodyShape> {
-    let [body] = program.expression_table.expression_handles(measure.body) else {
+    let [body] = expression_table(program).expression_handles(measure.body) else {
         return None;
     };
     let parameter = measure.parameter.as_ref()?;
@@ -216,7 +217,7 @@ pub(super) fn computed_measure_polynomial(
         .iter()
         .find(|measure| measure.symbol == owner)?;
     if measure.parameter.as_ref()?.symbol != parameter
-        || program.expression_table.expression_handles(measure.body) != [body]
+        || expression_table(program).expression_handles(measure.body) != [body]
     {
         return None;
     }
@@ -239,7 +240,7 @@ pub fn measure_body_shape(
     program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<MeasureBodyShape> {
-    let [body] = program.expression_table.expression_handles(measure.body) else {
+    let [body] = expression_table(program).expression_handles(measure.body) else {
         return None;
     };
     let parameter = measure.parameter.as_ref()?;
@@ -273,7 +274,7 @@ pub fn measure_body_shape(
     let mut chain = Vec::new();
     let mut cursor = *body;
     loop {
-        match program.expression_table.expression(cursor) {
+        match expression_table(program).expression(cursor) {
             ExpressionNode::Member(member) => {
                 if !member.member_symbol.is_valid() || member.case_variant.is_some() {
                     return None;
@@ -422,24 +423,24 @@ pub fn identity_subject_matches(
     subject: ExpressionHandle,
     carrier: BuiltinTypeAtom,
 ) -> bool {
-    let reference = if let ExpressionNode::Name(path) = program.expression_table.expression(subject)
-    {
-        program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| {
-                program.expression_table.name_path_is_single_member(path)
-                    && parameter.symbol == path.symbol
-            })
-            .map(|parameter| parameter.type_reference)
-    } else {
-        let Some(machine) = owning_machine(program, state) else {
-            return false;
+    let reference =
+        if let ExpressionNode::Name(path) = expression_table(program).expression(subject) {
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| {
+                    expression_table(program).name_path_is_single_member(path)
+                        && parameter.symbol == path.symbol
+                })
+                .map(|parameter| parameter.type_reference)
+        } else {
+            let Some(machine) = owning_machine(program, state) else {
+                return false;
+            };
+            // Computed subjects need their selected result type; `.len` spelling
+            // or a subtraction node cannot manufacture a u64 result carrier.
+            crate::expression_result_type_reference(program, machine, state, subject)
         };
-        // Computed subjects need their selected result type; `.len` spelling
-        // or a subtraction node cannot manufacture a u64 result carrier.
-        crate::expression_result_type_reference(program, machine, state, subject)
-    };
     let Some(reference) = reference else {
         return false;
     };
@@ -518,10 +519,7 @@ fn computation_shape(
         depth: usize,
         mentions: &mut bool,
     ) -> bool {
-        let Some(node) = program
-            .expression_table
-            .expression_at_depth(expression, depth)
-        else {
+        let Some(node) = expression_table(program).expression_at_depth(expression, depth) else {
             return false;
         };
         match node {
@@ -548,7 +546,7 @@ fn computation_shape(
     }
     let mut mentions = false;
     matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Binary(_)
     ) && shape(program, expression, binder, depth, &mut mentions)
         && mentions
@@ -559,13 +557,12 @@ fn is_parameter(
     expression: ExpressionHandle,
     binder: SymbolHandle,
 ) -> bool {
-    let Some(path) = program.expression_table.name_path_node(expression) else {
+    let Some(path) = expression_table(program).name_path_node(expression) else {
         return false;
     };
     path.symbol == binder
         && path.head_symbol == binder
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1

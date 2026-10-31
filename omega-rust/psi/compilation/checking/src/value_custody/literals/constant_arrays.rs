@@ -6,6 +6,7 @@
 //! destination before ordinary literal checks; refinements and borrowing still
 //! owe their existing independent checks. No runtime constant value is retained.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -159,7 +160,7 @@ pub fn closed_constant_array_elements(
     let mut root = expression;
     let mut indices = Vec::new();
     let mut projections = Vec::new();
-    while let Some(indexed) = program.expression_table.indexed_node(root) {
+    while let Some(indexed) = expression_table(program).indexed_node(root) {
         if projections.contains(&root) {
             return None;
         }
@@ -169,8 +170,7 @@ pub fn closed_constant_array_elements(
     }
     let mut reference = declared_constant_array_type(program, root).or_else(|| {
         (indices.is_empty()
-            && program
-                .expression_table
+            && expression_table(program)
                 .authored_selection_occurrences(root)
                 .next()
                 .is_none())
@@ -198,7 +198,7 @@ pub fn closed_constant_array_elements(
         else {
             return None;
         };
-        let literal = program.expression_table.integer_node(index)?;
+        let literal = expression_table(program).integer_node(index)?;
         if literal.landing().is_some_and(|landing| {
             landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                 || landing.landed_type == numerics::literals::LandedIntegerType::Addr
@@ -209,9 +209,8 @@ pub fn closed_constant_array_elements(
         if index >= *length {
             return None;
         }
-        let elements = program.expression_table.array_literal_node(selected)?;
-        selected = *program
-            .expression_table
+        let elements = expression_table(program).array_literal_node(selected)?;
+        selected = *expression_table(program)
             .expression_handles(*elements)
             .get(index)?;
         reference = *element_type;
@@ -279,7 +278,8 @@ pub fn scalar_array_elements(
             active.pop();
             continue;
         }
-        if active.contains(&expression) || !program.expression_table.expression_is_valid(expression)
+        if active.contains(&expression)
+            || !expression_table(program).expression_is_valid(expression)
         {
             return None;
         }
@@ -292,12 +292,11 @@ pub fn scalar_array_elements(
                 length: typed_trees::types::FixedArrayLength::Literal(length),
             } => {
                 let indexed_row = matches!(
-                    program.expression_table.expression(expression),
+                    expression_table(program).expression(expression),
                     ExpressionNode::Indexed(_)
                 );
                 if indexed_row
-                    || program
-                        .expression_table
+                    || expression_table(program)
                         .authored_selection_occurrences(expression)
                         .next()
                         .is_some()
@@ -313,7 +312,7 @@ pub fn scalar_array_elements(
                         if is_row
                             && (indexed_row
                                 || matches!(
-                                    program.expression_table.expression(expression),
+                                    expression_table(program).expression(expression),
                                     ExpressionNode::Member(_)
                                 ))
                         {
@@ -327,7 +326,7 @@ pub fn scalar_array_elements(
                             let mut selected = expression;
                             let mut selected_projections = Vec::new();
                             while let Some(indexed) =
-                                program.expression_table.indexed_node(selected)
+                                expression_table(program).indexed_node(selected)
                             {
                                 selected_projections.push(selected);
                                 selected = indexed.collection;
@@ -345,14 +344,14 @@ pub fn scalar_array_elements(
                     }));
                     let mut selected = expression;
                     let mut selected_projections = Vec::new();
-                    while let Some(indexed) = program.expression_table.indexed_node(selected) {
+                    while let Some(indexed) = expression_table(program).indexed_node(selected) {
                         selected_projections.push(selected);
                         selected = indexed.collection;
                     }
                     projections.extend(selected_projections.into_iter().rev());
                     continue;
                 }
-                match program.expression_table.array_literal_node(expression) {
+                match expression_table(program).array_literal_node(expression) {
                     Some(elements) => {
                         if !extend_fixed_array_elements(
                             program,
@@ -417,7 +416,7 @@ pub fn closed_literal_array_elements(
         active.push(expression);
         pending.push((expression, reference, true, false));
         match (
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             program
                 .type_reference_table
                 .type_reference(array_carrier_type(program, reference)),
@@ -508,7 +507,7 @@ pub fn declared_constant_array_type(
     value: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !matches!(
-        program.expression_table.expression(value),
+        expression_table(program).expression(value),
         ExpressionNode::ArrayLiteral(_)
     ) {
         return None;
@@ -532,9 +531,9 @@ pub fn builtin_constant_array_projection_type(
     mut expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut projections = Vec::new();
-    while let Some(indexed) = program.expression_table.indexed_node(expression) {
+    while let Some(indexed) = expression_table(program).indexed_node(expression) {
         if !matches!(
-            program.expression_table.expression(indexed.index),
+            expression_table(program).expression(indexed.index),
             ExpressionNode::Integer(_)
         ) {
             return None;
@@ -561,7 +560,7 @@ pub fn builtin_constant_array_projection_type(
             program,
             language_core::OperatorSpelling::Index,
             &operands,
-            program.expression_table.source_span(expression),
+            expression_table(program).source_span(expression),
         )
         .is_empty()
             || !typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -585,9 +584,9 @@ pub(super) fn validate_declared_array_destination(
     destination: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    value = program.expression_table.peeled_expression_handle(value);
+    value = expression_table(program).peeled_expression_handle(value);
     if !matches!(
-        program.expression_table.expression(value),
+        expression_table(program).expression(value),
         ExpressionNode::ArrayLiteral(_)
     ) {
         return;
@@ -597,10 +596,7 @@ pub(super) fn validate_declared_array_destination(
     else {
         return;
     };
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(value)
-    {
+    for occurrence in expression_table(program).authored_selection_occurrences(value) {
         let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
             continue;
         };
@@ -693,13 +689,12 @@ pub(crate) fn validate_constant_projection_destination(
                 conflict = true;
             }
         }
-        if let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
+        if let ExpressionNode::ArrayLiteral(elements) = expression_table(program).expression(value)
             && let TypeReferenceNode::FixedArray { element_type, .. } =
                 program.type_reference_table.type_reference(destination)
         {
             pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(*elements)
                     .iter()
                     .map(|element| (*element, *element_type)),
@@ -761,7 +756,7 @@ fn extend_fixed_array_elements(
     length: usize,
     is_row: bool,
 ) -> bool {
-    let elements = program.expression_table.expression_handles(*elements);
+    let elements = expression_table(program).expression_handles(*elements);
     if elements.len() != length {
         return false;
     }

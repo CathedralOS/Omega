@@ -27,6 +27,7 @@
 //! `Nest<[T; 2]>` in a growing recursive family.
 
 use crate::expression_roots::{append_statement_roots, visit_post_order};
+use crate::tables::expressions_of;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -574,7 +575,7 @@ fn closed_expression(
     let mut expressions = Vec::new();
     validation::collect_expression_tree(program, expression, &mut expressions);
     !expressions.iter().any(|expression| {
-        matches!(program.expression_table.expression(*expression),
+        matches!(expressions_of(program).expression(*expression),
             typed_trees::expression::ExpressionNode::Name(path)
                 if path.symbol.is_valid() && matches!(program.symbols.get(path.symbol).kind,
                     SymbolKind::TypeParameter | SymbolKind::Parameter | SymbolKind::Local))

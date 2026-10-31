@@ -3,6 +3,7 @@
 //! These are read-only structural queries shared by the default-domain write
 //! engine and reader hypotheses. They do not own flow state or diagnostics.
 
+use crate::frozen_program::expression_table;
 use language_core::{is_rooted_at, is_self_receiver};
 use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
@@ -62,7 +63,7 @@ pub(super) fn expression_root_symbol(
     mut expression: ExpressionHandle,
 ) -> symbols::SymbolHandle {
     while expression.is_valid() {
-        expression = match program.expression_table.expression(expression) {
+        expression = match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => return path.head_symbol,
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
@@ -81,9 +82,9 @@ pub(super) fn self_place_spelling(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             members.first()?;
             Some(members.joined_path_with("."))
         }
@@ -93,7 +94,7 @@ pub(super) fn self_place_spelling(
         }
         ExpressionNode::Indexed(indexed) => {
             let collection = self_place_spelling(program, indexed.collection)?;
-            let index = match program.expression_table.expression(indexed.index) {
+            let index = match expression_table(program).expression(indexed.index) {
                 ExpressionNode::Integer(value) => value.to_string(),
                 _ => return None,
             };
@@ -125,10 +126,10 @@ pub(super) fn write_place_spelling(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Indexed(indexed) => {
             let collection = write_place_spelling(program, indexed.collection)?;
-            let index = match program.expression_table.expression(indexed.index) {
+            let index = match expression_table(program).expression(indexed.index) {
                 ExpressionNode::Integer(value) => value.to_string(),
                 _ => "*".to_owned(),
             };
@@ -218,7 +219,7 @@ pub(super) fn write_target_index_expressions(
     let mut indexes = Vec::new();
     let mut cursor = target;
     loop {
-        match program.expression_table.expression(cursor) {
+        match expression_table(program).expression(cursor) {
             ExpressionNode::Indexed(indexed) => {
                 indexes.push(indexed.index);
                 cursor = indexed.collection;
@@ -290,7 +291,7 @@ pub(super) fn data_definition_for_expression<'program>(
         let attached = machine.attached_data.as_ref()?;
         return program.data_definition_by_name(attached);
     }
-    if let Some(indexed) = program.expression_table.indexed_node(expression) {
+    if let Some(indexed) = expression_table(program).indexed_node(expression) {
         let mut collection_type = crate::value_custody::places::declared_place_type_raw(
             program,
             machine,
@@ -478,8 +479,7 @@ fn predicate_read_set(
     let mut pending = match fact {
         typed_trees::domain::ProofFact::Expression(expression) => vec![(*expression, true)],
         typed_trees::domain::ProofFact::Membership(membership) => vec![(membership.value, true)],
-        typed_trees::domain::ProofFact::Proposition(application) => program
-            .expression_table
+        typed_trees::domain::ProofFact::Proposition(application) => expression_table(program)
             .expression_handles(application.arguments)
             .iter()
             .map(|value| (*value, true))
@@ -521,7 +521,7 @@ fn predicate_read_set(
         // Authenticate the selected measure on the declared field carrier;
         // an ordinary record member merely named `len` still reads contents.
         if contents_only
-            && let Some(member) = program.expression_table.member_node(expression)
+            && let Some(member) = expression_table(program).member_node(expression)
             && let Some(field) = membership_field(program, definition, member.receiver)
             && crate::value_custody::places::collection_operations::collection_measure_member(
                 program,
@@ -534,7 +534,7 @@ fn predicate_read_set(
         {
             continue;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => {
                 if let Some(symbol) = receiving_field(path.symbol) {
                     if !reads.fields.contains(&symbol) { reads.fields.push(symbol); }
@@ -545,7 +545,7 @@ fn predicate_read_set(
                 }
             }
             ExpressionNode::Member(member) => {
-                let logical_receiver = program.expression_table.name_path_node(member.receiver)
+                let logical_receiver = expression_table(program).name_path_node(member.receiver)
                     .is_some_and(|path| definition.predicate_subject_symbol.is_valid()
                         && path.symbol == definition.predicate_subject_symbol);
                 if logical_receiver {
@@ -562,7 +562,7 @@ fn predicate_read_set(
                 } else { pending.push((member.receiver, false)); }
             }
             ExpressionNode::Call(call) => {
-                crate::expression_traversal::children(program, program.expression_table.expression(expression), |child| pending.push((child, true)));
+                crate::expression_traversal::children(program, expression_table(program).expression(expression), |child| pending.push((child, true)));
                 let call = typed_trees::references::StaticArgumentCall::Expression(expression, call);
                 for argument in call.arguments(program) {
                     typed_trees::references::visit_static_argument(program, &mut static_references, argument);
@@ -578,7 +578,7 @@ fn predicate_read_set(
                 }
             }
             ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership
-                || program.expression_table.authored_selection_occurrences(expression).any(|occurrence| {
+                || expression_table(program).authored_selection_occurrences(expression).any(|occurrence| {
                     program.authored_declaration_selections().get(occurrence).is_some_and(|selection|
                         selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::CaseMembership)
                 }) =>
@@ -598,10 +598,10 @@ pub(crate) fn membership_field<'program>(
     definition: &'program DataDefinition,
     value: ExpressionHandle,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let symbol = match program.expression_table.expression(value) {
+    let symbol = match expression_table(program).expression(value) {
         ExpressionNode::Name(path) => path.symbol,
         ExpressionNode::Member(member) => {
-            let path = program.expression_table.name_path_node(member.receiver)?;
+            let path = expression_table(program).name_path_node(member.receiver)?;
             let (source, _) = program.any_field_owner(member.member_symbol)?;
             if !source.predicate_subject_symbol.is_valid()
                 || path.symbol != source.predicate_subject_symbol

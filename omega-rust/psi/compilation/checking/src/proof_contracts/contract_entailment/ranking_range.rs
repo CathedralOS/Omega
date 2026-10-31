@@ -5,6 +5,7 @@ use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, ProofFact, SignatureContractKind, inductive_judgment,
 };
+use crate::frozen_program::expression_table;
 use crate::{StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
@@ -502,7 +503,7 @@ pub fn ranking_range_premise_symbols(
     measure: RankingRangeMeasure,
 ) -> Option<Vec<RankPremiseInput>> {
     let range = if range.is_valid() {
-        let range = program.expression_table.range_node(range)?;
+        let range = expression_table(program).range_node(range)?;
         Some(range)
     } else {
         None
@@ -635,9 +636,7 @@ pub fn ranking_range_state_premise_coordinates(
         .map(|expression| (expression, 0))
         .collect::<Vec<_>>();
     while let Some((expression, depth)) = pending.pop() {
-        let node = program
-            .expression_table
-            .expression_at_depth(expression, depth)?;
+        let node = expression_table(program).expression_at_depth(expression, depth)?;
         // `.len` on a collection reads its extent and nothing else; every
         // other place reads its whole value.
         let (observed, observation) = match crate::value_custody::places::collection_length_receiver(
@@ -1076,7 +1075,7 @@ fn prove_edge(
         Vec::new()
     };
     let range = if range.is_valid() {
-        Some(program.expression_table.range_node(range)?)
+        Some(expression_table(program).range_node(range)?)
     } else {
         None
     };
@@ -2011,12 +2010,12 @@ pub(super) fn collect_guard(
     if depth >= 128 {
         return None;
     }
-    if let Some(binary) = engine.program.expression_table.binary_node(expression)
+    if let Some(binary) = expression_table(engine.program).binary_node(expression)
         && !engine.selected_binary_meaning(expression, binary)
     {
         return Some(false);
     }
-    match engine.program.expression_table.expression(expression) {
+    match expression_table(engine.program).expression(expression) {
         ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
             if let Some(observation) = engine
                 .saved_conditions
@@ -2056,7 +2055,7 @@ pub(super) fn collect_guard(
             ) =>
         {
             for (condition, boolean) in [(binary.left, binary.right), (binary.right, binary.left)] {
-                if let Some(polarity) = engine.program.expression_table.boolean_node(boolean) {
+                if let Some(polarity) = expression_table(engine.program).boolean_node(boolean) {
                     return collect_guard(
                         engine,
                         condition,

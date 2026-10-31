@@ -6,6 +6,7 @@
 //! tree and exact declaration leaves; it never evaluates an operator token or
 //! grants formation, purity, construction predicates or executable custody.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolKind;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -42,7 +43,7 @@ pub(crate) fn validate_formation(
         .primitive_type_reference(expected)
         .is_some_and(|primitive| primitive.accepts_integer_literal())
         && typed_trees::const_integer::is_integer_expression(
-            &program.expression_table,
+            expression_table(program),
             expression,
             &|symbol, _| {
                 program.data_type_parameter_by_symbol(symbol).is_some_and(|binder| {
@@ -160,7 +161,7 @@ pub(crate) fn has_carrier(
         .primitive_type_reference(expected)
         .is_some_and(|primitive| primitive.accepts_integer_literal())
         && typed_trees::const_integer::is_integer_expression(
-            &program.expression_table,
+            expression_table(program),
             expression,
             &|symbol, _| {
                 program.data_type_parameter_by_symbol(symbol).is_some_and(|binder| {
@@ -181,11 +182,9 @@ pub(crate) fn has_carrier(
     }
     // Construction retains the selected nominal application, not a type
     // guessed from the required destination or from the first field.
-    let actual = match program.expression_table.expression(expression) {
+    let actual = match expression_table(program).expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
-            let actual = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let actual = expression_table(program).constructed_value_type_reference(expression);
             actual.is_valid().then_some(actual).or_else(|| {
                 program
                     .type_reference_table
@@ -212,14 +211,14 @@ fn has_value_category(
     let mut pending = vec![root];
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expression_table(program).expression_is_valid(expression) {
             return false;
         }
         if visited.contains(&expression) {
             continue;
         }
         visited.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         match node {
             ExpressionNode::Name(path) => {
                 let immutable = if path.symbol.is_valid() {
@@ -254,7 +253,7 @@ fn has_value_category(
                 } else {
                     // Specialization may replace an integer binder with an
                     // anonymous numeric name. Source names never gain this lane.
-                    let members = program.expression_table.name_path_members(path.members);
+                    let members = expression_table(program).name_path_members(path.members);
                     matches!(members, [name] if name.as_str().parse::<i128>().is_ok())
                 };
                 if !immutable {
@@ -303,7 +302,7 @@ pub fn immutable_record_projection(
             return None;
         }
         visited.push(current);
-        let ExpressionNode::Member(member) = program.expression_table.expression(current) else {
+        let ExpressionNode::Member(member) = expression_table(program).expression(current) else {
             break;
         };
         if !member.member_symbol.is_valid() || member.case_variant.is_some() {
@@ -315,13 +314,12 @@ pub fn immutable_record_projection(
     if members.is_empty() {
         return None;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(current) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(current) else {
         return None;
     };
     if !path.symbol.is_valid()
         || path.head_symbol != path.symbol
-        || program
-            .expression_table
+        || expression_table(program)
             .name_path_members(path.members)
             .len()
             != 1

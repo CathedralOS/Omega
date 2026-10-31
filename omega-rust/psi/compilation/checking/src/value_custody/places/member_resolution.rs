@@ -4,6 +4,7 @@
 //! see the same Case/Field path; never repair a conflicting retained identity.
 
 use super::declared_symbols::{data_member_symbol_by_name, first_valid_name_path_symbol};
+use crate::frozen_program::expression_table;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -463,16 +464,14 @@ pub(super) fn expression_type_position(
         return Some(MemberPosition::Reference(declaration.declared_type));
     }
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => expression_type_position(program, inner.target),
         // An atomic expression's value is its operand's evaluation (the
         // checked interpreter lowers the node the same way), so the position
         // is the operand's position rather than an opaque leaf.
         ExpressionNode::Atomic(atomic) => expression_type_position(program, atomic.value),
         ExpressionNode::Call(call) => {
-            let retained = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let retained = expression_table(program).constructed_value_type_reference(expression);
             retained
                 .is_valid()
                 .then_some(retained)
@@ -480,7 +479,7 @@ pub(super) fn expression_type_position(
                 .map(MemberPosition::Reference)
         }
         ExpressionNode::Name(path) => {
-            let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
+            let symbol = first_valid_name_path_symbol(path, expression_table(program))?;
             symbol_type_position(program, symbol)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -530,9 +529,7 @@ pub(super) fn expression_type_position(
             member_type_position(program, receiver_position, symbol)
         }
         ExpressionNode::StructLiteral(literal) => {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let reference = expression_table(program).constructed_value_type_reference(expression);
             if reference.is_valid() {
                 Some(MemberPosition::Reference(reference))
             } else {
@@ -555,15 +552,13 @@ pub(super) fn expression_type_position(
             .is_valid()
             .then_some(MemberPosition::Reference(*reference)),
         ExpressionNode::ArrayLiteral(elements) => {
-            let retained = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let retained = expression_table(program).constructed_value_type_reference(expression);
             if retained.is_valid() {
                 Some(MemberPosition::Reference(retained))
             } else {
                 array_literal_position(
                     program,
-                    program.expression_table.expression_handles(*elements),
+                    expression_table(program).expression_handles(*elements),
                 )
             }
         }
@@ -751,8 +746,7 @@ fn match_result_position(
     program: &dyn crate::CheckingInput,
     dispatch: &typed_trees::expression::TableMatchExpression,
 ) -> Option<MemberPosition> {
-    let mut positions = program
-        .expression_table
+    let mut positions = expression_table(program)
         .match_arms(dispatch.arms)
         .iter()
         .map(|arm| expression_type_position(program, arm.value));
@@ -786,7 +780,7 @@ pub(super) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
-    if let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(receiver) {
+    if let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(receiver) {
         return saved_subject_member_symbol(program, saved, receiver_position, member)
             .unwrap_or_else(SymbolHandle::invalid);
     }
@@ -829,9 +823,8 @@ pub(super) fn effective_member_symbol_from_position(
             .filter(|symbol| !member.member_symbol.is_valid() || member.member_symbol == *symbol)
             .unwrap_or_else(SymbolHandle::invalid);
     }
-    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(receiver)
-        && let Some(field) = program
-            .expression_table
+    if let ExpressionNode::StructLiteral(literal) = expression_table(program).expression(receiver)
+        && let Some(field) = expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .find(|field| field.name == member.member)
@@ -871,7 +864,7 @@ fn saved_subject_member_symbol(
         .type_reference_table
         .peeled_type_reference(reference);
     let data = super::data_definition_for_type(program, reference)?;
-    let selected = if let Some(head) = program.expression_table.name_path_node(saved.pattern_head)
+    let selected = if let Some(head) = expression_table(program).name_path_node(saved.pattern_head)
         && head.symbol.is_valid()
         && program.symbols.get(head.symbol).kind == symbols::SymbolKind::Variant
     {

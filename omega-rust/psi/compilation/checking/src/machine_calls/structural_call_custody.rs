@@ -15,6 +15,7 @@
 //! records it in the call plan; lowering reads that record and never decides
 //! it again. These source facts are not portable PCC openings.
 
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralPathQualification, CheckedStructuralResultClaimPlan,
@@ -186,7 +187,7 @@ pub fn structural_state_contract_predicates(
         for (fact_handle, fact) in contract.facts.handles().zip(facts) {
             match fact {
                 typed_trees::domain::ProofFact::Membership(membership) => {
-                    let path = program.expression_table.name_path_node(membership.value)?;
+                    let path = expression_table(program).name_path_node(membership.value)?;
                     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(
                         program,
                         membership.value,
@@ -1245,9 +1246,8 @@ fn structural_authored_arguments<'program>(
     parameter_count: usize,
 ) -> Result<&'program [typed_trees::expression::ExpressionHandle], &'static str> {
     let authored_arguments = if call.authored_expression.is_valid() {
-        let ExpressionNode::Call(authored) = program
-            .expression_table
-            .expression(call.authored_expression)
+        let ExpressionNode::Call(authored) =
+            expression_table(program).expression(call.authored_expression)
         else {
             return Err("structural call occurrence has no authored expression");
         };
@@ -1256,9 +1256,7 @@ fn structural_authored_arguments<'program>(
         {
             return Err("structural call expression target changed");
         }
-        program
-            .expression_table
-            .expression_handles(authored.arguments)
+        expression_table(program).expression_handles(authored.arguments)
     } else {
         match program
             .statement_table

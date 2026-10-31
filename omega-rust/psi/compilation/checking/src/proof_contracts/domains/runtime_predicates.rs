@@ -3,6 +3,7 @@
 //! equal predicates do not identify domains, and predicates cannot mint routed
 //! membership. Both checked production and receiving replay use this owner.
 
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerBinaryKind,
     CheckedIntegerComparisonKind as Comparison, CheckedScalarExpression as Scalar,
@@ -279,12 +280,7 @@ struct Predicate<'program> {
 
 impl Predicate<'_> {
     fn boolean(&self, expression: ExpressionHandle, depth: usize) -> Option<Boolean> {
-        if depth >= 128
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
-        {
+        if depth >= 128 || !expression_table(self.program).expression_is_valid(expression) {
             return None;
         }
         if self
@@ -301,7 +297,7 @@ impl Predicate<'_> {
         if matches!(self.primitive, PrimitiveType::F32 | PrimitiveType::F64) {
             return self.float_boolean(expression, depth);
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Boolean(value) => Some(Boolean::Constant(*value)),
             ExpressionNode::Name(path)
                 if self.primitive == PrimitiveType::Bool
@@ -440,7 +436,7 @@ impl Predicate<'_> {
         let mut receiver = member.receiver;
         fields.push((member.member_symbol, member.member.as_str().to_owned()));
         let call = loop {
-            match self.program.expression_table.expression(receiver) {
+            match expression_table(self.program).expression(receiver) {
                 ExpressionNode::Member(inner) if inner.case_variant.is_none() => {
                     fields.push((inner.member_symbol, inner.member.as_str().to_owned()));
                     receiver = inner.receiver;
@@ -462,15 +458,12 @@ impl Predicate<'_> {
         symbol: symbols::SymbolHandle,
         name: &str,
     ) -> Option<ExpressionHandle> {
-        let literal = self
-            .program
-            .expression_table
-            .struct_literal_node(expression)?;
+        let literal = expression_table(self.program).struct_literal_node(expression)?;
         if literal.case_name.is_some() {
             return None;
         }
         let mut selected = None;
-        for field in self.program.expression_table.struct_fields(literal.fields) {
+        for field in expression_table(self.program).struct_fields(literal.fields) {
             let matches = if symbol.is_valid() && field.field_symbol.is_valid() {
                 field.field_symbol == symbol
             } else {
@@ -519,10 +512,7 @@ impl Predicate<'_> {
             return None;
         }
         let parameters = self.program.state_parameters(state);
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.program).expression_handles(call.arguments);
         let [parameter] = parameters else {
             return None;
         };
@@ -580,7 +570,7 @@ impl Predicate<'_> {
         if !call.receiver.is_valid() {
             return true;
         }
-        let Some(path) = self.program.expression_table.name_path_node(call.receiver) else {
+        let Some(path) = expression_table(self.program).name_path_node(call.receiver) else {
             return false;
         };
         matches!(
@@ -611,7 +601,7 @@ impl Predicate<'_> {
         if depth >= 128 {
             return None;
         }
-        if let Some(binary) = self.program.expression_table.binary_node(expression)
+        if let Some(binary) = expression_table(self.program).binary_node(expression)
             && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
         {
             let left = Box::new(self.float_boolean(binary.left, depth + 1)?);
@@ -667,7 +657,7 @@ impl Predicate<'_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<(BinaryOperator, ExpressionHandle, ExpressionHandle)> {
-        if let Some(binary) = self.program.expression_table.binary_node(expression)
+        if let Some(binary) = expression_table(self.program).binary_node(expression)
             && matches!(
                 binary.operator,
                 BinaryOperator::Equal
@@ -680,7 +670,7 @@ impl Predicate<'_> {
         {
             return Some((binary.operator, binary.left, binary.right));
         }
-        let call = self.program.expression_table.call_node(expression)?;
+        let call = expression_table(self.program).call_node(expression)?;
         let (machine, _) = crate::find_machine_by_entry_state(self.program, call.target_symbol)?;
         let binding = self
             .program
@@ -695,10 +685,7 @@ impl Predicate<'_> {
         if format != expected {
             return None;
         }
-        let [left, right] = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments)
+        let [left, right] = expression_table(self.program).expression_handles(call.arguments)
         else {
             return None;
         };
@@ -709,7 +696,7 @@ impl Predicate<'_> {
         if crate::exact_domain_subject_type(self.program, self.domain, expression).is_some() {
             return Some(self.subject.clone());
         }
-        let literal = self.program.expression_table.expression(expression);
+        let literal = expression_table(self.program).expression(expression);
         let bits = match literal {
             ExpressionNode::Float(literal) => match self.primitive {
                 PrimitiveType::F32 => {
@@ -755,7 +742,8 @@ impl Predicate<'_> {
                 literal: crate::land_integer_value(value, self.primitive)?,
             });
         }
-        if let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        if let ExpressionNode::Binary(binary) =
+            expression_table(self.program).expression(expression)
         {
             // These operators have no authored overload and are total at the
             // common fixed carrier. Preserve their children as expressions;

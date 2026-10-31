@@ -3,6 +3,7 @@ use super::{
     TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker, structural_call_machine_name,
     term_contains,
 };
+use crate::frozen_program::expression_table;
 use std::sync::Arc;
 use symbols::JoinedPath;
 use typed_trees::types::TypeReferenceHandle;
@@ -1037,9 +1038,7 @@ impl<'program> StructuralJudge<'program> {
         let mut entry_facts = requires.to_vec();
         if let Some(machine) = program.machine(owner) {
             entry_facts.extend_from_slice(
-                program
-                    .expression_table
-                    .expression_handles(machine.declared_type_predicates),
+                expression_table(program).expression_handles(machine.declared_type_predicates),
             );
         }
         let requires = entry_facts.as_slice();
@@ -1205,7 +1204,7 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 32 {
             return StructuralJudgment::Unknown;
         }
-        if let Some(binary) = self.program.expression_table.binary_node(expression)
+        if let Some(binary) = expression_table(self.program).binary_node(expression)
             && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
             && crate::has_builtin_decomposed_guard_meaning(
                 self.program,
@@ -1254,7 +1253,7 @@ impl<'program> StructuralJudge<'program> {
                 eprintln!(
                     "STRUCT equality-part-refused caller={:?} side={side} expression={}",
                     self.machine_symbol,
-                    self.program.expression_table.display_name(expression)
+                    expression_table(self.program).display_name(expression)
                 );
             }
             term
@@ -1318,7 +1317,7 @@ impl<'program> StructuralJudge<'program> {
             }
             return;
         }
-        let Some(binary) = program.expression_table.binary_node(fact) else {
+        let Some(binary) = expression_table(program).binary_node(fact) else {
             return;
         };
         if super::structural_terms::is_case_observation(program, fact) {
@@ -1407,7 +1406,7 @@ impl<'program> StructuralJudge<'program> {
             return;
         }
         let program = self.program;
-        if let Some(binary) = program.expression_table.binary_node(fact)
+        if let Some(binary) = expression_table(program).binary_node(fact)
             && binary.operator == BinaryOperator::NotEqual
             && self.has_identity_equality_meaning(fact)
             && let Some(terms) = self.declaration_term_pair(binary)
@@ -1418,7 +1417,7 @@ impl<'program> StructuralJudge<'program> {
                 Arc::make_mut(&mut self.disequalities).push(values);
             }
         }
-        if let Some(binary) = program.expression_table.binary_node(fact)
+        if let Some(binary) = expression_table(program).binary_node(fact)
             && binary.operator == BinaryOperator::And
             && self.has_boolean_connective_meaning(fact)
         {
@@ -2009,9 +2008,8 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return None;
             };
-            let literal = program.expression_table.struct_literal_node(*value)?;
-            let projected = program
-                .expression_table
+            let literal = expression_table(program).struct_literal_node(*value)?;
+            let projected = expression_table(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .find(|candidate| candidate.field_symbol == field)?;
@@ -2307,7 +2305,7 @@ impl<'program> StructuralJudge<'program> {
                             guard,
                         )
                     {
-                        let Some(comparison) = program.expression_table.binary_node(guard) else {
+                        let Some(comparison) = expression_table(program).binary_node(guard) else {
                             return None;
                         };
                         if !matches!(
@@ -2569,14 +2567,10 @@ impl<'program> StructuralJudge<'program> {
             return Some(value.clone());
         }
         if let ExpressionNode::SavedSubject(saved) =
-            self.program.expression_table.expression(expression)
-            && self
-                .program
-                .expression_table
-                .contains_value_capture(saved.capture)
+            expression_table(self.program).expression(expression)
+            && expression_table(self.program).contains_value_capture(saved.capture)
             && matches!(
-                self.program
-                    .expression_table
+                expression_table(self.program)
                     .value_capture(saved.capture)
                     .owner,
                 typed_trees::expression::ValueCaptureOwner::Match
@@ -2619,7 +2613,7 @@ impl<'program> StructuralJudge<'program> {
         // conservatively invalidated reference-bearing state parameters.
         // Ordinary fields (including a user field named `len`) still cross the
         // storage fence below; selection supplies no contents or bounds proof.
-        if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+        if let ExpressionNode::Member(member) = expression_table(program).expression(expression)
             && let Some((machine, state, _)) = scope
             && let Some(reference) =
                 crate::expression_result_type_reference(program, machine, state, member.receiver)
@@ -2635,7 +2629,7 @@ impl<'program> StructuralJudge<'program> {
                 eprintln!(
                     "STRUCT term-storage-refused caller={:?} expression={}",
                     self.machine_symbol,
-                    program.expression_table.display_name(expression)
+                    expression_table(program).display_name(expression)
                 );
             }
             return None;
@@ -2661,8 +2655,7 @@ impl<'program> StructuralJudge<'program> {
                 child_term!(argument)?,
             );
         }
-        if program
-            .expression_table
+        if expression_table(program)
             .call_node(expression)
             .is_some_and(|call| {
                 crate::mathematical_applications::selected_definition(program, call).is_some()
@@ -2684,7 +2677,7 @@ impl<'program> StructuralJudge<'program> {
         if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression) {
             return Some(StructuralTerm::Integer(value));
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Match(dispatch) => self.specification_match_term(
                 expression,
                 dispatch,
@@ -2775,7 +2768,7 @@ impl<'program> StructuralJudge<'program> {
                 }) {
                     return Some(StructuralTerm::BoundValue(path.symbol));
                 }
-                let members = program.expression_table.name_path_members(path.members);
+                let members = expression_table(program).name_path_members(path.members);
                 match members {
                     [single] => environment
                         .iter()
@@ -2787,7 +2780,7 @@ impl<'program> StructuralJudge<'program> {
             }
             ExpressionNode::Member(member) => {
                 if let ExpressionNode::Call(call) =
-                    program.expression_table.expression(member.receiver)
+                    expression_table(program).expression(member.receiver)
                     && (!call.receiver.is_valid()
                         || super::structural_terms::static_call_receiver(
                             program,
@@ -2803,8 +2796,7 @@ impl<'program> StructuralJudge<'program> {
                     )
                     .is_some()
                 {
-                    let arguments = program
-                        .expression_table
+                    let arguments = expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
                         .map(|argument| child_term!(*argument))
@@ -2919,7 +2911,7 @@ impl<'program> StructuralJudge<'program> {
                         eprintln!(
                             "STRUCT term-call-refused caller={:?} expression={} target={:?} reason={reason}",
                             self.machine_symbol,
-                            program.expression_table.display_name(expression),
+                            expression_table(program).display_name(expression),
                             call.target_symbol
                         );
                     }
@@ -2942,7 +2934,7 @@ impl<'program> StructuralJudge<'program> {
                     return None;
                 }
                 let mut arguments = Vec::new();
-                for argument in program.expression_table.expression_handles(call.arguments) {
+                for argument in expression_table(program).expression_handles(call.arguments) {
                     arguments.push(child_term!(*argument)?);
                 }
                 // Substitution changes the selected callable telescope as well
@@ -3230,8 +3222,7 @@ impl<'program> StructuralJudge<'program> {
                 })
                 .unwrap_or(StructuralJudgment::Unknown);
         }
-        if program
-            .expression_table
+        if expression_table(program)
             .call_node(fact)
             .is_some_and(|call| {
                 crate::mathematical_applications::selected_definition(program, call).is_some()
@@ -3264,7 +3255,7 @@ impl<'program> StructuralJudge<'program> {
                 super::arithmetic_judgment::Judgment::Unknown { .. } => StructuralJudgment::Unknown,
             };
         }
-        let Some(binary) = program.expression_table.binary_node(fact) else {
+        let Some(binary) = expression_table(program).binary_node(fact) else {
             return self
                 .judge_value_predicate(fact)
                 .unwrap_or(StructuralJudgment::Unknown);
@@ -3323,7 +3314,7 @@ impl<'program> StructuralJudge<'program> {
                         eprintln!(
                             "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
                             self.machine_symbol,
-                            program.expression_table.display_name(fact)
+                            expression_table(program).display_name(fact)
                         );
                     }
                     return StructuralJudgment::Unknown;
@@ -3333,7 +3324,7 @@ impl<'program> StructuralJudge<'program> {
                         eprintln!(
                             "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
                             self.machine_symbol,
-                            program.expression_table.display_name(fact)
+                            expression_table(program).display_name(fact)
                         );
                     }
                     return StructuralJudgment::Unknown;

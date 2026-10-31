@@ -2,6 +2,7 @@
 //! value environment it introduces.
 
 use super::{StatementOutputs, StatementScope};
+use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::validate_type_reference_handle;
 use crate::value_custody::type_references::{TypeParameterScope, TypeReferenceOwner};
 use crate::{
@@ -405,9 +406,7 @@ pub(super) fn validate(
     if local_data.initial_value.is_valid() {
         let mut completed_values = Vec::new();
         let aggregate_with_writes = matches!(
-            program
-                .expression_table
-                .expression(local_data.initial_value),
+            expression_table(program).expression(local_data.initial_value),
             typed_trees::expression::ExpressionNode::StructLiteral(_)
                 | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
         ) && calls::expression_has_calls(

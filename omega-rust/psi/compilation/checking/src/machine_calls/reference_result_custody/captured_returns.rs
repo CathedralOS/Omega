@@ -22,6 +22,7 @@ use super::{
     StoredCarrierSource, is_mutable_structural_parameter, loan_owner_path, loan_place_segments,
     record_carrier_sources, reference_access_can_supply, stored_carrier_sources, stored_loan_parts,
 };
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckFacts, CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
     CheckedReferenceResultSourcePlan, CheckedReturnedReferencePlan, CheckedStructuralValueKind,
@@ -324,7 +325,7 @@ impl Captures<'_> {
         target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
     ) -> Option<Option<&checked_trees::FlowCallFact>> {
-        let Some(call) = self.program.expression_table.call_node(expression) else {
+        let Some(call) = expression_table(self.program).call_node(expression) else {
             return Some(None);
         };
         if call.static_requirement_dispatch.is_some()
@@ -368,10 +369,7 @@ impl Captures<'_> {
                             call.call_ordinal,
                         ) == Some(target))
                     && (!expression.is_valid() || {
-                        self.program
-                            .expression_table
-                            .call_node(expression)
-                            .is_some_and(|source| {
+                        expression_table(self.program).call_node(expression).is_some_and(|source| {
                                 crate::call_target_entry_symbol(
                                     self.program,
                                     crate::call_target_symbol(self.program, source),
@@ -594,7 +592,7 @@ impl Captures<'_> {
             {
                 if incoming.state_symbol != state.symbol
                     || loan.root != facts::PlaceRoot::Expression(expression)
-                    || !matches!(self.program.expression_table.expression(expression), typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol == target)
+                    || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol == target)
                 {
                     return None;
                 }

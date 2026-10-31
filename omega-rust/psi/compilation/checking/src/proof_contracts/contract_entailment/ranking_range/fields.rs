@@ -10,6 +10,7 @@ use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, PrimitiveType, State, TypeReferenceNode, exact_integer_parameter,
 };
+use crate::frozen_program::expression_table;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::name::Identifier;
@@ -183,7 +184,7 @@ fn formed_expression_value(
     if super::super::proof_integer::anonymous_integer_value(program, node).is_some() {
         return operation_value(engine, node, arrival);
     }
-    let expression = program.expression_table.expression(node);
+    let expression = expression_table(program).expression(node);
     match expression {
         ExpressionNode::Atomic(atomic) => {
             return formed_child!(atomic.value);
@@ -336,7 +337,7 @@ fn form_nested_operations(
     if depth >= 128 {
         return None;
     }
-    let expression = program.expression_table.expression(node);
+    let expression = expression_table(program).expression(node);
     let carrier = super::meanings::admitted_carrier(program, machine, state, node, 0);
     if matches!(expression, ExpressionNode::Binary(binary) if formation_binary(binary.operator))
         && (carrier
@@ -505,7 +506,7 @@ impl<'program> Coordinate<'program> {
     ) -> Option<Self> {
         let mut current = expression;
         if arrival_borrowed
-            && let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
+            && let ExpressionNode::Borrow(borrow) = expression_table(program).expression(current)
         {
             // `&x` and `&x.f` both arrive with the record their target
             // denotes; the carrier resolution below names the same coordinate
@@ -780,8 +781,8 @@ pub(super) fn member_chain<'program>(
     &'program StateParameter,
     Vec<(SymbolHandle, &'program Identifier)>,
 )> {
-    if let Some(path) = program.expression_table.name_path_node(expression) {
-        let members = program.expression_table.name_path_members(path.members);
+    if let Some(path) = expression_table(program).name_path_node(expression) {
+        let members = expression_table(program).name_path_members(path.members);
         if members.len() > 1 {
             let place = crate::canonical_place_from_expression_in_state(
                 program,
@@ -809,7 +810,7 @@ pub(super) fn member_chain<'program>(
     }
     let mut chain = Vec::new();
     let mut cursor = expression;
-    while let Some(member) = program.expression_table.member_node(cursor) {
+    while let Some(member) = expression_table(program).member_node(cursor) {
         if !member.member_symbol.is_valid() || member.case_variant.is_some() || chain.len() >= 128 {
             return None;
         }
@@ -927,10 +928,10 @@ pub(super) fn parameter<'program>(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
-    let path = program.expression_table.name_path_node(expression)?;
+    let path = expression_table(program).name_path_node(expression)?;
     // One member: the subject is a bare binding occurrence, not a chain.
     // Which binding it is comes from the resolved head symbol below.
-    let [_] = program.expression_table.name_path_members(path.members) else {
+    let [_] = expression_table(program).name_path_members(path.members) else {
         return None;
     };
     // The edge owners evaluate every expression through this resolver over a
@@ -978,13 +979,12 @@ pub fn unique_literal_field(
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
 ) -> Option<ExpressionHandle> {
-    let literal = program.expression_table.struct_literal_node(literal)?;
+    let literal = expression_table(program).struct_literal_node(literal)?;
     if literal.type_symbol != owner || literal.case_symbol.is_some() || literal.case_name.is_some()
     {
         return None;
     }
-    let mut fields = program
-        .expression_table
+    let mut fields = expression_table(program)
         .struct_fields(literal.fields)
         .iter()
         .filter(|candidate| {

@@ -1,5 +1,6 @@
 //! Whether an ensures fact mentions proof-only data or the zero value.
 
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
@@ -29,18 +30,18 @@ pub(crate) fn fact_mentions_proof_only_data(
             .filter(|definition| classification.is_proof_only(definition.symbol))
             .map(|definition| definition.name.clone())
     };
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch).find_map(recurse)
         }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             match members {
                 [single] => {
                     let entry = program.machine_states(machine).first()?;
-                    if program.expression_table.names_reserved_result(expression) {
+                    if expression_table(program).names_reserved_result(expression) {
                         if entry.return_type.is_valid() {
                             return classification.proof_only_mention(program, entry.return_type);
                         }
@@ -60,8 +61,7 @@ pub(crate) fn fact_mentions_proof_only_data(
         }
         ExpressionNode::StructLiteral(struct_literal) => {
             proof_only_definition(struct_literal.type_name.as_str()).or_else(|| {
-                program
-                    .expression_table
+                expression_table(program)
                     .struct_fields(struct_literal.fields)
                     .iter()
                     .find_map(|field| recurse(field.value))
@@ -93,8 +93,7 @@ pub(crate) fn fact_mentions_proof_only_data(
                 })
                 .or_else(|| recurse(call.receiver))
                 .or_else(|| {
-                    program
-                        .expression_table
+                    expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
                         .find_map(|argument| recurse(*argument))
@@ -131,8 +130,7 @@ fn find_in_composite_children<T>(
             recurse(indexed.collection).or_else(|| recurse(indexed.index))
         }
         ExpressionNode::Range(range) => recurse(range.start).or_else(|| recurse(range.end)),
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(items) => expression_table(program)
             .expression_handles(*items)
             .iter()
             .find_map(|item| recurse(*item)),
@@ -155,19 +153,17 @@ pub(crate) fn fact_mentions_zero_value(
         return None;
     }
     let recurse = |handle: ExpressionHandle| fact_mentions_zero_value(program, handle);
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch).find_map(recurse)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .find_map(|field| recurse(field.value)),
         ExpressionNode::Call(call) => recurse(call.receiver).or_else(|| {
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .find_map(|argument| recurse(*argument))
