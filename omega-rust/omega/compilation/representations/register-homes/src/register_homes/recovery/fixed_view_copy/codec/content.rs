@@ -12,6 +12,7 @@ use super::{
     primitives::{Cursor, decode_list, length},
     selected::{decode_selected_plan, encode_selected_plan},
 };
+use terminal_codec::CodecError;
 
 pub(super) struct DecodedContent {
     pub(super) plan: FixedViewCopyPlan,
@@ -44,10 +45,7 @@ fn encode_prefix(
     bytes.extend_from_slice(&transformed.bytes());
 }
 
-pub(super) fn encode_v7(
-    bytes: &mut Vec<u8>,
-    plan: &FixedViewCopyPlan,
-) -> Result<(), terminal_codec::CodecError> {
+pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) -> Result<(), CodecError> {
     encode_prefix(
         bytes,
         plan,

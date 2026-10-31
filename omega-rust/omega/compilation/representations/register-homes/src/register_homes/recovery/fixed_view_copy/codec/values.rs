@@ -9,6 +9,7 @@ use crate::FixedViewCopyDecodeError;
 use selected_instructions::{LiveRangePoint, LivenessPosition, VirtualFixedConstraintSite};
 
 use super::primitives::{Cursor, decode_id};
+use semantic_vocabulary::IeeeFloatFormat;
 
 pub(super) fn decode_definition_site(
     cursor: &mut Cursor<'_>,
@@ -87,8 +88,8 @@ pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) {
         ScalarType::IeeeFloat(format) => {
             bytes.push(2);
             bytes.push(match format {
-                semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
-                semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
+                IeeeFloatFormat::Binary32 => 0,
+                IeeeFloatFormat::Binary64 => 1,
             });
         }
     }
@@ -116,12 +117,8 @@ pub(super) fn decode_scalar(
             Ok(ScalarType::Integer(integer))
         }
         2 => match cursor.byte()? {
-            0 => Ok(ScalarType::IeeeFloat(
-                semantic_vocabulary::IeeeFloatFormat::Binary32,
-            )),
-            1 => Ok(ScalarType::IeeeFloat(
-                semantic_vocabulary::IeeeFloatFormat::Binary64,
-            )),
+            0 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
+            1 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
             tag => Err(FixedViewCopyDecodeError::UnknownScalarType(tag)),
         },
         tag => Err(FixedViewCopyDecodeError::UnknownScalarType(tag)),
