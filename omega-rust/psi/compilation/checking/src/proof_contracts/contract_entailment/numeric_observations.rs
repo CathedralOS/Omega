@@ -95,7 +95,51 @@ type NumericSite = (
     bool,
     NumericObservationDemand,
 );
-/// Capture the finite field-read roster once at this executed prefix. The
+// The normal-prefix owner can ask arithmetic return inference about a call;
+// arithmetic can in turn ask for this prefix's completed numeric reads. Track
+// that dynamic query edge, including one-shot inputs without memo storage.
+// This stack carries no semantic answers and is local to the executing thread.
+// Completed memo rows are read first; an unfinished state contributes unknown
+// evidence, never a provisional narrowing. Batch queries cover the whole state,
+// so a different requested statement or output must not evade the cycle fence.
+std::thread_local! {
+    static ACTIVE_NUMERIC_STATES: std::cell::RefCell<Vec<(usize, SymbolHandle, SymbolHandle)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+struct NumericStateQuery;
+
+impl NumericStateQuery {
+    fn enter(
+        program: &dyn crate::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    ) -> Option<Self> {
+        let identity = (
+            program.typed_program() as *const typed_trees::TypedTrees as usize,
+            machine,
+            state,
+        );
+        ACTIVE_NUMERIC_STATES.with(|active| {
+            let mut active = active.borrow_mut();
+            if active.contains(&identity) {
+                return None;
+            }
+            active.push(identity);
+            Some(Self)
+        })
+    }
+}
+
+impl Drop for NumericStateQuery {
+    fn drop(&mut self) {
+        ACTIVE_NUMERIC_STATES.with(|active| {
+            active.borrow_mut().pop();
+        });
+    }
+}
+
+/// Capture the finite integer-read roster once at this executed prefix. The
 /// normal-value owner supplies source ordering, branch joins and call effects;
 /// this adapter neither evaluates a second operand language nor unfolds callees.
 pub fn captured_numeric_observations(
@@ -127,6 +171,9 @@ pub fn captured_numeric_observations(
     {
         return observations.clone();
     }
+    let Some(_query) = NumericStateQuery::enter(program, machine.symbol, state.symbol) else {
+        return CapturedNumericObservations::default();
+    };
     let statement_count = program
         .statement_table
         .statements(state.statement_nodes)
@@ -148,9 +195,8 @@ pub fn captured_numeric_observations(
         }
         return result;
     }
-    // This query's callers are checking orchestration and scalar lowering;
-    // the normal-value owner never re-enters either adapter. Optional memos
-    // change reuse only: one-shot views retain their original selections.
+    // Optional memos change reuse only; one-shot inputs use the same cycle
+    // fence and retain the ordinary exact-prefix selection.
     let (observations, _complete) = collect_numeric_observations(
         program,
         machine,
