@@ -118,7 +118,8 @@ pub(crate) fn require_exact_checked_domain_fact(
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
     require_exact_checked_fact(
-        compilation,
+        &compilation.typed,
+        &compilation.facts.semantic.facts,
         domain_symbol,
         fact_handle,
         identity,
@@ -144,7 +145,8 @@ pub(crate) fn require_exact_checked_domain_fact(
 /// builds the definition origin the rows must carry, and `record_fields`
 /// reads each retained record's symbol, typed fact, and semantic handle.
 pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
-    compilation: &PackageReviewInput<'_>,
+    typed: &typed_trees::TypedTrees,
+    semantic_facts: &facts::evidence::FactTable,
     symbol: SymbolHandle,
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
@@ -161,16 +163,14 @@ pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
     ),
 ) -> Result<(), Vec<Diagnostic>> {
     let point = facts::ProgramPoint::Definition { symbol };
-    let matching_rows = compilation
-        .facts
-        .semantic
-        .facts
-        .iter()
+    let matching_rows = semantic_facts
+        .rows_at_point(point)
+        .into_iter()
         .filter_map(|(handle, fact)| {
             (fact.point == point
                 && fact.origin == origin(symbol)
                 && fact.evidence == facts::QualificationEvidence::default()
-                && semantic_fact_matches_definition_fact(compilation, fact, fact_handle))
+                && semantic_fact_matches_definition_fact(typed, fact, fact_handle))
             .then_some(handle)
         })
         .collect::<Vec<_>>();
@@ -202,17 +202,14 @@ pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
 }
 
 pub(crate) fn semantic_fact_matches_definition_fact(
-    compilation: &PackageReviewInput<'_>,
+    typed: &typed_trees::TypedTrees,
     semantic_fact: &facts::Fact,
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> bool {
     use facts::FactPayload;
     use typed_trees::domain::ProofFact;
 
-    match (
-        compilation.proof_facts.get(fact_handle),
-        semantic_fact.payload,
-    ) {
+    match (typed.proof_facts.get(fact_handle), semantic_fact.payload) {
         (ProofFact::Expression(expected), FactPayload::BooleanExpression(actual)) => {
             *expected == actual
         }
@@ -237,3 +234,6 @@ pub(crate) fn semantic_fact_matches_definition_fact(
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod checked_rows_tests;

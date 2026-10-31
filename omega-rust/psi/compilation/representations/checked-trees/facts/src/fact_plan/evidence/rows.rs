@@ -12,7 +12,10 @@ use std::sync::OnceLock;
 
 use crate::{Fact, ProgramPoint};
 
-type Points = HashMap<ProgramPoint, Vec<Handle<Fact>>, symbols::BuildSymbolHasher>;
+struct Points {
+    rows: HashMap<ProgramPoint, Vec<Handle<Fact>>, symbols::BuildSymbolHasher>,
+    handles_round_trip: bool,
+}
 
 #[derive(Default)]
 pub struct FactTable {
@@ -23,23 +26,56 @@ pub struct FactTable {
 
 impl FactTable {
     pub fn at_point(&self, point: ProgramPoint) -> Vec<&Fact> {
-        self.points.with(
-            *self.revision.get_or_init(|| self.arena.revision()),
-            || {
-                let mut points = Points::default();
-                for (handle, row) in self.arena.iter() {
-                    points.entry(row.point).or_default().push(handle);
-                }
+        self.with_points(|points| {
+            points
+                .rows
+                .get(&point)
+                .into_iter()
+                .flatten()
+                .map(|handle| self.arena.get(*handle))
+                .collect()
+        })
+    }
+
+    /// Raw handles and rows in arena order, including decoded rows whose
+    /// occupied slot generation does not resolve through the page lookup.
+    /// The grouping borrow ends before any consumer inspects these rows.
+    pub fn rows_at_point(&self, point: ProgramPoint) -> Vec<(Handle<Fact>, &Fact)> {
+        self.with_points(|points| {
+            if points.handles_round_trip {
                 points
-            },
-            |points| {
-                points
+                    .rows
                     .get(&point)
                     .into_iter()
                     .flatten()
-                    .map(|handle| self.arena.get(*handle))
+                    .map(|handle| (*handle, self.arena.get(*handle)))
                     .collect()
+            } else {
+                self.arena
+                    .iter()
+                    .filter(|(_, row)| row.point == point)
+                    .collect()
+            }
+        })
+    }
+
+    fn with_points<Result>(&self, read: impl FnOnce(&Points) -> Result) -> Result {
+        self.points.with(
+            *self.revision.get_or_init(|| self.arena.revision()),
+            || {
+                let mut points = Points {
+                    rows: HashMap::default(),
+                    handles_round_trip: true,
+                };
+                for (handle, row) in self.arena.iter() {
+                    points.rows.entry(row.point).or_default().push(handle);
+                    if !self.arena.is_valid(handle) || !std::ptr::eq(self.arena.get(handle), row) {
+                        points.handles_round_trip = false;
+                    }
+                }
+                points
             },
+            read,
         )
     }
 
@@ -128,6 +164,22 @@ mod tests {
                 .iter()
                 .filter_map(|(_, row)| (row.point == *point).then_some(row))
                 .collect::<Vec<_>>();
+            assert_eq!(
+                rows.rows_at_point(*point)
+                    .into_iter()
+                    .map(|(handle, _)| handle)
+                    .collect::<Vec<_>>(),
+                rows.iter()
+                    .filter_map(|(handle, row)| (row.point == *point).then_some(handle))
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                rows.rows_at_point(*point)
+                    .iter()
+                    .map(|(_, row)| *row)
+                    .zip(expected.iter().copied())
+                    .all(|(actual, expected)| std::ptr::eq(actual, expected))
+            );
             let actual = rows.at_point(*point);
             assert_eq!(actual.len(), expected.len());
             assert!(
@@ -146,6 +198,12 @@ mod tests {
             ProgramPoint::Definition {
                 symbol: symbols::SymbolHandle::from_parts(3, 9),
             },
+            ProgramPoint::Definition {
+                symbol: symbols::SymbolHandle::from_parts(3, 10),
+            },
+            ProgramPoint::Definition {
+                symbol: symbols::SymbolHandle::invalid(),
+            },
         ];
         let mut rows = FactTable::default();
         let first = rows.append(Fact {
@@ -160,6 +218,12 @@ mod tests {
             point: points[0],
             ..Default::default()
         });
+        for point in &points[2..] {
+            rows.append(Fact {
+                point: *point,
+                ..Default::default()
+            });
+        }
         matches_scan(&rows, &points);
         rows.get_mut(first).point = points[1];
         matches_scan(&rows, &points);
@@ -196,6 +260,48 @@ mod tests {
         matches_scan(&replaced, &points);
     }
 
+    // Write the existing PagedArenaSet wire shape with an Arena page whose
+    // occupied slot generations need not agree with its page generation.
+    // The actual FactTable decoder, not a trusted constructor, reads it below.
+    struct RawFactPages {
+        first: arena::Arena<Fact>,
+        other: Option<arena::Arena<Fact>>,
+    }
+
+    impl compiler_storage::Record for RawFactPages {
+        fn write(
+            &self,
+            out: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            use compiler_storage::Record;
+            out.record(|out| {
+                1u32.write(out)?;
+                false.write(out)?;
+                self.first.write(out)?;
+                out.record(|out| {
+                    out.sequence(usize::from(self.other.is_some()))?;
+                    if let Some(page) = &self.other {
+                        out.record(|out| {
+                            2u32.write(out)?;
+                            false.write(out)?;
+                            page.write(out)
+                        })?;
+                    }
+                    Ok(())
+                })?;
+                (if self.other.is_some() { 2u32 } else { 1u32 }).write(out)?;
+                (self.first.len() + self.other.as_ref().map_or(0, arena::Arena::len)).write(out)?;
+                Fact::default().write(out)
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            Err(input.error("raw fact page fixture is write-only"))
+        }
+    }
+
     #[test]
     fn point_lookup_keeps_the_exact_arena_encoding_and_decodes_cold() {
         let mut rows = FactTable::default();
@@ -208,5 +314,92 @@ mod tests {
         assert!(decoded.revision.get().is_none());
         matches_scan(&decoded, &[ProgramPoint::Global]);
         assert_eq!(decoded, rows);
+
+        let symbol = symbols::SymbolHandle::from_parts(3, 9);
+        let point = ProgramPoint::Definition { symbol };
+        let fact = Fact {
+            point,
+            ..Default::default()
+        };
+        for alias_page in [false, true] {
+            let first = arena::Arena::from_storage(
+                Fact::default(),
+                vec![fact, fact],
+                Some(arena::ArenaSlotStorage {
+                    generations: vec![1, 2],
+                    occupied: vec![true, true],
+                    free_indices: Vec::new(),
+                }),
+                1,
+                false,
+            )
+            .unwrap();
+            let other = alias_page.then(|| {
+                arena::Arena::from_storage(Fact::default(), vec![Fact::default(); 2], None, 2, true)
+                    .unwrap()
+            });
+            let bytes = compiler_storage::encode(&RawFactPages { first, other }, limits).unwrap();
+            let mut decoded: FactTable = compiler_storage::decode(&bytes, limits).unwrap();
+            let raw: Vec<_> = decoded
+                .iter()
+                .filter(|(_, row)| row.point == point)
+                .collect();
+            assert_eq!(raw.len(), 2);
+            let displaced = raw[1].0;
+            if alias_page {
+                assert!(decoded.is_valid(displaced));
+                assert!(!std::ptr::eq(decoded.get(displaced), raw[1].1));
+            } else {
+                assert!(!decoded.is_valid(displaced));
+            }
+            for selected in [
+                point,
+                ProgramPoint::Global,
+                ProgramPoint::Definition {
+                    symbol: symbols::SymbolHandle::from_parts(3, 10),
+                },
+            ] {
+                let original: Vec<_> = decoded
+                    .iter()
+                    .filter(|(_, row)| row.point == selected)
+                    .collect();
+                let actual = decoded.rows_at_point(selected);
+                assert_eq!(actual.len(), original.len());
+                assert!(
+                    actual
+                        .iter()
+                        .zip(&original)
+                        .all(|((a, ar), (b, br))| a == b && std::ptr::eq(*ar, *br))
+                );
+                // Existing at_point retains its original handle-get behavior,
+                // even for these malformed rows; the new reader must not use it.
+                let old: Vec<_> = original
+                    .iter()
+                    .map(|(handle, _)| decoded.get(*handle))
+                    .collect();
+                assert!(
+                    decoded
+                        .at_point(selected)
+                        .iter()
+                        .zip(old)
+                        .all(|(a, b)| std::ptr::eq(*a, b))
+                );
+            }
+            assert_eq!(compiler_storage::encode(&decoded, limits).unwrap(), bytes);
+            let first = raw[0].0;
+            drop(raw);
+            decoded.get_mut(first).point = ProgramPoint::Global;
+            let remaining = decoded.rows_at_point(point);
+            assert_eq!(remaining.len(), 1);
+            assert_eq!(remaining[0].0, displaced);
+            assert!(std::ptr::eq(
+                remaining[0].1,
+                decoded
+                    .iter()
+                    .find(|(handle, _)| *handle == displaced)
+                    .unwrap()
+                    .1
+            ));
+        }
     }
 }
