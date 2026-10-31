@@ -9,6 +9,8 @@ use super::super::super::structural_fields::structural_projection_path;
 use super::{ComparisonOperand, FieldPath, LogicalMatchBinding, Reader};
 use checked_trees::CheckedBooleanExpression;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use validation::logical_record_match_capture;
+use validation::logical_saved_subject_projection;
 
 impl Reader<'_> {
     fn pure_match_subject(&mut self, expression: ExpressionHandle, depth: usize) -> Option<()> {
@@ -36,8 +38,7 @@ impl Reader<'_> {
         };
         self.pure_match_subject(dispatch.subject, depth + 1)?;
         let observed = self.subject(dispatch.subject, depth + 1)?;
-        let capture =
-            validation::logical_record_match_capture(program, expression, observed.type_reference)?;
+        let capture = logical_record_match_capture(program, expression, observed.type_reference)?;
         Some(LogicalMatchBinding { capture, observed })
     }
 
@@ -92,11 +93,8 @@ impl Reader<'_> {
         depth: usize,
     ) -> Option<FieldPath> {
         self.charge(depth)?;
-        let (mut observed, segments) = validation::logical_saved_subject_projection(
-            self.program,
-            expression,
-            &self.logical_captures,
-        )?;
+        let (mut observed, segments) =
+            logical_saved_subject_projection(self.program, expression, &self.logical_captures)?;
         observed
             .path
             .extend(structural_projection_path(self.program, &segments)?);

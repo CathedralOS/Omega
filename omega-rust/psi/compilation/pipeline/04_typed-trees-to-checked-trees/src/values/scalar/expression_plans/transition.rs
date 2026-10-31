@@ -6,11 +6,17 @@ use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, StatementPlanner, TransitionGuardNode,
     TransitionTargetNode, lower_boolean_guard, lower_return_expression,
 };
+use checked_trees::CheckedLocatedProofTerm;
+use checked_trees::CheckedProofTermRole;
+use symbols::SymbolHandle;
+use typed_trees::statement::TableTransition;
+use typed_trees::statement::TransitionExit;
+use validation::activation_target_state_index;
+use validation::completing_transition_transfer;
+use validation::find_machine_head;
+use validation::mathematical_applications::is_source_evidence_carrier;
 
-pub(crate) fn plan(
-    planner: &mut StatementPlanner<'_, '_>,
-    transition: &typed_trees::statement::TableTransition,
-) {
+pub(crate) fn plan(planner: &mut StatementPlanner<'_, '_>, transition: &TableTransition) {
     if let TransitionGuardNode::When(authored_guard) = transition.guard
         && let Some(guard) = lower_boolean_guard(
             planner.program,
@@ -25,7 +31,7 @@ pub(crate) fn plan(
     {
         planner.record_scalar_value_pair(
             CheckedScalarExpressionRole::Guard,
-            symbols::SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
             authored_guard,
             CheckedScalarExpression::Boolean(Box::new(guard)),
         );
@@ -34,7 +40,7 @@ pub(crate) fn plan(
         if !target.is_valid() {
             continue;
         }
-        if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+        if transition.exit == TransitionExit::Ordinary
             && let TransitionTargetNode::Value(expression) =
                 planner.program.statement_table.transition_target(target)
             && let Some(result_type) = planner.result_type
@@ -57,24 +63,21 @@ pub(crate) fn plan(
             };
             planner.record_scalar_value_pair(
                 role,
-                symbols::SymbolHandle::invalid(),
+                SymbolHandle::invalid(),
                 *expression,
                 return_expression,
             );
         }
-        let Some(transfer) = validation::completing_transition_transfer(planner.program, target)
-        else {
+        let Some(transfer) = completing_transition_transfer(planner.program, target) else {
             continue;
         };
-        let Some(target_state) = validation::activation_target_state_index(
-            planner.program,
-            planner.machine,
-            transfer.target,
-        )
-        .and_then(|target_index| planner.states.get(target_index))
-        .or_else(|| {
-            validation::find_machine_head(planner.program, transfer.target).map(|(_, entry)| entry)
-        }) else {
+        let Some(target_state) =
+            activation_target_state_index(planner.program, planner.machine, transfer.target)
+                .and_then(|target_index| planner.states.get(target_index))
+                .or_else(|| {
+                    find_machine_head(planner.program, transfer.target).map(|(_, entry)| entry)
+                })
+        else {
             continue;
         };
         let target_parameters = planner
@@ -104,7 +107,7 @@ pub(crate) fn plan(
                     && (planner
                         .proof_only
                         .contract_term_carrier(planner.program, target_parameter.type_reference)
-                        || validation::mathematical_applications::is_source_evidence_carrier(
+                        || is_source_evidence_carrier(
                             planner.program,
                             target_parameter.type_reference,
                         ))
@@ -121,23 +124,19 @@ pub(crate) fn plan(
                         planner.exact_integer_casts,
                         planner.proof_only,
                     ) {
-                        planner.proof_terms.push(
-                            checked_trees::CheckedLocatedProofTerm {
-                                state: planner.state.symbol,
-                                statement_ordinal: planner.statement_ordinal,
-                                role: if continuation {
-                                    checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
-                                        argument_ordinal,
-                                    }
-                                } else {
-                                    checked_trees::CheckedProofTermRole::TransitionArgument {
-                                        argument_ordinal,
-                                    }
-                                },
-                                expression: *argument,
-                                term,
+                        planner.proof_terms.push(CheckedLocatedProofTerm {
+                            state: planner.state.symbol,
+                            statement_ordinal: planner.statement_ordinal,
+                            role: if continuation {
+                                CheckedProofTermRole::TransitionContinuationArgument {
+                                    argument_ordinal,
+                                }
+                            } else {
+                                CheckedProofTermRole::TransitionArgument { argument_ordinal }
                             },
-                        );
+                            expression: *argument,
+                            term,
+                        });
                     }
                     // The erased argument owns no scalar
                     // expression: the term above is its
