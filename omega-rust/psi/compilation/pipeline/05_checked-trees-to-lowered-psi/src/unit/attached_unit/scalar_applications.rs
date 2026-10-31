@@ -195,7 +195,11 @@ impl SourceScalarApplications {
                     .iter()
                     .any(|(source, _, _)| *source == expression)
             {
-                applications.retain_expression(checked, expression)?;
+                applications.retain_expression_in(
+                    checked,
+                    expression,
+                    symbols::SymbolHandle::invalid(),
+                )?;
             }
         }
         let conditions = conditions::prepare(checked, &mut applications)?;
@@ -288,14 +292,6 @@ impl SourceScalarApplications {
             ));
         }
         self.insert(Definition::Evaluation { entry: *machine }, scalar_type)
-    }
-
-    fn retain_expression(
-        &mut self,
-        checked: &CheckedTrees,
-        expression: ExpressionHandle,
-    ) -> Result<ScalarApplicationId, LoweringError> {
-        self.retain_expression_in(checked, expression, symbols::SymbolHandle::invalid())
     }
 
     fn retain_expression_in(

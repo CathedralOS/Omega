@@ -10,7 +10,7 @@ use checked_trees::CheckedOperatorFacts;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 pub(crate) fn selected_leaf(
     program: &dyn ::validation::CheckingInput,
@@ -28,7 +28,7 @@ pub(crate) fn selected_leaf(
         return None;
     }
     let mut reference = validation::declared_constant_array_type(program, root)?;
-    if !closed_literal_array(program, root, reference) {
+    if validation::closed_literal_array_elements(program, root, reference).is_none() {
         return None;
     }
     let mut selected = root;
@@ -64,12 +64,4 @@ pub(crate) fn selected_leaf(
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_)
     )
     .then_some(selected)
-}
-
-fn closed_literal_array(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-    reference: TypeReferenceHandle,
-) -> bool {
-    validation::closed_literal_array_elements(program, expression, reference).is_some()
 }

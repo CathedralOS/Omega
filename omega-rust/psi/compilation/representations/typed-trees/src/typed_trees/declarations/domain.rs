@@ -572,8 +572,7 @@ pub fn declared_domain_implies(
             ProofFact::Membership(membership) => {
                 inner(program, membership.domain_symbol, target_domain, visited)
             }
-            ProofFact::Expression(_) => false,
-            ProofFact::Proposition(_) => false,
+            ProofFact::Expression(_) | ProofFact::Proposition(_) => false,
         })
     }
 

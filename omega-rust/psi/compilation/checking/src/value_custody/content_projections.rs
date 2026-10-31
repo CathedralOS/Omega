@@ -16,9 +16,7 @@ use language_semantics::content::{
 };
 use symbols::SymbolHandle;
 use typed_trees::domain::DomainDefinition;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::trait_definition::TraitDefinition;
@@ -430,7 +428,8 @@ fn normalize_projection_scalar_context(
         ExpressionNode::Member(_) => normalize_subject_field(program, subject, expression)
             .map(|(path, _)| ContentScalarExpression::SubjectField(path)),
         ExpressionNode::Call(call)
-            if within_integer_coercion && is_content_scalar_embedding(program, call) =>
+            if within_integer_coercion
+                && crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) =>
         {
             let [argument] = expression_table(program).expression_handles(call.arguments) else {
                 return None;
@@ -614,13 +613,6 @@ fn is_content_projection_trait(
         && !candidate.is_boundary
         && program.trait_type_parameters(candidate).len() == 2
         && matches!(program.trait_machine_signatures(candidate), [requirement] if requirement.name.as_str() == "project")
-}
-
-fn is_content_scalar_embedding(
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-) -> bool {
-    crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call)
 }
 
 fn runtime_scalar_can_embed(

@@ -597,15 +597,6 @@ impl Resolver<'_> {
         }
     }
 
-    fn program_owned_descriptor(
-        &self,
-        reference: typed_trees::types::TypeReferenceHandle,
-        projection: &[PlaceSegment],
-    ) -> bool {
-        crate::owned_projection_type_reference(self.program, reference, projection)
-            .is_some_and(|selected| crate::reference_shell(self.program, selected).is_some())
-    }
-
     fn stored(&mut self, stored: StoredOperand, suffix: &[PlaceSegment]) -> Selection {
         match stored {
             StoredOperand::Unavailable => Selection::Unavailable,
@@ -632,7 +623,11 @@ impl Resolver<'_> {
                 // A pointer crossing is different: its stored leaves belong
                 // to the consumer's current cut and keep the selected sources.
                 let reference = self.control.operands.get(capture).type_reference;
-                if self.program_owned_descriptor(reference, &projection) {
+                if crate::owned_projection_type_reference(self.program, reference, &projection)
+                    .is_some_and(|selected| {
+                        crate::reference_shell(self.program, selected).is_some()
+                    })
+                {
                     Selection::Sources {
                         incoming: Vec::new(),
                         values: vec![StoredCapture {

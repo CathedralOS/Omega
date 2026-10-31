@@ -61,10 +61,6 @@ impl DeviceOrderingScopeOccurrence {
     pub const fn scope_capability(&self) -> DeviceOrderingScopeId {
         self.scope
     }
-
-    const fn occurrence_identity(&self) -> DeviceOrderingScopeOccurrenceId {
-        self.occurrence
-    }
 }
 normalized_identity!(
     DeviceOperationProviderPlanId,
@@ -211,7 +207,7 @@ impl ProviderAssertedDeviceOperationClaim {
         if scope_occurrence.scope != requirement.ordering_scope {
             return Err(AccessPlanDiagnostic(format!(
                 "ordering-scope occurrence {} does not cover the demanded scope capability {}",
-                scope_occurrence.occurrence_identity().normalized_identity(),
+                scope_occurrence.occurrence.normalized_identity(),
                 requirement.ordering_scope.normalized_identity()
             )));
         }

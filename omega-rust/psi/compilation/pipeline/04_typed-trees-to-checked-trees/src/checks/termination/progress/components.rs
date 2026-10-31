@@ -319,7 +319,7 @@ fn summary_equivalent(left: &CheckedProgressSummary, right: &CheckedProgressSumm
             (
                 TerminationGuarantee::Terminates { premises: left },
                 TerminationGuarantee::Terminates { premises: right },
-            ) => same_set(left, right),
+            ) => left.len() == right.len() && left.iter().all(|item| right.contains(item)),
             _ => false,
         }
 }
@@ -330,8 +330,4 @@ fn equivalent(left: &[CheckedProgressSummary], right: &[CheckedProgressSummary])
             .iter()
             .zip(right)
             .all(|(left, right)| summary_equivalent(left, right))
-}
-
-fn same_set<T: PartialEq>(left: &[T], right: &[T]) -> bool {
-    left.len() == right.len() && left.iter().all(|item| right.contains(item))
 }

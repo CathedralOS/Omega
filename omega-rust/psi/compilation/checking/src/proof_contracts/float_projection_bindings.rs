@@ -86,13 +86,6 @@ pub fn is_exact_toolchain_float_meaning_type(
         .any(|data| data.symbol == *symbol && data.name.as_str() == "FloatMeaning")
 }
 
-fn has_exact_toolchain_float_meaning_result(
-    program: &dyn crate::CheckingInput,
-    operator: &OperatorDefinition,
-) -> bool {
-    is_exact_toolchain_float_meaning_type(program, operator.return_type)
-}
-
 /// Recognize one complete sealed float-projection declaration and return its
 /// exact source carrier. Operator spelling, toolchain/file ownership, ordinary
 /// signature shape, and the toolchain-owned `FloatMeaning` result all bind as
@@ -134,7 +127,7 @@ pub fn exact_toolchain_float_projection_contract(
         && !parameter.is_mutable
         && program.operator_contracts(operator).is_empty()
         && program.primitive_type_reference(parameter.type_reference) == Some(expected_primitive)
-        && has_exact_toolchain_float_meaning_result(program, operator))
+        && is_exact_toolchain_float_meaning_type(program, operator.return_type))
     .then_some((expected_primitive, projection.contract_identity()))
 }
 
