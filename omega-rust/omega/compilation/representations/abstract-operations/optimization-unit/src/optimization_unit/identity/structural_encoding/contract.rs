@@ -1,15 +1,13 @@
 //! Canonical crash-route, evidence-interface, and machine-contract encoding.
 
+use super::super::carrier_encoding::{encode_ids, encode_optional, encode_structural_path_segment};
 use super::super::{
     CanonicalBytes, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity, MachineContract,
     OutcomeSpecificCallEvidence,
 };
-use crate::optimization_unit::identity::carrier_encoding::{
-    encode_ids, encode_optional, encode_structural_path_segment,
-};
 
-use crate::optimization_unit::identity::proposition_encoding::encode_proposition;
+use super::super::proposition_encoding::encode_proposition;
 
 pub(in super::super) fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {
     bytes.u8(match cause {
