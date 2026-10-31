@@ -45,6 +45,19 @@ impl Execution<'_, '_, '_> {
         let mut bounds: Option<IntegerRange> = None;
         let mut scalar_complete = true;
         let mut bounds_complete = true;
+        let active = crate::flow::active_context_handles(&self.context.contexts, *contexts);
+        let contents = crate::values::CurrentIntegerBounds::new(
+            self.program,
+            self.context.operators,
+            self.semantic,
+            &active,
+            self.state.symbol,
+            facts::ProgramPoint::Statement {
+                machine_symbol: self.machine.symbol,
+                state_symbol: self.state.symbol,
+                statement_index: self.statement_index,
+            },
+        );
         for source in sources {
             let place = validation::CanonicalPlace {
                 root: source.root,
@@ -84,13 +97,7 @@ impl Execution<'_, '_, '_> {
                 (Some(previous), Some(value)) if *previous != value => scalar_complete = false,
                 (_, Some(value)) => scalar = Some(value),
             }
-            let range = crate::values::integer_bounds_at_place(
-                self.program,
-                self.semantic,
-                self.context
-                    .semantic_context_views(self.semantic, *contexts),
-                &place,
-            );
+            let range = contents.at_place(&place, primitive);
             match (bounds.take(), range) {
                 (_, None) => bounds_complete = false,
                 (Some(previous), Some(value)) => {

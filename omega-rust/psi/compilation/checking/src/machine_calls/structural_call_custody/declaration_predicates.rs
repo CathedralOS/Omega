@@ -1202,10 +1202,8 @@ impl FactSpelling<'_> {
                     .program
                     .type_reference_table
                     .unconstrained_type_reference(collection);
-                let TypeReferenceNode::FixedArray { element_type, .. } = self
-                    .program
-                    .type_reference_table
-                    .type_reference(collection)
+                let TypeReferenceNode::FixedArray { element_type, .. } =
+                    self.program.type_reference_table.type_reference(collection)
                 else {
                     return None;
                 };
