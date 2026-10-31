@@ -3,7 +3,6 @@ use super::{
     CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
     Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, enforce_byte_limit,
     io_at, io_error, read_bytes_bounded, synchronize_directory, unconfirmed_at,
-    verify_capability_regular_identity,
 };
 use cap_fs_ext::OpenOptionsFollowExt;
 #[cfg(unix)]
@@ -63,12 +62,7 @@ pub(super) fn prepare(
             path: stage.display_path.clone(),
         });
     }
-    verify_capability_regular_identity(
-        &root.directory,
-        &stage.file_name,
-        &stage.file,
-        &stage.display_path,
-    )?;
+    root.verify_regular(&stage.file_name, &stage.file)?;
     Ok(stage)
 }
 
@@ -87,7 +81,7 @@ pub(super) fn replace(
     stage.removed = true;
 
     let confirmation = (|| {
-        verify_capability_regular_identity(&root.directory, file_name, &stage.file, display_path)?;
+        root.verify_regular(file_name, &stage.file)?;
         synchronize_directory(&root.directory, &root.display_path)?;
         synchronize_directory(
             &stage.directory,
@@ -103,7 +97,7 @@ pub(super) fn replace(
                 path: display_path.to_path_buf(),
             });
         }
-        verify_capability_regular_identity(&root.directory, file_name, &stage.file, display_path)
+        root.verify_regular(file_name, &stage.file)
     })();
 
     confirmation.map_err(unconfirmed_at(display_path))

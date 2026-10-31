@@ -52,6 +52,16 @@ impl RecordFileRoot {
         })
     }
 
+    fn verify_regular(
+        &self,
+        file_name: &OsStr,
+        file: &CapabilityFile,
+    ) -> Result<(), RecordFileError> {
+        let display_path = self.display_path.join(file_name);
+        let metadata = io_at(file.metadata(), &display_path)?;
+        verify_regular_identity(&self.directory, file_name, &metadata, &display_path)
+    }
+
     pub fn read(
         &self,
         relative_path: &Path,
@@ -85,7 +95,7 @@ impl RecordFileRoot {
         let mut options = CapabilityOpenOptions::new();
         options.read(true).follow(FollowSymlinks::No);
         let file = io_at(self.directory.open_with(file_name, &options), &display_path)?;
-        verify_capability_regular_identity(&self.directory, file_name, &file, &display_path)?;
+        self.verify_regular(file_name, &file)?;
         let metadata = io_at(file.metadata(), &display_path)?;
         if metadata.len() > u64::try_from(limits.maximum_bytes).unwrap_or(u64::MAX) {
             return Err(RecordFileError::ByteLimitExceeded {
@@ -141,21 +151,11 @@ impl RecordFileRoot {
         }
 
         let confirmation = (|| {
-            verify_capability_regular_identity(
-                &self.directory,
-                file_name,
-                &stage.file,
-                &display_path,
-            )?;
+            self.verify_regular(file_name, &stage.file)?;
             stage.remove()?;
             synchronize_directory(&self.directory, &self.display_path)?;
             synchronize_directory(&staging.directory, &staging.display_path)?;
-            verify_capability_regular_identity(
-                &self.directory,
-                file_name,
-                &stage.file,
-                &display_path,
-            )
+            self.verify_regular(file_name, &stage.file)
         })();
 
         confirmation.map_err(unconfirmed_at(&display_path))
@@ -280,12 +280,7 @@ impl RootRecordRead<'_> {
                 path: self.display_path.clone(),
             });
         }
-        verify_capability_regular_identity(
-            &self.root.directory,
-            &self.file_name,
-            &self.file,
-            &self.display_path,
-        )
+        self.root.verify_regular(&self.file_name, &self.file)
     }
 }
 
@@ -302,16 +297,6 @@ fn single_file_name(path: &Path) -> Result<&OsStr, RecordFileError> {
         });
     }
     Ok(file_name)
-}
-
-fn verify_capability_regular_identity(
-    directory: &CapabilityDirectory,
-    relative_path: &OsStr,
-    file: &CapabilityFile,
-    display_path: &Path,
-) -> Result<(), RecordFileError> {
-    let handle_metadata = io_at(file.metadata(), display_path)?;
-    verify_regular_identity(directory, relative_path, &handle_metadata, display_path)
 }
 
 fn verify_regular_identity(
