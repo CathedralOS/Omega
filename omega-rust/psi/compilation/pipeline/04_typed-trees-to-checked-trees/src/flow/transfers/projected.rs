@@ -12,6 +12,7 @@ use super::PlaceHandle;
 use crate::flow;
 use crate::flow::FlowBuildContext;
 use crate::flow::origin_place;
+use crate::values::is_assignment_literal;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
@@ -178,9 +179,7 @@ fn append_value_predicates(
             // literal `AssignedValue` leaves qualify -- a call occurrence is
             // retained as provenance at its root place and can never name a
             // copied field's value.
-            FactPayload::AssignedValue { value }
-                if crate::values::is_assignment_literal(program, value) =>
-            {
+            FactPayload::AssignedValue { value } if is_assignment_literal(program, value) => {
                 fact.payload
             }
             FactPayload::CaseValue { .. }

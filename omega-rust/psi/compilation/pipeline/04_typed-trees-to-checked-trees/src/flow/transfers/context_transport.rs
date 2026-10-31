@@ -7,6 +7,7 @@ use super::{
     HandleSpan, ProgramPoint, SymbolHandle, retain_qualification_correspondence,
 };
 use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::canonical_places_agree;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transport(
@@ -49,9 +50,7 @@ pub(super) fn transport(
                             semantic,
                             semantic.places.get(fact_place),
                         )
-                        .is_some_and(|place| {
-                            crate::flow::canonical_places_agree(program, &place, source)
-                        })
+                        .is_some_and(|place| canonical_places_agree(program, &place, source))
                     })
                 };
                 match fact.payload {

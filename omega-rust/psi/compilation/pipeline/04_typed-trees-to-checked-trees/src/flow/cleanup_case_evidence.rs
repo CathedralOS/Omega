@@ -10,6 +10,7 @@
 //! owned, typed prefix; this consumer checks occurrence/root correspondence.
 //! Independently supplied or persisted rows need that same authentication.
 
+use crate::facts::contextual_cleanup::occurrence_contexts;
 use checked_trees::{CheckFacts, ContextualCleanupDisposition};
 use facts::{FactContextHandle, PlaceSegment};
 use std::cell::OnceCell;
@@ -97,12 +98,7 @@ impl<'a> CleanupCaseEvidence<'a> {
                 .control
                 .state(self.disposition.machine, self.disposition.state)
                 .and_then(|state| {
-                    crate::facts::contextual_cleanup::occurrence_contexts(
-                        self.program,
-                        self.facts,
-                        state,
-                        self.disposition,
-                    )
+                    occurrence_contexts(self.program, self.facts, state, self.disposition)
                 })
         })
     }

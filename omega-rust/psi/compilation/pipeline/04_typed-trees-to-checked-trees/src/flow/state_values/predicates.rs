@@ -1,5 +1,8 @@
 //! Relational state inputs come from live completed edges. Scratch rows retain
 //! canonical places across sweeps; only reseeding allocates current fact handles.
+use crate::checks::contracts::boolean_value_at_place;
+use crate::flow::active_context_handles;
+use crate::values::scalar_value_at_place;
 use validation::CanonicalPlace;
 
 use crate::facts::boolean_predicates::{self, BoundObservation, BoundPredicate};
@@ -26,7 +29,7 @@ pub(super) fn capture(
     arguments: &[ExpressionHandle],
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<BoundPredicate> {
-    let contexts = crate::flow::active_context_handles(&build.contexts, contexts);
+    let contexts = active_context_handles(&build.contexts, contexts);
     let mut transfers = Vec::new();
     let mut arguments = arguments.iter();
     for parameter in program.state_parameters(destination) {
@@ -88,25 +91,18 @@ pub(super) fn capture(
             if rebase(binding).is_some() {
                 return None;
             }
-            crate::checks::contracts::boolean_value_at_place(
-                program,
-                build.operators,
-                semantic,
-                &contexts,
-                point,
-                place,
-            )
-            .map(ScalarValue::Boolean)
-            .or_else(|| {
-                crate::values::scalar_value_at_place(
-                    program,
-                    semantic,
-                    contexts
-                        .iter()
-                        .map(|context| semantic.contexts.get(*context)),
-                    place,
-                )
-            })
+            boolean_value_at_place(program, build.operators, semantic, &contexts, point, place)
+                .map(ScalarValue::Boolean)
+                .or_else(|| {
+                    scalar_value_at_place(
+                        program,
+                        semantic,
+                        contexts
+                            .iter()
+                            .map(|context| semantic.contexts.get(*context)),
+                        place,
+                    )
+                })
         }) else {
             continue;
         };

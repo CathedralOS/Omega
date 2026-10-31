@@ -4,9 +4,13 @@
 //! and memo tables for lookups that depend only on the program, which survive
 //! between sweeps.
 use crate::facts::boolean_predicates;
+use crate::facts::build_dynamic_conformance_facts;
+use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::facts::contract_occurrences::fact_referenced_occurrences;
 use crate::facts::entry_parameter_place_before_statement;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::entry_origins;
+use crate::flow::place_cases_are_selected;
 use crate::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
@@ -136,7 +140,7 @@ impl SharedFlowTables {
                 .push(row);
         }
         Self {
-            dynamic_conformances: crate::facts::build_dynamic_conformance_facts(program)
+            dynamic_conformances: build_dynamic_conformance_facts(program)
                 .ok()
                 .map(std::sync::Arc::new),
             symbol_index: SymbolIndex::build(program),
@@ -837,11 +841,7 @@ impl<'plans> FlowBuildContext<'plans> {
             .entry(expression)
             .or_insert_with(|| {
                 let mut occurrences = Vec::new();
-                crate::facts::contract_occurrences::append_expression_occurrences(
-                    program,
-                    expression,
-                    &mut occurrences,
-                );
+                append_expression_occurrences(program, expression, &mut occurrences);
                 Rc::new(occurrences)
             })
             .clone()
@@ -854,11 +854,7 @@ impl<'plans> FlowBuildContext<'plans> {
     ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
         self.proof_fact_occurrences
             .entry(fact)
-            .or_insert_with(|| {
-                Rc::new(
-                    crate::facts::contract_occurrences::fact_referenced_occurrences(program, fact),
-                )
-            })
+            .or_insert_with(|| Rc::new(fact_referenced_occurrences(program, fact)))
             .clone()
     }
 
@@ -1099,7 +1095,7 @@ pub(super) fn source_transfer_cases_selected(
     else {
         return false;
     };
-    crate::flow::place_cases_are_selected(
+    place_cases_are_selected(
         program,
         semantic,
         &context_handles,
