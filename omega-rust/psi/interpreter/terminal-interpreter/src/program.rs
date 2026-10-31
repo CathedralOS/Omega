@@ -871,9 +871,6 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .map_err(TerminalArtifactInterpretError::Execution)?;
         }
         execution.scalar_applications = scalar_values;
-        execution
-            .bind_structural_cases(structural_inputs.cases)
-            .map_err(TerminalArtifactInterpretError::Execution)?;
         if !structural_inputs.byte_arrays.is_empty() {
             execution
                 .bind_byte_arrays(structural_inputs.byte_arrays)

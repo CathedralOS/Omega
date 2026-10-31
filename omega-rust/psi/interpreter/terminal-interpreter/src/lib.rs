@@ -129,7 +129,6 @@ pub use scalar_operations::float_result_policy;
 pub use scalar_storage::TerminalScalarBacking;
 pub use structural_inputs::access_views::TerminalAccessViewEstablishment;
 pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
-pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
 pub use structural_inputs::contents::TerminalStructuralContents;
 pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 pub use structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};

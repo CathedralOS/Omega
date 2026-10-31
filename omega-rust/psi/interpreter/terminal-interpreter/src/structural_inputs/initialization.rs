@@ -74,10 +74,6 @@ pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), Termi
                 .iter()
                 .any(|value| overlaps(value.argument_index, &[]))
             || inputs
-                .cases
-                .iter()
-                .any(|case| overlaps(case.argument_index, &case.path))
-            || inputs
                 .byte_arrays
                 .iter()
                 .any(|array| overlaps(array.argument_index, &array.path))

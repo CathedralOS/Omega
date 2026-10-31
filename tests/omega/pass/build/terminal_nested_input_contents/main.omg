@@ -16,6 +16,7 @@ data ErasedInput { value: u64; evidence [erased]: u64; }
 data ReferenceInput { value: u64; reference: &u64; }
 machine inspect_erased(input: ErasedInput) -> u64 { input.value }
 machine inspect_reference(input: ReferenceInput) -> u64 { input.value }
+machine inspect_second(signature: Signature) -> u64 { inspect(signature) }
 
 machine weight(kind: Kind) -> u64 {
     match kind {

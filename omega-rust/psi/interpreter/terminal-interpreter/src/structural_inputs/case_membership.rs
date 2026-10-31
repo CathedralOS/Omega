@@ -14,16 +14,6 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-/// Initialized payloadless case contents below one structural entry argument.
-/// The path selects the sum itself, not its case payload. Neither an opaque
-/// identity nor an integer discriminator is evidence of these contents.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalStructuralCaseValue {
-    pub argument_index: u32,
-    pub path: Vec<StructuralPathSegment>,
-    pub case: StructuralCaseId,
-}
-
 /// Runtime contents retain nominal type independently of the observing view.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct StructuralCaseContents {
@@ -383,62 +373,6 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok((leaf, projection))
-    }
-
-    pub(crate) fn bind_structural_cases(
-        &mut self,
-        cases: &[TerminalStructuralCaseValue],
-    ) -> Result<(), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or(malformed())?;
-        for contents in cases {
-            let parameter = machine
-                .structural_parameters
-                .get(contents.argument_index as usize)
-                .ok_or(malformed())?;
-            let root = crate::custody::verified_structural_place(
-                &self.structural_values,
-                parameter.place,
-            )?;
-            let selected_type = resolve_structural_path_type(
-                &self.structural_types(),
-                root.structural_type,
-                &contents.path,
-            )?;
-            let declaration = self.structural_declaration(selected_type)?;
-            // This input form establishes a complete empty-payload case. It
-            // cannot claim that a missing payload satisfies its declaration.
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return Err(malformed());
-            };
-            if !cases
-                .iter()
-                .any(|case| case.id == contents.case && case.fields.is_empty())
-            {
-                return Err(malformed());
-            }
-            let mut selected = StructuralRuntimePlace::from(root);
-            selected.path.extend_from_slice(&contents.path);
-            if self
-                .structural_cases
-                .insert(
-                    selected,
-                    StructuralCaseContents {
-                        structural_type: selected_type,
-                        case: contents.case,
-                    },
-                )?
-                .is_some()
-            {
-                return Err(malformed());
-            }
-        }
-        Ok(())
     }
 
     pub(crate) fn observe_structural_case(

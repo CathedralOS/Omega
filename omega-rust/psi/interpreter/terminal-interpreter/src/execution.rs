@@ -835,10 +835,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .iter()
                     .any(|value| value.argument_index == index)
                 || inputs
-                    .cases
-                    .iter()
-                    .any(|value| value.argument_index == index)
-                || inputs
                     .byte_arrays
                     .iter()
                     .any(|value| value.argument_index == index);

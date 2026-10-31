@@ -4,8 +4,8 @@
 //! [`TerminalStructuralInputs`] is the record the entries in
 //! `terminal_interpreter` accept. `scalar_fields` binds host field contents
 //! by runtime referent and validates entry restrictions, `byte_arrays` the
-//! explicit initialized fixed-array contents, `case_membership` the selected
-//! case of a bounded sum, and `access_views` the established access-view
+//! explicit initialized fixed-array contents, `contents` complete scalar/tag
+//! payloads, and `access_views` the established access-view
 //! referents; each is bound only when it is given.
 
 pub(crate) mod access_views;
@@ -17,7 +17,6 @@ pub(crate) mod scalar_fields;
 
 use crate::structural_inputs::access_views::TerminalAccessViewEstablishment;
 use crate::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
-use crate::structural_inputs::case_membership::TerminalStructuralCaseValue;
 use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::{
     TerminalStructuralBooleanFieldValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -54,7 +53,6 @@ pub struct TerminalStructuralInputs<'input> {
     /// reported as a boolean-field argument error.
     pub boolean_fields: &'input [TerminalStructuralBooleanFieldValue],
     pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
-    pub cases: &'input [TerminalStructuralCaseValue],
     pub byte_arrays: &'input [TerminalStructuralByteArrayValue],
     /// Established access-view inputs: one exact establishment per direct
     /// entry roster row lends its qualified referent backing for the

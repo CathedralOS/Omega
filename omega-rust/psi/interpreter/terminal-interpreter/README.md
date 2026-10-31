@@ -53,6 +53,8 @@ cell. Contents provide no claims, qualifications or reference authority.
 The shared [storage contents](src/structural_storage/contents.rs) walker and constructor transaction own this
 operation, including sponsored reservations and failure teardown. Complete
 initializers cannot overlap one another or a partial input lane.
+The former payloadless-only case input and its separate binder are removed;
+payloadless and payload-bearing cases use the same complete-content route.
 
 `TerminalInstance::bind_import` establishes each demanded import slot against a
 checked adapter before `invoke` runs any guest operation — a missing, unknown,
