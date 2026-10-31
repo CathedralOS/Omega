@@ -1,0 +1,42 @@
+// The actual nominal U must not be rebound by the unrelated formal named U.
+use omega_language_std::calling;
+
+data U { left: u64; right: u64; }
+ObserveShape satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.parameter_count == 1 {
+            true -> inspect(signature, signature.parameters[0])
+            _ -> wrong()
+        }
+        machine inspect(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+            transition root < 256 { true -> observe(signature, root) _ -> wrong() }
+        }
+        machine observe(signature: BoundarySignature, root: u64) -> BoundaryPlanResult
+        requires root < 256 {
+            transition signature.shapes[root].byte_size == 16 {
+                true -> retained()
+                _ -> wrong()
+            }
+        }
+        machine retained() -> BoundaryPlanResult {
+            BoundaryPlanResult::Rejected {
+                reason: CallingPolicyRejection { reason: "nominal actual retained by simultaneous frame" }
+            }
+        }
+        machine wrong() -> BoundaryPlanResult {
+            BoundaryPlanResult::Rejected {
+                reason: CallingPolicyRejection { reason: "wrong boundary value shape" }
+            }
+        }
+    }
+}
+boundary trait Shape<First, U>: Calling<ObserveShape> {
+    machine consume(value: First) reaches;
+}
+SelectedShape satisfies Shape<U, u64> {
+    machine consume(value: U) {}
+}
+machine main() reaches Shape {
+    let value: U;
+    Shape<U, u64>::consume(value);
+}

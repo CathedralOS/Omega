@@ -319,7 +319,7 @@ publication, and reviewed candidates never replace original compiler custody.
 
 Boundary-value layout now takes a source-free storage recipe graph. Psi's
 `typed-trees::boundary_values` closes applications, reference descriptors,
-runtime members, invariant authored storage and opaque carrier correspondence;
+runtime members, all admitted fixed-storage alternatives and opaque carrier correspondence;
 Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
 target without reading typed source. Ordinary calling signatures, entry storage
 and table dispatch all use this one route. The graph carries storage meaning,

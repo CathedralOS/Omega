@@ -162,8 +162,19 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
         panic!("field");
     };
     let field_symbol = field.symbol;
+    // Fixed storage now joins by the complete application, not just a data
+    // symbol. Keep the synthetic fixture's declaration and plan paired.
+    let application =
+        typed
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+            });
+    let declarations = typed.roots.data_definitions;
+    typed.data_definitions.span_mut_or_empty(declarations)[0].generic_instance = Some(application);
     typed.plan_laid_layouts.push(PlanLaidLayout {
-        application: Default::default(),
+        application,
         semantic_type: Default::default(),
         policy_application: Default::default(),
         target_inputs: Vec::new(),
