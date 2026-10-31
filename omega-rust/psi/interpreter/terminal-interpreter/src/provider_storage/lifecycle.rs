@@ -12,6 +12,7 @@
 
 use super::initialization::{InitializationRejection, PreparedProviderImage};
 use super::{ProviderStorageSlot, ResidentStorageSlot};
+use crate::custody::bind_result_claim;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -19,8 +20,8 @@ use crate::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAccess,
-    StructuralAffineDiscard, StructuralOperationResult, StructuralPathSegment,
-    StructuralResultClaimBinding, TerminalAccessLifecyclePlan,
+    StructuralAffineDiscard, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPathSegment, StructuralResultClaimBinding, TerminalAccessLifecyclePlan,
 };
 use terminal_semantics::{AccessResultContract, access_result_contract};
 
@@ -132,9 +133,7 @@ impl TerminalExecution<'_> {
             .zip([extent_parameter, value_parameter])
         {
             let transfers = self.stage_constructor_operand(source, &mut frontier, &mut consumed)?;
-            if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-                && !transfers
-            {
+            if parameter.multiplicity != StructuralMultiplicity::Unrestricted && !transfers {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
         }
@@ -183,12 +182,7 @@ impl TerminalExecution<'_> {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
             received = true;
-            crate::custody::bind_result_claim(
-                &mut claims,
-                binding,
-                result.place,
-                result.multiplicity,
-            )?;
+            bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
         }
         if !received {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -340,9 +334,7 @@ impl TerminalExecution<'_> {
                     .collect(),
             };
             let transfers = self.stage_constructor_operand(source, &mut frontier, &mut consumed)?;
-            if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-                && !transfers
-            {
+            if parameter.multiplicity != StructuralMultiplicity::Unrestricted && !transfers {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
             storage.stage(self, source, &child, &destination, transfers)?;
@@ -419,12 +411,7 @@ impl TerminalExecution<'_> {
             if !received.insert(original_identity) {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
-            crate::custody::bind_result_claim(
-                &mut claims,
-                binding,
-                result.place,
-                result.multiplicity,
-            )?;
+            bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
         }
         if !transported.is_empty() || received.len() != completion_receipts.len() {
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
