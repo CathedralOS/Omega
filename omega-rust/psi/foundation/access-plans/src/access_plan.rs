@@ -157,42 +157,27 @@ impl FieldAccess {
         match self {
             FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
             FieldAccess::Region { permissions, .. } => {
-                let mut operations = Vec::new();
-                if permissions.read {
-                    operations.push("read");
-                }
-                if permissions.take {
-                    operations.push("take");
-                }
-                if permissions.write {
-                    operations.push("write");
-                }
-                operations
+                ordinary_operation_names(permissions.read, permissions.take, permissions.write)
             }
             FieldAccess::Stable { read, write, .. } => {
-                let mut operations = Vec::new();
-                if *read {
-                    operations.push("read");
-                }
-                if *write {
-                    operations.push("write");
-                }
-                operations
+                ordinary_operation_names(*read, false, *write)
             }
-            FieldAccess::External { read, write, .. } => {
-                let mut operations = Vec::new();
-                match read {
-                    ExternalRead::None => {}
-                    ExternalRead::Read => operations.push("read"),
-                    ExternalRead::Take => operations.push("take"),
-                }
-                if *write {
-                    operations.push("write");
-                }
-                operations
-            }
+            FieldAccess::External { read, write, .. } => ordinary_operation_names(
+                *read == ExternalRead::Read,
+                *read == ExternalRead::Take,
+                *write,
+            ),
         }
     }
+}
+
+/// The ordinary operation names one permission triple admits, in the fixed
+/// order every diagnostic reports them: read, take, write.
+fn ordinary_operation_names(read: bool, take: bool, write: bool) -> Vec<&'static str> {
+    [("read", read), ("take", take), ("write", write)]
+        .into_iter()
+        .filter_map(|(name, admitted)| admitted.then_some(name))
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
