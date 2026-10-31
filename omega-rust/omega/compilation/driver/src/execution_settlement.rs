@@ -428,7 +428,7 @@ fn prepare_target_provider_selection(
     // This consumes the shared source judgment, never another Psi check.
     if let Some(profile) = selected_target_profile {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
-            typed,
+            &source.program,
             &mut boundary_calling_plan_realizations,
             profile,
             &build_config.opaque_representation_selections,

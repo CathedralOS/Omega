@@ -274,10 +274,7 @@ impl PreparedBoundaryCallingPlans<'_> {
             let validated = code
                 .evaluate(policy_symbol, self.target, &signature)
                 .map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!("calling policy `{policy_machine}`: {reason}"))
-                            .with_source_span(relationship_span),
-                    ]
+                    vec![Diagnostic::error(reason).with_source_span(relationship_span)]
                 })?;
             let (application_report_fingerprint, application_commitment) =
                 boundary_plan_application_identity(&signature, &validated)

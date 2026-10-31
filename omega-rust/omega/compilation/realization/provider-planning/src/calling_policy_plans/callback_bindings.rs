@@ -264,7 +264,7 @@ pub(crate) fn validate_callback_requirement_report_collision(
 /// Layout consumes typed structure, not a language judgment. This produces ABI
 /// geometry only; checked callback authority is bound separately after Psi.
 pub fn close_outbound_callback_materializations(
-    typed: &TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
@@ -273,6 +273,14 @@ pub fn close_outbound_callback_materializations(
     if realizations.is_empty() {
         return Ok(());
     }
+    let typed = &checked.typed;
+    let code = code.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "callback geometry has no published calling-policy code",
+        )]
+    })?;
+    code.require_owner(checked)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let layout_target = layout::LayoutTarget::for_profile(target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let native_target = layout_target.native_target();
@@ -380,11 +388,6 @@ pub fn close_outbound_callback_materializations(
         let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
         signature.callback_demands = demands.clone();
         signature.callback_layout_catalog = entries.into_iter().flatten().collect();
-        let code = code.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "callback geometry has no published calling-policy code",
-            )]
-        })?;
         let validated = code
             .evaluate(realization.policy_symbol, target_profile, &signature)
             .map_err(|reason| {
