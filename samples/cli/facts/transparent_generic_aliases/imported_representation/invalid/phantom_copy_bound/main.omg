@@ -1,0 +1,6 @@
+// The argument is erased from the expansion, but its own [copy] bound remains.
+use leaf::values;
+machine main() {
+    let value: leaf::values::Forget<leaf::values::Resource> = 42u64;
+    let same: u64 = value;
+}
