@@ -1,5 +1,7 @@
 //! Exact virtual interference without retaining repeated overlap occurrences.
-use super::{LiveRangeFragment, SelectedBlockId, VirtualInterference, VirtualLiveRange};
+use super::{
+    LiveRangeFragment, SelectedBlockId, VirtualInterference, VirtualInterferences, VirtualLiveRange,
+};
 use std::collections::BTreeMap;
 
 /// A sorted block's implicit balanced interval tree. Each midpoint owns the
@@ -30,7 +32,7 @@ fn append_overlaps(
     lower_row: usize,
     rows: &[VirtualLiveRange],
     seen: &mut [usize],
-    pairs: &mut Vec<VirtualInterference>,
+    pairs: &mut VirtualInterferences,
 ) {
     if intervals.is_empty() {
         return;
@@ -65,7 +67,7 @@ fn append_overlaps(
 
 /// Every distinct row pair with overlapping nonempty half-open fragments in
 /// one block. Repeated fragments and overlaps in other blocks add no storage.
-pub(super) fn interference(rows: &[VirtualLiveRange]) -> Vec<VirtualInterference> {
+pub(super) fn interference(rows: &[VirtualLiveRange]) -> VirtualInterferences {
     let mut blocks = BTreeMap::<SelectedBlockId, Vec<Interval>>::new();
     for (row, range) in rows.iter().enumerate() {
         for fragment in &range.fragments {
@@ -84,7 +86,7 @@ pub(super) fn interference(rows: &[VirtualLiveRange]) -> Vec<VirtualInterference
         prepare(intervals);
     }
 
-    let mut pairs = Vec::new();
+    let mut pairs = VirtualInterferences::new();
     let mut seen = vec![usize::MAX; rows.len()];
     for (row, range) in rows.iter().enumerate() {
         let first_pair = pairs.len();
@@ -100,7 +102,7 @@ pub(super) fn interference(rows: &[VirtualLiveRange]) -> Vec<VirtualInterference
                 );
             }
         }
-        pairs[first_pair..].sort_unstable();
+        pairs.sort_lower_tail(first_pair);
     }
     // Valid canonical rows are already ordered. Preserve the former general
     // path's full-ID ordering and deduplication for unordered/duplicate IDs too.
@@ -108,8 +110,7 @@ pub(super) fn interference(rows: &[VirtualLiveRange]) -> Vec<VirtualInterference
         .windows(2)
         .all(|pair| pair[0].virtual_register < pair[1].virtual_register)
     {
-        pairs.sort_unstable();
-        pairs.dedup();
+        pairs.sort_unstable_and_dedup();
     }
     pairs
 }
@@ -182,16 +183,25 @@ mod tests {
                     range(row * 100_003, fragments)
                 })
                 .collect::<Vec<_>>();
-            assert_eq!(interference(&rows), expected(&rows));
+            assert_eq!(
+                interference(&rows).iter().collect::<Vec<_>>(),
+                expected(&rows)
+            );
             let mut dense_blocks = rows.clone();
             for row in &mut dense_blocks {
                 for fragment in &mut row.fragments {
                     fragment.block.0 %= 3;
                 }
             }
-            assert_eq!(interference(&dense_blocks), expected(&dense_blocks));
+            assert_eq!(
+                interference(&dense_blocks).iter().collect::<Vec<_>>(),
+                expected(&dense_blocks)
+            );
             let reversed = rows.into_iter().rev().collect::<Vec<_>>();
-            assert_eq!(interference(&reversed), expected(&reversed));
+            assert_eq!(
+                interference(&reversed).iter().collect::<Vec<_>>(),
+                expected(&reversed)
+            );
         }
         let fragments = vec![
             LiveRangeFragment {
@@ -207,7 +217,10 @@ mod tests {
             range(u32::MAX, fragments),
             range(9, Vec::new()),
         ];
-        assert_eq!(interference(&rows), expected(&rows));
+        assert_eq!(
+            interference(&rows).iter().collect::<Vec<_>>(),
+            expected(&rows)
+        );
         assert!(interference(&[]).is_empty());
     }
 }

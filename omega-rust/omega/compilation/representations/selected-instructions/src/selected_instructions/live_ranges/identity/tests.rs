@@ -140,7 +140,8 @@ fn fixture() -> FunctionLiveRanges {
         interference: vec![VirtualInterference {
             lower: register,
             higher: VirtualRegisterId(u32::MAX),
-        }],
+        }]
+        .into(),
     }
 }
 
@@ -189,6 +190,25 @@ fn streamed_function_digest_matches_original_bytes_for_all_row_kinds_and_boundar
             live_range_function_digest(&function),
             buffered_original_digest(&function),
             "row count {count}"
+        );
+    }
+    // Raw compact rows retain order, duplicates, reversed/self pairs and the
+    // full u32 domain; storage itself never admits or normalizes them.
+    for raw in [
+        vec![(u32::MAX, 0), (0, u32::MAX), (u32::MAX, u32::MAX)],
+        vec![(3, 9), (3, 9), (1, 4), (3, 0)],
+    ] {
+        let mut function = populated.clone();
+        function.interference = raw
+            .into_iter()
+            .map(|(lower, higher)| VirtualInterference {
+                lower: VirtualRegisterId(lower),
+                higher: VirtualRegisterId(higher),
+            })
+            .collect();
+        assert_eq!(
+            live_range_function_digest(&function),
+            buffered_original_digest(&function)
         );
     }
     // Byte chunking is independent of the persisted schema and of row values.

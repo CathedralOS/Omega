@@ -17,7 +17,7 @@ use selected_instructions::{
     BlockLiveness, BlockPointDomain, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
     FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
     LivenessPosition, VirtualFixedConstraint, VirtualFixedConstraintSite, VirtualInterference,
-    VirtualLiveRange, VirtualOccurrence,
+    VirtualInterferences, VirtualLiveRange, VirtualOccurrence,
 };
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
