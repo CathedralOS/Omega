@@ -8,6 +8,7 @@
 use super::{Diagnostic, TypedTrees};
 use crate::tables::expressions_of_mut;
 use typed_trees::data::TypeParameterKind;
+use typed_trees::name::Identifier;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 
 pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -97,9 +98,7 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             continue;
         }
         let source_scope = environment.retain(program).map_err(failure)?;
-        let name = typed_trees::name::Identifier::generated(
-            program.symbols.display_path(declaration, "::"),
-        );
+        let name = Identifier::generated(program.symbols.display_path(declaration, "::"));
         let supplying = expressions_of_mut(program).retain_static_machine_application(
             declaration,
             name,

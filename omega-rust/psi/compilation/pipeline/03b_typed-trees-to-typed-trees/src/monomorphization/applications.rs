@@ -9,6 +9,7 @@ use super::{
 };
 use crate::monomorphization::const_arguments;
 use crate::tables::{expressions_of, expressions_of_mut};
+use typed_trees::data::TypeParameterKind;
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
@@ -210,12 +211,10 @@ pub(super) fn retain_call(
         .static_machine_application_arguments(application)
         .to_vec();
     for (parameter, argument) in parameters.iter().zip(&arguments) {
-        if !matches!(
-            parameter.kind,
-            typed_trees::data::TypeParameterKind::Const { .. }
-        ) || bindings
-            .iter()
-            .any(|binding| binding.parameter == parameter.symbol)
+        if !matches!(parameter.kind, TypeParameterKind::Const { .. })
+            || bindings
+                .iter()
+                .any(|binding| binding.parameter == parameter.symbol)
         {
             continue;
         }
