@@ -538,6 +538,36 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_field_rejected rejected 6782ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_local_rejected rejected 8542ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_match_join_rejected rejected 8063ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_no_separation_rejected rejected 8527ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_other_machine_rejected rejected 9207ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_other_state_rejected rejected 6428ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_parameter_rejected rejected 7634ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_predicate_body_rejected rejected 6105ms expected @755b31d334ff
+	cannot prove ensures contract for exit from read_seven at statement 0: result == 7
+fail/facts/saved_observation_snapshot_indexed_handback_rhs_clobber_rejected rejected 5646ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_selector_overwrite_rejected rejected 5963ms expected @755b31d334ff
+	cannot prove ensures contract for exit from select_current at statement 2: holder.items[index.value] == 7
+fail/facts/saved_observation_snapshot_indexed_handback_selector_stale_rejected rejected 5977ms expected @755b31d334ff
+	cannot prove ensures contract for exit from select_current at statement 2: holder.items[index.value] == 7
+fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected rejected 5431ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
+fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected rejected 4684ms expected @755b31d334ff
+	cannot prove ensures contract for exit from preserve at statement 1: holder.items[kept] == 7 && holder.items[changed] == value
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
@@ -8312,6 +8342,17 @@ pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit chec
 pass/facts/saved_observation_snapshot_after_call_through_other_state_exit checked 3847ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/saved_observation_snapshot_after_call_through_parameter_exit checked 3908ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/saved_observation_snapshot_after_call_through_target_body_exit checked 3161ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit checked 7282ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_const_name_exit checked 6173ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_field_exit checked 5680ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_local_exit checked 6254ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_match_join_exit checked 7052ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit checked 7144ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit checked 6484ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_parameter_exit checked 5969ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_rhs_disjoint_exit checked 6296ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_selector_current_exit checked 6686ms check-target:macos_arm64 @755b31d334ff
+pass/facts/saved_observation_snapshot_indexed_handback_target_body_exit checked 6365ms check-target:macos_arm64 @755b31d334ff
 pass/facts/saved_observation_snapshot_predicate_handback_call_result_exit checked 998ms check-target:macos_arm64 @4ef0dddd5128
 pass/facts/saved_observation_snapshot_predicate_handback_const_name_exit checked 966ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_field_exit checked 988ms check-target:macos_arm64 @5c5c178f82c7

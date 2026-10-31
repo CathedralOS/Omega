@@ -121,6 +121,9 @@ python3 tools/sample_native_gate.py --cli target/debug/omega --facts \
 `baseline.json` preserves the frozen original refusals, and
 `final-sample-results.json` records the current 11 passes and 15 intended
 rejections. Earlier failed iterations remain historical observations.
+The [published evidence manifest](../../../../../wiki/drafts/measurements/indexed_handback_2026_10_31/manifest.json)
+binds the compressed raw receipts, baseline replay inputs and retained source
+bundle to their hashes. Both scoped golden-recording commands exit 0.
 
 The focused corpus selection also includes the earlier predicate-handback row,
 Unit reference completion and nested statement completion. Its native/Terminal
