@@ -21,7 +21,7 @@ macro_rules! selection {
     };
 }
 
-pub(in crate::checks::multiplicity) struct CapturedOwner {
+pub(in super::super) struct CapturedOwner {
     pub expression: ExpressionHandle,
     pub source_arm: Handle<TableMatchArm>,
     pub source: validation::CanonicalPlace,
@@ -29,7 +29,7 @@ pub(in crate::checks::multiplicity) struct CapturedOwner {
     pub type_reference: TypeReferenceHandle,
 }
 
-pub(in crate::checks::multiplicity) struct SelectionProduction {
+pub(in super::super) struct SelectionProduction {
     value: Handle<FlowOperandFact>,
     pub expression: ExpressionHandle,
     pub evaluation: checked_trees::FlowPermissionEvaluation,
@@ -42,10 +42,7 @@ pub(in crate::checks::multiplicity) struct SelectionProduction {
 impl SelectionProduction {
     /// A completed source must exist before capture can transfer its custody,
     /// even when the same expression also names the outgoing receiving value.
-    pub(in crate::checks::multiplicity) fn captures_anonymous_source(
-        &self,
-        expression: ExpressionHandle,
-    ) -> bool {
+    pub(in super::super) fn captures_anonymous_source(&self, expression: ExpressionHandle) -> bool {
         self.owners.iter().any(|owner| {
             owner.expression == expression
                 && owner.source.root == PlaceRoot::Expression(expression)
@@ -53,7 +50,7 @@ impl SelectionProduction {
         })
     }
 
-    pub(in crate::checks::multiplicity) fn for_statement(
+    pub(in super::super) fn for_statement(
         program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         machine: SymbolHandle,
@@ -165,7 +162,7 @@ impl SelectionProduction {
         }))
     }
 
-    pub(in crate::checks::multiplicity) fn record(
+    pub(in super::super) fn record(
         &self,
         program: &dyn validation::CheckingInput,
         facts: &mut CheckFacts,
@@ -583,15 +580,11 @@ impl SelectionProduction {
         Ok(present)
     }
 
-    pub(in crate::checks::multiplicity) fn receives(
-        &self,
-        root: PlaceRoot,
-        path: &[PlaceSegment],
-    ) -> bool {
+    pub(in super::super) fn receives(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         root == self.root() && path.starts_with(&self.destination.segments)
     }
 
-    pub(in crate::checks::multiplicity) fn root(&self) -> PlaceRoot {
+    pub(in super::super) fn root(&self) -> PlaceRoot {
         if self.destination.root.is_valid() {
             self.destination.root
         } else {
@@ -607,7 +600,7 @@ impl SelectionProduction {
 /// next evaluation position: a retained source association starts only after this
 /// exact transfer/read, not at statement entry.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::checks::multiplicity) fn evaluated_source_custody<'evaluation>(
+pub(in super::super) fn evaluated_source_custody<'evaluation>(
     ownership: &checked_trees::FlowOwnershipFacts,
     expression: ExpressionHandle,
     source: &validation::CanonicalPlace,

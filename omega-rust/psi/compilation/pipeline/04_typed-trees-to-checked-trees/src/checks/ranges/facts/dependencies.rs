@@ -100,7 +100,7 @@ struct LabelCollisions<'table> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::checks::ranges) struct ReceiverLength {
+pub(in super::super) struct ReceiverLength {
     expression: ExpressionHandle,
     label: String,
     place: CanonicalPlace,
@@ -110,7 +110,7 @@ pub(in crate::checks::ranges) struct ReceiverLength {
 impl ReceiverLength {
     /// One exact-length row re-keyed onto a surviving destination place, as
     /// `storage_sub_places` renders argument storage.
-    pub(in crate::checks::ranges) fn at_place(
+    pub(in super::super) fn at_place(
         expression: ExpressionHandle,
         place: CanonicalPlace,
         label: String,
@@ -124,14 +124,14 @@ impl ReceiverLength {
         }
     }
 
-    pub(in crate::checks::ranges) fn same_extent(&self, other: &Self) -> bool {
+    pub(in super::super) fn same_extent(&self, other: &Self) -> bool {
         self.place == other.place && self.length == other.length
     }
 
     /// Both rows seed the same destination facts: the same extent under the
     /// same label. Only the observing expression differs, and the seeded
     /// dependency row reads the place, not that expression.
-    pub(in crate::checks::ranges) fn same_seed(&self, other: &Self) -> bool {
+    pub(in super::super) fn same_seed(&self, other: &Self) -> bool {
         self.same_extent(other) && self.label == other.label
     }
 }
@@ -173,7 +173,7 @@ impl<'field> RangeFacts<'field> {
         .collect_reads(expression, 0)
     }
 
-    pub(in crate::checks::ranges) fn forget_collection_expression(&mut self, label: &str) {
+    pub(in super::super) fn forget_collection_expression(&mut self, label: &str) {
         self.forget_collection_facts(label);
         // A later state or binding can reuse the display label for different
         // storage. New extent evidence must not attach to its old typed reads.
@@ -186,7 +186,7 @@ impl<'field> RangeFacts<'field> {
             .collect();
     }
 
-    pub(in crate::checks::ranges) fn expression_exact_length(
+    pub(in super::super) fn expression_exact_length(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -249,7 +249,7 @@ impl<'field> RangeFacts<'field> {
         length
     }
 
-    pub(in crate::checks::ranges) fn receiver_lengths(
+    pub(in super::super) fn receiver_lengths(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -304,7 +304,7 @@ impl<'field> RangeFacts<'field> {
     /// transition argument (`buf.line` arrives as `param.line`). Each
     /// element is `(source_label, source_expression, destination_place)`;
     /// the caller re-spells the destination label from the place.
-    pub(in crate::checks::ranges) fn storage_sub_places(
+    pub(in super::super) fn storage_sub_places(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -376,7 +376,7 @@ impl<'field> RangeFacts<'field> {
             .collect()
     }
 
-    pub(in crate::checks::ranges) fn seed_receiver_lengths(
+    pub(in super::super) fn seed_receiver_lengths(
         &mut self,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -397,7 +397,7 @@ impl<'field> RangeFacts<'field> {
     /// Rebind a transported fact's read dependency to destination storage.
     /// The original expression identifies the observation, not a source-state
     /// expression to reevaluate. Mutation and later edges use the exact place.
-    pub(in crate::checks::ranges) fn seed_storage_dependency(
+    pub(in super::super) fn seed_storage_dependency(
         &mut self,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -417,7 +417,7 @@ impl<'field> RangeFacts<'field> {
         });
     }
 
-    pub(in crate::checks::ranges) fn record_scalar_binding_dependency(
+    pub(in super::super) fn record_scalar_binding_dependency(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -508,7 +508,7 @@ impl<'field> RangeFacts<'field> {
     /// All length comparisons consume the same live measurement, whether
     /// authored directly or retained by a scalar binding/copy. Symbols select
     /// snapshots; expression labels only address the existing fact tables.
-    pub(in crate::checks::ranges) fn length_collection(
+    pub(in super::super) fn length_collection(
         &self,
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
@@ -529,7 +529,7 @@ impl<'field> RangeFacts<'field> {
     /// A retained measurement names its descriptor only while the scalar,
     /// descriptor and captured selectors have not been replaced. This is the
     /// same snapshot edge consumed by guards, not a replay of an initializer.
-    pub(in crate::checks::ranges) fn captured_length_collection(
+    pub(in super::super) fn captured_length_collection(
         &self,
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
@@ -671,15 +671,12 @@ impl<'field> RangeFacts<'field> {
         }
     }
 
-    pub(in crate::checks::ranges) fn begin_result_measurement(
-        &mut self,
-        expression: ExpressionHandle,
-    ) {
+    pub(in super::super) fn begin_result_measurement(&mut self, expression: ExpressionHandle) {
         self.measured_results
             .retain(|(result, _)| *result != expression);
     }
 
-    pub(in crate::checks::ranges) fn capture_result_measurement_for_collection(
+    pub(in super::super) fn capture_result_measurement_for_collection(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -700,7 +697,7 @@ impl<'field> RangeFacts<'field> {
         }
     }
 
-    pub(in crate::checks::ranges) fn record_expression_dependencies(
+    pub(in super::super) fn record_expression_dependencies(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -723,7 +720,7 @@ impl<'field> RangeFacts<'field> {
     /// The caller supplies only parameter bindings already proved label-stable
     /// by the incoming-edge analysis. Incomplete or unmapped reads remain
     /// incomplete; they never become storage-free premises.
-    pub(in crate::checks::ranges) fn record_incoming_guard_dependencies(
+    pub(in super::super) fn record_incoming_guard_dependencies(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -1050,7 +1047,7 @@ impl<'field> RangeFacts<'field> {
             .collect()
     }
 
-    pub(in crate::checks::ranges) fn expression_is_disjoint_from_writes(
+    pub(in super::super) fn expression_is_disjoint_from_writes(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
