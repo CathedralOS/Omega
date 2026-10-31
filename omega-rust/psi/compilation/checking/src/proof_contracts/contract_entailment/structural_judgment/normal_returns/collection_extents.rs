@@ -6,6 +6,7 @@
 
 use super::{ExpressionHandle, NormalOperandResult, StructuralJudge, StructuralTerm, ValueScope};
 use language_semantics::declaration_selection::CollectionMeasure;
+use numerics::bignum::BigInt;
 use typed_trees::expression::BinaryOperator;
 
 impl StructuralJudge<'_> {
@@ -56,7 +57,7 @@ impl StructuralJudge<'_> {
         let start = if range.start.is_valid() {
             endpoint(range.start)?
         } else {
-            StructuralTerm::Integer(numerics::bignum::BigInt::zero())
+            StructuralTerm::Integer(BigInt::zero())
         };
         let mut end = if range.end.is_valid() {
             endpoint(range.end)?
@@ -76,9 +77,7 @@ impl StructuralJudge<'_> {
             end = StructuralTerm::MathematicalBinary {
                 operator: BinaryOperator::Add,
                 left: Box::new(end),
-                right: Box::new(StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-                    1,
-                ))),
+                right: Box::new(StructuralTerm::Integer(BigInt::from_u64(1))),
             };
         }
         let extent = StructuralTerm::MathematicalBinary {

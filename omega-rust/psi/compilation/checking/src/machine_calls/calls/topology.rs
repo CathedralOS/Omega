@@ -1,17 +1,19 @@
 //! Exact callable topology: machine heads, entry-only calls, named states and requirements.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
+use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
+use typed_trees::expression::TableCallExpression;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 
 /// Conservative normal-completion reachability over admitted state control.
 /// Explicit crash edges, authenticated external completions and closed
 /// nonreturning cycles supply no return.
 /// Unknown bodies and unclassified value evaluation remain potentially normal;
 /// missing custody/origin evidence is never evidence of nonreturning control.
-pub fn normal_completion_possible(
-    program: &dyn crate::CheckingInput,
-    initial: &typed_trees::state::State,
-) -> Option<bool> {
+pub fn normal_completion_possible(program: &dyn CheckingInput, initial: &State) -> Option<bool> {
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
         if let Ok(cache) = memos.normal_completion_possible.lock() {
             if let Some(&cached) = cache.get(&initial.symbol) {
@@ -29,8 +31,8 @@ pub fn normal_completion_possible(
 }
 
 fn compute_normal_completion_possible(
-    program: &dyn crate::CheckingInput,
-    initial: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    initial: &State,
 ) -> Option<bool> {
     use typed_trees::statement::{
         StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
@@ -43,9 +45,7 @@ fn compute_normal_completion_possible(
         }
         visited.push(symbol);
         let (machine, state) = find_state(program, symbol)?;
-        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-            || !machine.body_is_present
-        {
+        if machine.supply_mode != MachineSupplyMode::CheckedBody || !machine.body_is_present {
             // A bodyless entry may itself carry an authenticated completion
             // declaration. Other interfaces and realizations stay unknown;
             // checked adapters still owe their own control-flow evidence.
@@ -161,7 +161,7 @@ fn compute_normal_completion_possible(
 /// dispatch supplies no evidence of nonreturn. This query changes publication
 /// of normal results, never admission or evaluation of the invocation itself.
 pub fn expression_normal_completion_possible(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
     let typed_trees::expression::ExpressionNode::Call(call) =
@@ -175,7 +175,7 @@ pub fn expression_normal_completion_possible(
 /// A statement call and an expression call have the same declaration-owned
 /// completion. A reach ceiling alone does not establish nonreturn.
 pub(crate) fn target_normal_completion_possible(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: SymbolHandle,
 ) -> Option<bool> {
     match completion_target(program, target) {
@@ -189,14 +189,11 @@ pub(crate) fn target_normal_completion_possible(
 /// selected provider. Unknown declarations remain potentially returning.
 enum CompletionTarget<'program> {
     External,
-    Body(&'program typed_trees::state::State),
+    Body(&'program State),
     Unknown,
 }
 
-fn completion_target(
-    program: &dyn crate::CheckingInput,
-    target: SymbolHandle,
-) -> CompletionTarget<'_> {
+fn completion_target(program: &dyn CheckingInput, target: SymbolHandle) -> CompletionTarget<'_> {
     if matches!(
         crate::boundary_requirement_completion(program, target),
         semantic_vocabulary::BoundaryCompletion::External(_)
@@ -208,7 +205,7 @@ fn completion_target(
 }
 
 fn expression_completion_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> CompletionTarget<'_> {
     let typed_trees::expression::ExpressionNode::Call(call) =
@@ -220,10 +217,10 @@ fn expression_completion_target(
 }
 
 pub fn find_state_in_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<&typed_trees::state::State> {
+) -> Option<&State> {
     let machine = program.machine_by_symbol(machine_symbol)?;
     program.state_in_machine(machine, state_symbol)
 }
@@ -231,26 +228,26 @@ pub fn find_state_in_machine(
 /// The state `state_symbol` names on `machine` — the machine-object form of
 /// `find_state_in_machine` for callers already holding the machine itself.
 pub fn find_state_on_machine<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    program: &'program dyn CheckingInput,
+    machine: &Machine,
     state_symbol: SymbolHandle,
-) -> Option<&'program typed_trees::state::State> {
+) -> Option<&'program State> {
     find_state_in_machine(program, machine.symbol, state_symbol)
 }
 
 /// The state an exit fact sits on, resolved through the fact's machine.
 pub fn find_state_for_exit<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     exit: &checked_trees::FlowExitFact,
-) -> Option<&'program typed_trees::state::State> {
+) -> Option<&'program State> {
     find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
 }
 
 /// The actual storage owner and state, resolved by the typed program's owner query.
 pub fn find_state(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state_symbol: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+) -> Option<(&Machine, &State)> {
     let machine = program.machine_holding_state(state_symbol)?;
     let state = find_state_in_machine(program, machine.symbol, state_symbol)?;
     Some((machine, state))
@@ -264,9 +261,9 @@ pub fn find_state(
 /// state inside the machine — so the state arm still verifies the resolved
 /// state is stored first.
 pub fn find_machine_head(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+) -> Option<(&Machine, &State)> {
     if let Some(machine) = program.machine_by_symbol(symbol) {
         return program
             .machine_states(machine)
@@ -285,10 +282,7 @@ pub fn find_machine_head(
 /// (the machine itself or its entry state) or an exact named state. A free
 /// machine call names the machine, an attached one its entry state; both
 /// enter the same body.
-pub fn call_target_state(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::state::State> {
+pub fn call_target_state(program: &dyn CheckingInput, symbol: SymbolHandle) -> Option<&State> {
     find_machine_head(program, symbol)
         .map(|(_, state)| state)
         .or_else(|| program.state_by_symbol(symbol))
@@ -297,10 +291,7 @@ pub fn call_target_state(
 /// The executable coordinate of an already selected callable. Machine heads
 /// enter their exact first state; signatures, operators and unresolved targets
 /// retain their declaration coordinate. This changes no source call identity.
-pub fn call_target_entry_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> SymbolHandle {
+pub fn call_target_entry_symbol(program: &dyn CheckingInput, symbol: SymbolHandle) -> SymbolHandle {
     call_target_state(program, symbol).map_or(symbol, |state| state.symbol)
 }
 
@@ -309,7 +300,7 @@ pub fn call_target_entry_symbol(
 /// owes the common contract before target selection. A missing roster or an
 /// external member cannot borrow the checked members' proof authority.
 pub fn call_target_has_checked_body_contract(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: SymbolHandle,
 ) -> bool {
     let Some((machine, _)) =
@@ -334,8 +325,8 @@ pub fn call_target_has_checked_body_contract(
 /// declaration. States owned by this activation remain internal control edges,
 /// including a machine-named re-entry of this activation's entry state.
 pub fn terminal_callable_target(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    program: &dyn CheckingInput,
+    machine: &Machine,
     target: SymbolHandle,
 ) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
     if let Some(owner) = program.machine_by_symbol(target) {
@@ -354,9 +345,9 @@ pub fn terminal_callable_target(
 /// is wider than those sites resolve, so they keep this narrower lookup
 /// rather than silently growing their admission.
 pub fn find_machine_by_entry_state(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state_symbol: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+) -> Option<(&Machine, &State)> {
     program.machine_by_entry_state_symbol(state_symbol)
 }
 
@@ -368,10 +359,7 @@ pub fn find_machine_by_entry_state(
 /// owner — and unlike `find_machine_head` every member resolves, not only
 /// the entry state. In a well-formed program the two arms name one machine:
 /// a symbol cannot be a machine and a machine's member at once.
-pub fn find_machine(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
+pub fn find_machine(program: &dyn CheckingInput, symbol: SymbolHandle) -> Option<&Machine> {
     if !symbol.is_valid() {
         return None;
     }
@@ -389,7 +377,7 @@ pub fn find_machine(
 /// for a call through a trait-typed receiver (boundary trait machines) or a
 /// boundary-trait receiver -- the owning signature's parameters.
 pub fn call_target_parameters(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<&[typed_trees::signature::StateParameter]> {
     // A selector call's slot pairs the selector operand and the
@@ -422,7 +410,7 @@ pub fn call_target_parameters(
 /// against these bounds, not against an unrelated caller's same-spelled type
 /// parameter and not as an invented concrete type.
 pub fn call_target_type_parameters(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> impl Iterator<Item = &typed_trees::data::TypeParameter> {
     let empty: &[typed_trees::data::TypeParameter] = &[];
@@ -453,7 +441,7 @@ pub fn call_target_type_parameters(
     local.iter().chain(enclosing)
 }
 
-pub fn machine_state_count(program: &dyn crate::CheckingInput) -> usize {
+pub fn machine_state_count(program: &dyn CheckingInput) -> usize {
     program
         .machines()
         .iter()
@@ -462,10 +450,10 @@ pub fn machine_state_count(program: &dyn crate::CheckingInput) -> usize {
 }
 
 pub fn machine_state_by_symbols(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+) -> Option<(&Machine, &State)> {
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = find_state_in_machine(program, machine.symbol, state_symbol)?;
     Some((machine, state))
@@ -474,7 +462,7 @@ pub fn machine_state_by_symbols(
 /// Result carrier of the exact callable. A machine head and its entry share
 /// one body signature; slots and requirements retain their own declarations.
 pub fn call_target_return_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     if let Some(state) = call_target_state(program, target_state_symbol) {
@@ -512,7 +500,7 @@ pub fn call_target_return_type(
 /// atom lookup keeps this a read over seeded symbols — a package cannot supply
 /// a substitute signature for an unnameable intrinsic.
 pub(super) fn asm_intrinsic_result_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let atom = match program.symbols.builtin_function_for_symbol(target)? {
@@ -552,10 +540,7 @@ pub(super) fn asm_intrinsic_result_type(
 /// resolve the same identity — the raw leaf loses every named operator call
 /// to an empty match. A call this cannot name keeps its authored leaf and
 /// fails closed at whichever consumer reads it.
-pub fn call_target_symbol(
-    program: &dyn crate::CheckingInput,
-    call: &typed_trees::expression::TableCallExpression,
-) -> SymbolHandle {
+pub fn call_target_symbol(program: &dyn CheckingInput, call: &TableCallExpression) -> SymbolHandle {
     typed_trees::operator::resolve_named_expression_call(program, call)
         .map_or(call.target_symbol, |operator| operator.symbol)
 }
@@ -565,8 +550,8 @@ pub fn call_target_symbol(
 /// external members belong to the roster just as checked bodies do. This is
 /// dependency topology, not an executable dispatch or a host-target selection.
 pub fn target_family_members<'program>(
-    program: &'program dyn crate::CheckingInput,
-    interface: &typed_trees::machine::Machine,
+    program: &'program dyn CheckingInput,
+    interface: &Machine,
 ) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
     if !interface.target_family_interface {
         return None;
@@ -599,7 +584,7 @@ pub fn target_family_members<'program>(
 /// nested calls are never promoted to transfers by this query. Source admission,
 /// component ranking and cleanup remain independent obligations.
 pub struct CompletingTransfer<'program> {
-    pub state: &'program typed_trees::state::State,
+    pub state: &'program State,
     pub target: SymbolHandle,
     pub arguments: &'program [typed_trees::expression::ExpressionHandle],
     pub expression: typed_trees::expression::ExpressionHandle,
@@ -614,7 +599,7 @@ pub struct CompletingInvocation<'program> {
 }
 
 fn completing_call_invocation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CompletingInvocation<'_>> {
     let call = expression_table(program).call_node(expression)?;
@@ -632,7 +617,7 @@ fn completing_call_invocation(
 }
 
 pub fn completing_transition_invocation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: typed_trees::statement::TransitionTargetHandle,
 ) -> Option<CompletingInvocation<'_>> {
     match program.statement_table.transition_target(target) {
@@ -661,7 +646,7 @@ pub fn completing_transition_invocation(
 /// Consumers share this roster rather than rediscovering a subset of tail
 /// topology from a particular syntactic transition target.
 pub fn completing_transition_invocations(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: typed_trees::statement::TransitionTargetHandle,
 ) -> Vec<CompletingInvocation<'_>> {
     use typed_trees::expression::ExpressionNode;
@@ -703,7 +688,7 @@ pub fn completing_transition_invocations(
 }
 
 fn concrete_transfer<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     invocation: CompletingInvocation<'program>,
 ) -> Option<CompletingTransfer<'program>> {
     if let Some(slot) = program.dynamic_slot_by_symbol(invocation.target) {
@@ -734,9 +719,9 @@ fn concrete_transfer<'program>(
 /// The entry a selector call reaches when exactly one implementation is
 /// selected for the slot. Zero or several implementations are not a jump.
 pub fn unique_dispatched_entry<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     slot: &typed_trees::dynamic_traits::DynamicSlotSignature,
-) -> Option<&'program typed_trees::state::State> {
+) -> Option<&'program State> {
     let selections = crate::collect_dynamic_implementation_selections(program).ok()?;
     let mut entries = selections
         .iter()
@@ -757,14 +742,14 @@ pub fn unique_dispatched_entry<'program>(
 }
 
 pub fn completing_call_transfer(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CompletingTransfer<'_>> {
     concrete_transfer(program, completing_call_invocation(program, expression)?)
 }
 
 pub fn completing_transition_transfer(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: typed_trees::statement::TransitionTargetHandle,
 ) -> Option<CompletingTransfer<'_>> {
     concrete_transfer(program, completing_transition_invocation(program, target)?)

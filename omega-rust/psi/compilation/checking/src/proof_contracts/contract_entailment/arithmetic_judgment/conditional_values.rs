@@ -5,6 +5,7 @@
 
 use super::{BigInt, BinaryOperator, Engine, OpaqueTerm, Polynomial};
 use std::collections::BTreeSet;
+use std::sync::atomic::Ordering;
 
 pub(super) type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
@@ -58,11 +59,9 @@ impl Engine<'_> {
         }
         let identity = self
             .denotation_identities
-            .try_update(
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-                |current| current.checked_add(1),
-            )
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
             .ok()?;
         let atom = format!("\0conditional:{identity}");
         self.register_opaque_term(atom.clone(), OpaqueTerm::Conditional { arms });
@@ -91,11 +90,9 @@ impl Engine<'_> {
             .checked_add(self.bounds.len())?
             .checked_add(self.opaque_terms.len())?;
         self.conditional_work_remaining
-            .try_update(
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-                |remaining| remaining.checked_sub(cost),
-            )
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |remaining| {
+                remaining.checked_sub(cost)
+            })
             .ok()
             .map(|_| ())
     }

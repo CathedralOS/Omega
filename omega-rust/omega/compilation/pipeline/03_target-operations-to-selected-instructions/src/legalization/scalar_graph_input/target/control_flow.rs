@@ -1,4 +1,5 @@
 //! Exact control block replay into the scalar graph, without executable target rows.
+use super::super::reference_custody::{apply, apply_terminator, block_entry_states};
 use super::super::{AbstractFunctionResult, ScalarType};
 use super::{
     AbstractFunction, AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction,
@@ -84,8 +85,7 @@ pub(super) fn validate(
     // each block enters with its dominator's exit state (ingress seeding at
     // the entry block), and every operation row validates against the custody
     // state it leaves suspended.
-    let block_entries =
-        super::super::reference_custody::block_entry_states(optimized, native, plan, unit)?;
+    let block_entries = block_entry_states(optimized, native, plan, unit)?;
     let dominators = sources::SourceDominators::new(optimized);
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
         let body_len = block
@@ -135,14 +135,7 @@ pub(super) fn validate(
                 plan,
                 unit,
             )?;
-            super::super::reference_custody::apply(
-                &mut custody,
-                node,
-                optimized,
-                native,
-                plan,
-                unit,
-            )?;
+            apply(&mut custody, node, optimized, native, plan, unit)?;
         }
         custody.set_position(block.block, body.len())?;
         let source_terminator = &source
@@ -160,12 +153,7 @@ pub(super) fn validate(
         )?;
         // The terminator's edge-local discards move custody after every row,
         // in the same order the lowering's cleanup pass commits them.
-        super::super::reference_custody::apply_terminator(
-            &mut custody,
-            source_terminator,
-            optimized,
-            plan,
-        )?;
+        apply_terminator(&mut custody, source_terminator, optimized, plan)?;
         let matches = match (&block.terminator, source_terminator) {
             (
                 TargetControlTerminator::InvokeNoNormal { .. },

@@ -3,6 +3,7 @@
 //! This join authenticates exact storage identity and ABI residence, not a
 //! second entry-versus-state access policy. Indexed mutation additionally
 //! retains its explicit mutable-storage check below.
+use super::super::byte_views::{descriptor_result, owned_byte_result, writable_bytes};
 use super::Checker;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{PlaceId, ValueId};
@@ -22,11 +23,8 @@ impl Checker<'_> {
                 structural_type,
             } => {
                 *place == source
-                    && super::super::byte_views::descriptor_result(
-                        self.optimized,
-                        source,
-                        self.types,
-                    ) == Some((*psi_operation, *structural_type))
+                    && descriptor_result(self.optimized, source, self.types)
+                        == Some((*psi_operation, *structural_type))
             }
             TargetByteView::Owned {
                 psi_operation,
@@ -34,11 +32,8 @@ impl Checker<'_> {
                 structural_type,
             } => {
                 *place == source
-                    && super::super::byte_views::owned_byte_result(
-                        self.optimized,
-                        source,
-                        self.types,
-                    ) == Some((*psi_operation, *structural_type))
+                    && owned_byte_result(self.optimized, source, self.types)
+                        == Some((*psi_operation, *structural_type))
                     && self.types.iter().any(|declaration| {
                         declaration.id == *structural_type
                             && declaration.shape.is_bounded_owned_byte_sequence()
@@ -168,8 +163,7 @@ impl Checker<'_> {
     }
 
     pub(super) fn mutable_byte_view(&self, view: &TargetByteView, source: PlaceId) -> bool {
-        super::super::byte_views::writable_bytes(self.optimized, source, self.types)
-            && self.byte_view(view, source, &[])
+        writable_bytes(self.optimized, source, self.types) && self.byte_view(view, source, &[])
     }
 
     /// The operation at `psi_operation` establishes a borrowed byte view at

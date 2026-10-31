@@ -1,4 +1,5 @@
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::contract_entailment::CapturedScalarRank;
 use crate::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
     find_declared_measure, measure_body_shape,
@@ -394,9 +395,7 @@ impl RankProjection {
         }
     }
 
-    pub(super) fn captured_scalar(
-        &self,
-    ) -> Option<crate::proof_contracts::contract_entailment::CapturedScalarRank> {
+    pub(super) fn captured_scalar(&self) -> Option<CapturedScalarRank> {
         let (primitive, measure) = match self.order {
             RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
             RankOrder::DeclaredIdentity { measure, primitive } => (primitive, measure),
@@ -407,13 +406,11 @@ impl RankProjection {
             } => (input_primitive, measure),
             _ => return None,
         };
-        Some(
-            crate::proof_contracts::contract_entailment::CapturedScalarRank {
-                subject: self.subject,
-                primitive,
-                measure,
-            },
-        )
+        Some(CapturedScalarRank {
+            subject: self.subject,
+            primitive,
+            measure,
+        })
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {

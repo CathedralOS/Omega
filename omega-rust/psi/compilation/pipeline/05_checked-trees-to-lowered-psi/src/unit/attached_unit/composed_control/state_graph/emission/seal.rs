@@ -10,6 +10,7 @@ use super::super::super::super::{Block, Terminator, unsupported};
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::structural_byte_sequence_store::retain_literal_declarations;
 use semantic_vocabulary::EdgeId;
 
 impl StateGraphEmission<'_, '_> {
@@ -253,10 +254,7 @@ impl StateGraphEmission<'_, '_> {
             self.block_ranks
                 .extend(evaluation.blocks.iter().map(|block| (block.id, rank)));
         }
-        crate::emission::structural_byte_sequence_store::retain_literal_declarations(
-            &operations,
-            &mut self.catalogs.temporary_places,
-        )?;
+        retain_literal_declarations(&operations, &mut self.catalogs.temporary_places)?;
         evaluation.blocks.extend(edge_blocks);
         let reference_retirements =
             super::super::cleanup::observed_reference_retirements(state, &operations, |place| {

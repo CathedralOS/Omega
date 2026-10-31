@@ -1,6 +1,7 @@
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
+use symbols::SymbolHandle;
 use typed_trees::data::TypeParameter;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -15,11 +16,8 @@ pub(super) fn validate_contract_facts(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
-    actual_owner: symbols::SymbolHandle,
-    substitutions: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    actual_owner: SymbolHandle,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_contracts = program.state_signature_contracts(requirement);
@@ -47,12 +45,9 @@ pub(crate) fn validate_callable_contract_refinement(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
-    required_owner: symbols::SymbolHandle,
-    actual_owner: symbols::SymbolHandle,
-    substitutions: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    required_owner: SymbolHandle,
+    actual_owner: SymbolHandle,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for kind in [
@@ -121,10 +116,7 @@ fn validate_crash_contract_refinement(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
-    substitutions: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut checked = Vec::<SignatureContractKind>::new();
@@ -182,10 +174,7 @@ fn normalized_crash_bucket(
     contracts: &[SignatureContract],
     kind: &SignatureContractKind,
     parameters: &[StateParameter],
-    substitutions: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<NormalizedCrashBucket> {
     let matching = contracts
         .iter()
@@ -218,10 +207,7 @@ fn normalized_facts(
     contracts: &[SignatureContract],
     kind: &SignatureContractKind,
     parameters: &[StateParameter],
-    substitutions: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Vec<String> {
     let mut facts = Vec::new();
     for contract in contracts.iter().filter(|contract| &contract.kind == kind) {
@@ -304,8 +290,8 @@ fn single_guarantee_left_prefix(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
-    expected_required_owner: symbols::SymbolHandle,
-    expected_actual_owner: symbols::SymbolHandle,
+    expected_required_owner: SymbolHandle,
+    expected_actual_owner: SymbolHandle,
 ) -> bool {
     for parameters in [required_parameters, actual_parameters] {
         for (index, parameter) in parameters.iter().enumerate() {
@@ -394,10 +380,7 @@ fn single_guarantee_left_prefix(
 fn expression_result_owner(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-) -> Option<(
-    symbols::SymbolHandle,
-    typed_trees::types::TypeReferenceHandle,
-)> {
+) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
     let mut nodes = Vec::new();
     crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
     let mut owner = None;
@@ -416,8 +399,8 @@ fn same_guarantee_expression(
     program: &dyn crate::CheckingInput,
     required: ExpressionHandle,
     actual: ExpressionHandle,
-    required_owner: symbols::SymbolHandle,
-    actual_owner: symbols::SymbolHandle,
+    required_owner: SymbolHandle,
+    actual_owner: SymbolHandle,
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
 ) -> bool {
@@ -496,10 +479,7 @@ fn same_guarantee_expression(
 fn substitute_type_actuals(
     program: &dyn crate::CheckingInput,
     text: &str,
-    substitutions: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> String {
     if substitutions.is_empty() {
         return text.to_owned();

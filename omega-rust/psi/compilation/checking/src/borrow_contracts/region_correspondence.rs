@@ -7,6 +7,7 @@ use super::callable_refinement::{CallableBorrowContract, captured_lifetimes};
 use super::callable_regions::CallableRegions;
 use super::carried_lifetimes::{CarriedLifetime, RegionIdentity};
 use super::region_inference::InputRegionApplication;
+use crate::CheckingInput;
 use crate::type_regions::{
     ReferenceStep, TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
     type_reference_regions_match,
@@ -47,11 +48,7 @@ impl std::fmt::Debug for RejectedRegionComparison {
 }
 
 impl RegionEnvironment<'_> {
-    fn identity(
-        self,
-        program: &dyn crate::CheckingInput,
-        name: &Identifier,
-    ) -> Option<RegionIdentity> {
+    fn identity(self, program: &dyn CheckingInput, name: &Identifier) -> Option<RegionIdentity> {
         match self {
             Self::Resolved(regions) => regions
                 .iter()
@@ -98,7 +95,7 @@ struct RegionScope<'scope> {
 impl TypeRegionScope for RegionScope<'_> {
     fn erased_identity(
         self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
     ) -> typed_trees::type_identity::NormalizedTypeIdentity {
         program.scoped_type_identity(
@@ -111,11 +108,7 @@ impl TypeRegionScope for RegionScope<'_> {
         )
     }
 
-    fn enter_operand(
-        mut self,
-        program: &dyn crate::CheckingInput,
-        owner: symbols::SymbolHandle,
-    ) -> Self {
+    fn enter_operand(mut self, program: &dyn CheckingInput, owner: symbols::SymbolHandle) -> Self {
         let declaration = program.lifetime_declaration_owner(self.declaration);
         if declaration.is_valid() && program.lifetime_declaration_owner(owner) == declaration {
             // An annotation naming this telescope does not turn its fresh
@@ -140,7 +133,7 @@ impl TypeRegionScope for RegionScope<'_> {
 
     fn enter_lifetime(
         mut self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         region: typed_trees::type_identity::LifetimeParameterIdentity,
     ) -> Self {
         if let Some(argument) =
@@ -155,7 +148,7 @@ impl TypeRegionScope for RegionScope<'_> {
 
     fn named_alias(
         mut self,
-        _program: &dyn crate::CheckingInput,
+        _program: &dyn CheckingInput,
         symbol: symbols::SymbolHandle,
         reference: TypeReferenceHandle,
     ) -> Option<ReferenceStep<Self>> {
@@ -215,7 +208,7 @@ fn contract_scope<'scope>(
 
 /// Format only premises already computed by this refinement, on refusal.
 fn region_context(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     contract: &CallableBorrowContract<'_>,
     regions: &CallableRegions,
 ) -> String {
@@ -241,7 +234,7 @@ fn region_context(
 }
 
 pub(super) fn infer_inputs(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     required: &CallableBorrowContract<'_>,
     actual: &CallableBorrowContract<'_>,
     required_regions: &CallableRegions,
@@ -379,7 +372,7 @@ pub(super) fn infer_inputs(
 }
 
 pub(super) fn validate(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     required: &CallableBorrowContract<'_>,
     actual: &CallableBorrowContract<'_>,
     required_regions: &CallableRegions,

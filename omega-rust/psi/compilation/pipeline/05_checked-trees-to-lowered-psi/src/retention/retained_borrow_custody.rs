@@ -5,6 +5,7 @@ use super::{
     StructuralAccess, StructuralMultiplicity, TerminalModule, checked_unit_boundary_identity,
     content_conservation, unsupported,
 };
+use crate::machine_lowering::declarations::nominal;
 use checked_trees::types::TypeReferenceNode;
 
 fn lower_projection(
@@ -215,13 +216,8 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 .ok_or(LoweringError::Unsupported(
                     "retained-borrow callable lost its schema owner",
                 ))?;
-            let owner = crate::machine_lowering::declarations::nominal(
-                identities,
-                checked,
-                exact_toolchain_sources,
-                owner.symbol,
-            )
-            .map_err(LoweringError::Unsupported)?;
+            let owner = nominal(identities, checked, exact_toolchain_sources, owner.symbol)
+                .map_err(LoweringError::Unsupported)?;
             Ok((lower_custody(identities, checked, fact)?, owner))
         })
         .collect::<Result<Vec<_>, _>>()?;

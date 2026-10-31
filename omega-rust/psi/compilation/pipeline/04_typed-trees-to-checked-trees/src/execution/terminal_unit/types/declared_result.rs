@@ -5,7 +5,8 @@ use super::{
     Multiplicity, ShapeCollector, TypeReferenceHandle, is_reference, is_unit,
     parameter_qualifications, projected_result_qualifications,
 };
-use checked_trees::{CheckedControlResultPlan, CheckedStructuralResultPlan};
+use crate::execution::terminal_unit::types::borrowed_slice_result;
+use checked_trees::{CheckedControlResultPlan as ResultPlan, CheckedStructuralResultPlan};
 
 /// Retain the authored entry result and its domains independently of body
 /// routing, executed result production, and normal-return receiving bindings.
@@ -33,9 +34,9 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     reference: TypeReferenceHandle,
-) -> Option<CheckedControlResultPlan> {
+) -> Option<ResultPlan> {
     if is_unit(program, reference) {
-        return Some(CheckedControlResultPlan::Unit);
+        return Some(ResultPlan::Unit);
     }
     if let Some(primitive_type) = program.primitive_type_reference(reference) {
         // A primitive result is one returned scalar value. An arithmetic
@@ -44,7 +45,7 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
         // publishes and each exit proves. Semantic atoms retain their separate
         // result custody rather than disappearing behind a scalar carrier.
         return validation::scalar_result_contract_is_represented(program, reference)
-            .then_some(CheckedControlResultPlan::Scalar { primitive_type });
+            .then_some(ResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     // A returned pointer transports its exact loan descriptor, independently
@@ -52,8 +53,7 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
     // separate geometry; neither family owns the original backing.
     let pointer_result =
         validation::reference_result_custody::has_borrowed_parts(program, reference);
-    let view_result = pointer_result
-        || crate::execution::terminal_unit::types::borrowed_slice_result(program, reference);
+    let view_result = pointer_result || borrowed_slice_result(program, reference);
     // A reference carrier transports a loan, not owned referent claims —
     // except a byte view, whose lowered type peels the borrow so `&[u8] in
     // Utf8` registers `Utf8` on the result's own slice carrier. Those
@@ -127,30 +127,29 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
     // A returned pointer keeps its reference shell and exact access. Its
     // materialized carrier has affine custody even when shared source use is
     // reusable; it owns no backing. Shape and loan admission remain separate.
-    let (type_identity, multiplicity) =
-        if crate::execution::terminal_unit::types::borrowed_slice_result(program, reference) {
-            // A returned slice transports its descriptor, never a pointer to a
-            // callee descriptor home. Access determines its loan custody; the
-            // element/byte view declaration remains the same carrier.
-            (
-                shapes.add_stored_type(reference, &[], &[])?,
-                validation::reference_result_custody::binding_multiplicity(program, reference),
-            )
-        } else if pointer_result {
-            (
-                shapes.add_reference_type(reference, &[])?,
-                Multiplicity::Affine,
-            )
-        } else {
-            // A completed aggregate owns its stored loan carriers even when
-            // source observations are reusable. Use the same result custody
-            // as an ordinary call binding; source type multiplicity alone
-            // misdeclares reference arrays as unrestricted graph results.
-            (
-                shapes.add_type(reference, &[], &[])?,
-                validation::reference_result_custody::result_multiplicity(program, reference),
-            )
-        };
+    let (type_identity, multiplicity) = if borrowed_slice_result(program, reference) {
+        // A returned slice transports its descriptor, never a pointer to a
+        // callee descriptor home. Access determines its loan custody; the
+        // element/byte view declaration remains the same carrier.
+        (
+            shapes.add_stored_type(reference, &[], &[])?,
+            validation::reference_result_custody::binding_multiplicity(program, reference),
+        )
+    } else if pointer_result {
+        (
+            shapes.add_reference_type(reference, &[])?,
+            Multiplicity::Affine,
+        )
+    } else {
+        // A completed aggregate owns its stored loan carriers even when
+        // source observations are reusable. Use the same result custody
+        // as an ordinary call binding; source type multiplicity alone
+        // misdeclares reference arrays as unrestricted graph results.
+        (
+            shapes.add_type(reference, &[], &[])?,
+            validation::reference_result_custody::result_multiplicity(program, reference),
+        )
+    };
     // The contents judgments above establish storage, not transfer authority.
     // Reference-record storage may also carry linear claims and nominal
     // cleanup: the graph's result custody rejoins these independent obligations
@@ -160,17 +159,10 @@ pub(in crate::execution::terminal_unit) fn declared_result_type(
     // sent mixed values and arrays into sequence-only completion, which cannot
     // retain their distinct returning edges and cleanup obligations. Erased
     // members remain semantic fields, never runtime result operands.
-    Some(CheckedControlResultPlan::Structural(
-        CheckedStructuralResultPlan {
-            type_identity,
-            multiplicity,
-            qualifications,
-            projected_qualifications: projected_result_qualifications(
-                program,
-                shapes,
-                reference,
-                &[],
-            )?,
-        },
-    ))
+    Some(ResultPlan::Structural(CheckedStructuralResultPlan {
+        type_identity,
+        multiplicity,
+        qualifications,
+        projected_qualifications: projected_result_qualifications(program, shapes, reference, &[])?,
+    }))
 }

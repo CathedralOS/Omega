@@ -2,6 +2,9 @@
 //! not merely a same-width memory slot. This shared query has no selected
 //! stream or register state; producer and replay bind their own operands,
 //! observed result, memory access records and native constraint below it.
+use crate::structural_inputs::structural_reference_input::{
+    PrimitiveAccessGeometry, atomic_field_geometry,
+};
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -12,11 +15,7 @@ use terminal_psi::StructuralAccess;
 pub(super) fn form(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
-) -> Option<(
-    AtomicForm,
-    crate::structural_inputs::structural_reference_input::PrimitiveAccessGeometry,
-    ScalarType,
-)> {
+) -> Option<(AtomicForm, PrimitiveAccessGeometry, ScalarType)> {
     let LegalizedScalarInstructionKind::AtomicAccess {
         location,
         field,
@@ -77,7 +76,7 @@ pub(super) fn form(
     {
         return None;
     }
-    let geometry = crate::structural_inputs::structural_reference_input::atomic_field_geometry(
+    let geometry = atomic_field_geometry(
         root,
         &location.path,
         *field,

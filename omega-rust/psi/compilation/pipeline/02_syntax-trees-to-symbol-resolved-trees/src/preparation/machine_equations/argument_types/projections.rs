@@ -22,6 +22,7 @@ use syntax_trees::{
     item::TypeParameterKind,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
+use types::TypeReference;
 
 pub(super) fn member_types<'trees>(
     syntax: &mut SyntaxTrees,
@@ -30,7 +31,7 @@ pub(super) fn member_types<'trees>(
     member: &expression::TableMemberExpression,
     selection: &ConstantSelection<'_>,
     pending: &mut Vec<Diagnostic>,
-) -> Option<Vec<(TypeReferenceHandle, &'trees types::TypeReference)>> {
+) -> Option<Vec<(TypeReferenceHandle, &'trees TypeReference)>> {
     if member.member_symbol.is_valid()
         && let Some(field) = declared_type(syntax, trees, sources, member.member_symbol, false)
     {
@@ -166,7 +167,7 @@ pub(super) fn member_types<'trees>(
 
 fn closed_nominal_owner(
     trees: &SymbolResolvedTrees,
-    reference: &types::TypeReference,
+    reference: &TypeReference,
 ) -> Option<SymbolHandle> {
     if !closed_type(trees, reference) {
         return None;
@@ -174,17 +175,15 @@ fn closed_nominal_owner(
     let mut reference = reference;
     loop {
         reference = match reference {
-            types::TypeReference::Reference(reference) => {
-                trees.child_type_reference(reference.referee)
-            }
-            types::TypeReference::Constrained(reference) => {
+            TypeReference::Reference(reference) => trees.child_type_reference(reference.referee),
+            TypeReference::Constrained(reference) => {
                 trees.child_type_reference(reference.base_type)
             }
             _ => break,
         };
     }
     match reference {
-        types::TypeReference::Named { symbol, .. }
+        TypeReference::Named { symbol, .. }
             if trees.data_definition_by_symbol(*symbol).is_some() =>
         {
             Some(*symbol)

@@ -8,6 +8,7 @@
 //! A correspondence is derivation data, not provider admission. Execution must
 //! retain it with the checked application through the receiving installation.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::type_regions::{
     ReferenceStep, TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
@@ -32,7 +33,7 @@ pub struct ProviderRegionCorrespondence {
 /// application. Repeated slots must agree, and every provider slot must have an
 /// actual; unmentioned slots are not filled from a caller or a rendered name.
 pub fn provider_region_correspondence(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     provider: &Conformance,
     receiver: &AppliedTraitScope<'_>,
 ) -> Option<ProviderRegionCorrespondence> {
@@ -54,7 +55,7 @@ pub fn provider_region_correspondence(
 /// A captured implementation already supplies every own static and regional
 /// actual. They remain rigid while composing its inherited receiver view.
 pub fn closed_provider_region_correspondence(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     provider: &Conformance,
     receiver: &AppliedTraitScope<'_>,
     capture: &typed_trees::typed_trees::CapturedMachineApplication,
@@ -88,7 +89,7 @@ pub fn closed_provider_region_correspondence(
 }
 
 fn provider_region_correspondence_in_scope(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     provider: &Conformance,
     receiver: &AppliedTraitScope<'_>,
     root: AppliedTraitScope<'_>,
@@ -249,11 +250,7 @@ impl<'scope> ApplicationRegions<'scope> {
         self
     }
 
-    fn region(
-        self,
-        program: &dyn crate::CheckingInput,
-        name: &str,
-    ) -> Option<LifetimeParameterIdentity> {
+    fn region(self, program: &dyn CheckingInput, name: &str) -> Option<LifetimeParameterIdentity> {
         applied_lifetime_parameter_identity(
             program.typed_program(),
             self.owner,
@@ -266,7 +263,7 @@ impl<'scope> ApplicationRegions<'scope> {
 impl TypeRegionScope for ApplicationRegions<'_> {
     fn erased_identity(
         self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
     ) -> NormalizedTypeIdentity {
         program.scoped_type_identity(
@@ -278,7 +275,7 @@ impl TypeRegionScope for ApplicationRegions<'_> {
         )
     }
 
-    fn enter_operand(mut self, program: &dyn crate::CheckingInput, owner: SymbolHandle) -> Self {
+    fn enter_operand(mut self, program: &dyn CheckingInput, owner: SymbolHandle) -> Self {
         let count = self
             .identities
             .iter()
@@ -294,7 +291,7 @@ impl TypeRegionScope for ApplicationRegions<'_> {
 
     fn named_alias(
         mut self,
-        _program: &dyn crate::CheckingInput,
+        _program: &dyn CheckingInput,
         symbol: SymbolHandle,
         reference: TypeReferenceHandle,
     ) -> Option<ReferenceStep<Self>> {

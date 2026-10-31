@@ -8,6 +8,8 @@
 //! instance, observation chronology and complete intervening write footprint.
 
 use super::CapturedValue;
+use crate::flow::canonical_place_segments_may_overlap;
+use crate::flow::operand_contents_writes_between;
 use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment};
 use std::collections::BTreeMap;
@@ -49,12 +51,7 @@ impl<'facts> CapturedResultMemberships<'facts> {
         }
         let source = value.operand.row();
         let Some(writes) = phase_profile::scope("05.captured_result_membership.writes", || {
-            crate::flow::operand_contents_writes_between(
-                program,
-                &self.facts.flow,
-                source,
-                observation,
-            )
+            operand_contents_writes_between(program, &self.facts.flow, source, observation)
         }) else {
             return false;
         };
@@ -84,7 +81,7 @@ impl<'facts> CapturedResultMemberships<'facts> {
                         };
                         let place = self.facts.semantic.places.get(place);
                         place.root != write.root
-                            || !crate::flow::canonical_place_segments_may_overlap(
+                            || !canonical_place_segments_may_overlap(
                                 program,
                                 self.facts
                                     .semantic

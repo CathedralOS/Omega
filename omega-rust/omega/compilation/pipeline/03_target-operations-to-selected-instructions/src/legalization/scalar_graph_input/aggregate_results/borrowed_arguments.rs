@@ -1,6 +1,9 @@
 //! Rejoin aggregate references to exact incoming, operation, or block-entry storage.
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target;
+use crate::structural_inputs::structural_reference_input::{
+    internal_borrow_shape, runtime_borrowed_projection,
+};
 
 use super::{
     AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralMultiplicity,
@@ -207,25 +210,21 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     // static prefix and each RuntimeIndex segment's selector resolves to its
     // dominating scalar source — the same transport the leaf-copy sibling
     // already carries. A static path has no selectors.
-    let (selected, offset, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-            root,
-            &argument.path,
-            argument.access,
-            Some(destination.structural_type),
-            &plan.structural_types,
-        )
-        .ok_or(LegalizationError::custody())?;
+    let (selected, offset, elements) = runtime_borrowed_projection(
+        root,
+        &argument.path,
+        argument.access,
+        Some(destination.structural_type),
+        &plan.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
     let indices = if elements.is_empty() {
         Vec::new()
     } else {
         target::control_flow::sources::call_indices(native, caller, owner, &elements)?
     };
-    let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-        selected,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let shape = internal_borrow_shape(selected, &plan.structural_types)
+        .ok_or(LegalizationError::custody())?;
     let placement = call
         .parameters
         .get(callee.scalar_parameter_count() + position)

@@ -7,7 +7,9 @@
 use super::{CheckedTrees, LoweringError};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
+use crate::unit::attached_unit::scalar_completion::control::returning_destinations;
 use crate::unit::unit_cleanup::CleanupRegion;
+use crate::unit::unit_cleanup::bind_consumed_claims;
 mod owner_order;
 mod remaining_partition;
 use checked_trees::{CheckedScalarBranchDestination, FlowClaimJoinExit, FlowClaimJoinExitKind};
@@ -85,10 +87,7 @@ pub(crate) fn scalar_returns(
     // plan selects runtime returns; preparing dead cleanup rows would allocate
     // orphan completion blocks and their obligations. Every selected return
     // still requires its unique, exact source-owned cleanup coordinate.
-    let destinations =
-        crate::unit::attached_unit::scalar_completion::control::returning_destinations(
-            checked, control,
-        )?;
+    let destinations = returning_destinations(checked, control)?;
     destinations
         .into_iter()
         .map(|destination| {
@@ -312,11 +311,7 @@ fn lower_regions<'actions>(
                 catalog.calls.requirement_counts,
                 &mut catalog.calls.next_obligation_identity,
             )?;
-            crate::unit::unit_cleanup::bind_consumed_claims(
-                &mut action,
-                &cleanup.consumed_claims,
-                claims,
-            )?;
+            bind_consumed_claims(&mut action, &cleanup.consumed_claims, claims)?;
             Ok(action)
         },
     )

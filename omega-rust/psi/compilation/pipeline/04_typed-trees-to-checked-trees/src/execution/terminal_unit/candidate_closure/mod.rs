@@ -2,18 +2,19 @@
 //! rebuilding bodies or rechecking unaffected callers after each removal.
 use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, SymbolHandle, symbol_key,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan as OperationPlan, SymbolHandle,
+    symbol_key,
 };
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use crate::execution::terminal_unit::scalar_targets;
 use checked_trees::{
-    CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitCleanupBoundary, CheckedUnitPlanGap,
-    CheckedUnitPlanGapReason,
+    CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitCleanupBoundary as CleanupBoundary,
+    CheckedUnitPlanGap, CheckedUnitPlanGapReason as GapReason,
 };
 use std::collections::BTreeSet;
 
 /// Why one candidate left the roster, and where its body names the reason.
-type Cause = (CheckedUnitPlanGapReason, GapSite);
+type Cause = (GapReason, GapSite);
 
 struct CandidateClosure {
     // Symbols are sparse across the complete program; candidate ordinals are
@@ -46,12 +47,7 @@ impl CandidateClosure {
         }
     }
 
-    fn drop_candidate(
-        &mut self,
-        caller_index: usize,
-        reason: CheckedUnitPlanGapReason,
-        site: GapSite,
-    ) {
+    fn drop_candidate(&mut self, caller_index: usize, reason: GapReason, site: GapSite) {
         if self.retained[caller_index] {
             self.retained[caller_index] = false;
             self.causes[caller_index] = Some((reason, site));
@@ -80,11 +76,7 @@ impl CandidateClosure {
                 let target_index = self.entries[entry_index].2;
                 self.depend(target_index, caller_index, site);
             }
-            _ => self.drop_candidate(
-                caller_index,
-                CheckedUnitPlanGapReason::Callee(machine),
-                site,
-            ),
+            _ => self.drop_candidate(caller_index, GapReason::Callee(machine), site),
         }
     }
 
@@ -122,8 +114,7 @@ impl CandidateClosure {
             {
                 if self.retained[caller_index] {
                     self.retained[caller_index] = false;
-                    self.causes[caller_index] =
-                        Some((CheckedUnitPlanGapReason::Callee(target), self.sites[site]));
+                    self.causes[caller_index] = Some((GapReason::Callee(target), self.sites[site]));
                     unavailable.push(caller_index);
                 }
             }
@@ -153,9 +144,7 @@ fn apply_scalar_target_verdict(
         Some(scalar_targets::AvailableScalarTarget::PartialAffine(partial_index)) => {
             closure.depend(partial_base + partial_index, caller_index, site);
         }
-        None => {
-            closure.drop_candidate(caller_index, CheckedUnitPlanGapReason::Callee(target), site)
-        }
+        None => closure.drop_candidate(caller_index, GapReason::Callee(target), site),
     }
 }
 
@@ -179,7 +168,7 @@ fn admit_call_target(
             {
                 closure.drop_candidate(
                     caller_index,
-                    CheckedUnitPlanGapReason::BoundaryTarget(call.target.machine),
+                    GapReason::BoundaryTarget(call.target.machine),
                     site,
                 );
             }
@@ -220,13 +209,11 @@ fn admit_operation_cleanups(
     caller: usize,
     control: &checked_trees::CheckedCleanupControlPlans,
     state: SymbolHandle,
-    operation: &CheckedUnitEffectOperationPlan,
+    operation: &OperationPlan,
 ) {
     let site = match operation {
-        CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, .. } => {
-            cleanup_site(state, boundary)
-        }
-        CheckedUnitEffectOperationPlan::ReleaseReference {
+        OperationPlan::ContinuationCleanup { boundary, .. } => cleanup_site(state, boundary),
+        OperationPlan::ReleaseReference {
             statement_index, ..
         } => GapSite::Statement {
             state,
@@ -300,10 +287,10 @@ pub(super) fn retain_available(
             .operations
             .iter()
             .chain(prepared_calls.operations_for(plan.machine, plan.state))
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
         {
             match operation {
-                CheckedUnitEffectOperationPlan::Call(call) => admit_call_target(
+                OperationPlan::Call(call) => admit_call_target(
                     &mut closure,
                     &boundaries,
                     candidates.len(),
@@ -327,33 +314,33 @@ pub(super) fn retain_available(
                     },
                 ),
                 // Selected execution already joined exact realization custody.
-                CheckedUnitEffectOperationPlan::RegisterAccess { .. }
-                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                OperationPlan::RegisterAccess { .. }
+                | OperationPlan::EvaluateStructuralValue { .. }
+                | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
                 )
                 | checked_trees::reference_hold_pattern!()
                 | checked_trees::byte_sequence_establishment_pattern!()
-                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. },
                 )
-                | CheckedUnitEffectOperationPlan::Store(_)
-                | CheckedUnitEffectOperationPlan::AtomicFence { .. }
-                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                | OperationPlan::Store(_)
+                | OperationPlan::AtomicFence { .. }
+                | OperationPlan::AtomicAccess(_)
                 | checked_trees::structural_field_write_pattern!()
-                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. },
                 )
-                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Structural { .. },
                 )
-                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. },
                 )
-                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                | OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. },
                 ) => {}
-                CheckedUnitEffectOperationPlan::Complete { .. } => {
+                OperationPlan::Complete { .. } => {
                     for cleanup in cleanup_control
                         .normal_actions(plan.normal_exit_cleanups)
                         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
@@ -366,7 +353,7 @@ pub(super) fn retain_available(
                         );
                     }
                 }
-                CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
+                OperationPlan::ContinuationCleanup { .. } => {}
             }
             admit_operation_cleanups(
                 &mut closure,
@@ -402,7 +389,7 @@ pub(super) fn retain_available(
             for operation in state
                 .operation_dependencies()
                 .chain(prepared_calls.operations_for(plan.machine, state.state))
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
             {
                 let call_site =
                     |coordinate: checked_trees::CheckedUnitCallCoordinate| GapSite::Statement {
@@ -412,7 +399,7 @@ pub(super) fn retain_available(
                 // Composed bodies have a narrower operation vocabulary and no
                 // ordinary structural-return fallback. Keep that admission explicit.
                 match operation {
-                    CheckedUnitEffectOperationPlan::Call(call) => admit_call_target(
+                    OperationPlan::Call(call) => admit_call_target(
                         &mut closure,
                         &boundaries,
                         candidates.len(),
@@ -444,38 +431,38 @@ pub(super) fn retain_available(
                     // are dense, and a sum field's copy or construction and
                     // its window repair stay in-frame. A port write is a
                     // checked physical event with exact operands, not a call.
-                    CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
-                    | CheckedUnitEffectOperationPlan::Store(_)
-                    | CheckedUnitEffectOperationPlan::AtomicFence { .. }
-                    | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                    | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
+                    OperationPlan::EvaluateStructuralValue { .. }
+                    | OperationPlan::Store(_)
+                    | OperationPlan::AtomicFence { .. }
+                    | OperationPlan::AtomicAccess(_)
+                    | OperationPlan::RegisterAccess { .. }
+                    | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.
                     | checked_trees::reference_hold_pattern!()
                     // A view-subslice local narrows a view the frame already
                     // holds; it names no callee.
                     | checked_trees::byte_sequence_establishment_pattern!()
-                    | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
+                    | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
                     // Fixed-array, mutable-primitive, and trivial-affine
                     // establishments mint frame-local storage at the authored
                     // statement; they name no callee either.
-                    | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
-                    | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
-                    | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
+                    | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
+                    | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
+                    | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
                     // A declared structural local's establishment mints
                     // frame-local storage at the authored statement as well;
                     // member fills name no callee.
-                    | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
+                    | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
                     // A borrowed-window move carries no callee: its result
                     // binding, like a repair store's installed value, is
                     // already a custody row inside this same state.
                     | checked_trees::structural_field_write_pattern!()
                     => {}
-                    CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
+                    OperationPlan::ContinuationCleanup { .. } => {}
                     _ => closure.drop_candidate(
                         caller_index,
-                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed("composed control vocabulary")),
+                        GapReason::Unsupported(std::borrow::Cow::Borrowed("composed control vocabulary")),
                         GapSite::State(state.state),
                     ),
                 }
@@ -534,13 +521,13 @@ pub(super) fn retain_available(
 
 /// The authored statement a continuation cleanup runs at, or its state when
 /// the cleanup follows a call by coordinate.
-fn cleanup_site(state: SymbolHandle, boundary: &CheckedUnitCleanupBoundary) -> GapSite {
+fn cleanup_site(state: SymbolHandle, boundary: &CleanupBoundary) -> GapSite {
     let index = match boundary {
-        CheckedUnitCleanupBoundary::Call(coordinate) => coordinate.statement_index,
-        CheckedUnitCleanupBoundary::Replacement {
+        CleanupBoundary::Call(coordinate) => coordinate.statement_index,
+        CleanupBoundary::Replacement {
             statement_index, ..
         }
-        | CheckedUnitCleanupBoundary::StatementEntry { statement_index } => *statement_index,
+        | CleanupBoundary::StatementEntry { statement_index } => *statement_index,
     };
     GapSite::Statement { state, index }
 }

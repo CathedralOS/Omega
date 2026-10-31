@@ -9,7 +9,13 @@
 //! Calls retain both top-level descriptor origins and the target producer's
 //! reference-leaf origins. Their conservative union describes memory reach,
 //! never the runtime pointer selected from an aggregate's returned payload.
+use super::reference_input::{establishment, root_type};
 use crate::SelectedInstructionError;
+use crate::structural_inputs::structural_reference_input::{
+    descriptor_source_geometry, primitive_read_geometry, projected_scalar_codec,
+    reference_formation_geometry, reference_source_geometry, runtime_indices_match,
+    storage_address_geometry,
+};
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as I, LegalizedScalarTerminator as T,
 };
@@ -245,14 +251,8 @@ fn access_coordinates(
                 .structural
                 .as_ref()
                 .ok_or(SelectedInstructionError::custody())?;
-            let root = super::reference_input::root_type(function, *source)
-                .ok_or(SelectedInstructionError::custody())?;
-            let selected =
-                crate::structural_inputs::structural_reference_input::storage_address_geometry(
-                    root,
-                    path,
-                    &signature.structural_types,
-                )
+            let root = root_type(function, *source).ok_or(SelectedInstructionError::custody())?;
+            let selected = storage_address_geometry(root, path, &signature.structural_types)
                 .ok_or(SelectedInstructionError::custody())?;
             if selected.uses_borrowed_backing {
                 vec![StructuralArgument {
@@ -269,18 +269,16 @@ fn access_coordinates(
                 .structural
                 .as_ref()
                 .ok_or(SelectedInstructionError::custody())?;
-            let root = super::reference_input::root_type(function, *source)
-                .ok_or(SelectedInstructionError::custody())?;
-            let geometry =
-                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                    root,
-                    path,
-                    row.result
-                        .ok_or(SelectedInstructionError::custody())?
-                        .scalar_type,
-                    &signature.structural_types,
-                )
-                .ok_or(SelectedInstructionError::custody())?;
+            let root = root_type(function, *source).ok_or(SelectedInstructionError::custody())?;
+            let geometry = primitive_read_geometry(
+                root,
+                path,
+                row.result
+                    .ok_or(SelectedInstructionError::custody())?
+                    .scalar_type,
+                &signature.structural_types,
+            )
+            .ok_or(SelectedInstructionError::custody())?;
             // A scalar path staying in the original home reads owned bytes,
             // even if another field carries a returned loan. Only pointer
             // crossings or indexed byte descriptors need backing-origin reach;
@@ -348,8 +346,7 @@ fn field_coordinate(
         .structural
         .as_ref()
         .ok_or(SelectedInstructionError::custody())?;
-    let root = super::reference_input::root_type(function, source.place)
-        .ok_or(SelectedInstructionError::custody())?;
+    let root = root_type(function, source.place).ok_or(SelectedInstructionError::custody())?;
     let (prefix, case) = match source.path.split_last() {
         Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
         _ => (source.path.as_slice(), None),
@@ -360,12 +357,7 @@ fn field_coordinate(
         None => {
             // The first query still performs the complete geometry check.
             // Cache only success; case and field checks below run every time.
-            let selected =
-                crate::structural_inputs::structural_reference_input::reference_source_geometry(
-                    root,
-                    prefix,
-                    &signature.structural_types,
-                )
+            let selected = reference_source_geometry(root, prefix, &signature.structural_types)
                 .ok_or(SelectedInstructionError::custody())?
                 .selected;
             geometry.selected_types.insert(key, selected);
@@ -439,12 +431,18 @@ fn collect_calls(
                     // storage. Descriptor siblings do not change that field's
                     // allocation. Crossing a pointer still needs the retained
                     // completed-call origin roster below.
-                    let inline_scalar = crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-                        structural_type, &coordinate.path, &signature.structural_types,
-                    ).is_some_and(|geometry| !geometry.uses_borrowed_backing)
-                        && crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-                            structural_type, &coordinate.path, &signature.structural_types,
-                        ).is_some();
+                    let inline_scalar = reference_formation_geometry(
+                        structural_type,
+                        &coordinate.path,
+                        &signature.structural_types,
+                    )
+                    .is_some_and(|geometry| !geometry.uses_borrowed_backing)
+                        && projected_scalar_codec(
+                            structural_type,
+                            &coordinate.path,
+                            &signature.structural_types,
+                        )
+                        .is_some();
                     if inline_scalar {
                         visited.origin();
                     } else {
@@ -498,12 +496,14 @@ fn collect_calls(
                     indices,
                     ..
                 } => {
-                    let root = super::reference_input::root_type(function, parent.place)
+                    let root = root_type(function, parent.place)
                         .ok_or(SelectedInstructionError::custody())?;
-                    let descriptor_geometry = crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
-                        root, &parent.path, &signature.structural_types,
-                    ).ok_or(SelectedInstructionError::custody())?;
-                    if !descriptor_geometry.readable || !crate::structural_inputs::structural_reference_input::runtime_indices_match(indices, &descriptor_geometry.elements) {
+                    let descriptor_geometry =
+                        descriptor_source_geometry(root, &parent.path, &signature.structural_types)
+                            .ok_or(SelectedInstructionError::custody())?;
+                    if !descriptor_geometry.readable
+                        || !runtime_indices_match(indices, &descriptor_geometry.elements)
+                    {
                         return Err(SelectedInstructionError::custody());
                     }
                     // A result index is relative to the captured cut, not to
@@ -520,7 +520,7 @@ fn collect_calls(
                     let prefix = match path {
                         abstract_operations::StructuralCopyPath::Ordinary(path) => path.clone(),
                         abstract_operations::StructuralCopyPath::Case(path) => {
-                            let root = super::reference_input::root_type(function, *parent)
+                            let root = root_type(function, *parent)
                                 .ok_or(SelectedInstructionError::custody())?;
                             let selected = terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
                                 &signature.structural_types, *parent, root, path,
@@ -564,7 +564,7 @@ fn collect_calls(
                     let known_width = if coordinate.path.is_empty()
                         || coordinate.path == [terminal_psi::StructuralPathSegment::Referent]
                     {
-                        super::reference_input::establishment(function, row)
+                        establishment(function, row)
                             .filter(|address| !address.load_codec)
                             .and_then(|address| address.codec)
                             .map(|codec| u32::from(codec.byte_size()))
@@ -767,25 +767,14 @@ fn reference_backing_coordinate(
     else {
         return Err(SelectedInstructionError::custody());
     };
-    let root = super::reference_input::root_type(function, parent.place)
-        .ok_or_else(SelectedInstructionError::custody)?;
-    let source =
-        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-            root,
-            &parent.path,
-            declarations,
-        )
+    let root = root_type(function, parent.place).ok_or_else(SelectedInstructionError::custody)?;
+    let source = reference_formation_geometry(root, &parent.path, declarations)
         .ok_or_else(SelectedInstructionError::custody)?;
     if matches!(source.selected.as_ref(), terminal_psi::StructuralFieldType::Structural(actual) if *actual == referent)
     {
         return Ok(rebased(parent, suffix));
     }
-    let projection =
-        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-            referent,
-            suffix,
-            declarations,
-        )
+    let projection = reference_formation_geometry(referent, suffix, declarations)
         .ok_or_else(SelectedInstructionError::custody)?;
     if projection.uses_borrowed_backing {
         return Err(SelectedInstructionError::custody_because(

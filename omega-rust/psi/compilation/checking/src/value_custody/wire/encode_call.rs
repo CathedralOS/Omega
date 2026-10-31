@@ -3,7 +3,9 @@ use super::value_fields::{
 };
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
+use typed_trees::wire::WireBorrowedScalarSliceEncoding;
 use typed_trees::wire::{WireField, WireSchema};
 
 /// Validate the synthesized wire encoder call
@@ -67,10 +69,7 @@ pub(super) fn validate_wire_encode_call(
     let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
     let mut repeated_fields: Vec<(&WireField, typed_trees::wire::WireRepeatedEncoding)> =
         Vec::new();
-    let mut scalar_slice_fields: Vec<(
-        &WireField,
-        typed_trees::wire::WireBorrowedScalarSliceEncoding,
-    )> = Vec::new();
+    let mut scalar_slice_fields: Vec<(&WireField, WireBorrowedScalarSliceEncoding)> = Vec::new();
     let mut text_fields: Vec<&WireField> = Vec::new();
     // Borrowed byte slices `&[u8]`: the zero-copy RAW-bytes/text field. Encodes
     // as length varint + raw bytes, rides the same runtime-sized Text constraints
@@ -225,9 +224,7 @@ pub(super) fn validate_wire_encode_call(
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(length),
-            } if program.primitive_type_reference(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8) =>
-            {
+            } if program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) => {
                 if *length < worst_case_bytes {
                     diagnostics.push(Diagnostic::error(format!(
                         "`{}::encode` out buffer `[u8; {length}]` is too small: the worst-case encoding needs {worst_case_bytes} bytes (era varint + per-field tag and value varints)",
@@ -250,7 +247,7 @@ pub(super) fn validate_wire_encode_call(
         declared_place_type(program, current_machine, current_state, arguments[2])
         && !matches!(
             program.primitive_type_reference(written_type),
-            Some(typed_trees::types::PrimitiveType::U64)
+            Some(PrimitiveType::U64)
         )
     {
         diagnostics.push(Diagnostic::error(format!(

@@ -25,11 +25,18 @@ use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_entry_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
+use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
+use crate::execution::terminal_unit::types::erased_proof_parameter_plans;
+use crate::execution::terminal_unit::types::erased_scalar_parameter_plans;
+use crate::execution::terminal_unit::types::parameter_storage_plans;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, fold_parameter_entry_domains, machine_binders,
     retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
+use crate::values::lower_state_declared_range_predicate;
+use crate::values::lower_state_domain_predicate;
+use crate::values::lower_state_scalar_contract_predicate;
 
 mod closed_sum;
 mod fused;
@@ -249,7 +256,7 @@ pub(super) fn build_traced(
     records: &RetainedBorrowRecords<'_>,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
-    prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
+    prepared_calls: &mut PreparedCalls,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
@@ -375,7 +382,7 @@ pub(super) fn build_traced(
             };
             let predicate = match row {
                 validation::StateContractRow::Expression(expression) => {
-                    crate::values::lower_state_scalar_contract_predicate(
+                    lower_state_scalar_contract_predicate(
                         program,
                         &facts.operators,
                         owner,
@@ -389,7 +396,7 @@ pub(super) fn build_traced(
                     minimum,
                     maximum,
                     end_inclusive,
-                } => crate::values::lower_state_declared_range_predicate(
+                } => lower_state_declared_range_predicate(
                     program,
                     &facts.operators,
                     owner,
@@ -402,12 +409,7 @@ pub(super) fn build_traced(
                 validation::StateContractRow::Domain {
                     parameter,
                     constraint,
-                } => crate::values::lower_state_domain_predicate(
-                    program,
-                    state,
-                    parameter,
-                    &constraint,
-                ),
+                } => lower_state_domain_predicate(program, state, parameter, &constraint),
                 validation::StateContractRow::SourceFact(_) => {
                     unreachable!("source fact handled above")
                 }
@@ -544,13 +546,7 @@ pub(super) fn build_traced(
         let mut sequence_structural = structural.clone();
         trace.phase("state graph: parameter storage");
         // Composed graphs admit no machine binders (see the entry guard).
-        let parameter_storage = crate::execution::terminal_unit::types::parameter_storage_plans(
-            program,
-            shapes,
-            state,
-            &[],
-            scalar,
-        )?;
+        let parameter_storage = parameter_storage_plans(program, shapes, state, &[], scalar)?;
         let sequence = phase_profile::scope("05.d.8_10.a.3.2c.3b.statement_sequence", || {
             control::statement_sequence::build(
                 program,
@@ -672,14 +668,8 @@ pub(super) fn build_traced(
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),
             parameter_storage,
-            erased_scalar_parameters:
-                crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
-                    program, state,
-                )?,
-            erased_proof_parameters:
-                crate::execution::terminal_unit::types::erased_proof_parameter_plans(
-                    program, state,
-                )?,
+            erased_scalar_parameters: erased_scalar_parameter_plans(program, state)?,
+            erased_proof_parameters: erased_proof_parameter_plans(program, state)?,
             requires: state_requires[state_index].clone(),
             entry_claims: state_entry_claims[state_index].clone(),
             operations,

@@ -14,11 +14,19 @@
 //! exact truncating division and stay on the interval path.
 
 use crate::flow::state_statements;
+use arena::HandleSpan;
 use symbols::SymbolHandle;
+use typed_trees::state::State;
+use typed_trees::statement::TableTransition;
+use typed_trees::statement::TransitionTargetNode;
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     statement::StatementNode,
 };
+use validation::call_target_state;
+use validation::state_parameter_integer_interval;
+use validation::stored_integer_bounds;
 
 use super::super::ExitScalars;
 
@@ -179,29 +187,22 @@ impl LinearForm {
 
     /// Smallest value of this form over the exit state's immutable parameters.
     /// A missing endpoint that the coefficient's sign needs is not a proof.
-    fn minimum(
-        &self,
-        scalars: &ExitScalars<'_, '_>,
-        state: &typed_trees::state::State,
-    ) -> Option<i64> {
+    fn minimum(&self, scalars: &ExitScalars<'_, '_>, state: &State) -> Option<i64> {
         let mut minimum = self.constant;
         for (atom, coefficient) in &self.terms {
             if *coefficient == 0 {
                 continue;
             }
             let (lower, upper) = match *atom {
-                LinearAtom::Parameter(symbol) => validation::state_parameter_integer_interval(
+                LinearAtom::Parameter(symbol) => state_parameter_integer_interval(
                     scalars.program,
                     scalars.machine,
                     state,
                     symbol,
                 )?,
-                LinearAtom::Field { place, .. } => validation::stored_integer_bounds(
-                    scalars.program,
-                    scalars.machine,
-                    state,
-                    place,
-                )?,
+                LinearAtom::Field { place, .. } => {
+                    stored_integer_bounds(scalars.program, scalars.machine, state, place)?
+                }
             };
             let endpoint = if *coefficient > 0 { lower } else { upper };
             let contribution = coefficient.checked_mul(endpoint?)?;
@@ -250,7 +251,7 @@ impl ExitScalars<'_, '_> {
     fn reconstruction_forms(
         &self,
         expression: ExpressionHandle,
-        state: &typed_trees::state::State,
+        state: &State,
         substitution: &[(SymbolHandle, LinearForm)],
         depth: usize,
     ) -> Option<(LinearForm, LinearForm)> {
@@ -307,7 +308,7 @@ impl ExitScalars<'_, '_> {
         &self,
         dividend_over_divisor: ExpressionHandle,
         multiplier: ExpressionHandle,
-        state: &typed_trees::state::State,
+        state: &State,
         substitution: &[(SymbolHandle, LinearForm)],
         depth: usize,
     ) -> Option<(LinearForm, LinearForm)> {
@@ -339,7 +340,7 @@ impl ExitScalars<'_, '_> {
     fn call_reconstruction(
         &self,
         call: CopiedCall,
-        state: &typed_trees::state::State,
+        state: &State,
         substitution: &[(SymbolHandle, LinearForm)],
         depth: usize,
     ) -> Option<(LinearForm, LinearForm)> {
@@ -348,7 +349,7 @@ impl ExitScalars<'_, '_> {
         }
         // A free call names the machine; an attached call names its entry
         // state. Both enter that same body.
-        let entry = validation::call_target_state(self.program, call.target_symbol)?;
+        let entry = call_target_state(self.program, call.target_symbol)?;
         if !exact_return(self, entry.return_type) {
             return None;
         }
@@ -379,7 +380,7 @@ impl ExitScalars<'_, '_> {
     fn linear_form(
         &self,
         expression: ExpressionHandle,
-        state: &typed_trees::state::State,
+        state: &State,
         substitution: &[(SymbolHandle, LinearForm)],
         expanding: &mut Vec<SymbolHandle>,
         depth: usize,
@@ -450,7 +451,7 @@ impl ExitScalars<'_, '_> {
         place: ExpressionHandle,
         receiver: ExpressionHandle,
         field: SymbolHandle,
-        state: &typed_trees::state::State,
+        state: &State,
     ) -> Option<LinearForm> {
         let root = self
             .program
@@ -465,20 +466,14 @@ impl ExitScalars<'_, '_> {
         if parameter.is_const || self.field_is_assigned(state, root, field) {
             return None;
         }
-        let (lower, upper) =
-            validation::stored_integer_bounds(self.program, self.machine, state, place)?;
+        let (lower, upper) = stored_integer_bounds(self.program, self.machine, state, place)?;
         if lower.is_none() && upper.is_none() {
             return None;
         }
         Some(LinearForm::field(root, field, place))
     }
 
-    fn field_is_assigned(
-        &self,
-        state: &typed_trees::state::State,
-        root: SymbolHandle,
-        field: SymbolHandle,
-    ) -> bool {
+    fn field_is_assigned(&self, state: &State, root: SymbolHandle, field: SymbolHandle) -> bool {
         let statements = state_statements(self.program, state.statement_nodes);
         statements.iter().any(|statement| {
             let StatementNode::Assignment(assignment) = statement else {
@@ -509,7 +504,7 @@ impl ExitScalars<'_, '_> {
     fn local_form(
         &self,
         symbol: SymbolHandle,
-        state: &typed_trees::state::State,
+        state: &State,
         substitution: &[(SymbolHandle, LinearForm)],
         expanding: &mut Vec<SymbolHandle>,
         depth: usize,
@@ -524,11 +519,7 @@ impl ExitScalars<'_, '_> {
         form
     }
 
-    fn local_initializer(
-        &self,
-        symbol: SymbolHandle,
-        state: &typed_trees::state::State,
-    ) -> Option<ExpressionHandle> {
+    fn local_initializer(&self, symbol: SymbolHandle, state: &State) -> Option<ExpressionHandle> {
         let statements = state_statements(self.program, state.statement_nodes);
         let mut initializer = None;
         for statement in statements {
@@ -609,7 +600,7 @@ fn window_entails(
     ceiling: &LinearForm,
     bound: &LinearForm,
     scalars: &ExitScalars<'_, '_>,
-    state: &typed_trees::state::State,
+    state: &State,
 ) -> bool {
     let holds = |residual: Option<LinearForm>, slack: i64| -> bool {
         residual
@@ -628,14 +619,11 @@ fn window_entails(
 struct CopiedCall {
     target_symbol: SymbolHandle,
     receiver: ExpressionHandle,
-    arguments: arena::HandleSpan<ExpressionHandle>,
+    arguments: HandleSpan<ExpressionHandle>,
     blocked: bool,
 }
 
-fn exact_return(
-    scalars: &ExitScalars<'_, '_>,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
+fn exact_return(scalars: &ExitScalars<'_, '_>, reference: TypeReferenceHandle) -> bool {
     super::exact_integer_carrier(scalars.program, reference).is_some()
 }
 
@@ -644,7 +632,7 @@ fn exact_return(
 /// is a different control shape and is not inlined.
 fn callee_return_expression(
     scalars: &ExitScalars<'_, '_>,
-    state: &typed_trees::state::State,
+    state: &State,
 ) -> Option<ExpressionHandle> {
     let statements = state_statements(scalars.program, state.statement_nodes);
     let mut returned = None;
@@ -663,12 +651,12 @@ fn callee_return_expression(
 
 fn single_transition_value(
     scalars: &ExitScalars<'_, '_>,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &TableTransition,
 ) -> Option<ExpressionHandle> {
     let mut value = None;
     for target in transition.targets() {
         match scalars.program.statement_table.transition_target(target) {
-            typed_trees::statement::TransitionTargetNode::Value(expression) if value.is_none() => {
+            TransitionTargetNode::Value(expression) if value.is_none() => {
                 value = Some(*expression);
             }
             _ => return None,

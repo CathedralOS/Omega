@@ -9,6 +9,8 @@
 
 use crate::expression::{ExpressionHandle, StaticMachineArgument};
 use crate::name::Identifier;
+use crate::type_identity::declaration_lifetime_parameters;
+use crate::type_identity::lifetime_parameter_identity;
 use crate::types::TypeReferenceHandle;
 use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
@@ -137,9 +139,7 @@ impl crate::TypedTrees {
         let original = self.lifetime_declaration_owner(source.lifetime_binding_declaration);
         let receiving = self.lifetime_declaration_owner(receiving);
         let registered = self.lifetime_declaration_owner(source.registration_operation);
-        let registered = if crate::type_identity::declaration_lifetime_parameters(self, registered)
-            .is_some()
-        {
+        let registered = if declaration_lifetime_parameters(self, registered).is_some() {
             registered
         } else if let Some((_, signature)) =
             self.machine_parameter_signature(source.registration_operation)
@@ -155,12 +155,10 @@ impl crate::TypedTrees {
                 "static region group does not belong to its exact registered callable telescope",
             );
         }
-        let original_parameters =
-            crate::type_identity::declaration_lifetime_parameters(self, original)
-                .ok_or("static region group lost its original receiving declaration")?;
-        let receiving_parameters =
-            crate::type_identity::declaration_lifetime_parameters(self, receiving)
-                .ok_or("static region group lost its requested receiving declaration")?;
+        let original_parameters = declaration_lifetime_parameters(self, original)
+            .ok_or("static region group lost its original receiving declaration")?;
+        let receiving_parameters = declaration_lifetime_parameters(self, receiving)
+            .ok_or("static region group lost its requested receiving declaration")?;
         let same_declaration = original == receiving;
         if !same_declaration {
             let corresponds = |implementation, requirement| {
@@ -185,25 +183,19 @@ impl crate::TypedTrees {
         }
         let mut projected = Vec::new();
         for (ordinal, binding) in bindings.iter().enumerate() {
-            let parameter = crate::type_identity::lifetime_parameter_identity(
-                self,
-                original,
-                binding.parameter.as_str(),
-            )
-            .filter(|parameter| parameter.declaration == original)
-            .ok_or("static region binding does not name its original declaration's own formal")?;
+            let parameter = lifetime_parameter_identity(self, original, binding.parameter.as_str())
+                .filter(|parameter| parameter.declaration == original)
+                .ok_or(
+                    "static region binding does not name its original declaration's own formal",
+                )?;
             if bindings[..ordinal]
                 .iter()
                 .any(|previous| previous.parameter == binding.parameter)
             {
                 return Err("static region group repeats an original receiving formal");
             }
-            crate::type_identity::lifetime_parameter_identity(
-                self,
-                source.lexical_owner,
-                binding.argument.as_str(),
-            )
-            .ok_or("static region argument has no identity in its original supplying scope")?;
+            lifetime_parameter_identity(self, source.lexical_owner, binding.argument.as_str())
+                .ok_or("static region argument has no identity in its original supplying scope")?;
             if !same_declaration {
                 projected.push(StaticMachineLifetimeBinding {
                     parameter: receiving_parameters

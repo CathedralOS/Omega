@@ -4,6 +4,7 @@
 //! engine and reader hypotheses. They do not own flow state or diagnostics.
 
 use crate::frozen_program::expression_table;
+use crate::value_custody::places::collection_operations::MeasureReceiver;
 use language_core::{is_rooted_at, is_self_receiver};
 use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
@@ -526,9 +527,7 @@ fn predicate_read_set(
             && crate::value_custody::places::collection_operations::collection_measure_member(
                 program,
                 member,
-                crate::value_custody::places::collection_operations::MeasureReceiver::Declared(
-                    field.type_reference,
-                ),
+                MeasureReceiver::Declared(field.type_reference),
             )
             .is_some()
         {

@@ -1,3 +1,4 @@
+use super::argument_type_reference;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::signature_type_identity;
@@ -80,12 +81,7 @@ pub(crate) fn project_conformance_bounds(
                     .typed_program()
                     .static_operand_from_type_reference(*argument)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                super::argument_type_reference(
-                    instantiated.program_mut(),
-                    &selected,
-                    &parameter.kind,
-                    0,
-                )?
+                argument_type_reference(instantiated.program_mut(), &selected, &parameter.kind, 0)?
             } else {
                 *argument
             };

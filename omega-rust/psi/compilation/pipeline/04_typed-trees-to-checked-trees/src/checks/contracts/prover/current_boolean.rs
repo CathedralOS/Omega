@@ -4,7 +4,11 @@
 //! The caller supplies current contexts and owns operand freshness; this query
 //! neither recovers an old initializer nor grants immutable entry identity.
 
+use crate::facts::boolean_predicates::inferred_boolean_at_place;
+use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::flow::canonical_place_from_semantic_place;
 use crate::places::place_at;
+use crate::semantic::places::call_contract_argument_projection;
 use validation::CanonicalPlace;
 
 use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
@@ -75,7 +79,7 @@ pub(crate) fn boolean_value_at_place(
     }
     let predicates =
         crate::facts::boolean_predicates::retained(program, operators, semantic, contexts, point);
-    crate::facts::boolean_predicates::inferred_boolean_at_place(&predicates, actual, |place| {
+    inferred_boolean_at_place(&predicates, actual, |place| {
         ordinary_boolean_value_at_place(program, semantic, contexts, place)
             .map(ScalarValue::Boolean)
             .or_else(|| {
@@ -123,12 +127,8 @@ fn ordinary_boolean_value_at_place(
         let Some(place) = fact.place.as_place() else {
             continue;
         };
-        if crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(place),
-        )
-        .as_ref()
+        if canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
+            .as_ref()
             != Some(actual)
         {
             continue;
@@ -149,11 +149,7 @@ fn ordinary_boolean_value_at_place(
             }
         };
         let mut occurrences = Vec::new();
-        crate::facts::contract_occurrences::append_expression_occurrences(
-            program,
-            expression,
-            &mut occurrences,
-        );
+        append_expression_occurrences(program, expression, &mut occurrences);
         for leaf in occurrences
             .into_iter()
             .filter(|leaf| matches_subject(*leaf))
@@ -206,7 +202,7 @@ fn postcondition_place(
         validation::CallSite::TransitionNamed { path, .. } => path.symbol,
     };
     let parameters = validation::call_target_parameters(program, target)?;
-    let (value, remaining) = crate::semantic::places::call_contract_argument_projection(
+    let (value, remaining) = call_contract_argument_projection(
         program,
         parameters,
         validation::call_site_argument_expressions(program, &site),

@@ -2,6 +2,7 @@
 
 use crate::frozen_program::expression_table;
 use language_semantics::quotient_correspondence::QuotientCorrespondenceJudgment;
+use language_semantics::quotient_correspondence::QuotientResultFlow;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn extract(
@@ -31,13 +32,11 @@ pub(super) fn extract(
         return Err(errors);
     }
     let statement_position = |row: &QuotientCorrespondenceJudgment| match &row.result_flow {
-        language_semantics::quotient_correspondence::QuotientResultFlow::Direct {
-            statement_position,
-            ..
+        QuotientResultFlow::Direct {
+            statement_position, ..
         }
-        | language_semantics::quotient_correspondence::QuotientResultFlow::Forwarded {
-            statement_position,
-            ..
+        | QuotientResultFlow::Forwarded {
+            statement_position, ..
         } => *statement_position,
     };
     rows.sort_by(|left, right| {

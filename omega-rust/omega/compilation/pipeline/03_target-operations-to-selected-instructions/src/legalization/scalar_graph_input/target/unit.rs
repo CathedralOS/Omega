@@ -25,6 +25,10 @@
 //! `runtime_indices_rejoin` is used by `primitive_store`.
 
 use super::super::ScalarType;
+use super::super::structural_case::{membership_layout, source_owner, source_result};
+use super::super::structural_fields::{
+    byte_read, replacement, scalar_store_destination, view_replacement, view_slot_geometry,
+};
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
     TargetFunction, TargetOperationPlan, TargetUnitOperation, ValueId,
@@ -32,6 +36,9 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::callee_plan;
 use crate::legalization::scalar_graph_input::target::Checker;
+use crate::structural_inputs::structural_reference_input::{
+    RuntimeElement, primitive_read_geometry, storage_address_geometry,
+};
 use target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
 };
@@ -112,13 +119,8 @@ pub(super) fn validate_operation(
         _ => None,
     };
     if let Some((source, field, indices)) = projected_bytes {
-        let geometry = super::super::structural_fields::view_slot_geometry(
-            optimized,
-            source,
-            field,
-            &plan.structural_types,
-        )
-        .ok_or(LegalizationError::custody())?;
+        let geometry = view_slot_geometry(optimized, source, field, &plan.structural_types)
+            .ok_or(LegalizationError::custody())?;
         if !runtime_indices_rejoin(indices, &geometry.elements, sources) {
             return Err(LegalizationError::custody());
         }
@@ -493,14 +495,13 @@ pub(super) fn validate_operation(
         {
             // The tag, its static offset and every runtime element's stride
             // are rebuilt from declarations; the row supplies none of them.
-            let (expected_tag, expected_offset, elements) =
-                super::super::structural_case::membership_layout(
-                    optimized,
-                    *expected_source,
-                    expected_path,
-                    *expected_case,
-                    plan,
-                )?;
+            let (expected_tag, expected_offset, elements) = membership_layout(
+                optimized,
+                *expected_source,
+                expected_path,
+                *expected_case,
+                plan,
+            )?;
             if (*case_tag, *tag_byte_offset) != (expected_tag, expected_offset)
                 || !runtime_indices_rejoin(indices, &elements, sources)
             {
@@ -680,7 +681,7 @@ pub(super) fn validate_operation(
             && length == expected_length
             && obligation == expected_obligation
             && Some(destination.clone())
-                == super::super::structural_fields::replacement(
+                == replacement(
                     optimized,
                     abstracted,
                     &plan.structural_types,
@@ -720,12 +721,7 @@ pub(super) fn validate_operation(
                 || field != expected_field
                 || length != expected_length
                 || obligation != expected_obligation
-                || Some(source.clone())
-                    != super::super::structural_fields::byte_read(
-                        optimized,
-                        abstracted,
-                        &plan.structural_types,
-                    )
+                || Some(source.clone()) != byte_read(optimized, abstracted, &plan.structural_types)
                 || !sources
                     .iter()
                     .any(|(identity, actual)| identity == expected_index && actual == index)
@@ -773,7 +769,7 @@ pub(super) fn validate_operation(
             && destination == expected_destination
             && source == expected_source
             && obligation == expected_obligation
-            && super::super::structural_fields::replacement(
+            && replacement(
                 optimized,
                 abstracted,
                 &plan.structural_types,
@@ -803,7 +799,7 @@ pub(super) fn validate_operation(
             && field == expected_field
             && source == expected_source
             && Some(destination.clone())
-                == super::super::structural_fields::view_replacement(
+                == view_replacement(
                     optimized,
                     abstracted,
                     &plan.structural_types,
@@ -833,7 +829,7 @@ pub(super) fn validate_operation(
             && source == expected_source
             && obligation == expected_obligation
             && Some(destination.clone())
-                == super::super::structural_fields::replacement(
+                == replacement(
                     optimized,
                     abstracted,
                     &plan.structural_types,
@@ -972,12 +968,7 @@ pub(super) fn validate_operation(
                 optimized, *source,
             )
             .ok_or(LegalizationError::custody())?;
-            let geometry =
-                crate::structural_inputs::structural_reference_input::storage_address_geometry(
-                    root,
-                    path,
-                    &unit.structural_types,
-                )
+            let geometry = storage_address_geometry(root, path, &unit.structural_types)
                 .ok_or(LegalizationError::custody())?;
             if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
                 || !runtime_indices_rejoin(indices, &geometry.elements, sources)
@@ -1014,7 +1005,7 @@ pub(super) fn validate_operation(
                         *expected_source,
                     )
                     .ok_or(LegalizationError::custody())?;
-                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
+                primitive_read_geometry(
                     root_type,
                     expected_path,
                     expected.scalar_type,
@@ -1208,18 +1199,17 @@ pub(super) fn validate_operation(
                 ..
             },
         ) => {
-            let (expected_destination, expected_path) =
-                super::super::structural_fields::scalar_store_destination(
-                    optimized,
-                    expected_destination,
-                    expected_path,
-                    *expected_field,
-                    &unit.structural_types,
-                    &unit.structural_domains,
-                    &unit.identities,
-                    custody,
-                )
-                .ok_or(LegalizationError::custody())?;
+            let (expected_destination, expected_path) = scalar_store_destination(
+                optimized,
+                expected_destination,
+                expected_path,
+                *expected_field,
+                &unit.structural_types,
+                &unit.structural_domains,
+                &unit.identities,
+                custody,
+            )
+            .ok_or(LegalizationError::custody())?;
             // The physical home must retain the same semantic owner: either an
             // incoming borrow or the exact fresh result, never a forged parameter.
             let storage_matches = match (destination, destination_storage) {
@@ -1268,10 +1258,9 @@ pub(super) fn validate_operation(
                     },
                 ) => {
                     psi_operation == producer
-                        && super::super::structural_case::source_result(optimized, result.place)
-                            .is_ok_and(|(operation, declared)| {
-                                operation == *producer && declared == result
-                            })
+                        && source_result(optimized, result.place).is_ok_and(
+                            |(operation, declared)| operation == *producer && declared == result,
+                        )
                 }
                 // An owned arrival's storage is its own block home: the same
                 // block and declaration the owned-arrival owner resolves to,
@@ -1289,7 +1278,7 @@ pub(super) fn validate_operation(
                     storage_block == block
                         && *place == parameter.place
                         && matches!(
-                            super::super::structural_case::source_owner(optimized, parameter.place),
+                            source_owner(optimized, parameter.place),
                             Ok(legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                                 block: owner,
                                 declaration,
@@ -1398,7 +1387,7 @@ pub(super) fn validate_operation(
 /// element's bound is its path segment's obligation, which the row keeps.
 pub(super) fn runtime_indices_rejoin(
     indices: &[target_operations::TargetStructuralRuntimeIndex],
-    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+    elements: &[RuntimeElement],
     sources: &[(ValueId, Source)],
 ) -> bool {
     indices.len() == elements.len()

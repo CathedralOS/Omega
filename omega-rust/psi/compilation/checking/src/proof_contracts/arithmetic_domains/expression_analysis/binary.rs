@@ -25,6 +25,7 @@ use crate::proof_contracts::arithmetic_domains::{
     PrimitiveType, bitwise, guard_narrowing, is_arithmetic, ordered_values,
     unsigned_representability,
 };
+use crate::proof_contracts::contract_entailment::CompletedIntegerFormation;
 use crate::value_custody::literals;
 use numerics::integer_policy::{
     IntegerFormationCondition, IntegerPolicyBridge, IntegerPolicyPrimitive, IntegerTrapPredicate,
@@ -112,8 +113,7 @@ pub(super) fn analyze(
         decisions.decided_formations.push(expression);
     }
     let mut exact_result_proven = false;
-    let mut completed =
-        crate::proof_contracts::contract_entailment::CompletedIntegerFormation::default();
+    let mut completed = CompletedIntegerFormation::default();
     if effective_domain == ArithmeticDomain::Exact {
         if operation.cancels_to_zero() {
             // Both children were checked above. Cancellation establishes this
@@ -1114,9 +1114,7 @@ impl Operation<'_, '_> {
     /// exists; neither a proposed result bound nor a receiving annotation may
     /// justify this operation. Meaning-only analysis disables this recursive
     /// bridge while the structural judgment reconstructs operand denotations.
-    fn completed_operands_formation(
-        &self,
-    ) -> crate::proof_contracts::contract_entailment::CompletedIntegerFormation {
+    fn completed_operands_formation(&self) -> CompletedIntegerFormation {
         if !self.walk.checks_occurrence_fit {
             return Default::default();
         }

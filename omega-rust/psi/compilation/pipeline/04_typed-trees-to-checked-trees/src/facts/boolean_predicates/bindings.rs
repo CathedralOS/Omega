@@ -2,6 +2,10 @@
 //! Scalar ordinals and structural subject ordinals are different namespaces;
 //! Result is an explicit value binding, never a guessed parameter position.
 use super::{BoundObservation, CanonicalPlace, Operand, Scalar, SymbolHandle, TypeReferenceHandle};
+use crate::flow::canonical_place_from_symbol;
+use crate::values::occupies_scalar_position;
+use crate::values::resolve_structural_parameter_path;
+use crate::values::scalar::structural_fields::resolve_structural_path;
 use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject};
 
 pub(super) fn parameter(
@@ -22,81 +26,78 @@ fn scalar_parameter(
     result: Option<(&CanonicalPlace, TypeReferenceHandle)>,
     operand: &Scalar,
 ) -> Option<(CanonicalPlace, TypeReferenceHandle)> {
-    let resolved = match operand {
-        Scalar::Parameter { position, .. } => {
-            let mut scalars = parameters
-                .iter()
-                .filter(|parameter| crate::values::occupies_scalar_position(program, parameter));
-            if let Some(parameter) = scalars.nth(*position) {
+    let resolved =
+        match operand {
+            Scalar::Parameter { position, .. } => {
+                let mut scalars = parameters
+                    .iter()
+                    .filter(|parameter| occupies_scalar_position(program, parameter));
+                if let Some(parameter) = scalars.nth(*position) {
+                    (
+                        canonical_place_from_symbol(parameter.symbol)?,
+                        parameter.type_reference,
+                    )
+                } else if *position
+                    == parameters
+                        .iter()
+                        .filter(|parameter| occupies_scalar_position(program, parameter))
+                        .count()
+                {
+                    let (place, reference) = result?;
+                    (place.clone(), reference)
+                } else {
+                    return None;
+                }
+            }
+            Scalar::StorageRead { symbol, .. } => {
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == *symbol)?;
                 (
-                    crate::flow::canonical_place_from_symbol(parameter.symbol)?,
+                    canonical_place_from_symbol(*symbol)?,
                     parameter.type_reference,
                 )
-            } else if *position
-                == parameters
-                    .iter()
-                    .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
-                    .count()
-            {
-                let (place, reference) = result?;
-                (place.clone(), reference)
-            } else {
-                return None;
             }
-        }
-        Scalar::StorageRead { symbol, .. } => {
-            let parameter = parameters
-                .iter()
-                .find(|parameter| parameter.symbol == *symbol)?;
-            (
-                crate::flow::canonical_place_from_symbol(*symbol)?,
-                parameter.type_reference,
-            )
-        }
-        Scalar::StructuralParameterField { .. } | Scalar::StructuralParameterIndexedRead { .. } => {
-            let selected = operand.parameter_observation_projection()?;
-            let parameter_position = selected.parameter_position;
-            let path = selected.path;
-            if usize::try_from(parameter_position).ok()? == parameters.len() {
-                let (place, reference) = result?;
-                let (segments, reference, _) =
-                    crate::values::scalar::structural_fields::resolve_structural_path(
-                        program,
-                        reference,
-                        false,
-                        &path,
-                        &mut |_, _| Some(()),
-                    )?;
-                let reference =
-                    validation::field_domains::readable_type_reference(program, reference)?;
-                let mut place = place.clone();
-                place.segments.extend(segments);
-                (place, reference)
-            } else {
-                let (root, segments, reference, _) =
-                    crate::values::resolve_structural_parameter_path(
+            Scalar::StructuralParameterField { .. }
+            | Scalar::StructuralParameterIndexedRead { .. } => {
+                let selected = operand.parameter_observation_projection()?;
+                let parameter_position = selected.parameter_position;
+                let path = selected.path;
+                if usize::try_from(parameter_position).ok()? == parameters.len() {
+                    let (place, reference) = result?;
+                    let (segments, reference, _) =
+                        resolve_structural_path(program, reference, false, &path, &mut |_, _| {
+                            Some(())
+                        })?;
+                    let reference =
+                        validation::field_domains::readable_type_reference(program, reference)?;
+                    let mut place = place.clone();
+                    place.segments.extend(segments);
+                    (place, reference)
+                } else {
+                    let (root, segments, reference, _) = resolve_structural_parameter_path(
                         program,
                         parameters,
                         parameter_position,
                         &path,
                     )?;
-                // An empty projection can observe a whole primitive loan.
-                // Bind its readable referent carrier, as scalar contract
-                // lowering does, rather than comparing the reference type
-                // itself with the scalar observation. Write-only stays absent.
-                let reference =
-                    validation::field_domains::readable_type_reference(program, reference)?;
-                (
-                    CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(root),
-                        segments,
-                    },
-                    reference,
-                )
+                    // An empty projection can observe a whole primitive loan.
+                    // Bind its readable referent carrier, as scalar contract
+                    // lowering does, rather than comparing the reference type
+                    // itself with the scalar observation. Write-only stays absent.
+                    let reference =
+                        validation::field_domains::readable_type_reference(program, reference)?;
+                    (
+                        CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(root),
+                            segments,
+                        },
+                        reference,
+                    )
+                }
             }
-        }
-        _ => return None,
-    };
+            _ => return None,
+        };
     Some(resolved)
 }
 
@@ -108,12 +109,8 @@ fn case_parameter(
 ) -> Option<(CanonicalPlace, TypeReferenceHandle)> {
     let (place, reference) = match subject.root {
         CheckedStructuralCaseRoot::Parameter { position } => {
-            let (root, segments, reference, _) = crate::values::resolve_structural_parameter_path(
-                program,
-                parameters,
-                position,
-                &subject.path,
-            )?;
+            let (root, segments, reference, _) =
+                resolve_structural_parameter_path(program, parameters, position, &subject.path)?;
             (
                 CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(root),
@@ -125,13 +122,9 @@ fn case_parameter(
         CheckedStructuralCaseRoot::Result => {
             let (place, reference) = result?;
             let (segments, selected, _) =
-                crate::values::scalar::structural_fields::resolve_structural_path(
-                    program,
-                    reference,
-                    false,
-                    &subject.path,
-                    &mut |_, _| Some(()),
-                )?;
+                resolve_structural_path(program, reference, false, &subject.path, &mut |_, _| {
+                    Some(())
+                })?;
             let mut place = place.clone();
             place.segments.extend(segments);
             (place, selected)

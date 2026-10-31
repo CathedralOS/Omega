@@ -10,6 +10,8 @@ mod occurrences;
 mod prefix;
 mod projection;
 
+use crate::CheckingInput;
+use crate::RankStateBindings;
 use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -62,7 +64,7 @@ pub struct ValidatedRuntimeNaturalComponent {
 /// Runtime recurrence requires a terminal transfer at every exact internal
 /// occurrence, independently of whether the author promises termination.
 pub(super) fn require_tail_component(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     component: &[usize],
 ) -> Result<(), &'static str> {
     let dispatched = dispatched_implementations(program);
@@ -91,7 +93,7 @@ pub(super) fn require_tail_component(
 }
 
 pub(super) fn extend_runtime_adjacency(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     proof_only: &ProofOnlyClassification,
     adjacency: &mut [Vec<usize>],
 ) -> Vec<usize> {
@@ -140,9 +142,7 @@ pub(super) fn extend_runtime_adjacency(
 /// enter: the rows, for the slot's requirement, of every implementation
 /// selected for the slot's interface. A selector names its table at runtime,
 /// so termination must treat the call as an edge to each of them.
-fn dispatched_implementations(
-    program: &dyn crate::CheckingInput,
-) -> Vec<(SymbolHandle, Vec<usize>)> {
+fn dispatched_implementations(program: &dyn CheckingInput) -> Vec<(SymbolHandle, Vec<usize>)> {
     if program.dynamic_slots.is_empty() {
         return Vec::new();
     }
@@ -179,13 +179,13 @@ fn dispatched_implementations(
 pub struct RuntimeRankBodyWitness<'selection> {
     pub machine: SymbolHandle,
     pub body: arena::HandleSpan<State>,
-    pub states: &'selection [crate::RankStateBindings],
+    pub states: &'selection [RankStateBindings],
     pub edges: &'selection [checked_trees::CheckedRankArrivalEdge],
     pub entry_rank_formed: bool,
 }
 
 pub(super) fn project_component(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     adjacency: &[Vec<usize>],
     component: &[usize],
     witnesses: &[RuntimeRankBodyWitness<'_>],
@@ -656,14 +656,14 @@ pub(super) fn project_component(
 
 #[allow(clippy::too_many_arguments)]
 fn admit_ranked_edge(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     ranks: &[projection::RankProjection],
     component_states: &[SymbolHandle],
     caller_machine_index: usize,
     caller_rank_index: usize,
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    caller_bindings: &crate::RankStateBindings,
+    caller_bindings: &RankStateBindings,
     callee: usize,
     callee_position: usize,
     arguments: &[ExpressionHandle],
@@ -843,15 +843,11 @@ fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
 /// Membership is an inductive fact only after every arrival has passed under
 /// the retained premise regime; discovery alternatives cannot supply it.
 pub(crate) fn ranged_member_site_invariant(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
     admitted: &checked_trees::CheckedRankArrivalPlan,
-) -> Option<(
-    RankingRangeMeasure,
-    ExpressionHandle,
-    crate::RankStateBindings,
-)> {
+) -> Option<(RankingRangeMeasure, ExpressionHandle, RankStateBindings)> {
     let rank = RankProjection::resolve(program, machine)?;
     let measure = rank.measure?;
     if !rank.range.is_valid() || program.machine_states(machine).first()?.symbol == state.symbol {
@@ -870,7 +866,7 @@ pub(crate) fn ranged_member_site_invariant(
     Some((
         measure,
         rank.range,
-        crate::RankStateBindings::from_checked(admitted, row)?,
+        RankStateBindings::from_checked(admitted, row)?,
     ))
 }
 
@@ -887,7 +883,7 @@ pub(crate) struct InternalArrival<'program> {
 }
 
 pub(crate) fn internal_arrival_sites<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<InternalArrival<'program>> {
     let states = program.machine_states(machine);
@@ -940,7 +936,7 @@ pub(crate) fn internal_arrival_sites<'program>(
 /// Only subordinate states form the source state graph; otherwise a forwarding
 /// state before a recursive call acquires a false strict-decrease obligation.
 pub fn internal_state_index(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> Option<usize> {
@@ -951,7 +947,7 @@ pub fn internal_state_index(
 /// The execution destination of an already normalized constant-stack transfer.
 /// This locates storage, not source call semantics or ranking obligations.
 pub fn activation_target_state_index(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> Option<usize> {
@@ -961,10 +957,7 @@ pub fn activation_target_state_index(
     typed_trees::state::state_position(program.machine_states(machine), target_symbol)
 }
 
-pub(super) fn target_machine(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<usize> {
+pub(super) fn target_machine(program: &dyn CheckingInput, symbol: SymbolHandle) -> Option<usize> {
     if !symbol.is_valid() {
         return None;
     }
@@ -975,7 +968,7 @@ pub(super) fn target_machine(
 }
 
 fn expression_is_inert(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -989,7 +982,7 @@ fn expression_is_inert(
 /// covered, while every subterm that is not a call must still be inert the
 /// way it would be with no call present.
 fn expression_is_inert_or_calls(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,

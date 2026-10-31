@@ -12,6 +12,8 @@ use super::call_results::{
     Invocation, InvocationEvents, input_claim, projection_places, result_claim,
 };
 use super::content_paths::{ClaimBindings, content_segments_to_fact_path};
+use crate::flow::call_flows;
+use crate::flow::captured_call_operands;
 use checked_trees::facts::{ContentClaimTransformation, ContentClaimTransformationSource};
 use checked_trees::{CheckFacts, FlowPermissionEvaluation, FlowPermissionEventFact};
 use language_semantics::content::ContentPlaceRoot;
@@ -34,7 +36,7 @@ pub(crate) fn observe_call_completion(
     let Some(state_flow) = facts.flow.control.state(machine, state) else {
         return;
     };
-    let invocations = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+    let invocations = call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .filter(|call| call.statement_index == statement && call.authored_expression == expression)
         .map(|call| call.call_ordinal)
@@ -138,19 +140,14 @@ pub(crate) fn observe_call_completion(
                             &projection,
                         )?;
                         let state_flow = facts.flow.control.state(machine, state)?;
-                        let call_flow =
-                            crate::flow::call_flows(&facts.flow.control, state_flow.calls)
-                                .iter()
-                                .find(|candidate| {
-                                    candidate.statement_index == statement
-                                        && candidate.call_ordinal == ordinal
-                                })?;
-                        let (_, receiver_offset) = crate::flow::captured_call_operands(
-                            program,
-                            &facts.flow,
-                            state_flow,
-                            call_flow,
-                        )?;
+                        let call_flow = call_flows(&facts.flow.control, state_flow.calls)
+                            .iter()
+                            .find(|candidate| {
+                                candidate.statement_index == statement
+                                    && candidate.call_ordinal == ordinal
+                            })?;
+                        let (_, receiver_offset) =
+                            captured_call_operands(program, &facts.flow, state_flow, call_flow)?;
                         let observation = call_flow
                             .operands
                             .handles()

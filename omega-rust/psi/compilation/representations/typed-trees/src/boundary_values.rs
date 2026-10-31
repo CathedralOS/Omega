@@ -5,6 +5,7 @@
 //! must not reject it, and target materialization retains traversal order.
 
 use crate::TypedTrees;
+use crate::type_identity::TypeIdentityId;
 use crate::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use arena::Handle;
 use language_semantics::boundary_values::{
@@ -33,17 +34,14 @@ pub struct BoundaryValuePreparation<'input> {
     visiting: Vec<DataApplicationKey>,
     // Share exact closed source recipes, not native occurrences. Repeated
     // record fields must not expand exponentially before the ABI bound runs.
-    closed_values: Vec<(
-        crate::type_identity::TypeIdentityId,
-        Handle<BoundaryValueRecipe>,
-    )>,
+    closed_values: Vec<(TypeIdentityId, Handle<BoundaryValueRecipe>)>,
     recipes: BoundaryValueRecipes,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DataApplicationKey {
     Nominal(symbols::SymbolHandle),
-    Applied(crate::type_identity::TypeIdentityId),
+    Applied(TypeIdentityId),
 }
 
 impl<'input> BoundaryValuePreparation<'input> {

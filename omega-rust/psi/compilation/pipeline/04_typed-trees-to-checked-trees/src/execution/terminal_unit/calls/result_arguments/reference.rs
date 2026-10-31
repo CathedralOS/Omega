@@ -1,6 +1,7 @@
 //! Calls borrow through the stored descriptor published by an ordinary result
 //! binding. Source checking already owns formation and lifetime admission;
 //! this operation retains the descriptor crossing and selected referent path.
+use super::super::argument_paths::borrowed_argument_endpoint;
 use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
@@ -9,12 +10,15 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan,
 };
+use facts::PlaceRoot;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
+use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
-use validation::reference_result_custody;
+use validation::{CanonicalPlace, reference_result_custody, stored_structural_type_identity};
 
 /// Slice views have their own descriptor argument route.
 pub(crate) fn is_carrier(
@@ -29,18 +33,14 @@ pub(crate) fn argument(
     machine: SymbolHandle,
     state: &State,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
-    owner: facts::PlaceRoot,
+    place: &CanonicalPlace,
+    owner: PlaceRoot,
     reference: TypeReferenceHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: typed_trees::type_identity::TypeIdentityId,
+    target_identity: TypeIdentityId,
     trace: &LocalConstructionTrace,
-    selectors: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
-    >,
+    selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let phase = |description| {
         trace.phase(description);
@@ -74,12 +74,8 @@ pub(crate) fn argument(
         // This operand owns its selector evaluation. Stored-reference roots
         // use that occurrence's captured scalar slots just like other result
         // projections, rather than reloading an invocation-entry parameter.
-        let (_, prefix) = super::super::argument_paths::borrowed_argument_endpoint(
-            program,
-            referent,
-            path,
-            parameter.type_reference,
-        )?;
+        let (_, prefix) =
+            borrowed_argument_endpoint(program, referent, path, parameter.type_reference)?;
         path = prefix;
         let (selected, suffix) = projected_evaluated_path(
             program,
@@ -93,14 +89,10 @@ pub(crate) fn argument(
         selected
     };
     phase("stored reference argument: lent endpoint");
-    let (selected, path) = super::super::argument_paths::borrowed_argument_endpoint(
-        program,
-        selected,
-        path,
-        parameter.type_reference,
-    )?;
+    let (selected, path) =
+        borrowed_argument_endpoint(program, selected, path, parameter.type_reference)?;
     phase("stored reference argument: receiving identity");
-    if validation::stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
+    if stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {

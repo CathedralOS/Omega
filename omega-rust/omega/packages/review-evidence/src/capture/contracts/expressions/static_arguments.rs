@@ -15,6 +15,8 @@ use super::targets::contract_call_target_telescopes;
 use conformance::project_contract_conformance_application;
 pub(crate) use conformance::require_exact_conformance_static_argument_selections;
 use const_values::project_named_const_static_argument;
+use symbols::SymbolKind;
+use typed_trees::data::TypeParameterKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ContractCallStaticParameterKind {
@@ -29,20 +31,13 @@ pub(crate) fn contract_call_static_parameter_kind(
     parameter: &typed_trees::data::TypeParameter,
 ) -> ContractCallStaticParameterKind {
     match parameter.kind {
-        typed_trees::data::TypeParameterKind::Type => ContractCallStaticParameterKind::Type,
-        typed_trees::data::TypeParameterKind::Implementation => {
-            ContractCallStaticParameterKind::Conformance
-        }
-        typed_trees::data::TypeParameterKind::Const { .. }
-        | typed_trees::data::TypeParameterKind::Value { .. } => {
+        TypeParameterKind::Type => ContractCallStaticParameterKind::Type,
+        TypeParameterKind::Implementation => ContractCallStaticParameterKind::Conformance,
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
             ContractCallStaticParameterKind::Const
         }
-        typed_trees::data::TypeParameterKind::Machine { .. } => {
-            ContractCallStaticParameterKind::Machine
-        }
-        typed_trees::data::TypeParameterKind::Proposition { .. } => {
-            ContractCallStaticParameterKind::Proposition
-        }
+        TypeParameterKind::Machine { .. } => ContractCallStaticParameterKind::Machine,
+        TypeParameterKind::Proposition { .. } => ContractCallStaticParameterKind::Proposition,
     }
 }
 
@@ -94,7 +89,7 @@ pub(crate) fn project_contract_static_argument(
     depth: usize,
 ) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
     if argument.symbol.is_valid()
-        && compilation.typed.symbols.get(argument.symbol).kind == symbols::SymbolKind::Conformance
+        && compilation.typed.symbols.get(argument.symbol).kind == SymbolKind::Conformance
     {
         return project_contract_conformance_application(
             compilation,
@@ -138,7 +133,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
     ) {
         for argument in arguments {
             if argument.symbol.is_valid()
-                && compilation.typed.symbols.get(argument.symbol).kind == symbols::SymbolKind::Const
+                && compilation.typed.symbols.get(argument.symbol).kind == SymbolKind::Const
             {
                 selected.push(argument.symbol);
             }
@@ -164,9 +159,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
         let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
             continue;
         };
-        if compilation.typed.symbols.get(target.selected_symbol()).kind
-            != symbols::SymbolKind::Const
-        {
+        if compilation.typed.symbols.get(target.selected_symbol()).kind != SymbolKind::Const {
             continue;
         }
         if selection.exposure() != context.selection_exposure {
@@ -218,7 +211,7 @@ pub(crate) fn project_static_argument(
     if let Some(application) = argument.application.as_ref() {
         if parameter_kind != ContractCallStaticParameterKind::Type
             || !argument.symbol.is_valid()
-            || compilation.typed.symbols.get(argument.symbol).kind != symbols::SymbolKind::Data
+            || compilation.typed.symbols.get(argument.symbol).kind != SymbolKind::Data
         {
             return Err(rejected(
                 "with a non-data nested static application not yet represented by package review",
@@ -309,14 +302,14 @@ pub(crate) fn project_static_argument(
     {
         let position = portable_ordinal(position)?;
         return match compilation.typed.symbols.get(argument.symbol).kind {
-            symbols::SymbolKind::MachineParameter
+            SymbolKind::MachineParameter
                 if parameter_kind == ContractCallStaticParameterKind::Machine =>
             {
                 Ok(PackageReviewContractStaticArgument::GenericMachineBinder(
                     position,
                 ))
             }
-            symbols::SymbolKind::TypeParameter => {
+            SymbolKind::TypeParameter => {
                 let matching = compilation
                     .typed
                     .data_type_parameters
@@ -330,18 +323,14 @@ pub(crate) fn project_static_argument(
                     ));
                 };
                 match (&parameter.kind, parameter_kind) {
-                    (
-                        typed_trees::data::TypeParameterKind::Type,
-                        ContractCallStaticParameterKind::Type,
-                    ) => Ok(PackageReviewContractStaticArgument::GenericTypeBinder(
-                        position,
-                    )),
-                    (
-                        typed_trees::data::TypeParameterKind::Const { .. },
-                        ContractCallStaticParameterKind::Const,
-                    ) => Ok(PackageReviewContractStaticArgument::GenericConstBinder(
-                        position,
-                    )),
+                    (TypeParameterKind::Type, ContractCallStaticParameterKind::Type) => Ok(
+                        PackageReviewContractStaticArgument::GenericTypeBinder(position),
+                    ),
+                    (TypeParameterKind::Const { .. }, ContractCallStaticParameterKind::Const) => {
+                        Ok(PackageReviewContractStaticArgument::GenericConstBinder(
+                            position,
+                        ))
+                    }
                     _ => Err(rejected(
                         "whose category differs from its checked caller and callee telescope slots",
                     )),
@@ -356,7 +345,7 @@ pub(crate) fn project_static_argument(
         if !argument.symbol.is_valid()
             || !matches!(
                 compilation.typed.symbols.get(argument.symbol).kind,
-                symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data
+                SymbolKind::BuiltinType | SymbolKind::Data
             )
         {
             return Err(rejected(
@@ -381,7 +370,7 @@ pub(crate) fn project_static_argument(
     }
     if parameter_kind == ContractCallStaticParameterKind::Const {
         if argument.symbol.is_valid()
-            && compilation.typed.symbols.get(argument.symbol).kind == symbols::SymbolKind::Const
+            && compilation.typed.symbols.get(argument.symbol).kind == SymbolKind::Const
         {
             let declarations = compilation
                 .const_declarations()
@@ -405,7 +394,7 @@ pub(crate) fn project_static_argument(
         ));
     }
     if !argument.symbol.is_valid()
-        || compilation.typed.symbols.get(argument.symbol).kind != symbols::SymbolKind::State
+        || compilation.typed.symbols.get(argument.symbol).kind != SymbolKind::State
     {
         return Err(rejected(
             "whose category differs from its checked machine slot",

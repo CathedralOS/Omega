@@ -9,6 +9,7 @@ use crate::{
 };
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
+use typed_trees::statement::TransitionGuardNode;
 use typed_trees::statement::TransitionTargetNode;
 
 pub(super) fn validate(
@@ -24,7 +25,7 @@ pub(super) fn validate(
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
-    if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+    if let TransitionGuardNode::When(guard) = transition.guard {
         // Every Exact operation in a guard owes its representability proof,
         // as it would in a `let` or a return, under the facts its evaluation
         // order establishes. Without this, `a + b == 70` over unconstrained
@@ -76,10 +77,7 @@ pub(super) fn validate(
     // premises: the primary arm assumes the guard, the continuation
     // assumes its complement, and each crosses only its own effects.
     // Keep the ordinary guard environment for targets without values.
-    let guard_is_always = matches!(
-        transition.guard,
-        typed_trees::statement::TransitionGuardNode::Always
-    );
+    let guard_is_always = matches!(transition.guard, TransitionGuardNode::Always);
     let narrowed_owned = (!guard_is_always).then(|| {
         arithmetic_domains::guard_narrowed_environment(
             program,

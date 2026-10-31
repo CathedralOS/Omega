@@ -2,6 +2,9 @@
 //! or result carries, and the domain requirements boundary machines publish.
 
 use super::*;
+use crate::collections::push_unique;
+use crate::execution::terminal_unit::calls::projected_argument_path;
+use crate::flow::canonical_place_from_semantic_place;
 use crate::places::place_at;
 
 /// Invocation clauses retain their own represented erased lanes. Their
@@ -367,7 +370,7 @@ pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
     };
     for (domain, selected_symbol) in guaranteed {
         shapes.add_selected_domain(domain, selected_symbol, result_type, binders, false)?;
-        crate::collections::push_unique(&mut qualifications, domain);
+        push_unique(&mut qualifications, domain);
     }
     qualifications.sort_by_key(|domain| domain.0);
     Some(CheckedBoundaryMachineResultPlan::Structural {
@@ -592,7 +595,7 @@ pub(in crate::execution::terminal_unit) fn retain_parameter_arrival_domains(
                 continue;
             };
             let place = fact.place.as_place().and_then(|place| {
-                crate::flow::canonical_place_from_semantic_place(
+                canonical_place_from_semantic_place(
                     program,
                     &facts.semantic,
                     facts.semantic.places.get(place),
@@ -631,15 +634,9 @@ pub(in crate::execution::terminal_unit) fn retain_parameter_arrival_domains(
             else {
                 continue;
             };
-            let (carrier, path) = crate::execution::terminal_unit::calls::projected_argument_path(
-                program,
-                state.symbol,
-                0,
-                &place,
-                None,
-                None,
-            )
-            .ok_or("state graph: arrival domains: unsupported exact subject path")?;
+            let (carrier, path) =
+                projected_argument_path(program, state.symbol, 0, &place, None, None)
+                    .ok_or("state graph: arrival domains: unsupported exact subject path")?;
             // Scalar qualifications have their own checked computation channel.
             if program.primitive_type_reference(carrier).is_some() {
                 continue;

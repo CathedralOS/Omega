@@ -7,11 +7,13 @@
 //! operand resources and their stored dependencies, not producer spellings or
 //! lexical last-use indices. Unresolved coverage retains the stable-home route.
 
+use crate::collections::push_unique;
+use crate::flow::literal_value_path_is_inactive;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
-    BorrowLoanFact, CheckFacts, CheckedCallBorrowLoanSource, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, FlowConstraintRef,
+    BorrowLoanFact, CheckFacts, CheckedCallBorrowLoanSource as LoanSource,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment, FlowConstraintRef,
 };
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
@@ -496,7 +498,7 @@ fn retained_parents(
         let retained = shared_leaf_lifetime_roots(program, facts, capture, path)
             .ok_or("state loan parents: captured reference leaves have no resources")?;
         for root in retained {
-            crate::collections::push_unique(&mut shared_backings, root);
+            push_unique(&mut shared_backings, root);
         }
     }
     if roots.is_empty() && shared_backings.is_empty() && address_source.is_none() {
@@ -561,13 +563,13 @@ fn retained_parents(
         // target parameter owns this dependency, including inline constructions.
         let incoming_referent = resource.backing_incoming_reference.is_valid()
             || match resource.source {
-                CheckedCallBorrowLoanSource::StoredLoan { loan } => {
+                LoanSource::StoredLoan { loan } => {
                     if !facts.borrow.loans.is_valid(loan) {
                         return Err("state loan parents: stale stored resource");
                     }
                     facts.borrow.loans.get(loan).incoming_reference.is_valid()
                 }
-                CheckedCallBorrowLoanSource::CallAccess { .. } => false,
+                LoanSource::CallAccess { .. } => false,
             };
         if !resource.owner_path.is_empty()
             && !incoming_referent
@@ -583,8 +585,8 @@ fn retained_parents(
             return Err("state loan parents: incomplete captured storage dependencies");
         }
         let loans = match resource.source {
-            CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
-            CheckedCallBorrowLoanSource::CallAccess { parents, .. } => facts
+            LoanSource::StoredLoan { loan } => vec![loan],
+            LoanSource::CallAccess { parents, .. } => facts
                 .borrow
                 .call_loan_parents
                 .span(parents)
@@ -644,7 +646,7 @@ fn retained_parents(
             continue;
         };
         let relation = (dependent, parent);
-        crate::collections::push_unique(&mut parents, relation);
+        push_unique(&mut parents, relation);
     }
     Ok((parents, operand_parents))
 }
@@ -748,12 +750,7 @@ fn ingress_covers_capture_path_body(
 ) -> bool {
     let control = &facts.flow.control;
     let capture = control.operands.get(operand);
-    if crate::flow::literal_value_path_is_inactive(
-        program,
-        capture.expression,
-        capture.type_reference,
-        path,
-    ) {
+    if literal_value_path_is_inactive(program, capture.expression, capture.type_reference, path) {
         return true;
     }
     if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
@@ -1079,8 +1076,7 @@ pub(super) fn retired_carrier_backing(
                 {
                     return None;
                 }
-                let CheckedCallBorrowLoanSource::CallAccess { access, parents } = resource.source
-                else {
+                let LoanSource::CallAccess { access, parents } = resource.source else {
                     return None;
                 };
                 if facts.borrow.argument_accesses.get(access).expression != capture.expression {
@@ -1122,8 +1118,8 @@ pub(super) fn retired_carrier_backing(
                 return None;
             }
             let loans = match resource.source {
-                CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
-                CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
+                LoanSource::StoredLoan { loan } => vec![loan],
+                LoanSource::CallAccess { parents, .. } => {
                     facts.borrow.call_loan_parents.span(parents)?.to_vec()
                 }
             };
@@ -1227,8 +1223,8 @@ impl Dependencies<'_> {
                     return false;
                 }
                 let sources = match resource.source {
-                    CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
-                    CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
+                    LoanSource::StoredLoan { loan } => vec![loan],
+                    LoanSource::CallAccess { parents, .. } => {
                         let Some(parents) = self.facts.borrow.call_loan_parents.span(parents)
                         else {
                             return false;

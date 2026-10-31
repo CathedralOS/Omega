@@ -8,6 +8,7 @@
 //! among the candidates. Previously inactive leaves have no membership to
 //! reactivate and are not manufactured from their declarations here.
 use super::write_target::StatementWrite;
+use crate::flow;
 use crate::flow::{CaseEvidence, FlowBuildContext, MembershipEvidence};
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowSemanticContextRef, FlowStatementFact};
@@ -53,7 +54,7 @@ pub(super) fn preserve_owned_memberships(
     let target_segments = semantic.place_segments.span_or_empty(target.segments);
     if !target_segments.iter().any(|segment| matches!(segment, PlaceSegment::Index { .. }))
         || !target_segments.iter().all(|segment| {
-            crate::flow::place_segment_has_static_identity(segment)
+            flow::place_segment_has_static_identity(segment)
                 || matches!(segment, PlaceSegment::Index { expression }
                     if expression.is_valid() && program.expression_table.range_node(*expression).is_none())
         })
@@ -76,15 +77,11 @@ pub(super) fn preserve_owned_memberships(
         return;
     }
     let Some(source) = write.source_place.and_then(|source| {
-        crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(source),
-        )
+        flow::canonical_place_from_semantic_place(program, semantic, semantic.places.get(source))
     }) else {
         return;
     };
-    let completed = crate::flow::operand_contexts(
+    let completed = flow::operand_contexts(
         program,
         &build.contexts,
         &build.control,
@@ -124,9 +121,7 @@ pub(super) fn preserve_owned_memberships(
         if !identity.is_valid()
             || candidate.root != target.root
             || segments.len() <= target_segments.len()
-            || !segments
-                .iter()
-                .all(crate::flow::place_segment_has_static_identity)
+            || !segments.iter().all(flow::place_segment_has_static_identity)
             || !target_segments
                 .iter()
                 .zip(segments)
@@ -134,8 +129,7 @@ pub(super) fn preserve_owned_memberships(
                     matches!(
                         (target, candidate),
                         (PlaceSegment::Index { .. }, PlaceSegment::FixedIndex { .. })
-                    ) || crate::flow::static_place_segment_pair_equal(*target, *candidate)
-                        == Some(true)
+                    ) || flow::static_place_segment_pair_equal(*target, *candidate) == Some(true)
                 })
         {
             continue;
@@ -144,7 +138,7 @@ pub(super) fn preserve_owned_memberships(
         let mut projected = source.clone();
         projected.segments.extend_from_slice(relative);
         if cases.path_is_inactive(&projected)
-            || crate::flow::literal_value_path_is_inactive(
+            || flow::literal_value_path_is_inactive(
                 program,
                 replacement.expression,
                 replacement.type_reference,

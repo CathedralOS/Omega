@@ -3,7 +3,7 @@ use symbol_resolved_trees::data::{TypeParameter, TypeParameterKind};
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use symbol_resolved_trees::proposition::PropositionBody;
 use symbol_resolved_trees::types::TypeReference;
-use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{FixedCoreDeclaration, JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
 use super::lookup::child_symbol_by_kinds;
@@ -209,9 +209,8 @@ pub(super) fn assign_expression_symbols(
                     name.as_str(),
                 );
                 (symbol, symbol)
-            } else if let Some(symbol) =
-                symbols::FixedCoreDeclaration::from_name(&members.joined_path())
-                    .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
+            } else if let Some(symbol) = FixedCoreDeclaration::from_name(&members.joined_path())
+                .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
             {
                 // The fixed core namespace has no runtime declaration head.
                 (SymbolHandle::invalid(), symbol)

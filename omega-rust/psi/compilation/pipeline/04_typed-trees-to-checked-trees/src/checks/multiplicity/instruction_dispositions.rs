@@ -3,6 +3,8 @@
 //! name one exact live owned argument, and an unspent modeled instruction must
 //! establish it at this point. Logical truth alone grants no terminal disposal.
 use super::linear_obligations::LinearPlace;
+use super::linear_validation::exit_evaluation;
+use super::linear_validation::linear_claim_frontier;
 use crate::flow::expressions;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEvaluation, FlowPermissionEventFact};
@@ -86,7 +88,7 @@ impl InstructionDispositions {
         let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
             return;
         };
-        let evaluation = super::linear_validation::exit_evaluation(program, state, coordinate);
+        let evaluation = exit_evaluation(program, state, coordinate);
         let target = match evaluation {
             FlowPermissionEvaluation::TransitionTarget(target) => target,
             _ => Default::default(),
@@ -346,19 +348,16 @@ fn consuming_requirement(
                 .any(|(formal, actual)| {
                     !super::type_reference_is_reference(program, formal.type_reference)
                         && !super::type_reference_is_reference(program, actual.type_reference)
-                        && super::linear_validation::linear_claim_frontier(
-                            program,
-                            actual.type_reference,
-                        )
-                        .iter()
-                        .any(|claim| {
-                            program.package_qualified_type_identity(
-                                validation::peel_declared_constraints(
-                                    program,
-                                    claim.type_reference,
-                                ),
-                            ) == resource_identity
-                        })
+                        && linear_claim_frontier(program, actual.type_reference)
+                            .iter()
+                            .any(|claim| {
+                                program.package_qualified_type_identity(
+                                    validation::peel_declared_constraints(
+                                        program,
+                                        claim.type_reference,
+                                    ),
+                                ) == resource_identity
+                            })
                 })
                 .then_some(requirement.symbol)
         })

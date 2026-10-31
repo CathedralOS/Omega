@@ -7,6 +7,7 @@ use super::AppliedTraitScope;
 use crate::TypedTrees;
 use crate::data::TypeParameterKind;
 use crate::name::Identifier;
+use crate::type_identity::lifetime_parameter_identity;
 use crate::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
     applied_index_identity, applied_lifetime_identity, applied_type_identity,
@@ -55,11 +56,8 @@ impl AppliedTraitScope<'_> {
         let machine = program.machine_by_symbol(declaration)?;
         let mut lifetimes = Vec::with_capacity(bindings.len());
         for binding in bindings {
-            let parameter = crate::type_identity::lifetime_parameter_identity(
-                program,
-                declaration,
-                binding.parameter.as_str(),
-            )?;
+            let parameter =
+                lifetime_parameter_identity(program, declaration, binding.parameter.as_str())?;
             if parameter.declaration != declaration
                 || machine.lifetime_parameters.get(parameter.ordinal)? != &binding.parameter
                 || lifetimes
@@ -68,11 +66,7 @@ impl AppliedTraitScope<'_> {
             {
                 return None;
             }
-            crate::type_identity::lifetime_parameter_identity(
-                program,
-                argument_owner,
-                binding.argument.as_str(),
-            )?;
+            lifetime_parameter_identity(program, argument_owner, binding.argument.as_str())?;
             lifetimes.push((
                 binding.parameter.as_str().to_owned(),
                 binding.argument.as_str().to_owned(),

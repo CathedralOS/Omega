@@ -17,6 +17,7 @@ mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
+use crate::record::PackageReviewNominalIdentity;
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -43,17 +44,14 @@ pub struct PackagePolicyBaseline {
     /// row so accepted meaning survives in `omega.lock` without host paths or
     /// live grant state.
     pub(crate) assumed_bindings: Vec<String>,
-    pub(crate) service_audits: Vec<crate::record::PackageReviewNominalIdentity>,
+    pub(crate) service_audits: Vec<PackageReviewNominalIdentity>,
     pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
 }
 
 impl PackagePolicyBaseline {
-    field_projection_accessors!(sliced service_audits: &[crate::record::PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced service_audits: &[PackageReviewNominalIdentity]);
 
-    pub fn apply_service_audit_policy(
-        &mut self,
-        services: &[crate::record::PackageReviewNominalIdentity],
-    ) {
+    pub fn apply_service_audit_policy(&mut self, services: &[PackageReviewNominalIdentity]) {
         use crate::record::PackageReviewDangerousAuthorityClass;
         self.service_audits = services.to_vec();
         self.service_audits.sort();

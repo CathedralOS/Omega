@@ -27,6 +27,7 @@
 //! inside the declaration's package instead of falling back to a same-leaf
 //! competitor.
 
+use crate::preparation::declaration_selection::ConstantSelection;
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
@@ -97,12 +98,7 @@ pub fn synthesize_trait_defaults(
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<(), Vec<Diagnostic>> {
     let selection =
-        crate::preparation::declaration_selection::ConstantSelection::with_retained_base(
-            syntax,
-            sources,
-            bindings,
-            retained_base,
-        )?;
+        ConstantSelection::with_retained_base(syntax, sources, bindings, retained_base)?;
     crate::preparation::generic_data::domain_heads::normalize(syntax, Some(&selection))?;
     crate::preparation::module_normalization::validate_with_selection(syntax, &selection)?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)
@@ -115,7 +111,7 @@ pub fn synthesize_trait_defaults(
 /// pass follows was already admitted by the caller's namespace validation.
 pub(crate) fn synthesize_trait_defaults_after_module_validation(
     syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::declaration_selection::ConstantSelection,
+    selection: &ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let traits = syntax
         .root_items()

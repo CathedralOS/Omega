@@ -9,6 +9,7 @@
 
 mod boundary_correspondence;
 
+use crate::checks::places::place_or_root_in;
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
@@ -419,7 +420,7 @@ fn prepare(
     }
     for parent in &transaction.parents {
         let available = content.body_available_inputs.get(parent.available);
-        let current = crate::checks::places::place_or_root_in(
+        let current = place_or_root_in(
             &facts.flow.ownership.segments,
             available.root,
             available.segments,
@@ -628,11 +629,8 @@ pub(super) fn consumed_places(
                 .body_available_inputs
                 .span_or_empty(equation.available_inputs)
             {
-                let place = crate::checks::places::place_or_root_in(
-                    &facts.flow.ownership.segments,
-                    input.root,
-                    input.segments,
-                );
+                let place =
+                    place_or_root_in(&facts.flow.ownership.segments, input.root, input.segments);
                 crate::collections::push_unique(&mut places, place);
             }
         }

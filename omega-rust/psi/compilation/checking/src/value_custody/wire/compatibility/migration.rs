@@ -2,15 +2,13 @@
 
 use super::demands::{EraSelection, name_leaf, select_era_path};
 use super::schemas::qualified_schema_path;
+use symbols::SymbolHandle;
 
 /// Resolve an authored demand path to the exact ordinary data declaration it
 /// names. Era identity is the declaration symbol: the same path rules as
 /// schema dispatch apply, so a leaf must select one declaration unambiguously
 /// rather than whichever era was declared first.
-fn resolve_declared_era(
-    typed: &dyn crate::CheckingInput,
-    requested: &str,
-) -> Option<symbols::SymbolHandle> {
+fn resolve_declared_era(typed: &dyn crate::CheckingInput, requested: &str) -> Option<SymbolHandle> {
     let candidates = typed
         .data_definitions()
         .iter()
@@ -33,7 +31,7 @@ fn resolve_declared_era(
 /// chain the policy selected.
 pub(super) struct MigrationRoute {
     pub(super) machines: Vec<String>,
-    pub(super) eras: Vec<symbols::SymbolHandle>,
+    pub(super) eras: Vec<SymbolHandle>,
 }
 
 /// What the route search found between the selected eras. `Complete` carries
@@ -100,7 +98,7 @@ pub(super) fn migration_route(
         }
     }
 
-    let uniquely_bound = |(old, new): &(symbols::SymbolHandle, symbols::SymbolHandle)| {
+    let uniquely_bound = |(old, new): &(SymbolHandle, SymbolHandle)| {
         edges
             .iter()
             .filter(|edge| (edge.0, edge.1) == (*old, *new))
@@ -148,9 +146,9 @@ pub(super) fn migration_route(
 /// given edges, returning the machines in peer-to-local order and the era
 /// symbols the chain traverses, oldest first.
 pub(super) fn search_route(
-    edges: &[(symbols::SymbolHandle, symbols::SymbolHandle, String)],
-    peer: symbols::SymbolHandle,
-    local: symbols::SymbolHandle,
+    edges: &[(SymbolHandle, SymbolHandle, String)],
+    peer: SymbolHandle,
+    local: SymbolHandle,
 ) -> Option<MigrationRoute> {
     let mut frontier = vec![(peer, Vec::<String>::new(), vec![peer])];
     let mut visited = vec![peer];
@@ -207,7 +205,7 @@ struct NumberScope {
 /// neither retire nor reuse one.
 fn era_number_scopes(
     typed: &dyn crate::CheckingInput,
-    era: symbols::SymbolHandle,
+    era: SymbolHandle,
 ) -> Option<(String, Vec<NumberScope>)> {
     let definition = typed.data_definition_by_symbol(era)?;
     let members = typed.data_members(definition);
@@ -275,7 +273,7 @@ fn era_number_scopes(
 /// found along the chain, or `None` when every era's identities are fresh.
 pub(super) fn retired_identity_reuse(
     typed: &dyn crate::CheckingInput,
-    eras: &[symbols::SymbolHandle],
+    eras: &[SymbolHandle],
 ) -> Option<String> {
     let mut retired: Vec<(IdentityScope, u64, String)> = Vec::new();
     let mut previous_live: Vec<(IdentityScope, Vec<u64>)> = Vec::new();

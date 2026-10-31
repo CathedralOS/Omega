@@ -3,6 +3,7 @@
 //! with ownership replay; this judgment grants no permission or ancestry.
 use super::super::overlap::StatedOrderingPremise;
 use super::captures::HeldLeaf;
+use crate::checks::multiplicity::transfers_owned_storage;
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep, routes_compatible};
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -35,13 +36,7 @@ pub(super) fn check<'program>(
         let event = &moves[event];
         let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
         if !event.expression.is_valid()
-            || !crate::checks::multiplicity::transfers_owned_storage(
-                program,
-                state.state_symbol,
-                statement,
-                event,
-                segments,
-            )
+            || !transfers_owned_storage(program, state.state_symbol, statement, event, segments)
         {
             continue;
         }

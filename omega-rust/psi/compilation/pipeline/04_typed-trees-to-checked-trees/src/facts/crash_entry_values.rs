@@ -30,7 +30,9 @@
 //! distinct. This is source provenance, not a Terminal certificate.
 
 use super::crash_calls::{field_entry_name, member_entry_name};
+use crate::facts::crash_entry_values::literal_projection::literal_index;
 use crate::flow::expressions;
+use crate::values::integer_type;
 use checked_trees::CrashPredicateExpression;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -168,11 +170,7 @@ pub(super) fn operand_entry_provenance(
                     before_statement,
                     operand_place,
                     0,
-                    &mut |_, _, expression| {
-                        crate::facts::crash_entry_values::literal_projection::literal_index(
-                            program, expression,
-                        )
-                    },
+                    &mut |_, _, expression| literal_index(program, expression),
                 )
                 .is_some()
                 {
@@ -303,11 +301,7 @@ fn entry_operand_projected_at(
                     before_statement,
                     operand_place,
                     depth + 1,
-                    &mut |_, _, expression| {
-                        crate::facts::crash_entry_values::literal_projection::literal_index(
-                            program, expression,
-                        )
-                    },
+                    &mut |_, _, expression| literal_index(program, expression),
                 ) {
                     return Some(spine.iter().fold(value, |receiver, step| match step {
                         OperandSpineStep::Member(member) => CrashPredicateExpression::Member {
@@ -544,9 +538,7 @@ fn entry_operand_at(
         before_statement,
         expression,
         depth,
-        &mut |_, _, expression| {
-            crate::facts::crash_entry_values::literal_projection::literal_index(program, expression)
-        },
+        &mut |_, _, expression| literal_index(program, expression),
     ) {
         return Some(value);
     }
@@ -603,8 +595,8 @@ fn entry_operand_at(
             }
             let operand = entry_child!(cast.value)?;
             Some(CrashPredicateExpression::RepresentationView {
-                source_type: crate::values::integer_type(source_type)?,
-                target_type: crate::values::integer_type(target_type)?,
+                source_type: integer_type(source_type)?,
+                target_type: integer_type(target_type)?,
                 operand: Box::new(operand),
             })
         }

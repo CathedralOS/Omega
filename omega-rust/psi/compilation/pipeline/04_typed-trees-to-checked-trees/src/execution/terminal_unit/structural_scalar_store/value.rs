@@ -11,6 +11,7 @@ use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, ExpressionNode, PrimitiveType,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::values::scalar_expression_type;
 
 /// Where the assignment's right-hand side was evaluated.
 #[derive(Clone, Copy)]
@@ -117,9 +118,7 @@ pub(super) fn authored_value(
             .scalar_expressions
             .bound_expression_at(state.symbol, statement_index, role)?;
     trace.phase("structural field store: pure source: value shape");
-    if binding.expression != authored
-        || crate::values::scalar_expression_type(value) != Some(primitive_type)
-    {
+    if binding.expression != authored || scalar_expression_type(value) != Some(primitive_type) {
         return None;
     }
     Some(checked_trees::CheckedScalarStoreValue::Pure(value.clone()))
@@ -165,8 +164,7 @@ pub(super) fn runtime_index(
         CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
     )?;
     (binding.expression == index
-        && crate::values::scalar_expression_type(value)
-            .is_some_and(|primitive| primitive.is_integer()))
+        && scalar_expression_type(value).is_some_and(|primitive| primitive.is_integer()))
     .then(|| value.clone())
 }
 

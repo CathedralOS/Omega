@@ -3,6 +3,7 @@
 //! descriptor is read word by word and stored at the slot's descriptor
 //! offset in the original root -- a record field's, or offset zero for a
 //! whole descriptor home; no backing byte is read or copied.
+use super::runtime_address::{footprint, projection_base, scale};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, memory,
@@ -11,6 +12,7 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::established_view_input::{descriptor_home, view_type};
 
 pub(super) fn replace(
     function: &LegalizedScalarFunction,
@@ -31,11 +33,9 @@ pub(super) fn replace(
     // declared descriptor home, owned by this activation.
     let root_type = match field {
         Some(_) => crate::selection::field_bytes::root_type(function, destination),
-        None => {
-            crate::selection::established_view_input::descriptor_home(function, destination.place)
-                .filter(|_| destination.access == StructuralAccess::Owned)
-                .map(|(_, home)| home.structural_type)
-        }
+        None => descriptor_home(function, destination.place)
+            .filter(|_| destination.access == StructuralAccess::Owned)
+            .map(|(_, home)| home.structural_type),
     }
     .ok_or_else(|| invalid())?;
     let geometry = crate::structural_inputs::structural_reference_input::projected_view_slot(
@@ -53,14 +53,12 @@ pub(super) fn replace(
                 | StructuralAccess::WriteOnlyBorrow
         )
         || *source == destination.place
-        || !crate::selection::established_view_input::view_type(function, *source).is_some_and(
-            |identity| {
-                signature
-                    .structural_types
-                    .iter()
-                    .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
-            },
-        )
+        || !view_type(function, *source).is_some_and(|identity| {
+            signature
+                .structural_types
+                .iter()
+                .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
+        })
         || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(invalid());
@@ -75,14 +73,8 @@ pub(super) fn replace(
         .map(|(_, pointer)| *pointer)
         .ok_or(invalid())?;
     let root = match field {
-        Some(_) => super::runtime_address::projection_base(
-            function,
-            builder,
-            row,
-            destination.place,
-            descriptor_offset,
-        )?
-        .ok_or_else(|| invalid())?,
+        Some(_) => projection_base(function, builder, row, destination.place, descriptor_offset)?
+            .ok_or_else(|| invalid())?,
         // The whole slot is the home's own descriptor storage. Projecting
         // through the home as a view would address the bytes its current
         // descriptor denotes, which this store neither reads nor writes.
@@ -94,7 +86,7 @@ pub(super) fn replace(
             .map(|(_, pointer)| *pointer)
             .ok_or_else(|| invalid())?,
     };
-    let root = super::runtime_address::scale(
+    let root = scale(
         builder,
         row,
         destination.place,
@@ -122,7 +114,7 @@ pub(super) fn replace(
         SelectedMemoryAccessRole::ReadPlace,
     )?;
     builder.emit_load64(8, descriptor, extent, provenance(row))?;
-    super::runtime_address::footprint(
+    footprint(
         builder,
         row,
         destination.place,
@@ -133,7 +125,7 @@ pub(super) fn replace(
     )?;
     builder.emit_store(descriptor_offset, 8, root, backing, provenance(row))?;
     // The extent word commits the replacement and carries the fuel charge.
-    super::runtime_address::footprint(
+    footprint(
         builder,
         row,
         destination.place,

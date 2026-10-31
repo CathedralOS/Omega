@@ -1,5 +1,6 @@
 //! Exact view-source joins. The validated source graph establishes descriptor
 //! availability; selected SSA checks the separate physical address lifetime.
+use super::scalar_call_abi::input_site::{producer_before_use, use_cut};
 use crate::selection::place_declaration::{declares_block_parameter, declares_operation_result};
 
 use legalized_operations::{
@@ -170,7 +171,7 @@ pub(super) fn accepts_at(
     call: semantic_vocabulary::InvocationSite,
     target: &TargetStructuralArgument,
 ) -> Option<()> {
-    super::scalar_call_abi::input_site::use_cut(source, call)?;
+    use_cut(source, call)?;
     if let TargetStructuralArgumentSource::BlockParameter { block, place } = target.source {
         let owner = source.block(block)?;
         let parameter = owner.structural_parameter(place)?;
@@ -218,8 +219,7 @@ pub(super) fn accepts_at(
         }
     }
     let signature = source.structural.as_ref()?;
-    let producer =
-        super::scalar_call_abi::input_site::producer_before_use(source, psi_operation, call)?;
+    let producer = producer_before_use(source, psi_operation, call)?;
     if producer.2.result.is_some() {
         return None;
     }
@@ -356,8 +356,7 @@ pub(super) fn accepts_view_loan(
         return None;
     }
     let signature = source.structural.as_ref()?;
-    let producer =
-        super::scalar_call_abi::input_site::producer_before_use(source, psi_operation, call)?;
+    let producer = producer_before_use(source, psi_operation, call)?;
     if producer.2.result.is_some() {
         return None;
     }

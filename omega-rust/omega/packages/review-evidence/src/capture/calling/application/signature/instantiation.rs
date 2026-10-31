@@ -5,6 +5,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
+use typed_trees::type_identity::lifetime_parameter_identity;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Instantiate declaration-local names after their telescope has been fixed.
@@ -98,13 +99,9 @@ fn project(
                 supplying_owner,
                 lexical_owner,
                 binders,
-            } => typed_trees::type_identity::lifetime_parameter_identity(
-                source,
-                lexical_owner,
-                name.as_str(),
-            )
-            .filter(|identity| identity.declaration == supplying_owner)
-            .and_then(|identity| binders.get(identity.ordinal).cloned()),
+            } => lifetime_parameter_identity(source, lexical_owner, name.as_str())
+                .filter(|identity| identity.declaration == supplying_owner)
+                .and_then(|identity| binders.get(identity.ordinal).cloned()),
         }
         .ok_or_else(|| {
             rejected("calling signature has an unbound lifetime in its supplying declaration")

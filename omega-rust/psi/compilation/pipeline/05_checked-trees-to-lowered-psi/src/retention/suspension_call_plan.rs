@@ -12,6 +12,7 @@ use super::{
     ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
 };
 use crate::direct_calls::direct_call_parts;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::terminal_identities::lookup_claim_id;
 use arena::{Handle, HandleSpan};
 use terminal_psi::{TerminalSuspensionPlace, TerminalSuspensionValueType};
@@ -413,8 +414,7 @@ fn retain_loan_graph(
                 else {
                     return unsupported("suspension captured loan has no structural operand");
                 };
-                let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-            identities, path, root, types)?;
+                let path = lower_static_argument_path(identities, path, root, types)?;
                 let path = graph.paths.insert_many(path);
                 let capture = TerminalSuspensionLoanCapture::RetainedValue {
                     live_value: u32::try_from(live_value).map_err(|_| {
@@ -590,10 +590,7 @@ fn incoming_reference_binding(
     let path = validation::borrow_contracts::structural_owner_path(checked, owner_path).ok_or(
         LoweringError::Unsupported("suspension ingress path has no exact declaration selectors"),
     )?;
-    let path =
-        crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-            identities, &path, root, types,
-        )?;
+    let path = lower_static_argument_path(identities, &path, root, types)?;
     let mut referent = argument.clone();
     let access = loans
         .iter()

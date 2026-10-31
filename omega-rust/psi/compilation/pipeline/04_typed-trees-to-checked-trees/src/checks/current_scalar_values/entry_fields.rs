@@ -3,6 +3,11 @@
 //! frozen reference load from the frame owner. Never expand pointer-type graphs:
 //! recursive types do not define a finite set of observable field paths.
 use super::CurrentScalarValues;
+use super::LengthSubject;
+use super::scalar_fields::CapturedScalarField;
+use super::scalar_fields::ScalarField;
+use super::scalar_fields::entry_selector_value;
+use super::scalar_fields::same_projection;
 use super::scalar_fields::{ScalarProjection, capture_path};
 use crate::flow::indexed_statements;
 use validation::ScopedArithmeticValue;
@@ -143,7 +148,7 @@ impl CurrentScalarValues<'_> {
                             continue;
                         };
                         self.lengths.push(super::Length {
-                            subject: super::LengthSubject::Field {
+                            subject: LengthSubject::Field {
                                 owner: parameter.symbol,
                                 path,
                             },
@@ -157,28 +162,27 @@ impl CurrentScalarValues<'_> {
                 }
                 if let Some(carrier) = super::integer_carrier(self.program, reference) {
                     if !path.is_empty() {
-                        self.fields
-                            .push(super::scalar_fields::ScalarField::for_owner(
-                                self.program,
-                                parameter.symbol,
-                                super::scalar_fields::CapturedScalarField {
-                                    path: path
-                                        .iter()
-                                        .map(|symbol| ScalarProjection::Field(*symbol))
-                                        .collect(),
-                                    carrier,
-                                    read_dependencies: Vec::new(),
-                                    value: entry_value(
-                                        self.program,
-                                        reference,
-                                        path.last().copied(),
-                                        ScopedArithmeticValue::Atom {
-                                            identity,
-                                            unsigned: super::unsigned(carrier),
-                                        },
-                                    ),
-                                },
-                            ));
+                        self.fields.push(ScalarField::for_owner(
+                            self.program,
+                            parameter.symbol,
+                            CapturedScalarField {
+                                path: path
+                                    .iter()
+                                    .map(|symbol| ScalarProjection::Field(*symbol))
+                                    .collect(),
+                                carrier,
+                                read_dependencies: Vec::new(),
+                                value: entry_value(
+                                    self.program,
+                                    reference,
+                                    path.last().copied(),
+                                    ScopedArithmeticValue::Atom {
+                                        identity,
+                                        unsigned: super::unsigned(carrier),
+                                    },
+                                ),
+                            },
+                        ));
                     }
                     continue;
                 }
@@ -224,22 +228,13 @@ impl CurrentScalarValues<'_> {
             };
             for coordinate in requested {
                 let Some(path) = capture_path(coordinate, |selector| {
-                    super::scalar_fields::entry_selector_value(
-                        self.occurrence(),
-                        selector,
-                        &self.current,
-                        &self.fields,
-                    )
+                    entry_selector_value(self.occurrence(), selector, &self.current, &self.fields)
                 }) else {
                     continue;
                 };
                 if self.fields.iter().any(|field| {
                     field.owner == parameter.symbol
-                        && super::scalar_fields::same_projection(
-                            self.occurrence(),
-                            &field.path,
-                            &path,
-                        )
+                        && same_projection(self.occurrence(), &field.path, &path)
                 }) {
                     continue;
                 }
@@ -274,31 +269,30 @@ impl CurrentScalarValues<'_> {
                     .flatten()
                     .map(|source| source.path)
                     .collect();
-                self.fields
-                    .push(super::scalar_fields::ScalarField::for_owner(
-                        self.program,
-                        parameter.symbol,
-                        super::scalar_fields::CapturedScalarField {
-                            path,
-                            carrier: field.primitive_type,
-                            read_dependencies,
-                            value: entry_value(
-                                self.program,
-                                field.result_type_reference,
-                                coordinate.last().and_then(|step| match step {
-                                    facts::PlaceSegment::Field { symbol } => Some(*symbol),
-                                    _ => None,
-                                }),
-                                ScopedArithmeticValue::Atom {
-                                    identity: format!(
-                                        "state:{:?}:parameter:{:?}:field:{coordinate:?}",
-                                        self.state.symbol, parameter.symbol
-                                    ),
-                                    unsigned: super::unsigned(field.primitive_type),
-                                },
-                            ),
-                        },
-                    ));
+                self.fields.push(ScalarField::for_owner(
+                    self.program,
+                    parameter.symbol,
+                    CapturedScalarField {
+                        path,
+                        carrier: field.primitive_type,
+                        read_dependencies,
+                        value: entry_value(
+                            self.program,
+                            field.result_type_reference,
+                            coordinate.last().and_then(|step| match step {
+                                facts::PlaceSegment::Field { symbol } => Some(*symbol),
+                                _ => None,
+                            }),
+                            ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "state:{:?}:parameter:{:?}:field:{coordinate:?}",
+                                    self.state.symbol, parameter.symbol
+                                ),
+                                unsigned: super::unsigned(field.primitive_type),
+                            },
+                        ),
+                    },
+                ));
             }
         }
     }

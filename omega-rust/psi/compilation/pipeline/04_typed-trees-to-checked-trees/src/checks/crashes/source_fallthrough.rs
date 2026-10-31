@@ -13,11 +13,13 @@
 //! sibling call cannot erase a safe conjunct or impersonate a parameter.
 
 use crate::flow::indexed_statements;
-use checked_trees::{CrashPredicateIdentity, CrashSiteLocation};
+use checked_trees::{CrashCallSiteLocation, CrashPredicateIdentity, CrashSiteLocation};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
+use validation::ContentConservationSourcePlan;
+use validation::transition_call_target;
 
 #[derive(Clone)]
 pub(super) struct SiteFallthrough {
@@ -32,7 +34,7 @@ pub(super) struct SourceCrashPaths<'a> {
     program: &'a dyn validation::CheckingInput,
     machine: &'a Machine,
     parameter_names: &'a [String],
-    conservation: &'a [validation::ContentConservationSourcePlan],
+    conservation: &'a [ContentConservationSourcePlan],
     sites: Vec<SiteFallthrough>,
 }
 
@@ -41,7 +43,7 @@ impl<'a> SourceCrashPaths<'a> {
         program: &'a dyn validation::CheckingInput,
         machine: &'a Machine,
         parameter_names: &'a [String],
-        conservation: &'a [validation::ContentConservationSourcePlan],
+        conservation: &'a [ContentConservationSourcePlan],
     ) -> Self {
         Self {
             program,
@@ -54,10 +56,7 @@ impl<'a> SourceCrashPaths<'a> {
     pub(super) fn at_site(&self, location: CrashSiteLocation) -> Option<&SiteFallthrough> {
         self.sites.iter().find(|site| site.location == location)
     }
-    pub(super) fn at_call(
-        &self,
-        location: checked_trees::CrashCallSiteLocation,
-    ) -> SiteFallthrough {
+    pub(super) fn at_call(&self, location: CrashCallSiteLocation) -> SiteFallthrough {
         let site = CrashSiteLocation::new(location.state(), location.statement_ordinal());
         let mut path = self.at_site(site).cloned().unwrap_or(SiteFallthrough {
             location: site,
@@ -86,9 +85,9 @@ impl<'a> SourceCrashPaths<'a> {
 pub(super) fn selected_call_path(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
-    location: checked_trees::CrashCallSiteLocation,
+    location: CrashCallSiteLocation,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
 ) -> Option<SiteFallthrough> {
     let mut guards = Vec::new();
     let Some(state) = program.state_in_machine(machine, location.state()) else {
@@ -105,7 +104,7 @@ pub(super) fn selected_call_path(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
-    let Some(target) = validation::transition_call_target(
+    let Some(target) = transition_call_target(
         program,
         machine,
         state,
@@ -144,7 +143,7 @@ pub(super) fn collect(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
 ) -> Vec<SiteFallthrough> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
@@ -224,7 +223,7 @@ fn collect_stable_consequences(
     expression: ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     output: &mut Vec<(ExpressionHandle, bool)>,
 ) {
     if holds_entry_meaning(
@@ -298,7 +297,7 @@ fn holds_entry_meaning(
     evaluated_at: usize,
     expression: ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
 ) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;

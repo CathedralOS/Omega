@@ -9,10 +9,14 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::expression_preparation::bindings::structural_cases::sum_cases;
+use crate::scalar_lowering::branch_states::guards::is_computed;
 use crate::scalar_lowering::branch_states::prepared::{
     CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use crate::scalar_lowering::computations::parameters;
 use crate::unit::attached_unit::OperationEnvironment;
+use crate::unit::attached_unit::scalar_completion::control::returning_exits;
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 /// Cleanup already selected by source ownership, before scalar arm expansion.
@@ -108,7 +112,7 @@ fn scalar_case_dispatch_terminator(
     source_types: &[QualifiedScalarType],
     proof_formals: Vec<crate::scalar_lowering::contracts::LoweredProofTerm>,
 ) -> LoweredScalarBranchTerminator {
-    let when_true_arguments = crate::scalar_lowering::computations::parameters(source_types);
+    let when_true_arguments = parameters(source_types);
     LoweredScalarBranchTerminator::CaseDispatch {
         source: dispatch.source,
         selected: dispatch.selected,
@@ -119,7 +123,7 @@ fn scalar_case_dispatch_terminator(
         when_true_erased_arguments: Vec::new(),
         when_true_erased_proof_arguments: proof_formals.clone(),
         when_false_target,
-        when_false_arguments: crate::scalar_lowering::computations::parameters(source_types),
+        when_false_arguments: parameters(source_types),
         when_false_erased_arguments: Vec::new(),
         when_false_erased_proof_arguments: proof_formals,
     }
@@ -141,11 +145,7 @@ impl Evaluation {
         destination: &CheckedScalarBranchDestination,
     ) -> Result<Option<ScalarCaseDispatchArm>, LoweringError> {
         // Computed and projected memberships keep their normal guard schedule.
-        if crate::scalar_lowering::branch_states::guards::is_computed(
-            checked,
-            state,
-            guard_statement_ordinal,
-        ) {
+        if is_computed(checked, state, guard_statement_ordinal) {
             return Ok(None);
         }
         let LoweredDirectExpression::Boolean { expression: guard } = bindings.expression_at(
@@ -167,10 +167,7 @@ impl Evaluation {
         if !path.is_empty() {
             return Ok(None);
         }
-        let Some(cases) = crate::expression_preparation::bindings::structural_cases::sum_cases(
-            &self.structural_cases,
-            *source,
-        ) else {
+        let Some(cases) = sum_cases(&self.structural_cases, *source) else {
             return Ok(None);
         };
         if terminal_psi::find_structural_case(cases, *case).is_none() {
@@ -228,7 +225,7 @@ impl Evaluation {
                 &dispatch.destination,
                 completions,
             )?;
-            let arguments = crate::scalar_lowering::computations::parameters(source_types);
+            let arguments = parameters(source_types);
             armed.push(CaseDispatchArm {
                 case: dispatch.selected,
                 payloads: Vec::new(),
@@ -251,7 +248,7 @@ impl Evaluation {
                     fallback,
                     completions,
                 )?,
-                crate::scalar_lowering::computations::parameters(source_types),
+                parameters(source_types),
             )
         } else {
             if cases
@@ -280,7 +277,7 @@ impl Evaluation {
             cleanup_actions: Vec::new(),
             structural_arguments: Vec::new(),
             target,
-            arguments: crate::scalar_lowering::computations::parameters(source_types),
+            arguments: parameters(source_types),
             erased_arguments: Vec::new(),
             erased_proof_arguments: self.proof_formal_forwarding(),
         })
@@ -337,9 +334,7 @@ impl Evaluation {
                             .collect(),
                         structural_arguments: Vec::new(),
                         target: 0,
-                        arguments: crate::scalar_lowering::computations::parameters(
-                            &completion_types,
-                        ),
+                        arguments: parameters(&completion_types),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: self.proof_formal_forwarding(),
                     },
@@ -367,7 +362,7 @@ impl Evaluation {
                     cleanup_actions: Vec::new(),
                     structural_arguments: Vec::new(),
                     target,
-                    arguments: crate::scalar_lowering::computations::parameters(&source_types),
+                    arguments: parameters(&source_types),
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: self.proof_formal_forwarding(),
                 }
@@ -424,13 +419,13 @@ impl Evaluation {
                         &source_types,
                         (
                             true_target,
-                            crate::scalar_lowering::computations::parameters(&source_types),
+                            parameters(&source_types),
                             Vec::new(),
                             self.proof_formal_forwarding(),
                         ),
                         (
                             false_target,
-                            crate::scalar_lowering::computations::parameters(&source_types),
+                            parameters(&source_types),
                             Vec::new(),
                             self.proof_formal_forwarding(),
                         ),
@@ -439,11 +434,7 @@ impl Evaluation {
                 }
             }
             CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-                let arms = crate::unit::attached_unit::scalar_completion::control::returning_exits(
-                    checked,
-                    *arms,
-                    fallback.as_ref(),
-                )?;
+                let arms = returning_exits(checked, *arms, fallback.as_ref())?;
                 let mut dispatches = Vec::with_capacity(arms.len());
                 for guard in arms.iter() {
                     dispatches.push(self.scalar_case_dispatch(
@@ -621,13 +612,13 @@ impl Evaluation {
                                 &source_types,
                                 (
                                     target,
-                                    crate::scalar_lowering::computations::parameters(&source_types),
+                                    parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
                                 ),
                                 (
                                     next,
-                                    crate::scalar_lowering::computations::parameters(&source_types),
+                                    parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
                                 ),
@@ -643,7 +634,7 @@ impl Evaluation {
                         cleanup_actions: Vec::new(),
                         structural_arguments: Vec::new(),
                         target: next,
-                        arguments: crate::scalar_lowering::computations::parameters(&source_types),
+                        arguments: parameters(&source_types),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: self.proof_formal_forwarding(),
                     }

@@ -11,12 +11,14 @@ use super::{
     lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
     retain_call_arguments,
 };
+use symbols::SymbolHandle;
+use typed_trees::statement::TableLocalData;
+use validation::atomic_once_carrier;
+use validation::expression_result_type_reference;
+use validation::slice_view_shell;
 
-pub(super) fn plan(
-    planner: &mut StatementPlanner<'_, '_>,
-    local: &typed_trees::statement::TableLocalData,
-) {
-    if let Some(carrier) = validation::atomic_once_carrier(planner.program, local.initial_value) {
+pub(super) fn plan(planner: &mut StatementPlanner<'_, '_>, local: &TableLocalData) {
+    if let Some(carrier) = atomic_once_carrier(planner.program, local.initial_value) {
         if let Some(operands) = super::super::atomic_operands::lower_carrier(
             planner.program,
             planner.operators,
@@ -30,12 +32,7 @@ pub(super) fn plan(
             planner.exact_integer_casts,
         ) {
             for (source, role, value) in operands {
-                planner.record_scalar_value_pair(
-                    role,
-                    symbols::SymbolHandle::invalid(),
-                    source,
-                    value,
-                );
+                planner.record_scalar_value_pair(role, SymbolHandle::invalid(), source, value);
             }
         }
         return;
@@ -91,13 +88,13 @@ pub(super) fn plan(
         .primitive_type_reference(local.type_reference)
         .filter(|_| {
             local.is_mutable
-                || validation::expression_result_type_reference(
+                || expression_result_type_reference(
                     planner.program,
                     planner.machine,
                     planner.state,
                     local.initial_value,
                 )
-                .and_then(|result| validation::slice_view_shell(planner.program, result, &[]))
+                .and_then(|result| slice_view_shell(planner.program, result, &[]))
                 .is_none()
         })
     else {

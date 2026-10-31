@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::{
     BoundaryCallbackBinder, MaterializedBoundarySignature,
 };
-use typed_trees::data::{MachineParameterContract, TypeParameterKind};
+use typed_trees::data::{MachineParameterContract, TypeParameterKind, type_parameter_position};
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -21,9 +21,7 @@ pub(super) fn project(
     for owner in compilation.traits() {
         for requirement in compilation.trait_machine_signatures(owner) {
             let parameters = compilation.state_signature_type_parameters(requirement);
-            if let Some(ordinal) =
-                typed_trees::data::type_parameter_position(parameters, binder.parameter_symbol)
-            {
+            if let Some(ordinal) = type_parameter_position(parameters, binder.parameter_symbol) {
                 if compilation.trait_requirement_callable_identity_text(owner, requirement)
                     != signature.owner_requirement_identity()
                 {
@@ -39,9 +37,7 @@ pub(super) fn project(
     }
     for owner in compilation.machines() {
         let parameters = compilation.machine_type_parameters(owner);
-        if let Some(ordinal) =
-            typed_trees::data::type_parameter_position(parameters, binder.parameter_symbol)
-        {
+        if let Some(ordinal) = type_parameter_position(parameters, binder.parameter_symbol) {
             if compilation
                 .machine_callable_identity_text(owner)
                 .is_none_or(|identity| identity != signature.owner_requirement_identity())

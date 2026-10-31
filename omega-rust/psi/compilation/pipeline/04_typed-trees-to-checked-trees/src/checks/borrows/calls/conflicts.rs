@@ -1,3 +1,14 @@
+use super::super::moves::owned_storage_source;
+use super::super::overlap::captured_place_compatibility;
+use super::super::reads::loans_ended_before_call;
+use super::super::selected_retirement::before_call;
+use super::super::statements::local_jump;
+use super::super::statements::local_loan_ends_before_successor;
+use super::super::statements::source_exiting_without_local_loan_carriers;
+use super::receiver::explicit_jump_data_access;
+use super::staging::InvocationBoundary;
+use super::staging::access_released_in_prefix;
+use super::staging::completed_observation_before_terminal_transfer;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -55,7 +66,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
             .filter(|(_, access)| access.expression == event.expression)
         {
             for access in &accesses[..move_index] {
-                if super::staging::access_released_in_prefix(access, preceding, route)
+                if access_released_in_prefix(access, preceding, route)
                     // Earlier owned operands have already detached their
                     // values; they are not loans held over the caller's old
                     // storage. Repeated use is judged by move accounting.
@@ -84,16 +95,16 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 // Calls with no such loan keep their ordinary source checks.
                 let moved = match &moved_source {
                     Some(place) => place,
-                    None => match super::super::moves::owned_storage_source(
-                        program, facts, state, statement, event, path,
-                    ) {
-                        Ok(Some(source)) => moved_source.insert(source.place),
-                        Ok(None) => return,
-                        Err(diagnostic) => {
-                            diagnostics.push(diagnostic);
-                            return;
+                    None => {
+                        match owned_storage_source(program, facts, state, statement, event, path) {
+                            Ok(Some(source)) => moved_source.insert(source.place),
+                            Ok(None) => return,
+                            Err(diagnostic) => {
+                                diagnostics.push(diagnostic);
+                                return;
+                            }
                         }
-                    },
+                    }
                 };
                 let backings = place_access::argument_backings(
                     program,
@@ -108,7 +119,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                     continue;
                 };
                 if backings.places.iter().all(|backing| {
-                    super::super::overlap::captured_place_compatibility(
+                    captured_place_compatibility(
                         program,
                         &backing.place,
                         &access.kind,
@@ -149,33 +160,17 @@ pub(super) fn check_call_access_conflicts<'p>(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .collect();
-    let data_access =
-        super::receiver::explicit_jump_data_access(program, facts, state_flow, borrow_call);
-    let exiting_source = super::super::statements::source_exiting_without_local_loan_carriers(
-        program,
-        state_flow,
-        borrow_call,
-        call_frames,
-    );
-    let boundary = super::staging::InvocationBoundary::at(program, facts, state_flow, borrow_call);
-    let ended_before_call = super::super::reads::loans_ended_before_call(
-        program,
-        facts,
-        state_flow,
-        borrow_call,
-        boundary.as_ref(),
-    );
+    let data_access = explicit_jump_data_access(program, facts, state_flow, borrow_call);
+    let exiting_source =
+        source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
+    let boundary = InvocationBoundary::at(program, facts, state_flow, borrow_call);
+    let ended_before_call =
+        loans_ended_before_call(program, facts, state_flow, borrow_call, boundary.as_ref());
     let active_loans: Vec<_> = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
         .filter(|loan| {
-            if super::super::selected_retirement::before_call(
-                program,
-                facts,
-                state_flow,
-                borrow_call,
-                *loan,
-            ) {
+            if before_call(program, facts, state_flow, borrow_call, *loan) {
                 return false;
             }
             // The same replayed scope closure applies to forwarded argument
@@ -183,7 +178,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             // carried loans and unclosed observations remain active.
             !ended_before_call.contains(loan)
                 && !exiting_source.is_some_and(|source| {
-                    super::super::statements::local_loan_ends_before_successor(
+                    local_loan_ends_before_successor(
                         program,
                         facts,
                         state_flow,
@@ -276,14 +271,14 @@ pub(super) fn check_call_access_conflicts<'p>(
             // forms no second retained loan, regardless of the machine's
             // lexical qualification. Fresh borrows and returning invocations
             // still establish ordinary argument exclusivity.
-            if super::staging::completed_observation_before_terminal_transfer(
+            if completed_observation_before_terminal_transfer(
                 program,
                 state_flow,
                 borrow_call,
                 boundary.as_ref(),
                 access,
                 other_access,
-            ) || super::staging::completed_observation_before_terminal_transfer(
+            ) || completed_observation_before_terminal_transfer(
                 program,
                 state_flow,
                 borrow_call,
@@ -417,7 +412,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             // A caller-owned slot instead needs exact intermediate retention:
             // follow copies/replacements through successor slots, reject escape
             // and a later establishment of the still-borrowed local home.
-            if super::super::statements::local_jump(program, state_flow, borrow_call).is_some()
+            if local_jump(program, state_flow, borrow_call).is_some()
                 && access.end_before_access.is_none()
                 && access.root == facts::PlaceRoot::Symbol(loan.owner_symbol)
                 && crate::borrow::owner_path_overlaps_place_segments(
@@ -436,9 +431,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                     facts.borrow.loan_owner_path(loan),
                 )
                 && !call_frames.is_some_and(|frames| {
-                    let Some(jump) =
-                        super::super::statements::local_jump(program, state_flow, borrow_call)
-                    else {
+                    let Some(jump) = local_jump(program, state_flow, borrow_call) else {
                         return false;
                     };
                     let Some((machine, source)) = validation::machine_state_by_symbols(

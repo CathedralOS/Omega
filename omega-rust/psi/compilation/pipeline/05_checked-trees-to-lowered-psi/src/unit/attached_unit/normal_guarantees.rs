@@ -8,6 +8,7 @@
 
 use crate::checked_facts::value_facts;
 use crate::lowering_error::LoweringError;
+use crate::proofs::contract_predicates::connective;
 use crate::scalar_lowering::contracts::{self, ContractStructuralResult, ContractViewNamespace};
 use crate::unit::ContractClause;
 use checked_trees::CheckedTrees;
@@ -116,9 +117,7 @@ pub(crate) fn lower(
             },
         )?;
         propositions = Some(match propositions {
-            Some(previous) => {
-                crate::proofs::contract_predicates::connective(previous, result_predicate, true)?
-            }
+            Some(previous) => connective(previous, result_predicate, true)?,
             None => result_predicate,
         });
     }
@@ -126,9 +125,7 @@ pub(crate) fn lower(
         contracts::clauses(identities, &restored_guarantees, &namespace, erased, &views)?
     {
         propositions = Some(match propositions {
-            Some(previous) => {
-                crate::proofs::contract_predicates::connective(previous, restored, true)?
-            }
+            Some(previous) => connective(previous, restored, true)?,
             None => restored,
         });
     }

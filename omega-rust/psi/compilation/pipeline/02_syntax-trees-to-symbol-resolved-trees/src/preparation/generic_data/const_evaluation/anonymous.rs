@@ -1,15 +1,18 @@
 //! Exact anonymous values, independent of their eventual const landing.
 
+use super::fact_values::ConstFactValue;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
+use numerics::literals::LandedIntegerType;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::expression::TableBinaryExpression;
 use syntax_trees::item::Item;
+use syntax_trees::item::Machine;
 use syntax_trees::operator_spelling::OperatorSpelling;
 
 pub(crate) struct AnonymousNumericValue {
@@ -266,10 +269,7 @@ fn authored_spelling_parameters(
 /// The parameter type names a spelled machine declares on its entry state,
 /// with the machine's own type binders left unread: `T` can carry any
 /// operand, so it stays `None`.
-fn machine_parameter_names(
-    syntax: &SyntaxTrees,
-    machine: &syntax_trees::item::Machine,
-) -> Vec<Option<String>> {
+fn machine_parameter_names(syntax: &SyntaxTrees, machine: &Machine) -> Vec<Option<String>> {
     let binder_names: Vec<&str> = syntax_items(&syntax)
         .type_parameters(machine.type_parameters)
         .iter()
@@ -304,8 +304,8 @@ fn machine_parameter_names(
 pub(super) fn authored_operator_can_bind(
     syntax: &SyntaxTrees,
     operator: BinaryOperator,
-    left: &super::fact_values::ConstFactValue,
-    right: &super::fact_values::ConstFactValue,
+    left: &ConstFactValue,
+    right: &ConstFactValue,
 ) -> bool {
     let Some(spelling) = binary_operator_spelling(operator) else {
         return false;
@@ -324,10 +324,7 @@ pub(super) fn authored_operator_can_bind(
 /// parameters, never `Nat`); an anonymous or bare integer binds only builtin
 /// integer carriers — never a nominal `Nat`, `f32` or `Quantity`; a Boolean
 /// binds `bool`.
-fn parameter_binds(
-    parameter_name: Option<&str>,
-    operand: &super::fact_values::ConstFactValue,
-) -> bool {
+fn parameter_binds(parameter_name: Option<&str>, operand: &ConstFactValue) -> bool {
     let Some(name) = parameter_name else {
         return true;
     };
@@ -335,7 +332,7 @@ fn parameter_binds(
     match operand {
         ConstFactValue::DeclaredInteger { integer_type, .. } => name == integer_type.name(),
         ConstFactValue::Integer(_) | ConstFactValue::Anonymous(_) => {
-            numerics::literals::LandedIntegerType::from_name(name).is_some()
+            LandedIntegerType::from_name(name).is_some()
         }
         ConstFactValue::Boolean(_) => name == "bool",
     }

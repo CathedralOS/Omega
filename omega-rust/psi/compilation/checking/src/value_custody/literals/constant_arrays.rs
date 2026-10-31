@@ -8,7 +8,10 @@
 
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
+use numerics::literals::FloatFormat;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeConstraintNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Peel arithmetic-policy shells from `reference`. `i32 in Wrapping`
@@ -28,12 +31,7 @@ pub fn peel_arithmetic_policy(
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .all(|constraint| {
-                matches!(
-                    constraint,
-                    typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)
-                )
-            })
+            .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
         {
             break;
         }
@@ -97,17 +95,17 @@ pub fn is_closed_primitive_array_type(
                     && matches!(
                         program.primitive_type_reference(peeled),
                         Some(
-                            typed_trees::types::PrimitiveType::Bool
-                                | typed_trees::types::PrimitiveType::I8
-                                | typed_trees::types::PrimitiveType::I16
-                                | typed_trees::types::PrimitiveType::I32
-                                | typed_trees::types::PrimitiveType::I64
-                                | typed_trees::types::PrimitiveType::U8
-                                | typed_trees::types::PrimitiveType::U16
-                                | typed_trees::types::PrimitiveType::U32
-                                | typed_trees::types::PrimitiveType::U64
-                                | typed_trees::types::PrimitiveType::F32
-                                | typed_trees::types::PrimitiveType::F64
+                            PrimitiveType::Bool
+                                | PrimitiveType::I8
+                                | PrimitiveType::I16
+                                | PrimitiveType::I32
+                                | PrimitiveType::I64
+                                | PrimitiveType::U8
+                                | PrimitiveType::U16
+                                | PrimitiveType::U32
+                                | PrimitiveType::U64
+                                | PrimitiveType::F32
+                                | PrimitiveType::F64
                         )
                     );
             }
@@ -153,7 +151,7 @@ pub fn closed_constant_array_elements(
     machine: symbols::SymbolHandle,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
-) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
+) -> Option<Vec<(ExpressionHandle, PrimitiveType)>> {
     if !scalar_array_preserves_memberships(program, expected) {
         return None;
     }
@@ -228,13 +226,13 @@ pub fn closed_constant_array_elements(
 pub enum ScalarArrayElement {
     Authored {
         expression: ExpressionHandle,
-        primitive_type: typed_trees::types::PrimitiveType,
+        primitive_type: PrimitiveType,
     },
     Projected {
         row: ExpressionHandle,
         indices: Vec<u32>,
         leaf_type: TypeReferenceHandle,
-        primitive_type: typed_trees::types::PrimitiveType,
+        primitive_type: PrimitiveType,
     },
 }
 
@@ -399,7 +397,7 @@ pub fn closed_literal_array_elements(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
+) -> Option<Vec<(ExpressionHandle, PrimitiveType)>> {
     let mut leaves = Vec::new();
     let mut pending = vec![(expression, reference, false, false)];
     let mut active = Vec::new();
@@ -444,10 +442,7 @@ pub fn closed_literal_array_elements(
                 let primitive = program.primitive_type_reference(reference)?;
                 if let Some(landing) = literal.landing() {
                     if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
-                        || Some(primitive)
-                            != typed_trees::types::PrimitiveType::from_name(
-                                landing.landed_type.name(),
-                            )
+                        || Some(primitive) != PrimitiveType::from_name(landing.landed_type.name())
                     {
                         return None;
                     }
@@ -465,10 +460,8 @@ pub fn closed_literal_array_elements(
             (
                 ExpressionNode::Boolean(_),
                 TypeReferenceNode::Named { .. } | TypeReferenceNode::Constrained { .. },
-            ) if program.primitive_type_reference(reference)
-                == Some(typed_trees::types::PrimitiveType::Bool) =>
-            {
-                leaves.push((expression, typed_trees::types::PrimitiveType::Bool))
+            ) if program.primitive_type_reference(reference) == Some(PrimitiveType::Bool) => {
+                leaves.push((expression, PrimitiveType::Bool))
             }
             (
                 ExpressionNode::Float(literal),
@@ -479,13 +472,8 @@ pub fn closed_literal_array_elements(
                 // a closed value in its declared format, never a conversion.
                 if !matches!(
                     (primitive, literal.landing()),
-                    (
-                        typed_trees::types::PrimitiveType::F32,
-                        Some(numerics::literals::FloatFormat::F32)
-                    ) | (
-                        typed_trees::types::PrimitiveType::F64,
-                        Some(numerics::literals::FloatFormat::F64)
-                    )
+                    (PrimitiveType::F32, Some(FloatFormat::F32))
+                        | (PrimitiveType::F64, Some(FloatFormat::F64))
                 ) {
                     return None;
                 }

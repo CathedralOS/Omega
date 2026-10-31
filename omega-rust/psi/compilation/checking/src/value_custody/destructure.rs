@@ -10,6 +10,7 @@
 //! waive), and an unknown field refuses naming it (typo fence).
 
 use diagnostics::Diagnostic;
+use typed_trees::data::DataMember;
 
 const MARKER_PREFIX: &str = "__destructure#";
 /// Arm-position twin (`..`-free destructure arms): `#`/`=` cannot appear in
@@ -90,10 +91,10 @@ pub(crate) fn validate_destructure_exhaustiveness(
                 let mut has_variants = false;
                 for member in program.data_members(data) {
                     match member {
-                        typed_trees::data::DataMember::Field(field) => {
+                        DataMember::Field(field) => {
                             declared_fields.push(field.name.as_str());
                         }
-                        typed_trees::data::DataMember::Variant(_) => {
+                        DataMember::Variant(_) => {
                             has_variants = true;
                         }
                     }
@@ -201,10 +202,10 @@ fn validate_arm_pattern_marker(
         let mut fields = Vec::new();
         for member in program.data_members(data) {
             match member {
-                typed_trees::data::DataMember::Field(field) => {
+                DataMember::Field(field) => {
                     fields.push(field.name.as_str());
                 }
-                typed_trees::data::DataMember::Variant(_) => {
+                DataMember::Variant(_) => {
                     diagnostics.push(Diagnostic::error(format!(
                         "record pattern arm in machine `{}` state `{}` destructures sum type `{}` without naming a case -- spell the variant (`{}::Case {{ .. }}`)",
                         machine.name, state.name, data.name, data.name,
@@ -233,9 +234,7 @@ fn validate_arm_pattern_marker(
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(case) if case.name.as_str() == variant => {
-                    Some(case)
-                }
+                DataMember::Variant(case) if case.name.as_str() == variant => Some(case),
                 _ => None,
             })
         else {
@@ -247,8 +246,8 @@ fn validate_arm_pattern_marker(
             .data_members(data)
             .iter()
             .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => Some(field),
-                typed_trees::data::DataMember::Variant(_) => None,
+                DataMember::Field(field) => Some(field),
+                DataMember::Variant(_) => None,
             })
             .chain(program.data_payload_fields(case))
             .map(|field| field.name.as_str())

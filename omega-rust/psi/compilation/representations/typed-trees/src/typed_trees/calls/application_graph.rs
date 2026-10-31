@@ -5,6 +5,7 @@
 //! own evidence; neither reconstructs calls or target membership by spelling.
 
 use super::super::TypedTrees;
+use crate::references;
 use semantic_vocabulary::proof_applications::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember,
     ProofDeclarationDependencies,
@@ -15,7 +16,7 @@ pub fn source_application_plan(typed: &TypedTrees) -> ProofApplicationPlan<Symbo
     let mut plan = ProofApplicationPlan::default();
     // The same application graph also discovers Build provider demand. A
     // program without conditional scalar debt still invokes requirements.
-    let mut declarations = crate::references::collect_program_declarations(typed);
+    let mut declarations = references::collect_program_declarations(typed);
     declarations.retain(|owner| typed.machine_by_symbol(*owner).is_none());
     for owner in typed.traits() {
         declarations.extend(
@@ -34,9 +35,7 @@ pub fn source_application_plan(typed: &TypedTrees) -> ProofApplicationPlan<Symbo
     declarations.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
     declarations.dedup();
     plan.declarations = plan.symbols.insert_many(declarations.iter().copied());
-    for (declaration, dependencies) in
-        crate::references::collect_declaration_symbol_dependencies(typed)
-    {
+    for (declaration, dependencies) in references::collect_declaration_symbol_dependencies(typed) {
         let dependencies = dependencies
             .into_iter()
             .map(|symbol| {

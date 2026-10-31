@@ -1,6 +1,9 @@
 //! Structural member paths, terms, float and byte-sequence fields and sum
 //! subjects.
 
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::emission::structural_observations::declared_predicate_path;
+use crate::emission::structural_observations::explicit_path;
 use crate::proofs::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatFormat,
     IeeeFloatStructuralField, LoweringError, PlaceId, ScalarTerm, ScalarType,
@@ -61,12 +64,7 @@ fn lower_structural_place_path(
     if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return unsupported("structural scalar contract requires readable access");
     }
-    let selected = crate::emission::structural_observations::declared_predicate_path(
-        identities,
-        root_type,
-        path,
-        structural_types,
-    )?;
+    let selected = declared_predicate_path(identities, root_type, path, structural_types)?;
     Ok((root, selected.path, selected.field_type))
 }
 
@@ -81,12 +79,7 @@ fn structural_observation_path<'declaration>(
     if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return unsupported("structural scalar contract requires readable access");
     }
-    crate::emission::structural_observations::explicit_path(
-        identities,
-        root_type,
-        path,
-        structural_types,
-    )
+    explicit_path(identities, root_type, path, structural_types)
 }
 
 /// A descriptor extent retains the full structural path. Carrier checking
@@ -151,13 +144,11 @@ pub(crate) fn lower_sequence_extent_term(
     ) {
         return unsupported("closed sequence extent requires readable access");
     }
-    let integer = crate::emission::scalar_types::terminal_scalar_type(
-        checked_trees::types::PrimitiveType::U64,
-    )?
-    .as_integer()
-    .ok_or(LoweringError::Unsupported(
-        "sequence extent is not an integer",
-    ))?;
+    let integer = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?
+        .as_integer()
+        .ok_or(LoweringError::Unsupported(
+            "sequence extent is not an integer",
+        ))?;
     if let Some(path) = selected.canonical {
         return Ok(ScalarTerm::view_extent(parameter.place, path, integer));
     }
@@ -335,10 +326,9 @@ fn lower_structural_indexed_place(
             ) {
                 return unsupported("indexed contract byte observation requires readable access");
             }
-            selected =
-                StructuralFieldType::Scalar(crate::emission::scalar_types::terminal_scalar_type(
-                    checked_trees::types::PrimitiveType::U8,
-                )?);
+            selected = StructuralFieldType::Scalar(terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U8,
+            )?);
         }
         let fixed = match &selector {
             ScalarTerm::Integer {
@@ -364,7 +354,7 @@ fn lower_structural_indexed_place(
         root_type,
         &terminal_path,
     );
-    let expected = crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
+    let expected = terminal_scalar_type(*primitive_type)?;
     if actual != Some(expected) {
         return unsupported("indexed contract path does not select its retained scalar type");
     }
@@ -613,12 +603,7 @@ fn lower_sum_path(
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(StructuralCaseSubject, StructuralTypeId), LoweringError> {
-    let selected = crate::emission::structural_observations::declared_predicate_path(
-        identities,
-        structural_type,
-        path,
-        structural_types,
-    )?;
+    let selected = declared_predicate_path(identities, structural_type, path, structural_types)?;
     let StructuralFieldType::Structural(structural_type) = selected.field_type else {
         return unsupported("structural sum predicate path does not reach a structural value");
     };

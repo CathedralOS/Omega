@@ -1,4 +1,5 @@
 //! Reconstruct record field geometry from exact declarations.
+use super::established_view_input::{element_view_type, view_access, view_type};
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -238,12 +239,9 @@ pub(super) fn structural_operand_shape(
             }
             // Descriptor identity and readable custody have one shared source
             // query. Constructors do not maintain a second producer whitelist.
-            let child_type = super::established_view_input::view_type(source, argument.place)
-                .or_else(|| {
-                    super::established_view_input::element_view_type(source, argument.place)
-                })?;
-            let readable = match super::established_view_input::view_access(source, argument.place)
-            {
+            let child_type = view_type(source, argument.place)
+                .or_else(|| element_view_type(source, argument.place))?;
+            let readable = match view_access(source, argument.place) {
                 Some(terminal_psi::StructuralAccess::SharedBorrow) => true,
                 // The record owns the completed exclusive descriptor once.
                 // Transporting its words does not copy or own its referent;
@@ -260,7 +258,7 @@ pub(super) fn structural_operand_shape(
                     find_structural_type(declarations, child_type)
                         .map(|declaration| &declaration.shape),
                     &expected,
-                    super::established_view_input::view_access(source, argument.place),
+                    view_access(source, argument.place),
                 ))
                 || !readable
             {
