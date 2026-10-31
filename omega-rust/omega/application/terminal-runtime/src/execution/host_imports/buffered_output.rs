@@ -136,11 +136,68 @@ impl TerminalEffectHandler for BufferedOutput {
                         "byte output has no signed integer argument",
                     ));
                 };
-                let byte = u8::try_from(*value).map_err(|_| {
-                    TerminalEffectRejection::new("byte output is outside its contract")
+                let value = i32::try_from(*value).map_err(|_| {
+                    TerminalEffectRejection::new("byte output exceeds its signed 32-bit carrier")
                 })?;
-                self.output.append(&[byte])
+                // HostedWriteByteI32 writes the low eight bits of its i32
+                // operand, including negative values and values above 255.
+                self.output.append(&[value as u8])
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{
+        BoundaryMachineId, IntegerSign, IntegerType, OperationId, ScalarType,
+    };
+    use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
+
+    #[test]
+    fn byte_output_truncates_i32_without_accepting_malformed_operands() {
+        let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let output = BufferedBytes::new();
+        let mut adapter = BufferedOutput::new(
+            TerminalImportSignature {
+                completion: BoundaryCompletion::NormalReturn,
+                scalar_parameters: vec![ScalarType::Integer(signed)],
+                structural_parameters: vec![],
+                result: BoundaryMachineResult::Unit,
+                normal_qualifications: vec![],
+            },
+            OutputKind::Byte,
+            output.clone(),
+        );
+        let effect = |scalar_type, value| TerminalEffect::BoundaryCall {
+            operation: OperationId::new(1).unwrap(),
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: vec![TerminalScalarValue::Integer { scalar_type, value }],
+            structural_arguments: vec![],
+            byte_sequence_arguments: vec![],
+            completion_receipts: vec![],
+            result: BoundaryMachineResult::Unit,
+        };
+        for value in [0x141, 0x100, -1, -0x100, i32::MIN, i32::MAX] {
+            adapter
+                .handle_effect(&effect(signed, IntegerValue::Signed(i128::from(value))))
+                .unwrap();
+        }
+        assert_eq!(output.snapshot().unwrap(), [0x41, 0, 0xFF, 0, 0, 0xFF]);
+        for value in [i128::from(i32::MIN) - 1, i128::from(i32::MAX) + 1] {
+            assert!(
+                adapter
+                    .handle_effect(&effect(signed, IntegerValue::Signed(value)))
+                    .is_err()
+            );
+        }
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        assert!(
+            adapter
+                .handle_effect(&effect(unsigned, IntegerValue::Unsigned(0x41)))
+                .is_err()
+        );
+        assert_eq!(output.snapshot().unwrap(), [0x41, 0, 0xFF, 0, 0, 0xFF]);
     }
 }

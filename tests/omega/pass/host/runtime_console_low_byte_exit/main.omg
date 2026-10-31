@@ -1,0 +1,14 @@
+// Expected exit: 0.
+// Write the low byte of each i32, preserving binary output and call order.
+use omega_language_std::console;
+use omega::language::core::integer;
+
+machine entry_start() reaches Console {
+    Console::write_byte(0x141);
+    Console::write_byte(0x100);
+    Console::write_byte(-1);
+    Console::write_byte(-0x100);
+    Console::write_byte(integer::min<i32>());
+    Console::write_byte(integer::max<i32>());
+    Console::exit_process(0);
+}
