@@ -448,53 +448,86 @@ fn observe_operand_fit_at_occurrence(
     state: &State,
     request: OperandFitRequest,
 ) -> Option<OperandFit> {
-    let statement_index =
-        super::completed_values::expression_statement_index(program, state, request.expression)?;
-    let mut visitor = OperandFit {
-        site: StructuralPrefixSite {
-            state: state.symbol,
-            statement_index,
-            in_transition_target: super::structural_prefix::expression_is_transition_target(
-                program,
-                state,
-                statement_index,
-                request.expression,
-            ),
-        },
-        request,
-        seen: false,
-        judgment: None,
-        range_recipe: None,
-        range_complete: true,
-    };
-    let recognized = super::structural_prefix::observe_runtime_state_prefix(
-        program,
-        machine,
-        state,
-        &mut visitor,
-    )
-    .is_some();
-    if recognized
-        && visitor.seen
-        && (visitor.has_positive_proof()
-            || matches!(
-                visitor.judgment,
-                Some(CarrierFit::Refuted | CarrierFit::Pending { .. })
-            ))
-    {
-        return Some(visitor);
+    let trace = std::env::var_os("OMEGA_OPERAND_FIT_PROFILE").is_some();
+    let started = std::time::Instant::now();
+    if trace {
+        eprintln!(
+            "FIT begin thread={:?} machine={} symbol={:?} state={:?} expression={:?} position={} target={:?} context={:?}",
+            std::thread::current().id(),
+            machine.name,
+            machine.symbol,
+            state.symbol,
+            request.expression,
+            request.position,
+            request.target,
+            request.context_reference
+        );
     }
-    // Inferred private requirements owe every actual arrival. The same
-    // coordinator closes callable uses and recursion before publishing either
-    // a proof or a conditional recipe; an omitted input never establishes one.
-    visitor.seen = false;
-    visitor.judgment = None;
-    visitor.range_recipe = None;
-    visitor.range_complete = true;
-    (super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
-        == Some(true)
-        && visitor.seen)
-        .then_some(visitor)
+    let observed = (|| {
+        let statement_index = super::completed_values::expression_statement_index(
+            program,
+            state,
+            request.expression,
+        )?;
+        let mut visitor = OperandFit {
+            site: StructuralPrefixSite {
+                state: state.symbol,
+                statement_index,
+                in_transition_target: super::structural_prefix::expression_is_transition_target(
+                    program,
+                    state,
+                    statement_index,
+                    request.expression,
+                ),
+            },
+            request,
+            seen: false,
+            judgment: None,
+            range_recipe: None,
+            range_complete: true,
+        };
+        let recognized = super::structural_prefix::observe_runtime_state_prefix(
+            program,
+            machine,
+            state,
+            &mut visitor,
+        )
+        .is_some();
+        if recognized
+            && visitor.seen
+            && (visitor.has_positive_proof()
+                || matches!(
+                    visitor.judgment,
+                    Some(CarrierFit::Refuted | CarrierFit::Pending { .. })
+                ))
+        {
+            return Some(visitor);
+        }
+        // Inferred private requirements owe every actual arrival. The same
+        // coordinator closes callable uses and recursion before publishing either
+        // a proof or a conditional recipe; an omitted input never establishes one.
+        visitor.seen = false;
+        visitor.judgment = None;
+        visitor.range_recipe = None;
+        visitor.range_complete = true;
+        (super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
+            == Some(true)
+            && visitor.seen)
+            .then_some(visitor)
+    })();
+    if trace {
+        eprintln!(
+            "FIT end thread={:?} machine={} expression={:?} seconds={:.6} judgment={:?}",
+            std::thread::current().id(),
+            machine.name,
+            request.expression,
+            started.elapsed().as_secs_f64(),
+            observed
+                .as_ref()
+                .and_then(|fit: &OperandFit| fit.judgment.as_ref())
+        );
+    }
+    observed
 }
 
 #[derive(Clone)]
