@@ -18,6 +18,23 @@ pub(crate) fn lower(
 ) -> Result<ScalarTerm, LoweringError> {
     let mut lower_operand = |operand| lower(operand, runtime_requirements, leaf);
     match expression {
+        CheckedScalarExpression::IntegerWiden {
+            primitive_type,
+            operand,
+        } => {
+            let Some(target_type) = integer_scalar_type(*primitive_type)?.as_integer() else {
+                return unsupported("integer predicate widening has a non-integer target");
+            };
+            // Lower the operand in the caller's same entry/structural namespace.
+            // Keep widening at its authored position in the arithmetic tree;
+            // its complete source carrier, not a requirement, justifies the cast.
+            let operand = lower_operand(operand)?;
+            let Some(source_type) = operand.scalar_type().as_integer() else {
+                return unsupported("integer predicate widening has a non-integer operand");
+            };
+            ScalarTerm::integer_widen(source_type, target_type, operand)
+                .map_err(LoweringError::InvalidCrashPredicate)
+        }
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,
