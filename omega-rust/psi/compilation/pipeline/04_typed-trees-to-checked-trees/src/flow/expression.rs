@@ -1140,19 +1140,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         ] {
             if let Some(places) = places {
                 for place in places {
-                    let segments = self
-                        .context
-                        .control
-                        .operand_referent_segments
-                        .insert_many(place.segments.iter().copied());
-                    self.context.control.operand_origin_writes.append_to_span(
-                        retained,
-                        checked_trees::FlowOperandReferent {
-                            formation: arena::Handle::invalid(),
-                            root: place.root,
-                            segments,
-                        },
-                    );
+                    self.context.append_origin_write(retained, place);
                 }
             } else {
                 *unknown = true;
