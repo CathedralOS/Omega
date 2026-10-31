@@ -8,9 +8,6 @@ use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, Copy)]
 pub struct NativeLocatorVocabulary {
     pub binding: SymbolHandle,

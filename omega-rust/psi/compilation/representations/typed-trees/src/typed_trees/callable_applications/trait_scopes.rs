@@ -179,8 +179,46 @@ impl TypedTrees {
             .static_requirement_dispatch
             .as_ref()
             .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
-        if self.closed_requirement_application(target).is_some()
-            || !call.authored_machine_application.is_valid()
+        self.prepare_requirement_invocation_application(
+            lexical_owner,
+            target,
+            call.authored_machine_application,
+            bindings,
+            selected,
+        )
+    }
+
+    /// Statement and expression calls retain the same complete public view;
+    /// a discarded result does not discard the invocation's static operands.
+    pub fn prepare_requirement_statement_invocation(
+        &mut self,
+        lexical_owner: SymbolHandle,
+        call: &crate::statement::TableCall,
+        bindings: &[crate::static_applications::StaticMachineBinding],
+        selected: &signature::StateSignature,
+    ) -> Result<Option<signature::StateSignature>, &'static str> {
+        let target = call
+            .static_requirement_dispatch
+            .as_ref()
+            .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
+        self.prepare_requirement_invocation_application(
+            lexical_owner,
+            target,
+            call.authored_machine_application,
+            bindings,
+            selected,
+        )
+    }
+
+    fn prepare_requirement_invocation_application(
+        &mut self,
+        lexical_owner: SymbolHandle,
+        target: SymbolHandle,
+        authored_application: crate::static_applications::StaticMachineApplicationHandle,
+        bindings: &[crate::static_applications::StaticMachineBinding],
+        selected: &signature::StateSignature,
+    ) -> Result<Option<signature::StateSignature>, &'static str> {
+        if self.closed_requirement_application(target).is_some() || !authored_application.is_valid()
         {
             return Ok(None);
         }
@@ -226,7 +264,7 @@ impl TypedTrees {
         let signature = application.signature(self, selected)?;
         let owner = AppliedCallableOwner::RequirementInvocation {
             declaration,
-            application: call.authored_machine_application,
+            application: authored_application,
             lexical_owner,
         };
         let previous = self

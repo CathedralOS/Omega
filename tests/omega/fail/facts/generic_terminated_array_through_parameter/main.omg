@@ -11,7 +11,8 @@ requires self.bytes[3] == 0
 { prefix: u8; bytes: [u8; 4]; suffix: u8; }
 machine verify(value: &Text, expected: u64) reaches CText crashes Trap {
     let actual: u64 = CText::length<4>(&value.bytes);
-    transition actual == expected && value.prefix == 0xa5 && value.suffix == 0x5a {
+    let inferred: u64 = CText::length(&value.bytes);
+    transition actual == expected && inferred == expected && value.prefix == 0xa5 && value.suffix == 0x5a {
         true -> done()
         _ -> bad()
     }

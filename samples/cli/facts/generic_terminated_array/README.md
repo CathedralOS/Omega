@@ -5,6 +5,10 @@ Parent: `CANONICALIZE-SCALAR-RANGE-CONTRACTS`; necessary native-binding repair:
 
 A nonempty fixed array retains its last-byte terminator through transport and a generic native string read.
 
+Each place calls the same boundary once with explicit Count and once with Count
+inferred from the borrowed field's declared extent. Both calls must observe the
+same bytes and result; the existing explicit call and oracle stay intact.
+
 The generic boundary requires `Count > 0` before forming `text[Count - 1]`,
 then requires that byte to be zero. Its Build binds the requirement directly
 without a forwarding declaration. A four-byte array carries the same fact in
