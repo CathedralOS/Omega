@@ -1,9 +1,9 @@
 //! Snapshots of states, signatures, parameters, statements and transitions.
 
-use crate::item::{CrashCause, StateParameterNode, StateSignature};
+use crate::item::{CrashCause, State, StateParameterHandle, StateParameterNode, StateSignature};
 use crate::statement::{
-    AssemblyExit, AssemblyFactKind, StatementNode, TransitionExit, TransitionGuardNode,
-    TransitionTargetNode,
+    AssemblyExit, AssemblyFactKind, StatementHandle, StatementNode, TransitionExit,
+    TransitionGuardNode, TransitionTargetNode,
 };
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
@@ -172,10 +172,7 @@ pub enum TransitionTargetSnapshot {
     Terminal,
 }
 
-pub(crate) fn snapshot_state_node(
-    syntax_trees: &SyntaxTrees,
-    state: &crate::item::State,
-) -> StateSnapshot {
+pub(crate) fn snapshot_state_node(syntax_trees: &SyntaxTrees, state: &State) -> StateSnapshot {
     StateSnapshot {
         name: snapshot_identifier(syntax_trees, &state.name),
         parameters: snapshot_state_parameters(syntax_trees, state.parameters),
@@ -236,7 +233,7 @@ pub(crate) fn snapshot_state_signature(
 
 pub(crate) fn snapshot_state_signature_node(
     syntax_trees: &SyntaxTrees,
-    signature: &crate::item::StateSignature,
+    signature: &StateSignature,
 ) -> StateSignatureSnapshot {
     state_signature_snapshot!(syntax_trees, signature)
 }
@@ -256,7 +253,7 @@ pub(crate) fn snapshot_state_parameter(
 
 pub(crate) fn snapshot_state_parameters(
     syntax_trees: &SyntaxTrees,
-    span: HandleSpan<crate::item::StateParameterHandle>,
+    span: HandleSpan<StateParameterHandle>,
 ) -> Vec<StateParameterSnapshot> {
     syntax_trees
         .items
@@ -444,7 +441,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
 
 pub(crate) fn snapshot_statements(
     syntax_trees: &SyntaxTrees,
-    span: HandleSpan<crate::statement::StatementHandle>,
+    span: HandleSpan<StatementHandle>,
 ) -> Vec<StatementSnapshot> {
     syntax_trees
         .items
