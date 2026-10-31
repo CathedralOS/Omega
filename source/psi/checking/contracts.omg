@@ -104,8 +104,9 @@ crashes Trap
 
     machine data(syntax: &SyntaxTrees, item_handle: u64 in Trapping) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
-        let own: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Where);
-        transition own {
+        let required: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Requires);
+        let retired: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Where);
+        transition required || retired {
             true -> carries()
             _ -> case(syntax, item, 0)
         }

@@ -1843,6 +1843,25 @@ def main() -> None:
         ((b"b!3", "bool"),),
     )
 
+    # `self` in a data `requires` is that declaration applied to its own
+    # generic parameters. A bare `D0` would make `Value<T>` and `Value` the
+    # same subject.
+    accepted(
+        program,
+        "generic-data-requires-self-applies-its-parameters",
+        b"data Value<T> requires self.value == self.value { value: T; }\n"
+        b"machine use(v: Value<u8>) -> u8 { v.value }",
+        ((b"self", "D0<G0>"), (b"self.value", "G0"), (b"v.value", "u8")),
+    )
+    rejected(
+        program,
+        "generic-data-requires-unknown-field",
+        b"data Value<T> requires self.missing == self.missing { value: T; }\n"
+        b"machine use(v: Value<u8>) -> u8 { v.value }",
+        "UnknownField",
+        b"self.missing",
+    )
+
     # A non-Unit result is dropped only through `_ = call();`.
     accepted(
         program,

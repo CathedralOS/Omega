@@ -418,6 +418,7 @@ pub(crate) fn handle_assignment<'program>(
                     &place.symbols,
                     &place.measures,
                     place.born_zero,
+                    place.active_case,
                     *expression,
                 ) {
                     Some(value) if value != 0 => {}

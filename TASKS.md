@@ -203,10 +203,6 @@ retired-syntax deletions to completion.
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Repair nested/inherited scalar domain result establishment, including
-    qualified constant destinations. Apply a data declaration's own generic
-    arguments to `requires self` in the Omega-written producer when the subject
-    is a generic carrier.
   - Carry one general predicate representation through formation, construction,
     calls, matching, coverage, writes, and erasure so case membership plus the
     established domain recovers type equality and guarded payload bounds while

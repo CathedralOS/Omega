@@ -738,19 +738,31 @@ fn walk_state(
                 // obligation. Retain its independently completed case at this
                 // cut; a later payload write cannot rediscover it from syntax
                 // or the destination annotation after the source has changed.
+                let literal_case = local.initial_value.is_valid().then(|| {
+                    match program.expression_table.expression(local.initial_value) {
+                        typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                            literal.case_symbol.filter(|symbol| symbol.is_valid())
+                        }
+                        _ => None,
+                    }
+                }).flatten();
                 if local.initial_value.is_valid()
-                    && place_queries::declared_root_established(program, state, local.symbol)
                     && let Some(definition) = crate::field_domains::owned_nominal_data_definition(program, local.type_reference)
-                    && crate::value_custody::data::data_requires_establishment(program, definition)
                     && program.data_members(definition).iter().any(|member| member.as_variant().is_some())
                     && !tracked.iter().any(|place| place.spelling == local.name.as_str())
-                    && let Some(active_case) = crate::proof_contracts::contract_entailment::completed_value_case_at_occurrence(
-                        program, machine, state, statement_ordinal, local.initial_value, local.type_reference,
-                    )
+                    && let Some(active_case) = literal_case.or_else(|| {
+                        crate::proof_contracts::contract_entailment::completed_value_case_at_occurrence(
+                            program, machine, state, statement_ordinal, local.initial_value, local.type_reference,
+                        )
+                    })
                 {
+                    let (fields, symbols) = symbolic_values::struct_literal_snapshot(
+                        program,
+                        local.initial_value,
+                    );
                     tracked.push(TrackedPlace {
                         spelling: local.name.to_string(), definition,
-                        fields: Vec::new(), established_fields: Vec::new(), symbols: Vec::new(), measures: Vec::new(),
+                        fields, established_fields: Vec::new(), symbols, measures: Vec::new(),
                         established: true, born_zero: false, window_open: false,
                         elements: Vec::new(), element_windows: Vec::new(), active_case: Some(active_case),
                     });
