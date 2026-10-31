@@ -6,10 +6,9 @@
 // the same member-chain coordinate.
 data Bag { items: &[u32]; }
 
-machine walk(bag: Bag, capacity: u64)
-requires bag.items.len <= capacity;
-terminates by bag.items -> Slice::Length in 0..=capacity;
--> u64 {
+machine walk(bag: Bag, capacity: u64) -> u64
+requires bag.items.len <= capacity
+terminates by bag.items -> Slice::Length in 0..=capacity {
     transition { _ -> step(bag, capacity) }
     machine step(current: Bag, bound: u64) -> u64 {
         transition current.items.len > 0 {

@@ -4,6 +4,7 @@
 //! Later storage mutation cannot replace that value. Reference descendants
 //! still have ordinary live referent epochs, not frozen referee contents.
 
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{FlowOperandFact, FlowPermissionEvaluation};
 use typed_trees::expression::ExpressionHandle;
@@ -24,9 +25,7 @@ pub(crate) fn copied_payload_at<'facts>(
     let FlowPermissionEvaluation::TransitionTarget(target) = evaluation else {
         return None;
     };
-    let place = validation::canonical_place_from_expression_in_state(
-        program, state, statement, expression,
-    )?;
+    let place = place_at(program, state, statement, expression)?;
     let state_flow = flow.control.unique_state(machine, state)?;
     let mut matching = flow
         .control
@@ -46,12 +45,7 @@ pub(crate) fn copied_payload_at<'facts>(
             ) {
                 return None;
             }
-            let prefix = validation::canonical_place_from_expression_in_state(
-                program,
-                state,
-                statement,
-                copy.expression,
-            )?;
+            let prefix = place_at(program, state, statement, copy.expression)?;
             if prefix.root != place.root
                 || prefix.segments.len() > place.segments.len()
                 || !prefix
@@ -110,12 +104,7 @@ pub(in crate::flow) fn completed_copy_read_place(
         ) {
             continue;
         }
-        let prefix = validation::canonical_place_from_expression_in_state(
-            program,
-            state,
-            statement,
-            copy.expression,
-        )?;
+        let prefix = place_at(program, state, statement, copy.expression)?;
         if prefix.root != place.root
             || prefix.segments.len() > place.segments.len()
             || !prefix

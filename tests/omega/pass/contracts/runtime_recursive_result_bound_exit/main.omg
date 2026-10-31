@@ -1,7 +1,7 @@
 // Expected exit: 0
 machine descend(n: u64, previous: u64) -> u64
 requires n <= previous && previous <= 1000
-terminates by n -> Nat::Descending;
+terminates by n -> Nat::Descending
 ensures result <= previous
 {
     transition n > 0 {
@@ -21,7 +21,7 @@ machine wrong() crashes Trap { crash Trap; }
 
 machine descend_call(n: u64, previous: u64) -> u64
 requires n <= previous && previous <= 1000
-terminates by n -> Nat::Descending;
+terminates by n -> Nat::Descending
 ensures result <= previous
 {
     transition n > 0 {

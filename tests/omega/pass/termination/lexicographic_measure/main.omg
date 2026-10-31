@@ -14,18 +14,16 @@ machine Main::main(main: &mut Main) -> u64 {
         _ -> Main::scan_a(main, Progress { outer: 1, inner: 4 })
     }
 }
-machine Main::scan_a(main: &mut Main, progress: Progress)
-terminates by progress -> Progress::Steps;
--> u64
+machine Main::scan_a(main: &mut Main, progress: Progress) -> u64
+terminates by progress -> Progress::Steps
 {
     transition progress.inner > 0 {
         true -> Main::scan_b(main, progress)
         false -> 0
     }
 }
-machine Main::scan_b(main: &mut Main, progress: Progress)
-terminates by progress -> Progress::Steps;
--> u64
+machine Main::scan_b(main: &mut Main, progress: Progress) -> u64
+terminates by progress -> Progress::Steps
 {
     transition progress.inner > 0 {
         true -> Main::scan_a(main, Progress {

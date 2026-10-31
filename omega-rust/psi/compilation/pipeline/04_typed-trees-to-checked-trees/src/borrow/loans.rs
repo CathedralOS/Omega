@@ -38,6 +38,8 @@
 //! Those leaves are facts, separate from local activation/lifecycle events.
 
 use crate::borrow::view_link::is_borrow_carrying_data;
+use crate::flow::expressions;
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::name::Identifier;
@@ -155,12 +157,8 @@ pub(super) fn retain_backing_contents(
             let Some(borrow) = program.expression_table.borrow_expression(expression) else {
                 return;
             };
-            let Some(place) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                borrow.target,
-            ) else {
+            let Some(place) = place_at(program, state.symbol, statement_index, borrow.target)
+            else {
                 return;
             };
             if let facts::PlaceRoot::Expression(expression) = place.root
@@ -411,9 +409,8 @@ fn binding_borrow_loans(
     // A selection's operands complete after its subject and patterns. Form
     // each selected value at its own cut, rather than borrowing the selection's
     // entry roster for every arm. This is shared by references and aggregates.
-    if let checked_trees::expression::ExpressionNode::Match(dispatch) = program
-        .expression_table
-        .expression(local_data.initial_value)
+    if let checked_trees::expression::ExpressionNode::Match(dispatch) =
+        expressions(program).expression(local_data.initial_value)
     {
         let mut loans = Vec::new();
         for arm in program.expression_table.match_arms(dispatch.arms) {

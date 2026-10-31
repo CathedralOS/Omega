@@ -10,12 +10,11 @@ machine Main::main(main: &mut Main) -> u32 {
 machine Main::audit(main: &mut Main, value: u32) {
     main.audits = 0;
 }
-machine Main::walk(main: &mut Main, remaining: u32, ceiling: u32)
+machine Main::walk(main: &mut Main, remaining: u32, ceiling: u32) -> u32
 requires
-    5 <= ceiling && ceiling <= 10;
-    remaining <= ceiling;
-terminates by remaining in 0..=ceiling;
--> u32 {
+    5 <= ceiling && ceiling <= 10,
+    remaining <= ceiling
+terminates by remaining in 0..=ceiling {
     Main::audit(main, remaining);
     transition remaining > 0 {
         true -> walk(main, remaining - 1, ceiling)

@@ -149,9 +149,7 @@ pub(crate) fn resolve_package_policy_decisions(
         .and_then(|count| count.checked_add(changes.source_replacements().len()))
         .ok_or(Error::AllocationFailed)?;
     let mut subjects = Vec::new();
-    subjects
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(subjects, count, Error);
     if changes.root_role_change().is_some() {
         subjects.push((Subject::RootRole, true));
     }
@@ -180,9 +178,7 @@ pub(crate) fn resolve_package_policy_decisions(
         return Err(Error::TooManyDecisions);
     }
     let mut sorted = Vec::new();
-    sorted
-        .try_reserve_exact(decisions.len())
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(sorted, decisions.len(), Error);
     for decision in decisions {
         let index = subjects
             .binary_search_by_key(&decision.subject, |(subject, _)| *subject)

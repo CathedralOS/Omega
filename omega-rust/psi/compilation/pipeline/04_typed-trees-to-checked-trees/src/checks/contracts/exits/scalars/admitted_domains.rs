@@ -6,6 +6,7 @@
 use super::*;
 use crate::facts::boolean_predicates;
 use crate::flow::active_context_handles;
+use crate::places::place_at;
 
 pub(in crate::checks::contracts) struct BoundaryRefutations {
     machines: Vec<(
@@ -96,12 +97,7 @@ impl BoundaryRefutations {
                     obligation.domain,
                 );
             let subject = if !obligation.parameter.is_valid() {
-                canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    exit.statement_index,
-                    returned,
-                )
+                place_at(program, state.symbol, exit.statement_index, returned)
             } else if obligation.realization_state == entry.symbol {
                 origins
                     .iter()

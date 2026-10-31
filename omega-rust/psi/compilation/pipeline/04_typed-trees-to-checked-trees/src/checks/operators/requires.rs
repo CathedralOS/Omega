@@ -52,6 +52,7 @@ use typed_trees::operator::OperatorDefinition;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::PrimitiveType;
 
+use crate::flow::expressions;
 use crate::labels::{
     context_proves_boolean_label, instantiate_operator_contract_expression_label, symbol_name,
 };
@@ -247,8 +248,7 @@ pub(super) fn selected_binary_requires_diagnostics(
             && let Some(ordinal) = source_arm
                 .arena_index()
                 .checked_sub(dispatch.arms.start().arena_index())
-            && program
-                .expression_table
+            && expressions(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .take(ordinal as usize)
@@ -601,8 +601,7 @@ fn requires_fact_proven(
             let contexts = contexts.for_expressions(
                 program,
                 parameters,
-                program
-                    .expression_table
+                expressions(program)
                     .expression_handles(application.arguments)
                     .iter()
                     .copied(),
@@ -804,8 +803,7 @@ fn requires_clause_label(
         ProofFact::Proposition(application) => format!(
             "{}({})",
             application.name.as_str(),
-            program
-                .expression_table
+            expressions(program)
                 .expression_handles(application.arguments)
                 .iter()
                 .map(|argument| {
@@ -871,11 +869,7 @@ fn reflexive_comparison_holds(
         return false;
     };
     let single = |path: &typed_trees::expression::TableNamePath| {
-        program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            == 1
+        expressions(program).name_path_members(path.members).len() == 1
     };
     if !left.symbol.is_valid() || left.symbol != right.symbol || !single(left) || !single(right) {
         return false;
@@ -1002,13 +996,7 @@ fn operand_for_parameter(
     operands: &[ExpressionHandle],
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<ExpressionHandle> {
-    if !path.symbol.is_valid()
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
+    if !path.symbol.is_valid() || expressions(program).name_path_members(path.members).len() != 1 {
         return None;
     }
     let operands_include_self = operands.len() == parameters.len();

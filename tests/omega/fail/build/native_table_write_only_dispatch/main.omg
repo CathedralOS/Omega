@@ -8,7 +8,7 @@ satisfies Query::run via ForeignBinding::VtableField(query);
 
 machine main()
 reaches Query
-invokes Query;
+invokes Query
 {
     let mut table: Table;
     let result: i32 = Query::run(&write table);

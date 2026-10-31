@@ -1,7 +1,6 @@
-machine walk(remaining: u32)
+machine walk(remaining: u32) -> u32
     requires 0 <= remaining && remaining <= 5
-terminates by remaining in 0..=5;
--> u32 {
+terminates by remaining in 0..=5 {
     transition { _ -> prepare(remaining, remaining) }
     machine prepare(left: u32, right: u32) -> u32
         requires 0 <= left && left <= 5 && 0 <= right && right <= 5

@@ -10,13 +10,13 @@ boundary trait Finish {
 Finisher satisfies Finish { Finish::finish = finish; }
 proposition finished(token: Token) = model_specific_written(2059, 0);
 machine preserve() reaches MachineControl
-requires model_specific_written(2059, 0);
-ensures model_specific_written(2059, 0);
+requires model_specific_written(2059, 0)
+ensures model_specific_written(2059, 0)
 {}
 machine finish(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-requires model_specific_written(2059, 0);
-ensures finished(token);
+requires model_specific_written(2059, 0)
+ensures finished(token)
 { preserve(); }
 machine main() {}

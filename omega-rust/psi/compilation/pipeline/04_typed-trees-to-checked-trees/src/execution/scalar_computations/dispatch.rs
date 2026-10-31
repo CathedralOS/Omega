@@ -3,6 +3,7 @@ use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode, PrimitiveType,
 };
+use crate::flow::expressions;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar_expression_type;
@@ -165,8 +166,7 @@ impl Builder<'_, '_> {
             self.retained_argument_owner(value, reference)?;
             self.retain_structural_value_root(value, reference)?;
             let alias = if dispatch.capture.is_valid() {
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .value_capture(dispatch.capture)
                     .value_anchor
             } else {

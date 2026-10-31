@@ -7,6 +7,7 @@
 //! composes the callee's conservation theorem without inventing scalar promises
 //! about how the callee chose the individual child geometries.
 
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyClaimBinding, ContentClaimTransformation, ContentClaimTransformationSource,
@@ -305,7 +306,7 @@ fn capture_matches(
                 }
             }
             Ok(true)
-        } else if let Some(mut place) = validation::canonical_place_from_expression_in_state(
+        } else if let Some(mut place) = place_at(
             program,
             capture.state_symbol,
             capture.statement_index,

@@ -2,7 +2,7 @@ use omega_language_std::console;
 use linkage::model;
 
 public machine number(value: u64) reaches Console
-invokes Console;
+invokes Console
 {
     // Runtime recursion is tail-only. Find the highest decimal place, then
     // emit left to right using state backedges and a positive divisor.
@@ -34,7 +34,7 @@ invokes Console;
 }
 
 public machine report(linkage: &Linkage) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("best=");
     number(linkage.best);

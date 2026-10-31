@@ -24,9 +24,7 @@ pub(super) fn policy_source_membership(
         .ok_or(Error::AllocationLimitExceeded)?;
     let mut remaining_nodes = maximum_identity_nodes;
     let mut packages = Vec::new();
-    packages
-        .try_reserve_exact(source.packages().len())
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(packages, source.packages().len(), Error);
     packages.extend(
         source
             .packages()

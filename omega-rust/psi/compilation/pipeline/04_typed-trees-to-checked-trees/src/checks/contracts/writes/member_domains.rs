@@ -2,6 +2,8 @@
 //! member values, and subject/domain qualification proofs for constructed
 //! field values.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -376,12 +378,7 @@ fn predicate_expression_holds_on_value(
         else {
             return false;
         };
-        let Some(mut place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.state_symbol,
-            statement_index,
-            value,
-        ) else {
+        let Some(mut place) = place_at(program, state.state_symbol, statement_index, value) else {
             return false;
         };
         if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
@@ -410,8 +407,7 @@ fn literal_member_value(
             return None;
         };
         let literal = program.expression_table.struct_literal_node(current)?;
-        current = program
-            .expression_table
+        current = expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .find(|field| field.field_symbol == *symbol)
@@ -505,12 +501,7 @@ fn member_subject_satisfies_domain(
             frames,
         ));
     }
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement_index,
-        value,
-    ) else {
+    let Some(place) = place_at(program, state.state_symbol, statement_index, value) else {
         return false;
     };
     let mut subject = place.clone();

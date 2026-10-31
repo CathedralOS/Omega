@@ -20,6 +20,7 @@
 use super::{AbstractOperationPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
 use crate::structural_inputs::structural_reference_input::{self, RuntimeElement};
+use abstract_operations::control_flow::address_joins::is_address_join_in;
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralOperationResult, StructuralPathSegment};
@@ -88,16 +89,14 @@ pub(in crate::legalization) fn extent(
                         .blocks
                         .iter()
                         .any(|block| block.structural_parameters.contains(root))
-                        && (abstract_operations::control_flow::address_joins::is_address_join_in(
-                            root,
-                            &plan.structural_types,
-                        ) || (matches!(
-                            root.access,
-                            terminal_psi::exclusive_borrow_pair_pattern!()
-                        ) && terminal_semantics::view_descriptor_parameter(
-                            root,
-                            plan.structural_types.iter(),
-                        )))))
+                        && (is_address_join_in(root, &plan.structural_types)
+                            || (matches!(
+                                root.access,
+                                terminal_psi::exclusive_borrow_pair_pattern!()
+                            ) && terminal_semantics::view_descriptor_parameter(
+                                root,
+                                plan.structural_types.iter(),
+                            )))))
                 || (root.access == StructuralAccess::MutableBorrow
                     && function
                         .entry_claim_declarations

@@ -44,7 +44,7 @@ public boundary trait Console {
     machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches
         Console
-    blocks;
+    blocks
     crashes Trap;
     // Byte-level stdin/stdout (the settled universal console surface):
     // `read_byte` yields the next stdin byte as `ByteRead::Byte`, or
@@ -55,7 +55,7 @@ public boundary trait Console {
     machine read_byte() -> ByteRead
     reaches
         Console
-    blocks;
+    blocks
     crashes Trap;
     machine write_byte(byte: i32)
     reaches
@@ -79,11 +79,11 @@ public NativeConsole satisfies Console {
         console_write_bytes(text, false);
     }
     machine read_line(out_line: &mut [u8]) -> LineReadResult
-    reaches Console blocks; crashes Trap {
+    reaches Console blocks crashes Trap {
         block ConsoleNativeProvider::read_line(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks; crashes Trap {
+    reaches Console blocks crashes Trap {
         block ConsoleNativeProvider::read_byte()
     }
     machine write_byte(byte: i32) reaches Console {
@@ -137,7 +137,7 @@ reaches Console {
 // cycle. Each guarded edge stages the head byte and tail slice; the helper's
 // body performs the byte effect only after that edge was selected.
 machine console_write_bytes(bytes: &[u8], newline: bool)
-terminates by bytes -> Slice::Length;
+terminates by bytes -> Slice::Length
 reaches
     Console
 {
@@ -147,7 +147,7 @@ reaches
     }
 
     machine emit(byte: u8, bytes: &[u8], newline: bool)
-    terminates by bytes -> Slice::Length; {
+    terminates by bytes -> Slice::Length {
         let mut output: u8 = byte;
         ConsoleNativeProvider::write_byte(output as i32);
         transition bytes.len > 0 {

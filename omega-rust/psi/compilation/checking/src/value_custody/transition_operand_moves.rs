@@ -10,6 +10,7 @@
 //! ledger row; a ledger row this reconstruction does not name stays
 //! unaccounted, so the edge declines rather than guessing an owner.
 
+use crate::frozen_program::expression_table;
 use std::collections::HashSet;
 
 use checked_trees::CheckFacts;
@@ -63,15 +64,14 @@ pub fn transition_operand_moves(
     let calls = facts.flow.control.calls.span_or_empty(flow.calls);
     let mut moves = Vec::new();
     for node in nodes {
-        let Some(call) = program.expression_table.call_node(node) else {
+        let Some(call) = expression_table(program).call_node(node) else {
             continue;
         };
-        let names_local = program
-            .expression_table
+        let names_local = expression_table(program)
             .expression_handles(call.arguments)
             .iter()
             .any(|argument| {
-                matches!(program.expression_table.expression(*argument),
+                matches!(expression_table(program).expression(*argument),
                     ExpressionNode::Name(name) if name.symbol == local
                         && name.head_symbol == local
                         && program.expression_table.name_path_members(name.members).len() == 1)

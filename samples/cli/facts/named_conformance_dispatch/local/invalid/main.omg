@@ -12,14 +12,14 @@ Selected satisfies Arithmetic<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         left + right
     }
 }
 
 machine apply<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -30,7 +30,7 @@ ensures result == left + right
 // Place: local (invalid twin). The right operand is unbounded, violating the combine precondition.
 // Expected exit: 0
 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     let left: i32 = a;
@@ -38,7 +38,7 @@ requires 0 <= a && a <= 50
     block apply<Selected>(left, right)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
     machine done() {}

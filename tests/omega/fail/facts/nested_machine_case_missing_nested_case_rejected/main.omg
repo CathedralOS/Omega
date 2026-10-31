@@ -3,16 +3,16 @@
 data Payload { case Pending(count: u64); case Empty; }
 data Remaining { canary: u64; inner: Payload; }
 machine count(counter: &mut u64, remaining: Remaining) crashes Trap
-terminates;
-terminates by remaining.inner.count;
-requires remaining.inner.count <= 7;
+terminates
+terminates by remaining.inner.count
+requires remaining.inner.count <= 7
 {
     transition remaining.inner.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: Remaining, counter: &mut u64) crashes Trap
-    requires pending.inner in Payload::Pending, pending.inner.count > 0 && pending.inner.count <= 7;
+    requires pending.inner in Payload::Pending, pending.inner.count > 0 && pending.inner.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let next: Remaining = Remaining { canary: pending.canary, inner: Payload::Pending { count: pending.inner.count - 1 } };

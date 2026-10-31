@@ -2,16 +2,16 @@
 // Expected exit: 0
 data Remaining { canary: u64; count: u64; }
 machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-terminates;
-terminates by remaining.count;
-requires remaining.count <= 7;
+terminates
+terminates by remaining.count
+requires remaining.count <= 7
 {
     transition remaining.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-    requires pending.count > 0 && pending.count <= 7;
+    requires pending.count > 0 && pending.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let alias: &mut Remaining = pending;
@@ -21,14 +21,14 @@ requires remaining.count <= 7;
             false -> finish(alias.canary)
         }
         machine decrement(alias: &mut Remaining, counter: &mut u64) crashes Trap
-        requires alias.count > 0 && alias.count <= 7;
+        requires alias.count > 0 && alias.count <= 7
         {
             alias.count = alias.count - 1;
             transition { _ -> count(counter, alias) }
         }
     }
     machine reset(value: &mut Remaining)
-    ensures value.count == 7;
+    ensures value.count == 7
     { value.count = 7; }
     machine finish(canary: u64) crashes Trap {
         transition canary == 641 { true -> done() false -> bad() }

@@ -8,6 +8,7 @@
 //! nodes. Ranking remains independent of tail position; later checking admits
 //! operands, invocation contracts, ownership and exact authored call markers.
 
+use crate::tables::body_statements;
 use arena::HandleSpan;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -105,10 +106,7 @@ fn normalize_state(
 ) {
     let final_position = statements.len().checked_sub(1);
     for (position, statement_handle) in statements.handles().enumerate() {
-        match program
-            .tables
-            .bodies
-            .statements
+        match body_statements(&program)
             .statement(statement_handle)
             .clone()
         {

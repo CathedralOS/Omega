@@ -9,8 +9,8 @@ data Operands {
 }
 
 machine divide_field(dividend: u8, divisor: u8) -> i32
-    requires dividend >= 120u8 && dividend <= 120u8;
-    requires divisor >= 4u8 && divisor <= 5u8;
+    requires dividend >= 120u8 && dividend <= 120u8
+    requires divisor >= 4u8 && divisor <= 5u8
 {
     let ops: Operands = Operands { dividend: dividend, divisor: divisor };
     let quotient: u8 = ops.dividend / ops.divisor;

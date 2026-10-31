@@ -3,16 +3,16 @@
 // Expected exit: 0
 
 machine compute_diff(l: i16, r: i16) -> i16
-    requires l >= 300i16 && l <= 500i16;
-    requires r >= 50i16 && r <= 100i16;
-    ensures result >= 200i16 && result <= 450i16;
+    requires l >= 300i16 && l <= 500i16
+    requires r >= 50i16 && r <= 100i16
+    ensures result >= 200i16 && result <= 450i16
 {
     l - r
 }
 
 machine subtract_call_result(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 500i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 500i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let diff: i16 = compute_diff(lhs, rhs);
     let headroom: i16 = 450i16 - diff;

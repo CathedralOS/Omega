@@ -65,6 +65,7 @@
 //! leaving a selection without executable supply could silently substitute
 //! builtin arithmetic, which the contract forbids.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use checked_trees::{
     CheckedOperatorOccurrence, CheckedOperatorResolutionStatus, CheckedValueOrigin,
 };
@@ -148,7 +149,7 @@ pub(crate) fn bind_selected_operator_calls(
             &mut expressions,
         );
         for expression in expressions.iter().copied() {
-            let Some(binary) = program.expression_table.binary_node(expression) else {
+            let Some(binary) = expressions_of(program).binary_node(expression) else {
                 continue;
             };
             let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
@@ -204,7 +205,7 @@ pub(crate) fn bind_selected_operator_calls(
         let bindable = operator_use
             .is_none_or(|usage| usage.occurrence == CheckedOperatorOccurrence::Expression)
             && matches!(
-                program.expression_table.expression(expression),
+                expressions_of(program).expression(expression),
                 ExpressionNode::Binary(_) | ExpressionNode::Indexed(_)
             );
         if !bindable {
@@ -241,7 +242,7 @@ pub(crate) fn bind_selected_operator_calls(
                 &mut expressions,
             );
             for expression in expressions.iter().copied() {
-                let Some(call) = program.expression_table.call_node(expression) else {
+                let Some(call) = expressions_of(program).call_node(expression) else {
                     continue;
                 };
                 let owner = program
@@ -276,13 +277,13 @@ pub(crate) fn bind_selected_operator_calls(
         let Some(binding) = program.machine_token_binding_by_symbol(requirement) else {
             continue;
         };
-        let Some(call) = program.expression_table.call_node(expression) else {
+        let Some(call) = expressions_of(program).call_node(expression) else {
             continue;
         };
         if !call.receiver.is_valid() {
             continue;
         }
-        let Some(receiver) = program.expression_table.name_path_node(call.receiver) else {
+        let Some(receiver) = expressions_of(program).name_path_node(call.receiver) else {
             continue;
         };
         if receiver.symbol.is_valid()
@@ -301,7 +302,7 @@ pub(crate) fn bind_selected_operator_calls(
             continue;
         };
         if member.as_str() != call.target.as_str()
-            || namespace != program.expression_table.name_path_members(receiver.members)
+            || namespace != expressions_of(program).name_path_members(receiver.members)
         {
             continue;
         }
@@ -318,14 +319,12 @@ pub(crate) fn bind_selected_operator_calls(
         // Never overwrite an already retained requirement with its realization.
         let application = call.authored_machine_application;
         if application.is_valid() {
-            let retained = program
-                .expression_table
-                .static_machine_application_mut(application);
+            let retained = expressions_of_mut(program).static_machine_application_mut(application);
             if !retained.registration_operation.is_valid() {
                 retained.registration_operation = entry_symbol;
             }
         }
-        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
+        if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(expression) {
             call.receiver = ExpressionHandle::invalid();
             call.target_symbol = entry_symbol;
             bound_count += 1;
@@ -334,7 +333,7 @@ pub(crate) fn bind_selected_operator_calls(
     for (expression, target, origin) in bindings {
         // Copy the operand source handles before any endpoint normalization
         // mutates the expression table below.
-        let operand_source = match program.expression_table.expression(expression) {
+        let operand_source = match expressions_of(program).expression(expression) {
             ExpressionNode::Binary(binary) => OperandSource::Pair([binary.left, binary.right]),
             ExpressionNode::Indexed(indexed) => OperandSource::Indexed {
                 collection: indexed.collection,
@@ -357,7 +356,7 @@ pub(crate) fn bind_selected_operator_calls(
                 let collection_argument =
                     indexed_collection_argument(program, collection, target.collection_parameter);
                 let mut operands = vec![collection_argument];
-                let range = match program.expression_table.expression(index) {
+                let range = match expressions_of(program).expression(index) {
                     ExpressionNode::Range(range) => Some(*range),
                     _ => None,
                 };
@@ -386,21 +385,20 @@ pub(crate) fn bind_selected_operator_calls(
                 operands
             }
         };
-        let arguments = program
-            .expression_table
-            .insert_expression_handles(operands.iter().copied());
+        let arguments =
+            expressions_of_mut(program).insert_expression_handles(operands.iter().copied());
         let receiver = if target.binder.is_valid() {
             let binder_name =
                 typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
             crate::monomorphization::insert_subject_name(
-                &mut program.expression_table,
+                expressions_of_mut(program),
                 binder_name,
                 target.binder,
             )
         } else {
             ExpressionHandle::invalid()
         };
-        *program.expression_table.expression_mut(expression) =
+        *expressions_of_mut(program).expression_mut(expression) =
             ExpressionNode::Call(synthesized_operator_call(receiver, target, arguments));
     }
     if diagnostics.is_empty() {
@@ -459,7 +457,7 @@ fn rewrite_match_equality(
     expression: ExpressionHandle,
     mut supplied: Vec<(arena::Handle<TableMatchArm>, SelectedOperatorCall)>,
 ) -> Result<usize, Diagnostic> {
-    let dispatch = match program.expression_table.expression(expression) {
+    let dispatch = match expressions_of(program).expression(expression) {
         ExpressionNode::Match(dispatch) => *dispatch,
         _ => {
             return Err(Diagnostic::error(
@@ -467,7 +465,7 @@ fn rewrite_match_equality(
             ));
         }
     };
-    let authored = program.expression_table.match_arms(dispatch.arms).to_vec();
+    let authored = expressions_of(program).match_arms(dispatch.arms).to_vec();
     let value_count = authored
         .iter()
         .position(|arm| matches!(arm.pattern, MatchPattern::Wildcard))
@@ -517,30 +515,24 @@ fn rewrite_match_equality(
                 "a body-bearing match equality has no following arm for a false result",
             ));
         };
-        let arguments = program
-            .expression_table
-            .insert_expression_handles([dispatch.subject, pattern]);
+        let arguments =
+            expressions_of_mut(program).insert_expression_handles([dispatch.subject, pattern]);
         let receiver = if target.binder.is_valid() {
             let binder_name =
                 typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
             crate::monomorphization::insert_subject_name(
-                &mut program.expression_table,
+                expressions_of_mut(program),
                 binder_name,
                 target.binder,
             )
         } else {
             ExpressionHandle::invalid()
         };
-        let call =
-            program
-                .expression_table
-                .insert(ExpressionNode::Call(synthesized_operator_call(
-                    receiver, target, arguments,
-                )));
-        let truth = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
-        let arms = program.expression_table.insert_match_arms([
+        let call = expressions_of_mut(program).insert(ExpressionNode::Call(
+            synthesized_operator_call(receiver, target, arguments),
+        ));
+        let truth = expressions_of_mut(program).insert(ExpressionNode::Boolean(true));
+        let arms = expressions_of_mut(program).insert_match_arms([
             TableMatchArm {
                 pattern: MatchPattern::Value(truth),
                 value: authored[ordinal].value,
@@ -552,7 +544,7 @@ fn rewrite_match_equality(
                 source_span: authored[ordinal].source_span,
             },
         ]);
-        remainder = Some(program.expression_table.insert(ExpressionNode::Match(
+        remainder = Some(expressions_of_mut(program).insert(ExpressionNode::Match(
             TableMatchExpression {
                 subject: call,
                 capture: Default::default(),
@@ -566,10 +558,10 @@ fn rewrite_match_equality(
         ));
     };
     let node = std::mem::replace(
-        program.expression_table.expression_mut(remainder),
+        expressions_of_mut(program).expression_mut(remainder),
         ExpressionNode::Boolean(false),
     );
-    *program.expression_table.expression_mut(expression) = node;
+    *expressions_of_mut(program).expression_mut(expression) = node;
     Ok(value_count)
 }
 
@@ -637,7 +629,7 @@ fn selected_call_target(
     spelling: language_core::OperatorSpelling,
     operator_use: Option<&checked_trees::CheckedOperatorUseFact>,
 ) -> Result<Option<SelectedOperatorCall>, Diagnostic> {
-    let operand_types = match program.expression_table.expression(expression) {
+    let operand_types = match expressions_of(program).expression(expression) {
         ExpressionNode::Binary(binary) => Some(
             [binary.left, binary.right]
                 .map(|operand| expression_type_reference_for_origin(program, operand, origin))
@@ -798,7 +790,7 @@ fn indexed_collection_argument(
     if !access.is_readable() {
         return collection;
     }
-    program.expression_table.insert(ExpressionNode::Borrow(
+    expressions_of_mut(program).insert(ExpressionNode::Borrow(
         typed_trees::expression::TableBorrowExpression {
             target: collection,
             access,
@@ -831,7 +823,7 @@ fn range_operands(
     let end = if range.end.is_valid() {
         range.end
     } else {
-        program.expression_table.insert(ExpressionNode::Member(
+        expressions_of_mut(program).insert(ExpressionNode::Member(
             typed_trees::expression::TableMemberExpression {
                 receiver: collection,
                 member: typed_trees::name::Identifier::generated("len"),
@@ -851,9 +843,7 @@ fn range_operands(
                 "`{machine_name}` was selected for its fixed operator token `[..]` but the range use omits its start; the omitted endpoint is zero, which only an integer start parameter forms -- write it explicitly as `0..`",
             )));
         }
-        program
-            .expression_table
-            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)))
+        expressions_of_mut(program).insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)))
     };
     if !range.end_inclusive {
         return Ok((start, end));
@@ -867,15 +857,12 @@ fn range_operands(
             "`{machine_name}` was selected for its fixed operator token `[..]` but the range use is inclusive (`..=`); the normalized `end + 1` form requires an integer end operand -- write the exclusive bound explicitly",
         )));
     }
-    let one = program
-        .expression_table
-        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
-    let end = program
-        .expression_table
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: range.end,
-            operator: BinaryOperator::Add,
-            right: one,
-        }));
+    let one =
+        expressions_of_mut(program).insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+    let end = expressions_of_mut(program).insert(ExpressionNode::Binary(TableBinaryExpression {
+        left: range.end,
+        operator: BinaryOperator::Add,
+        right: one,
+    }));
     Ok((start, end))
 }

@@ -9,6 +9,7 @@ use super::super::{
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
@@ -19,10 +20,7 @@ impl emission::Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
-        let node = self
-            .checked
-            .facts
-            .values
+        let node = value_facts(&self.checked)
             .structural_values
             .nodes
             .get(value)
@@ -150,9 +148,7 @@ impl emission::Emission<'_, '_, '_> {
         field_index: usize,
     ) -> Result<terminal_psi::RecordFieldValue, LoweringError> {
         if !matches!(
-            self.checked
-                .facts
-                .values
+            value_facts(&self.checked)
                 .structural_values
                 .nodes
                 .get(value)

@@ -2,7 +2,7 @@
 public boundary trait Scheduler { machine advance() reaches suspends; }
 machine observe(value: &i32) -> i32 { value }
 
-machine invalid() suspends; reaches Scheduler {
+machine invalid() suspends reaches Scheduler {
     let mut backing: i32 = 40;
     let retained: &i32 = &backing;
     suspend Scheduler::advance();

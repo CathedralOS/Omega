@@ -1,7 +1,7 @@
 // The recorded count is below 4, so its exact increment preserves the buffer count <= 4 default domain.
 // Expected exit: 0
 data Window where count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
-machine identity(ready: bool) -> bool ensures result == ready; { ready }
+machine identity(ready: bool) -> bool ensures result == ready { ready }
 machine probe(window: &mut Window, enabled: bool, value: u8) {
     let ready: bool = identity(window.count < 4);
     transition enabled && ready { true -> read(window, value) false -> {} }

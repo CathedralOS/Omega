@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorFacts, FlowFacts, FlowSemanticContextRef, IndexCompatibilityDischarge,
@@ -389,8 +390,7 @@ impl CompatibilityScan<'_> {
             ExpressionNode::ArrayLiteral(elements) => {
                 if let Some(element_type) = literal_element_type(self.program, target_type) {
                     children.extend(
-                        self.program
-                            .expression_table
+                        expressions(self.program)
                             .expression_handles(*elements)
                             .iter()
                             .map(|element| (*element, element_type)),
@@ -399,8 +399,7 @@ impl CompatibilityScan<'_> {
             }
             ExpressionNode::Match(dispatch) => {
                 children.extend(
-                    self.program
-                        .expression_table
+                    expressions(self.program)
                         .match_arms(dispatch.arms)
                         .iter()
                         .map(|arm| (arm.value, target_type)),

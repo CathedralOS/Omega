@@ -33,11 +33,11 @@ linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, packet: 
 linux_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
     satisfies DescriptorIo::write via ForeignBinding::Syscall(64);
 
-machine receive(packet: &mut Packet) -> i64 reaches DescriptorIo blocks; {
+machine receive(packet: &mut Packet) -> i64 reaches DescriptorIo blocks {
     block DescriptorIo::read(0, packet, 6)
 }
 
-machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     main.before = 17;
     main.packet = Packet { header: 60, inner: Inner { bytes: [88, 88, 88] }, tail: 2593 };
     main.after = 29;
@@ -56,7 +56,7 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+machine entry_start() reaches DescriptorIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

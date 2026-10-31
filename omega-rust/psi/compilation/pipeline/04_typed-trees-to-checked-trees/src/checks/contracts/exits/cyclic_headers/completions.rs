@@ -294,6 +294,19 @@ fn return_value(
         parameters: header.program.state_parameters(state),
         symbols: &[],
         state: state.symbol,
+        contents: crate::values::CurrentIntegerBounds::new(
+            header.program,
+            &header.facts.operators,
+            &header.facts.semantic,
+            &[],
+            state.symbol,
+            facts::ProgramPoint::Exit {
+                machine_symbol: exit.machine_symbol,
+                state_symbol: exit.state_symbol,
+                statement_index: exit.statement_index,
+                transition_target: exit.transition_target,
+            },
+        ),
     };
     let bounds = validation::selected_scalar_interval(&selected, &mut values)?;
     Some(ScopedArithmeticValue::BoundedInteger {

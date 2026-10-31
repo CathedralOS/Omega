@@ -11,6 +11,7 @@
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
+use crate::flow::expressions;
 use crate::labels::call_target_label;
 
 mod conflicts;
@@ -134,33 +135,23 @@ fn check_build_selection_receiver<'p>(
     if !commit.authored_expression.is_valid() {
         return;
     }
-    let Some(operation) = program
-        .expression_table
-        .call_node(commit.authored_expression)
-    else {
+    let Some(operation) = expressions(program).call_node(commit.authored_expression) else {
         return;
     };
     if !operation.build_selection.is_valid() || operation.target.as_str() == "prepare" {
         return;
     }
-    let request = program
-        .expression_table
-        .build_selection_request(operation.build_selection);
-    let arguments = program
-        .expression_table
-        .expression_handles(operation.arguments);
+    let request = expressions(program).build_selection_request(operation.build_selection);
+    let arguments = expressions(program).expression_handles(operation.arguments);
     let receiver_preparation = arguments.first().and_then(|expression| {
         let preparation = program.expression_table.call_node(*expression)?;
-        let retained = program
-            .expression_table
-            .build_selection_request(preparation.build_selection)?;
+        let retained = expressions(program).build_selection_request(preparation.build_selection)?;
         // Copies allocate independent request handles for each call. Their
         // source-issued payload, never arena-index equality, links the pair.
         if preparation.target.as_str() != "prepare" || Some(retained) != request {
             return None;
         }
-        let receiver = program
-            .expression_table
+        let receiver = expressions(program)
             .expression_handles(preparation.arguments)
             .first()?;
         Some((*expression, *receiver))

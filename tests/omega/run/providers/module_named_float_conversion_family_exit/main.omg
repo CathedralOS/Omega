@@ -6,8 +6,8 @@ public data Main { }
 // Named modules must not make unchanged core provider families disappear.
 // The byte is runtime input so the conversion also crosses native/Terminal.
 public machine Main::main(application: &mut Main) reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition block Console::read_byte() {

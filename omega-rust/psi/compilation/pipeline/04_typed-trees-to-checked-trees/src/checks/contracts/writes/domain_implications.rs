@@ -5,6 +5,8 @@
 //! Recast sources and contextual predicate proofs retain their distinct duties.
 
 use crate::flow::active_context_handles;
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -141,12 +143,7 @@ pub(super) fn value_case_path_is_selected(
     statement_index: usize,
     value: ExpressionHandle,
 ) -> bool {
-    let Some(subject) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement_index,
-        value,
-    ) else {
+    let Some(subject) = place_at(program, state.state_symbol, statement_index, value) else {
         return true;
     };
     if !subject
@@ -208,12 +205,7 @@ pub(super) fn value_proves_qualification_with_domain_stack(
     active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let subject = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement_index,
-        value,
-    );
+    let subject = place_at(program, state.state_symbol, statement_index, value);
     if subject.as_ref().is_some_and(|subject| {
         !crate::flow::place_cases_are_selected(
             program,
@@ -388,12 +380,7 @@ pub(super) fn value_proves_domain_in_contexts(
         return true;
     }
 
-    let subject = validation::canonical_place_from_expression_in_state(
-        program,
-        state_flow.state_symbol,
-        statement_index,
-        value,
-    );
+    let subject = place_at(program, state_flow.state_symbol, statement_index, value);
     // Initializers, constructor children and writes consume the same live
     // judgment. A retained AssignedValue can establish a byte or scalar
     // predicate without a separate membership token; mutation retires that
@@ -426,11 +413,7 @@ fn recast_view_source_expression(
         match program.expression_table.expression(current) {
             ExpressionNode::Borrow(inner) => current = inner.target,
             ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-                return Some(
-                    program
-                        .expression_table
-                        .peeled_expression_handle(cast.value),
-                );
+                return Some(expressions(program).peeled_expression_handle(cast.value));
             }
             _ => return None,
         }
@@ -450,12 +433,7 @@ fn recast_source_proves_domain(
     contexts: &[facts::FactContextHandle],
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(subject) = validation::canonical_place_from_expression_in_state(
-        program,
-        state_flow.state_symbol,
-        statement_index,
-        source,
-    ) else {
+    let Some(subject) = place_at(program, state_flow.state_symbol, statement_index, source) else {
         return false;
     };
     super::super::prover::prove_domain_at_place(
@@ -483,13 +461,8 @@ fn value_result_type_carries_domain(
     // Mutable storage declarations state obligations, not facts that survived
     // mutation. Only a frozen chain with stable selected contents preserves
     // its declared invariants; all other reads use live occurrence evidence.
-    if validation::canonical_place_from_expression_in_state(
-        program,
-        state_flow.state_symbol,
-        statement_index,
-        value,
-    )
-    .is_some_and(|place| place.root.as_symbol().is_some())
+    if place_at(program, state_flow.state_symbol, statement_index, value)
+        .is_some_and(|place| place.root.as_symbol().is_some())
         && !crate::values::scalar::structural_fields::storage_observation_is_frozen(
             program,
             state_flow.state_symbol,

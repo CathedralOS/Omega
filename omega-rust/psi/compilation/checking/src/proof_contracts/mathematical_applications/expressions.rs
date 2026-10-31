@@ -1,6 +1,7 @@
 //! Mathematical declarations own their body and dependent-type applications;
 //! their generic arguments are not executable machine selections.
 
+use crate::frozen_program::expression_table;
 use std::collections::HashSet;
 
 use typed_trees::expression::ExpressionHandle;
@@ -107,7 +108,7 @@ pub fn definition_roots(
             }
             MathematicalType::Application { callee, arguments } => {
                 types.push(*callee);
-                roots.extend_from_slice(program.expression_table.expression_handles(*arguments));
+                roots.extend_from_slice(expression_table(program).expression_handles(*arguments));
             }
         }
     }
@@ -239,7 +240,7 @@ impl InitializerPlacements {
         expression: ExpressionHandle,
         erased: bool,
     ) {
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expression_table(program).expression_is_valid(expression) {
             return;
         }
         if erased {
@@ -251,11 +252,10 @@ impl InitializerPlacements {
             return;
         }
         use typed_trees::expression::ExpressionNode;
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Call(call) => {
                 self.visit(program, call.receiver, erased);
-                for (position, argument) in program
-                    .expression_table
+                for (position, argument) in expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .enumerate()
@@ -268,7 +268,7 @@ impl InitializerPlacements {
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
+                for field in expression_table(program).struct_fields(literal.fields) {
                     let field_erased = field.field_symbol.is_valid()
                         && program
                             .any_field_owner(field.field_symbol)

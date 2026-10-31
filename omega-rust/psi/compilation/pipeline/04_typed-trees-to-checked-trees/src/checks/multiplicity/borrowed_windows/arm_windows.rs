@@ -5,6 +5,7 @@ use validation::CanonicalPlace;
 use super::{FrameWalk, StorageWalk, place_spelling};
 
 use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
+use crate::flow::expressions;
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
@@ -637,8 +638,7 @@ impl<'facts> ArmWindowPlan<'facts> {
                     conditional: statement_conditional,
                 });
                 frame!(dispatch.subject);
-                for (ordinal, arm) in program
-                    .expression_table
+                for (ordinal, arm) in expressions(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .enumerate()

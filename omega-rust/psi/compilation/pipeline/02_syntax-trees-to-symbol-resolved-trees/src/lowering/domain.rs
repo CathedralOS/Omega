@@ -6,6 +6,7 @@ use crate::lowering::name::lower_name;
 use crate::lowering::operator::lower_operator_definition;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_items;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::domain::{
     DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
@@ -252,9 +253,7 @@ pub(crate) fn lower_proof_facts_excluding(
             syntax::item::ProofFact::Membership(membership) => {
                 let value = lower_expression_into_table(lowerer, syntax_trees, membership.value)?;
                 let mut domain = arena::HandleSpan::empty();
-                for member in syntax_trees
-                    .items
-                    .identifier_path_members(membership.domain)
+                for member in syntax_items(&syntax_trees).identifier_path_members(membership.domain)
                 {
                     lowerer
                         .symbol_resolved_trees

@@ -2,8 +2,8 @@
 // Expected exit: 0
 data Payload [copy] { case Pending(count: u64); case Empty; }
 machine [] replacement(items: &[Payload; 1], index: u64) -> Payload
-requires index < 1;
-ensures result in Payload::Empty;
+requires index < 1
+ensures result in Payload::Empty
 { Payload::Empty {} }
 machine main() crashes Trap {
  let items: [Payload; 1] = [Payload::Pending { count: 7 }];

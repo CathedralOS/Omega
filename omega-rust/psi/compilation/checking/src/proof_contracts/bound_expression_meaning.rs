@@ -4,6 +4,7 @@
 //! operation. Both must rejoin the exact nominal subject and case classifier,
 //! rather than treating a payload-bearing classifier as a constructor value.
 
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::declared_place_type_raw;
 use language_core::OperatorSpelling;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -45,13 +46,13 @@ pub fn has_builtin_decomposed_guard_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    if let Some(binary) = program.expression_table.binary_node(expression) {
+    if let Some(binary) = expression_table(program).binary_node(expression) {
         match binary.operator {
             BinaryOperator::And | BinaryOperator::Or => return true,
             BinaryOperator::Equal | BinaryOperator::NotEqual
                 if [binary.left, binary.right].into_iter().any(|operand| {
                     matches!(
-                        program.expression_table.expression(operand),
+                        expression_table(program).expression(operand),
                         ExpressionNode::Boolean(_)
                     )
                 }) =>
@@ -135,10 +136,10 @@ fn binary_expression_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return false;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     if program.static_type_predicate_operands(expression).is_some() {
@@ -226,7 +227,7 @@ fn bound_subtree_height(
             None => SubtreeMeaning::Invalid,
         };
     }
-    let outcome = match program.expression_table.expression(expression) {
+    let outcome = match expression_table(program).expression(expression) {
         ExpressionNode::Binary(binary) => {
             if !has_builtin_binary_expression_meaning(program, machine, state, expression) {
                 SubtreeMeaning::Invalid
@@ -400,13 +401,13 @@ pub fn has_builtin_or_sealed_float_comparison_meaning(
     comparison: BinaryOperator,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    if operand_types.len() != 2 || !program.expression_table.expression_is_valid(expression) {
+    if operand_types.len() != 2 || !expression_table(program).expression_is_valid(expression) {
         return false;
     }
     let Some(spelling) = typed_trees::operator::comparison_operator_spelling(comparison) else {
         return false;
     };
-    let builtin = match program.expression_table.expression(expression) {
+    let builtin = match expression_table(program).expression(expression) {
         ExpressionNode::Binary(binary) if binary.operator == comparison => {
             typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
@@ -468,13 +469,13 @@ pub(crate) fn sealed_float_comparison_declaration_for_operands(
         program,
         spelling,
         operand_types,
-        program.expression_table.source_span(expression),
+        expression_table(program).source_span(expression),
     );
     let [candidate] = candidates.as_slice() else {
         return None;
     };
     let operator = candidate.operator;
-    if let Some(call) = program.expression_table.call_node(expression)
+    if let Some(call) = expression_table(program).call_node(expression)
         && !call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
     {
         return None;
@@ -489,10 +490,7 @@ pub(crate) fn sealed_float_comparison_declaration_for_operands(
     }
     (crate::proof_contracts::float_projection_bindings::semantic_operations::
         is_sealed_toolchain_float_operator(program, operator)
-        && program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .all(|occurrence| {
+        && expression_table(program).authored_selection_occurrences(expression).all(|occurrence| {
                 match program
                     .authored_declaration_selections()
                     .get(occurrence)
@@ -520,7 +518,7 @@ pub(crate) fn guard_comparison(
     expression: ExpressionHandle,
     operand_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<typed_trees::expression::TableBinaryExpression> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Binary(binary) => Some(*binary),
         ExpressionNode::Call(call)
             if !call.receiver.is_valid()
@@ -534,7 +532,7 @@ pub(crate) fn guard_comparison(
             })?;
             let (operation, _) =
                 typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
-            let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+            let [left, right] = expression_table(program).expression_handles(call.arguments) else {
                 return None;
             };
             let comparison = typed_trees::expression::TableBinaryExpression {
@@ -608,12 +606,11 @@ pub fn applied_case_membership_variant(
     if !has_exact_case_membership_meaning(program, machine, state, expression, comparison) {
         return None;
     }
-    let selected = program
-        .expression_table
+    let selected = expression_table(program)
         .name_path_node(comparison.right)?
         .symbol;
     let mut subject = comparison.left;
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(subject) {
+    while let ExpressionNode::Borrow(borrow) = expression_table(program).expression(subject) {
         subject = borrow.target;
     }
     let reference = operand_type(program, machine, state, subject).map(|reference| {
@@ -681,13 +678,9 @@ fn exact_case_membership_meaning(
     comparison: &typed_trees::expression::TableBinaryExpression,
     subject_matches: impl FnOnce(ExpressionHandle, &DataDefinition) -> bool,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression)
-        || !program
-            .expression_table
-            .expression_is_valid(comparison.left)
-        || !program
-            .expression_table
-            .expression_is_valid(comparison.right)
+    if !expression_table(program).expression_is_valid(expression)
+        || !expression_table(program).expression_is_valid(comparison.left)
+        || !expression_table(program).expression_is_valid(comparison.right)
         || !matches!(
             comparison.operator,
             BinaryOperator::Equal | BinaryOperator::CaseMembership
@@ -708,15 +701,12 @@ fn exact_case_membership_meaning(
     if comparison.operator == BinaryOperator::CaseMembership {
         return true;
     }
-    let Some(case) = program.expression_table.name_path_node(comparison.right) else {
+    let Some(case) = expression_table(program).name_path_node(comparison.right) else {
         return false;
     };
     let mut has_owner = false;
     let mut has_case = false;
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in expression_table(program).authored_selection_occurrences(expression) {
         let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
             return false;
         };
@@ -749,10 +739,10 @@ pub fn exact_case_reference_owner(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&DataDefinition> {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return None;
     }
-    let case = program.expression_table.name_path_node(expression)?;
+    let case = expression_table(program).name_path_node(expression)?;
     program.variant_owner(case.symbol)?;
     // Structural leaf checking revisits the same resolved path. Only its exact
     // expression identity in an immutable input can reuse this declaration
@@ -783,11 +773,11 @@ fn exact_case_reference_owner_position(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return None;
     }
-    let case = program.expression_table.name_path_node(expression)?;
-    let table = &program.expression_table;
+    let case = expression_table(program).name_path_node(expression)?;
+    let table = expression_table(program);
     let members = table.name_path_members(case.members);
     let selected = table.name_path_member_symbols(case.member_symbols);
     // A resolved bare `T::Case` keeps only the case symbol -- the qualifier is
@@ -836,7 +826,7 @@ fn membership_subject_matches_owner(
     // Access mode and loan legality are still checked at the authored borrow.
     let mut subject = subject;
     let mut borrow_depth = 0;
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(subject) {
+    while let ExpressionNode::Borrow(borrow) = expression_table(program).expression(subject) {
         if borrow_depth >= 128 {
             return false;
         }
@@ -847,7 +837,7 @@ fn membership_subject_matches_owner(
     // type. Do not require an artificial local binding or borrow the tested
     // case's type as evidence for an otherwise unknown subject. Field
     // construction and default-domain obligations remain separate checks.
-    match program.expression_table.expression(subject) {
+    match expression_table(program).expression(subject) {
         ExpressionNode::Name(path) if program.machine(path.symbol).is_some() => {
             // A machine declaration does not supply a runtime value whose
             // case tag can be observed.
@@ -919,7 +909,7 @@ fn operand_type_at_depth(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    if depth >= 128 || !expression_table(program).expression_is_valid(expression) {
         return None;
     }
     // Reserved result occurrences have no ordinary storage symbol. Recover
@@ -935,7 +925,7 @@ fn operand_type_at_depth(
     // and locals keep ordinary evaluation-snapshot narrowing. Anonymous literal and
     // unresolved computed types remain wildcard candidates, never an assumed
     // copy of the other operand's carrier that could hide an overload.
-    let reference = match program.expression_table.expression(expression) {
+    let reference = match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             // A bound capture keeps its producer's carrier. This query reads
             // type identity only; value facts, storage epochs and access still
@@ -1012,9 +1002,7 @@ fn operand_place_projection_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Borrow(borrow) => {
             operand_place_projection_type(program, machine, state, borrow.target, depth + 1)
@@ -1040,7 +1028,7 @@ fn operand_place_projection_type(
             // A range denotes a window, not one element; element reads keep
             // the builtin `[]` contract only when no authored index overload
             // selected these operands.
-            if program.expression_table.indexed_on_range(indexed) {
+            if expression_table(program).indexed_on_range(indexed) {
                 return None;
             }
             let collection_type =
@@ -1086,7 +1074,7 @@ pub(super) fn builtin_arithmetic(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     builtin_arithmetic_node(program, machine, state, expression, binary)
@@ -1121,7 +1109,7 @@ pub(crate) fn builtin_arithmetic_for_operand_types(
     expression: ExpressionHandle,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     // Anonymous operands have exact rational meaning, not unknown carriers
@@ -1158,8 +1146,7 @@ pub(super) fn folded_constant_is_builtin(
     expression: ExpressionHandle,
 ) -> bool {
     folded_constant_has_builtin_meaning(program, expression, &|expression| {
-        program
-            .expression_table
+        expression_table(program)
             .binary_node(expression)
             .is_some_and(|binary| {
                 builtin_arithmetic_node(program, machine, state, expression, binary)
@@ -1187,7 +1174,7 @@ fn constant_subtree_meaning(
     if depth >= 128 {
         return Some(false);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(_) => Some(true),
         ExpressionNode::Borrow(borrow) => {
             constant_subtree_meaning(program, borrow.target, depth + 1, builtin_arithmetic)
@@ -1250,7 +1237,7 @@ pub fn static_type_boolean_equalities(program: &dyn crate::CheckingInput) -> Vec
                 }
             }
             for expression in expressions {
-                let Some(binary) = program.expression_table.binary_node(expression) else {
+                let Some(binary) = expression_table(program).binary_node(expression) else {
                     continue;
                 };
                 if !matches!(
@@ -1260,10 +1247,10 @@ pub fn static_type_boolean_equalities(program: &dyn crate::CheckingInput) -> Vec
                     continue;
                 }
                 if !matches!(
-                    program.expression_table.expression(binary.left),
+                    expression_table(program).expression(binary.left),
                     ExpressionNode::Boolean(_)
                 ) && !matches!(
-                    program.expression_table.expression(binary.right),
+                    expression_table(program).expression(binary.right),
                     ExpressionNode::Boolean(_)
                 ) {
                     continue;

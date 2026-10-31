@@ -17,6 +17,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -329,12 +330,8 @@ pub(crate) fn prepare_permission_events(
             for (expression, _) in
                 super::linear_validation::completed_statement_values(program, statement)
             {
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    expression,
-                ) else {
+                let Some(place) = place_at(program, state.symbol, statement_index, expression)
+                else {
                     continue;
                 };
                 if place.root != facts::PlaceRoot::Expression(expression) {
@@ -412,8 +409,7 @@ pub(crate) fn prepare_permission_events(
                         step,
                     )
                 {
-                    selected.apply_claims(places);
-                    selected.apply_cleanup(remaining);
+                    selected.apply(places, Some(remaining));
                 }
                 match step {
                     super::permission_schedule::PermissionStep::Evaluate {
@@ -708,6 +704,7 @@ pub(crate) fn prepare_permission_events(
             .storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
     }
     drop(state_loop_guard);
+    phase_profile::checkpoint("after permission state walk", "05.d.3.b.perm.1_state_loop");
 
     phase_profile::scope("05.d.3.b.perm.2_append_borrow", || {
         append_borrow_permission_events(
@@ -744,6 +741,7 @@ pub(crate) fn prepare_permission_events(
         !absent_carrier_transfer
     });
 
+    facts.flow.ownership.permissions_by_state.clear();
     facts.flow.ownership.permissions = Default::default();
     facts
         .flow

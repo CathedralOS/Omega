@@ -579,6 +579,9 @@ requires machine Selected(index: Nat) -> Rat;
 Each callable contract has its own terminator: `Inner` ends first, then the
 standalone semicolon closes `Schema`. `Selected` belongs to `forward`, not to
 `Schema`. These delimiters do not separate ordinary predicate clauses.
+Operational clauses such as `suspends`, `blocks`, and `terminates` add no
+terminators of their own. Only the complete bodyless callable ends with `;`,
+under [machine header delimiters](state_contracts.md#machine-header-delimiters).
 
 Here `Stream` denotes an appropriate proof-only family. Refinement is binder-
 positional: renaming `Inner` changes no contract, but changing its nested shape,

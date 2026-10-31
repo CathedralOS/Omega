@@ -1,2 +1,2 @@
-machine `wrap` omits `blocks;` from its published contract
+machine `wrap` omits `blocks` from its published contract
 its body may block

@@ -35,6 +35,6 @@ machine crowned_less(left: Card, right: Card) -> bool {
 }
 
 machine main()
-terminates;
+terminates
 {
 }

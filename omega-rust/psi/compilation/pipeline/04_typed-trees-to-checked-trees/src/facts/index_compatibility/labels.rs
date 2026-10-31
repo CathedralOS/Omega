@@ -2,6 +2,7 @@
 //! index-compatibility diagnostics print.
 
 use super::instance_collection::IndexedInstance;
+use crate::flow::expressions;
 use facts::ProgramPoint;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -50,9 +51,7 @@ pub(super) fn qualification_label(
     program: &dyn ::validation::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> String {
-    let name = program
-        .expression_table
-        .name_path_string(cast.semantic_domain);
+    let name = expressions(program).name_path_string(cast.semantic_domain);
     domain_label(
         program,
         &name,

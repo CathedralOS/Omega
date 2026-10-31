@@ -130,7 +130,7 @@ linux_arm64 machine TimeHostNativeProvider::wall_clock_epoch_offset_seconds() ->
 linux_arm64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
     satisfies TimeHost::sleep
 reaches TimeHost
-blocks;
+blocks
 {
     transition { _ -> block wait(milliseconds) }
 

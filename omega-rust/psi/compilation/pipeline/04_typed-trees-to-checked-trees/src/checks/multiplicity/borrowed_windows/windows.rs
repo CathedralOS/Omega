@@ -7,6 +7,7 @@ use super::{StorageWalk, place_spelling};
 use super::boundary_checks::*;
 
 use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
+use crate::places::place_at;
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
@@ -62,12 +63,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         let program = walk.program;
         let machine = walk.machine;
         let state = walk.state;
-        let target = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        )?;
+        let target = place_at(program, state.symbol, statement_index, assignment.target)?;
         let borrowed = (0..=target.segments.len()).any(|length| {
             let prefix = CanonicalPlace {
                 root: target.root,
@@ -313,12 +309,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         let program = walk.program;
         let machine = walk.machine;
         let state = walk.state;
-        let Some(target) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        ) else {
+        let Some(target) = place_at(program, state.symbol, statement_index, assignment.target)
+        else {
             return;
         };
         let Some(root_symbol) = target.root.as_symbol() else {

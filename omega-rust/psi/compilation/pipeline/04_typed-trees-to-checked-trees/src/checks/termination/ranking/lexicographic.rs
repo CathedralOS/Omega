@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 
@@ -43,9 +44,7 @@ fn argument_decreases_lexicographically(
     let Some(struct_literal) = program.expression_table.struct_literal_node(argument) else {
         return false;
     };
-    let literal_fields = program
-        .expression_table
-        .struct_fields(struct_literal.fields);
+    let literal_fields = expressions(program).struct_fields(struct_literal.fields);
 
     for field in fields.iter() {
         let Some(value) = literal_fields

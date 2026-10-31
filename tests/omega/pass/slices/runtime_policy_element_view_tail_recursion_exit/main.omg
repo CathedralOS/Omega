@@ -9,7 +9,7 @@
 use omega_language_std::console;
 
 machine sum_window(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates by s -> Slice::Length;
+terminates by s -> Slice::Length
 {
     transition s.len > 0 {
         true -> sum_window(s[1..], acc + s[0])

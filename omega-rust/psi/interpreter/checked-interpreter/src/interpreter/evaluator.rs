@@ -45,17 +45,20 @@ use numerics::float_semantics::{
 use semantic_vocabulary::ProgramEntrySourceCatalog;
 use std::collections::{BTreeMap, HashSet};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath, UnaryOperator,
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{
-    StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    StatementNode, StatementTable, TableCall, TableTransition, TransitionGuardNode,
+    TransitionTargetNode,
 };
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+};
+use typed_trees::{TypedTreeTables, TypedTrees};
 
 // Program and values, beneath the coordinator that names them.
 mod program_values;
@@ -503,9 +506,7 @@ impl Frame {
         self.guard_call_results
             .iter()
             .find(|(seen, _)| {
-                program
-                    .expression_table
-                    .expressions_structurally_equal(*seen, expression)
+                expression_table(program).expressions_structurally_equal(*seen, expression)
             })
             .map(|(_, value)| value.clone())
     }
@@ -521,4 +522,21 @@ impl Evaluator<'_> {
     pub(crate) fn error_outcome(self, message: String) -> crate::evaluation::InterpretOutcome {
         crate::evaluation::InterpretOutcome::error(message, self.stdout, self.stderr, self.usage)
     }
+}
+
+/// The expression table of the typed program whose tables these are. Signed on
+/// the deref target so `&TypedTrees`, `&mut TypedTrees` and `&TypedTreeTables`
+/// receivers all reach the one call.
+pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
+    &tables.expression_table
+}
+
+/// The type-reference table of the typed program whose tables these are.
+pub(crate) fn type_reference_table(tables: &TypedTreeTables) -> &TypeReferenceTable {
+    &tables.type_reference_table
+}
+
+/// The statement table of the typed program whose tables these are.
+pub(crate) fn statement_table(tables: &TypedTreeTables) -> &StatementTable {
+    &tables.statement_table
 }

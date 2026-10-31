@@ -14,7 +14,7 @@ let retain<Length: u64, Total: u64>(value: Vector<Length, Total>): Vector<Length
 boundary let fabricated<Length: u64, Total: u64>(): Vector<Length, Total>;
 
 machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
-terminates by Length;
+terminates by Length
 ensures embed(Total) <= 10 * embed(Length)
 {
     transition evidence {

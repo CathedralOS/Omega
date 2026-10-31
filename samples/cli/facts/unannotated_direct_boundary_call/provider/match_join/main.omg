@@ -1,7 +1,7 @@
 // A checked call publishes its complete Mark reach, so an empty ceiling cannot hide it.
 // Expected exit: 0
 public boundary trait Mark {
-    machine read() -> u64 reaches Mark invokes Backend; invokes Forbidden;
+    machine read() -> u64 reaches Mark invokes Backend invokes Forbidden;
 }
 public boundary trait Backend { machine read() -> u64 reaches Mark; }
 public boundary trait Forbidden { machine read() -> u64 reaches Forbidden; }

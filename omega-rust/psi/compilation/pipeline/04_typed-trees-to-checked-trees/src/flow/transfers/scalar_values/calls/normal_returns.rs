@@ -8,6 +8,7 @@
 //! whole capture, rather than trusting a partially inspected path.
 
 use super::{CallValues, CapturedValue, CheckedScalarExpressionRole, FlowBuildContext};
+use crate::flow::state_statements;
 use checked_trees::{BorrowFacts, CheckedScalarExpression};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -85,10 +86,7 @@ impl NormalReturnCapture<'_, '_> {
         symbols: &mut Vec<SymbolHandle>,
         values: &mut CallValues<Value>,
     ) -> Option<CapturedReturns<Value>> {
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         let mut returned = CapturedReturns::NoNormalValue;
         let mut immutable_local_count = 0_u32;
         for (statement_index, statement) in statements.iter().enumerate() {

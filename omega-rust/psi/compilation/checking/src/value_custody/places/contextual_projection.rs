@@ -6,6 +6,7 @@ use super::canonical_projection::push_field_place_segments;
 use super::member_resolution;
 use super::member_resolution::resolve_member_symbol_from_type_symbol;
 use crate::first_valid_name_path_symbol;
+use crate::frozen_program::expression_table;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -19,7 +20,7 @@ pub fn contextual_canonical_place_from_expression(
         return None;
     }
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(_) => {
             super::canonical_projection::canonical_place_from_expression(program, expression)
         }
@@ -60,10 +61,9 @@ pub fn contextual_canonical_place_from_expression(
                 root: facts::PlaceRoot::Symbol(root_symbol),
                 segments: Vec::new(),
             };
-            let members = program.expression_table.name_path_members(path.members);
-            let member_symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let members = expression_table(program).name_path_members(path.members);
+            let member_symbols =
+                expression_table(program).name_path_member_symbols(path.member_symbols);
             let start_index = usize::from(
                 members
                     .first()
@@ -156,9 +156,9 @@ fn resolve_contextual_name_path_root(
     expression: ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<SymbolHandle> {
-    let name = program.expression_table.display_name(expression);
+    let name = expression_table(program).display_name(expression);
     let state = program.state_by_symbol(state_symbol)?;
-    if let Some(symbol) = first_valid_name_path_symbol(path, &program.expression_table) {
+    if let Some(symbol) = first_valid_name_path_symbol(path, expression_table(program)) {
         return Some(symbol);
     }
 

@@ -39,7 +39,7 @@ impl<'execution> ConstructorValue<'execution> {
             if execution.structural_values.contains_key(&argument.place) {
                 return Err(malformed());
             }
-            let types = execution.program.structural_types();
+            let types = execution.structural_types();
             let mut structural_type = array.structural_type;
             let mut elements = array.cells();
             // A packed tree's static child is a contiguous row-major span.
@@ -75,7 +75,7 @@ impl<'execution> ConstructorValue<'execution> {
             });
         }
         resolve_single_structural_argument(
-            &execution.program.structural_types(),
+            &execution.structural_types(),
             &execution.structural_values,
             argument,
         )
@@ -104,7 +104,7 @@ impl<'execution> ConstructorValue<'execution> {
     ) -> Result<Option<crate::primitive_storage::PrimitiveStorageWrites>, TerminalInterpretError>
     {
         if terminal_semantics::scalar_array_leaf_shape(
-            execution.program.structural_types().values(),
+            execution.structural_types().values(),
             self.structural_type(),
         )
         .is_some_and(|(_, count)| count == 0)
@@ -139,7 +139,7 @@ impl<'execution> ConstructorValue<'execution> {
             TerminalScalarValue,
         ) -> Result<(), TerminalInterpretError>,
     ) -> Result<Option<semantic_vocabulary::ScalarType>, TerminalInterpretError> {
-        let types = execution.program.structural_types();
+        let types = execution.structural_types();
         let root = self.structural_type();
         let (scalar_type, count) = match types.declaration(&root)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => (scalar_type, 1),
@@ -562,7 +562,7 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         for row in required {
             let active = crate::structural_inputs::case_membership::case_projection_with_membership_is_active(
-                &execution.program.structural_types(), root.structural_type, &row.path,
+                &execution.structural_types(), root.structural_type, &row.path,
                 &|prefix| self.case_at_projection(execution, root, prefix),
             )?;
             if active && !root.projected_qualifications.contains(row) {
@@ -580,7 +580,7 @@ impl ConstructorStorage {
         path: &[StructuralPathSegment],
     ) -> Option<semantic_vocabulary::StructuralCaseId> {
         crate::structural_inputs::case_membership::stored_case_at_projection(
-            &execution.program.structural_types(),
+            &execution.structural_types(),
             root,
             self.cases.as_map(),
             path,
@@ -730,7 +730,7 @@ impl ConstructorStorage {
         elements: &[TerminalScalarValue],
         destination: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
-        let declaration = execution.program.structural_declaration(structural_type)?;
+        let declaration = execution.structural_declaration(structural_type)?;
         match declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 let [value] = elements else {
@@ -746,7 +746,7 @@ impl ConstructorStorage {
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
                 let (scalar_type, leaf_count) = terminal_semantics::scalar_array_leaf_shape(
-                    execution.program.structural_types().values(),
+                    execution.structural_types().values(),
                     structural_type,
                 )
                 .ok_or_else(malformed)?;
@@ -755,7 +755,7 @@ impl ConstructorStorage {
                 }
                 if leaf_count == 0 {
                     self.empty_arrays.establish(
-                        &execution.program.structural_types(),
+                        &execution.structural_types(),
                         destination.clone(),
                         structural_type,
                     )?;
@@ -763,7 +763,6 @@ impl ConstructorStorage {
                 }
                 if matches!(
                     execution
-                        .program
                         .structural_types()
                         .get(&element)
                         .map(|row| &row.shape),
@@ -794,7 +793,6 @@ impl ConstructorStorage {
                         .insert(destination.clone(), crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(structural_type, ByteSequenceView::new(bytes), execution.account.as_ref()))?;
                 } else {
                     let element_count = match execution
-                        .program
                         .structural_types()
                         .get(&element)
                         .map(|row| &row.shape)
@@ -802,7 +800,7 @@ impl ConstructorStorage {
                         Some(StructuralTypeShape::PrimitiveScalar(_)) => 1,
                         _ => {
                             terminal_semantics::scalar_array_leaf_shape(
-                                execution.program.structural_types().values(),
+                                execution.structural_types().values(),
                                 element,
                             )
                             .ok_or_else(malformed)?
@@ -845,7 +843,6 @@ impl ConstructorStorage {
         transfers_custody: bool,
     ) -> Result<(), TerminalInterpretError> {
         if execution
-            .program
             .structural_types()
             .get(&child.structural_type)
             .is_some_and(|row| row.owns_linear_claim && row.shape.is_borrowed_byte_view())
@@ -864,10 +861,7 @@ impl ConstructorStorage {
             return Ok(());
         }
 
-        if let Some(declaration) = execution
-            .program
-            .structural_types()
-            .get(&child.structural_type)
+        if let Some(declaration) = execution.structural_types().get(&child.structural_type)
             && declaration.shape.is_borrowed_byte_carrier()
         {
             let shared = declaration.shape.is_shared_readable_byte_view();
@@ -894,7 +888,6 @@ impl ConstructorStorage {
         }
 
         if execution
-            .program
             .structural_types()
             .get(&child.structural_type)
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
@@ -905,7 +898,6 @@ impl ConstructorStorage {
             )?;
         }
         if execution
-            .program
             .structural_types()
             .get(&child.structural_type)
             .is_some_and(|row| row.shape.is_bounded_owned_byte_sequence())
@@ -1057,7 +1049,6 @@ impl ConstructorStorage {
                 if !transfers_custody {
                     let carrier_type = execution.actual_storage_type_from_owner(home)?;
                     if !execution
-                        .program
                         .structural_types()
                         .get(&carrier_type)
                         .is_some_and(|declaration| {
@@ -1118,7 +1109,7 @@ impl ConstructorStorage {
             }
         }
         self.empty_arrays.stage_subtree(
-            &execution.program.structural_types(),
+            &execution.structural_types(),
             &execution.empty_array_storage,
             &execution.structural_byte_storage,
             source,

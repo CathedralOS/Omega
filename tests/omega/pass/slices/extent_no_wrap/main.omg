@@ -4,7 +4,7 @@
 // non-wrapping fact as a checked requirement denotation.
 use omega::language::core::extent;
 machine geometry(base: addr, length: u64)
-requires no_wrap(base, length);
+requires no_wrap(base, length)
 {}
 data Main {}
 machine Main::main(main: &mut Main) { }

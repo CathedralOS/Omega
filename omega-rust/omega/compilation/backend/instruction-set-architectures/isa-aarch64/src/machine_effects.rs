@@ -5,7 +5,7 @@ use selected_instructions::{
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SaturatingOperation, SelectedConstraintKeys, isa_machine_effect_catalog_plumbing,
+    SelectedConstraintKeys, isa_machine_effect_catalog_plumbing,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -874,6 +874,10 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     if let Some(width) = packed_load_width(semantic) {
         return MachineSizeKnowledge::ExactBytes((2 * width - 1) * 4);
     }
+    // Each saturating carrier class is one fixed word sequence.
+    if let Some(realization) = SaturatingRealization::of_semantic(semantic) {
+        return MachineSizeKnowledge::ExactBytes(realization.byte_size());
+    }
     match semantic {
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(4),
         // The allocated address scratch is always written before the store,
@@ -934,22 +938,6 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ExactRemainderU64
         | MachineSemanticKind::WrappingRemainderI64
         | MachineSemanticKind::ExactRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
-        // Each saturating carrier class is one fixed word sequence.
-        MachineSemanticKind::SaturatingAdd(carrier) => MachineSizeKnowledge::ExactBytes(
-            SaturatingRealization::of(SaturatingOperation::Add, carrier).byte_size(),
-        ),
-        MachineSemanticKind::SaturatingSubtract(carrier) => MachineSizeKnowledge::ExactBytes(
-            SaturatingRealization::of(SaturatingOperation::Subtract, carrier).byte_size(),
-        ),
-        MachineSemanticKind::SaturatingDivide(carrier) => MachineSizeKnowledge::ExactBytes(
-            SaturatingRealization::of(SaturatingOperation::Divide, carrier).byte_size(),
-        ),
-        MachineSemanticKind::SaturatingRemainder(carrier) => MachineSizeKnowledge::ExactBytes(
-            SaturatingRealization::of(SaturatingOperation::Remainder, carrier).byte_size(),
-        ),
-        MachineSemanticKind::SaturatingMultiply(carrier) => MachineSizeKnowledge::ExactBytes(
-            SaturatingRealization::of(SaturatingOperation::Multiply, carrier).byte_size(),
-        ),
         // One unshifted `add` inside the first page; shifted page steps and
         // the unshifted remainder past it.
         MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {

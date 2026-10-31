@@ -16,7 +16,7 @@ use omega::language::core::content;
 use alloc::bump;
 machine exercise(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -42,7 +42,7 @@ reaches ExtentPartition
 // unchanged tail. No caller-side guard substitutes for the returned custody.
 machine exercise_fallible(whole: Extent in Granted & Vacant, capacity: u64, demand: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -85,7 +85,7 @@ reaches ExtentPartition
 // caller-invented floor.
 machine exercise_release(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -116,7 +116,7 @@ reaches ExtentPartition
 // explicitly rebuilds the container before returning its backing.
 machine exercise_vec(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -142,7 +142,7 @@ reaches ExtentPartition
 // request exercises full-slot rejection without dropping retained custody.
 machine exercise_grow(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -187,7 +187,7 @@ reaches ExtentPartition
 // fits the residual still grows, and `close` folds every region back.
 machine exercise_grow_exhausted(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -234,7 +234,7 @@ reaches ExtentPartition
 // every region back in address order.
 machine exercise_shrink(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {
@@ -344,7 +344,7 @@ public boundary trait ResidentStorage {
 // One allocation, established, read, retired, and recomposed with the tail.
 machine exercise_resident(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    16 <= capacity;
+    16 <= capacity,
     capacity == whole.length
 reaches ExtentPartition, ResidentStorage, VacantContentTransfer
 {
@@ -367,7 +367,7 @@ reaches ExtentPartition, ResidentStorage, VacantContentTransfer
 // retirement calls.
 machine exercise_resident_restated(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    16 <= capacity;
+    16 <= capacity,
     capacity == whole.length
 reaches ExtentPartition, ResidentStorage, VacantContentTransfer
 {
@@ -387,7 +387,7 @@ reaches ExtentPartition, ResidentStorage, VacantContentTransfer
 }
 machine exercise_retained(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    16 <= capacity;
+    16 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {

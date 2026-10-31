@@ -8,14 +8,14 @@ trait Kept {
 }
 
 data Yes {}
-machine Yes::holds(value: bool) -> bool terminates; { true }
+machine Yes::holds(value: bool) -> bool terminates { true }
 
 YesKept satisfies Kept {
     Kept::holds = Yes::holds;
 }
 
 data No {}
-machine No::holds(value: bool) -> bool terminates; { false }
+machine No::holds(value: bool) -> bool terminates { false }
 
 NoKept satisfies Kept {
     Kept::holds = No::holds;

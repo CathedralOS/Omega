@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // sub records the decreased register, and the backedge reads that record.
 machine seed() -> u32 ensures result == 2 { 2 }
-machine main() terminates by eax -> Nat::Descending; crashes Trap {
+machine main() terminates by eax -> Nat::Descending crashes Trap {
  let seed: u32 = seed();
  let mut output: u32 = 99;
  asm {

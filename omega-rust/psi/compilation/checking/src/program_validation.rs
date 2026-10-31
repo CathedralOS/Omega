@@ -884,7 +884,6 @@ fn validate<'program>(
                         machine,
                         state,
                         statement_index,
-                        statement,
                     );
                 });
                 // R5 value-call frame: conservatively apply the aggregate

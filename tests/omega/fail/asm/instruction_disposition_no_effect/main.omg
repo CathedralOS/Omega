@@ -11,7 +11,7 @@ proposition finished(token: Token) = model_specific_written(2059, 0);
 machine finish(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     let mut index: u32 = 2059;
     let value: u64 = 0;

@@ -11,6 +11,7 @@ use super::{Multiplicity, SymbolHandle};
 use crate::execution::terminal_unit::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
+use crate::places::place_at;
 
 pub(crate) fn validate(
     program: &dyn ::validation::CheckingInput,
@@ -47,12 +48,7 @@ pub(crate) fn validate(
                     *argument,
                     parameter.type_reference,
                 )?;
-                let place = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    consumer.statement_index,
-                    borrowed,
-                )?;
+                let place = place_at(program, state, consumer.statement_index, borrowed)?;
                 (place.root == root).then_some(place)
             });
     let borrowed = operands.next()?;

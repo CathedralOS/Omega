@@ -4,6 +4,7 @@
 use crate::declarations::standard_declarations::boundary_has_explicit_calling_policy;
 use crate::declarations::standard_declarations::is_core_vector;
 use crate::declarations::traits::trait_definition_by_symbol;
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
@@ -105,9 +106,9 @@ pub(crate) fn validate_external_via_expression(
     if !expression.is_valid() {
         return;
     }
-    let source_span = program.expression_table.source_span(expression);
+    let source_span = expression_table(program).source_span(expression);
     let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         diagnostics.push(
             Diagnostic::error(format!(
@@ -118,8 +119,7 @@ pub(crate) fn validate_external_via_expression(
         );
         return;
     };
-    let has_value_arguments = !program
-        .expression_table
+    let has_value_arguments = !expression_table(program)
         .expression_handles(call.arguments)
         .is_empty();
     let invalid_call_shape = call.receiver.is_valid()

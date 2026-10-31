@@ -1,6 +1,7 @@
 //! Current tag evidence follows an exact completed owned subtree.
 //! Historical descriptor provenance keeps its original owner and source access;
 //! this query relates that owner to the receiver actually used by this read.
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowCaseAccessFact, FlowControlFacts, FlowOperandFact};
 use facts::{PlaceRoot, PlaceSegment};
@@ -76,7 +77,7 @@ pub(super) fn case_path_is_selected(
     // otherwise the completed expression remains its own exact namespace.
     let mut current =
         if validation::value_has_builtin_coordinates(program, machine, body, receiver.expression) {
-            let Some(place) = validation::canonical_place_from_expression_in_state(
+            let Some(place) = place_at(
                 program,
                 receiver.state_symbol,
                 receiver.statement_index,

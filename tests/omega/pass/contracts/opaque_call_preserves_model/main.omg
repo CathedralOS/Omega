@@ -16,7 +16,7 @@ ReplaceValue satisfies Replace {
 // not change the address model or an already copied scalar value.
 machine after_call(address: addr) -> u64
 reaches Replace
-invokes Replace;
+invokes Replace
 requires addr::Bound == 18446744073709551616
 {
     let first: Value = Value { number: 7 };
@@ -40,7 +40,7 @@ machine exact_seven(value: u64) requires value == 7 {}
 
 machine main() crashes Trap
 reaches Replace
-invokes Replace;
+invokes Replace
 requires addr::Bound == 18446744073709551616
 {
     let converted: u64 = after_call(18446744073709551615 as addr);

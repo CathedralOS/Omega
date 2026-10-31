@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -38,8 +39,7 @@ pub(super) fn borrowed_initializers(
     // for the result's live range. This is not proof of an every-arm transfer;
     // retirement derives that separately from the retained value graph.
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-        return program
-            .expression_table
+        return expressions(program)
             .match_arms(dispatch.arms)
             .iter()
             .flat_map(|arm| {
@@ -79,8 +79,7 @@ pub(super) fn borrowed_initializers(
             let Some(values) = program.expression_table.array_literal_node(expression) else {
                 return Vec::new();
             };
-            program
-                .expression_table
+            expressions(program)
                 .expression_handles(*values)
                 .iter()
                 .enumerate()

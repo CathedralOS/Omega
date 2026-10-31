@@ -27,12 +27,7 @@ impl PreparedBuildExecution {
             execution_profile,
             artifact_only: _,
         } = admitted;
-        let refuse = |reason: String| {
-            vec![Diagnostic::error(format!(
-                "Terminal Build `{}` failed: {reason}",
-                machine.name
-            ))]
-        };
+        let refuse = |reason: String| failed(&machine.name, &reason);
         let checked = prepared
             .checked_trees()
             .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
@@ -100,12 +95,7 @@ impl PreparedBuildExecution {
             &self.filesystem_scope,
             self.execution_profile,
         )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "Terminal Build `{}` failed: {reason}",
-                self.machine.name
-            ))]
-        })
+        .map_err(|reason| self.refuse(&reason))
     }
 
     pub(crate) fn validate_return(
@@ -201,9 +191,11 @@ impl PreparedBuildExecution {
     }
 
     fn refuse(&self, reason: &str) -> Vec<Diagnostic> {
-        vec![Diagnostic::error(format!(
-            "Terminal Build `{}` failed: {reason}",
-            self.machine.name
-        ))]
+        failed(&self.machine.name, reason)
     }
+}
+
+fn failed(name: &str, reason: &str) -> Vec<Diagnostic> {
+    let message = format!("Terminal Build `{name}` failed: {reason}");
+    vec![Diagnostic::error(message)]
 }

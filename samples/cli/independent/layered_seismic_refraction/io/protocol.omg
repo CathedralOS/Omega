@@ -7,7 +7,7 @@ data Protocol {
 }
 // EOF is the record boundary; every byte, token and digit has a hard bound.
 machine Protocol::read(protocol: &mut Protocol) -> bool
-reaches Console blocks; crashes Trap {
+reaches Console blocks crashes Trap {
  protocol.position = 0; protocol.length = 0; protocol.accumulator = 0.0;
  protocol.scale = 1.0; protocol.decimal = false; protocol.digits = 0; protocol.started = false;
  transition { _ -> scan(protocol) }

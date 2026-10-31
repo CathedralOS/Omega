@@ -59,12 +59,8 @@ impl PackageLockTarget {
     ) -> Result<Self, Error> {
         let mut occurrences = Vec::new();
         let mut associations = Vec::new();
-        occurrences
-            .try_reserve_exact(policies.len())
-            .map_err(|_| Error::AllocationFailed)?;
-        associations
-            .try_reserve_exact(policies.len())
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(occurrences, policies.len(), Error);
+        crate::reserve!(associations, policies.len(), Error);
         for (context, policy, bindings) in policies {
             occurrences.push(PackagePolicyOccurrence::from_policy(
                 policy,

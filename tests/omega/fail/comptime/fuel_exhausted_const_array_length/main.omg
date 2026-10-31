@@ -23,9 +23,8 @@ data Main {
     slots: [i64; table_size()];
 }
 
-machine burn(remaining: u64)
-terminates by remaining;
--> u64
+machine burn(remaining: u64) -> u64
+terminates by remaining
 {
     transition remaining > 0 {
         true -> burn(remaining - 1)

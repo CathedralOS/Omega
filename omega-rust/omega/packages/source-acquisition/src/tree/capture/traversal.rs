@@ -29,7 +29,7 @@ use super::traversal_observations::{SourceEntry, SourceEntryKind, SourceTreePoli
 use crate::SourceResolveError;
 use crate::limits::{DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits};
 use crate::tree::filesystem::{
-    CapturedEntryObservation, io_error, open_captured_directory, raw_os_bytes,
+    CapturedEntryObservation, IoResultAt, io_error, open_captured_directory, raw_os_bytes,
     read_capability_file_bounded, require_unchanged_entry,
 };
 
@@ -86,24 +86,15 @@ pub(super) fn visit_directory(
         SourceTreePolicy::LocalPackage => 1,
     };
     let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
-    let opening_metadata = directory
-        .dir_metadata()
-        .map_err(|error| io_error(display_dir, error))?;
+    let opening_metadata = directory.dir_metadata().at(display_dir)?;
     let mut entry_names = Vec::new();
-    for entry in directory
-        .entries()
-        .map_err(|error| io_error(display_dir, error))?
-    {
+    for entry in directory.entries().at(display_dir)? {
         if entry_names.len() >= directory_listing_limit {
             return Err(SourceResolveError::TooManyFiles {
                 limit: limits.max_entries,
             });
         }
-        entry_names.push(
-            entry
-                .map_err(|error| io_error(display_dir, error))?
-                .file_name(),
-        );
+        entry_names.push(entry.at(display_dir)?.file_name());
     }
     entry_names.sort();
     let entry_names_listed = entry_names;
@@ -120,9 +111,7 @@ pub(super) fn visit_directory(
         }
         let display_path = display_dir.join(name);
         let logical_path = logical_dir.join(name);
-        let metadata = directory
-            .symlink_metadata(name)
-            .map_err(|error| io_error(&display_path, error))?;
+        let metadata = directory.symlink_metadata(name).at(&display_path)?;
         observed_entries.push(CapturedEntryObservation {
             name: name.clone(),
             metadata: metadata.clone(),
@@ -228,21 +217,12 @@ fn close_captured_directory(
     listed_names: &[OsString],
     observed_entries: &[CapturedEntryObservation],
 ) -> Result<(), SourceResolveError> {
-    let closing_metadata = directory
-        .dir_metadata()
-        .map_err(|error| io_error(display_dir, error))?;
+    let closing_metadata = directory.dir_metadata().at(display_dir)?;
     require_unchanged_entry(opening_metadata, &closing_metadata, display_dir)?;
 
     let mut closed_names: Vec<OsString> = Vec::new();
-    for entry in directory
-        .entries()
-        .map_err(|error| io_error(display_dir, error))?
-    {
-        closed_names.push(
-            entry
-                .map_err(|error| io_error(display_dir, error))?
-                .file_name(),
-        );
+    for entry in directory.entries().at(display_dir)? {
+        closed_names.push(entry.at(display_dir)?.file_name());
     }
     closed_names.sort();
     if closed_names != listed_names {
@@ -302,21 +282,12 @@ pub(super) fn verify_captured_tree(
             opened = open_observed_directory(root_directory, &record.relative_path, &display_path)?;
             &opened
         };
-        let closing_metadata = directory
-            .dir_metadata()
-            .map_err(|error| io_error(&display_path, error))?;
+        let closing_metadata = directory.dir_metadata().at(&display_path)?;
         require_unchanged_entry(&record.metadata, &closing_metadata, &display_path)?;
 
         let mut closed_names: Vec<OsString> = Vec::new();
-        for entry in directory
-            .entries()
-            .map_err(|error| io_error(&display_path, error))?
-        {
-            closed_names.push(
-                entry
-                    .map_err(|error| io_error(&display_path, error))?
-                    .file_name(),
-            );
+        for entry in directory.entries().at(&display_path)? {
+            closed_names.push(entry.at(&display_path)?.file_name());
         }
         closed_names.sort();
         if closed_names != record.listed_names {
@@ -335,9 +306,7 @@ fn open_observed_directory(
     relative_path: &Path,
     display_path: &Path,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let mut opened = root_directory
-        .try_clone()
-        .map_err(|error| io_error(display_path, error))?;
+    let mut opened = root_directory.try_clone().at(display_path)?;
     for component in relative_path.components() {
         opened = match opened.open_dir_nofollow(component.as_os_str()) {
             Ok(child) => child,
@@ -381,9 +350,7 @@ fn read_and_validate_symlink_target(
     link: &Path,
     policy: SourceTreePolicy,
 ) -> Result<PathBuf, SourceResolveError> {
-    let raw_target = directory
-        .read_link_contents(name)
-        .map_err(|error| io_error(link, error))?;
+    let raw_target = directory.read_link_contents(name).at(link)?;
     if raw_target.is_absolute() {
         return Err(SourceResolveError::SymlinkEscapesRoot {
             link: link.to_path_buf(),

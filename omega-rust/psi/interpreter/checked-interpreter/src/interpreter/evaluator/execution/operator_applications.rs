@@ -58,6 +58,7 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, Frame, Machine,
     PrimitiveType, SemanticFloatFormat, State, SymbolHandle, TypeReferenceHandle, Value, trap,
+    type_reference_table,
 };
 use checked_trees::CheckedArithmeticPolicyAdapter;
 use language_semantics::{ExternalBindingIdentity, ExternalBindingMechanism, MachineSupplyMode};
@@ -399,10 +400,7 @@ impl<'program> Evaluator<'program> {
             parameter: parameter.type_reference,
             source,
             destination,
-            domain: self
-                .program
-                .type_reference_table
-                .arithmetic_domain(signature.return_type),
+            domain: type_reference_table(self.program).arithmetic_domain(signature.return_type),
         })
     }
 }

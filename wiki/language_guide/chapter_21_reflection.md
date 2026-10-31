@@ -45,7 +45,7 @@ machine show_player_field<Value>(
     field: FieldInfo,
     value: &Value
 )
-requires Value == u32 || Value == f32;
+requires Value == u32 || Value == f32
 {
     transition {
         Value == u32 -> output.show_u32(field.name, value)

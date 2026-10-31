@@ -33,6 +33,7 @@ use super::overlap::StatedOrderingPremise;
 use super::place_access;
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::labels::symbol_name;
+use crate::places::place_at;
 
 /// Refine conservative syntactic holds with the producer's exact access ends.
 /// A scalar copied into an operand no longer borrows its source during the
@@ -159,15 +160,13 @@ pub(super) fn final_holds_in_statement(
     }
     let holds = completed_access_holds(program, facts, state, statement, occurrences);
     let destination_root = match statement_node {
-        StatementNode::Assignment(assignment) => {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.state_symbol,
-                statement.statement_index,
-                assignment.target,
-            )
-            .and_then(|place| place.root.as_symbol())
-        }
+        StatementNode::Assignment(assignment) => place_at(
+            program,
+            state.state_symbol,
+            statement.statement_index,
+            assignment.target,
+        )
+        .and_then(|place| place.root.as_symbol()),
         StatementNode::LocalData(_)
         | StatementNode::Expression(_)
         | StatementNode::Call(_)
@@ -293,7 +292,7 @@ fn transfers_descriptor_value(
     {
         return false;
     }
-    let Some(source) = validation::canonical_place_from_expression_in_state(
+    let Some(source) = place_at(
         program,
         read.state.state_symbol,
         read.statement.statement_index,

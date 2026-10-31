@@ -5,8 +5,8 @@
 //! belong to one authored constructor roster, and resolved symbols join each
 //! operand to its declaration without letting a common field select a case.
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
-use validation::canonical_place_from_expression_in_state;
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
@@ -30,7 +30,7 @@ pub(crate) fn literal_argument_access_places(
     )?
     .into_iter()
     .map(|projection| {
-        let mut place = canonical_place_from_expression_in_state(
+        let mut place = place_at(
             program,
             state_symbol,
             statement_index,

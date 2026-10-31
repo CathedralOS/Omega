@@ -254,7 +254,7 @@ fn collect(
     path: &mut Vec<Path>,
     leaves: &mut Vec<StorageLeaf>,
 ) -> Result<(), TerminalInterpretError> {
-    let declaration = execution.program.structural_declaration(root)?;
+    let declaration = execution.structural_declaration(root)?;
     match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => leaves.push(StorageLeaf {
             path: path.clone(),
@@ -291,7 +291,7 @@ fn collect(
             // inside it still checks every declared index on the route.
             if selected_path.is_none_or(|selected| selected == path.as_slice())
                 && terminal_semantics::scalar_array_leaf_shape(
-                    execution.program.structural_types().values(),
+                    execution.structural_types().values(),
                     root,
                 )
                 .is_some_and(|(_, count)| count == 0)
@@ -305,7 +305,7 @@ fn collect(
                 });
                 return Ok(());
             }
-            if execution.program.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
+            if execution.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
                 leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), structural_type: root, length: *length } });
             }
             let elements = match selected_path {
@@ -513,7 +513,7 @@ pub(super) fn scalar_storage(
             ));
         }
         let path = terminal_semantics::canonical_structural_storage_path(
-            execution.program.structural_types().values(),
+            execution.structural_types().values(),
             referent.structural_type,
             &leaf.path,
         )
@@ -658,7 +658,7 @@ pub(crate) fn capture(
             } => {
                 let initialized = if let Some(loan) = array_loan {
                     let selected = terminal_semantics::canonical_structural_storage_path(
-                        execution.program.structural_types().values(),
+                        execution.structural_types().values(),
                         referent.structural_type,
                         &leaf.path,
                     )

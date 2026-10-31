@@ -8,7 +8,7 @@ boundary trait Completion {
 proposition acknowledged(ack: Ack, word: &mut Cell) = atomic_release_written<AtomicU64, u64>(&word.value, ack.nonce);
 machine reset(word: &mut Cell) { word = Cell { value: 0 }; }
 machine finish(ack: Ack, word: &mut Cell) satisfies Completion::complete
-ensures acknowledged(ack, word);
+ensures acknowledged(ack, word)
 {
  reset(word);
  word.value.store(ack.nonce, Publish);

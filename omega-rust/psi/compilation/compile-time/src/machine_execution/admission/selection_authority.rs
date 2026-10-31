@@ -1,3 +1,4 @@
+use crate::build_time_evaluation::expression_table;
 use language_semantics::declaration_selection::BuildOperation;
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceOrigin, SourceSpan};
@@ -364,8 +365,7 @@ fn expression_occurrence_violation(
 ) -> Option<SelectionViolation> {
     let program = input.typed_program();
     if let Some(authority) = authority {
-        let occurrences = program
-            .expression_table
+        let occurrences = expression_table(program)
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {

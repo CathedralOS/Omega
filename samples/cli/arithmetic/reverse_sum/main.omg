@@ -12,7 +12,9 @@
 
 use omega_language_std::console;
 
-data Main {
+data Main
+requires self.i >= -1 && self.i <= 4
+{
     // Wrapping DECLARED: the elements feed the Wrapping accumulator, and Decision
     // 17 forbids mixing domains in one expression.
     nums: [i32; 5] in Wrapping;
@@ -35,14 +37,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.acc = 0;
 
     transition {
-        _ -> scan(main)
+        _ -> block scan(main)
     }
 
     // Loop head: walk down until every element has been added.
     machine scan(main: &mut Main) {
         transition main.i >= 0 {
-            true -> add(main)
-            _ -> done(main)
+            true -> block add(main)
+            _ -> block done(main)
         }
     }
 
@@ -51,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.acc = main.acc + main.nums[main.i];
         main.i = main.i - 1;
         transition {
-            _ -> scan(main)
+            _ -> block scan(main)
         }
     }
 

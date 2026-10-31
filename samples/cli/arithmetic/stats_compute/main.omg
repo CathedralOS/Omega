@@ -21,12 +21,13 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-data Stats [copy] {
+data Stats [copy]
+requires self.count >= 0 && self.count <= 100
+{
     // Running accumulator for sum and sum-of-squares.
     sum: f64;
     sum_sq_dev: f64;
-    // The modular-counter idiom at the increment: reducing `% 101` before the
-    // `+ 1` bounds the operand, so it is Exact-provable with no overflow domain.
+    // The owner bounds the exact increment; the outer remainder restores 0..100.
     count: i32;
     mean: f64;
     variance: f64;
@@ -41,7 +42,7 @@ data Main {
 // Add one value to the running sum.
 machine Main::add(main: &mut Main, x: f64) {
     main.s.sum = main.s.sum + x;
-    main.s.count = (main.s.count % 101 + 1) % 101;
+    main.s.count = (main.s.count + 1) % 101;
 }
 
 // Finalize mean = sum / count.
@@ -111,8 +112,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Verify mean: should be 5.0.
     transition main.s.mean > 4.9 {
-        true -> check_mean_upper(main)
-        _ -> bad_mean_low(main)
+        true -> block check_mean_upper(main)
+        _ -> block bad_mean_low(main)
     }
 
     machine bad_mean_low(main: &mut Main) {
@@ -124,8 +125,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_mean_upper(main: &mut Main) {
         transition main.s.mean < 5.1 {
-            true -> check_var_low(main)
-            _ -> bad_mean_high(main)
+            true -> block check_var_low(main)
+            _ -> block bad_mean_high(main)
         }
     }
 
@@ -139,8 +140,8 @@ machine Main::main(main: &mut Main) reaches Console {
     // Verify variance: should be 4.0.
     machine check_var_low(main: &mut Main) {
         transition main.s.variance > 3.9 {
-            true -> check_var_high(main)
-            _ -> bad_var_low(main)
+            true -> block check_var_high(main)
+            _ -> block bad_var_low(main)
         }
     }
 
@@ -153,8 +154,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_var_high(main: &mut Main) {
         transition main.s.variance < 4.1 {
-            true -> check_weighted(main)
-            _ -> bad_var_high(main)
+            true -> block check_weighted(main)
+            _ -> block bad_var_high(main)
         }
     }
 
@@ -168,8 +169,8 @@ machine Main::main(main: &mut Main) reaches Console {
     // Verify weighted sum: should be 82.5.
     machine check_weighted(main: &mut Main) {
         transition main.s.weighted_sum > 82.0 {
-            true -> check_weighted_high(main)
-            _ -> bad_weighted_low(main)
+            true -> block check_weighted_high(main)
+            _ -> block bad_weighted_low(main)
         }
     }
 
@@ -182,8 +183,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_weighted_high(main: &mut Main) {
         transition main.s.weighted_sum < 83.0 {
-            true -> good(main)
-            _ -> bad_weighted_high(main)
+            true -> block good(main)
+            _ -> block bad_weighted_high(main)
         }
     }
 

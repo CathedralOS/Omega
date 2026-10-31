@@ -86,7 +86,7 @@ ensures result == 7
 { seven(value.bytes.len) }
 machine retain_view<'storage>(selected: View<'storage>, remaining: u64)
 requires remaining <= 2
-terminates by remaining -> Nat::Descending in 0..=2;
+terminates by remaining -> Nat::Descending in 0..=2
 -> View<'storage>
 ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
 {

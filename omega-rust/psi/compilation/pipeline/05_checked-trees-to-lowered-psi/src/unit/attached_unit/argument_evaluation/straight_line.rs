@@ -29,6 +29,7 @@ impl Evaluation {
         next_value: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
         let source_count = values.len();
         let mut chain = Vec::new();
@@ -74,6 +75,13 @@ impl Evaluation {
                     LoweredScalarBinding::SelectedComparison { left, right, .. }
                         if !direct_expression_contains_short_circuit(left)
                             && !direct_expression_contains_short_circuit(right) => {}
+                    // A direct invocation is one ordinary operation even when
+                    // it has a continuation in the prepared graph. Operands
+                    // which select control still use the block emitter.
+                    LoweredScalarBinding::DirectCall(call)
+                        if call.arguments.iter().all(|argument| {
+                            !direct_expression_contains_short_circuit(argument)
+                        }) => {}
                     _ => return Ok(None),
                 }
                 types.push(binding.value_type(&types)?);
@@ -112,12 +120,28 @@ impl Evaluation {
                         .map(|value| value.value_type())
                         .collect::<Vec<_>>(),
                 )?;
+                // Source custody is the same whether this chain uses one block
+                // or several. A declaration call has its captured application
+                // origin, while a statement call retains its suspension frontier.
+                let frontier = if let LoweredScalarBinding::DirectCall(call) = binding {
+                    call.source_coordinate
+                        .statement()
+                        .map(|coordinate| {
+                            environment.suspension_source_frontier(
+                                coordinate, self, &completed, calls, operations,
+                            )
+                        })
+                        .transpose()?
+                        .unwrap_or_default()
+                } else {
+                    Default::default()
+                };
                 let id = emit_scalar_binding(
                     identities,
                     checked,
                     binding,
                     &completed,
-                    &lowered_psi::LoweredSourceFrontierBindings::default(),
+                    &frontier,
                     &self.erased_scalar_formals,
                     next_value,
                     operations,

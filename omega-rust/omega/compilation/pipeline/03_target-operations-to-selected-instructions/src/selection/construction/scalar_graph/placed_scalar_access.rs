@@ -38,10 +38,7 @@ pub(super) fn emit(
     .ok_or_else(invalid)?;
     if geometry.selected != demand.accessor
         || !geometry.readable
-        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        )
+        || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(invalid());
     }

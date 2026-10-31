@@ -6,8 +6,8 @@ use omega_language_std::console;
 
 // Finite binary stdin protocol. One lookahead rejects over-capacity input.
 public machine read_input(input: &mut InputBuffer) -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     input.length = 0;

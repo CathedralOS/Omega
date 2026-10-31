@@ -3,12 +3,12 @@
 data Limits { ceiling: u32; observed: u32; }
 
 machine first(limits: &mut Limits, remaining: u32, scratch: u32) -> u32
-requires remaining <= 9 && limits.ceiling <= 4 && scratch <= limits.ceiling;
-terminates by remaining in 0..=9;
+requires remaining <= 9 && limits.ceiling <= 4 && scratch <= limits.ceiling
+terminates by remaining in 0..=9
 {
     transition { _ -> step(limits, remaining, scratch) }
     machine step(limits: &mut Limits, current: u32, saved: u32) -> u32
-    requires current <= 9 && limits.ceiling <= 4 && saved <= limits.ceiling;
+    requires current <= 9 && limits.ceiling <= 4 && saved <= limits.ceiling
     {
         limits.observed = 1;
         transition current > 0 {
@@ -19,8 +19,8 @@ terminates by remaining in 0..=9;
 }
 
 machine second(limits: &mut Limits, pending: u32, saved: u32) -> u32
-requires pending <= 9 && limits.ceiling <= 4 && saved <= limits.ceiling;
-terminates by pending in 0..=9;
+requires pending <= 9 && limits.ceiling <= 4 && saved <= limits.ceiling
+terminates by pending in 0..=9
 {
     transition pending > 0 {
         true -> first(limits, pending - 1, saved)

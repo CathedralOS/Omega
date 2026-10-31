@@ -35,15 +35,7 @@ pub(super) fn copy_shaped(
             .operands
             .iter()
             .zip([value, output])
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
+            .map(|(operand, register)| selected_operand(operand, register))
             .collect(),
         implicit_uses: copy.implicit_uses.clone(),
         implicit_defs: copy.implicit_defs.clone(),

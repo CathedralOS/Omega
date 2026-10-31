@@ -14,7 +14,7 @@ SharedApply satisfies CallbackApply {
     { Action(value) }
 }
 data Carrier [copy] where value <= 64 { value: u64; }
-machine main() reaches CallbackApply invokes CallbackApply; crashes Trap {
+machine main() reaches CallbackApply invokes CallbackApply crashes Trap {
     let result: u64 = CallbackApply::apply<identity>(42);
     let carrier: Carrier = Carrier { value: result };
     let remaining: u64 = 64u64 - carrier.value;

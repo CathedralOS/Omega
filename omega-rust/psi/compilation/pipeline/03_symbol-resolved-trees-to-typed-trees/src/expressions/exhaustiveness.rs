@@ -34,6 +34,7 @@
 //! a maximal run formed by adjoining a crash, return or another source block.
 //! Runtime control still tries the admitted arms in order.
 
+use crate::tables::{resolved_expressions, resolved_statements};
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};
@@ -57,11 +58,7 @@ pub(crate) fn validate_case_dispatch_exhaustiveness_in(
                 machine,
                 state,
             };
-            let statements = program
-                .tables
-                .bodies
-                .statements
-                .statements(state.statement_nodes);
+            let statements = resolved_statements(program).statements(state.statement_nodes);
             let location = if machine.name.as_str().rsplit("::").next() == Some(state.name.as_str())
             {
                 machine.name.as_str().to_owned()
@@ -961,11 +958,7 @@ fn find_case(
         })?;
         return Some((subject_index(data_index), variant));
     }
-    let members = program
-        .tables
-        .bodies
-        .expressions
-        .name_path_members(membership.domain);
+    let members = resolved_expressions(program).name_path_members(membership.domain);
     let [type_name, case_name] = members else {
         return None;
     };

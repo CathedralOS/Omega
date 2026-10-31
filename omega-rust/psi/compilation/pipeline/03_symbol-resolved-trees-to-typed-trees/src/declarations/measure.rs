@@ -1,6 +1,8 @@
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::signatures::parameters::state_parameter;
+use crate::tables::expression_table_mut;
+use crate::tables::resolved_expressions;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 
@@ -32,18 +34,10 @@ pub(crate) fn lower_measure_definition(
     }
 
     let mut lowered_components = Vec::new();
-    for expression in lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(measure.body)
-    {
+    for expression in resolved_expressions(lowerer.source_trees).expression_handles(measure.body) {
         lowered_components.push(lower_expression_handle(lowerer, *expression)?);
     }
-    typed_measure.body = lowerer
-        .typed_trees
-        .expression_table
+    typed_measure.body = expression_table_mut(&mut lowerer.typed_trees)
         .insert_expression_handles(lowered_components);
 
     Ok(typed_measure)

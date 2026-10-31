@@ -14,7 +14,7 @@ machine Worker::write(cell: &mut Cell) -> i32 {
         }
     }
     machine store(cell: &mut Cell, remaining: u64) -> i32
-    requires remaining > 0;
+    requires remaining > 0
     {
         cell.value = 70;
         transition { _ -> step(cell, remaining - 1) }

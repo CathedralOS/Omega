@@ -3,10 +3,9 @@
 // state reenters s with the old snapshot instead of completing the walk.
 data Pair where 0 <= left, left <= 5 { left: u32; }
 
-machine walk(remaining: u32)
+machine walk(remaining: u32) -> u32
     requires 0 <= remaining && remaining <= 5
-terminates by remaining in 0..=5;
--> u32 {
+terminates by remaining in 0..=5 {
     transition { _ -> s(Pair { left: remaining }, remaining) }
     machine s(pair: Pair, copy: u32) -> u32
         requires 0 <= copy && copy <= 5

@@ -2,7 +2,7 @@
 // Expected exit: 0
 
 machine shift_left_bounded(val: u16) -> i32
-    requires val >= 30u16 && val <= 30u16;
+    requires val >= 30u16 && val <= 30u16
 {
     let shifted: u16 = val << 2u16;
     let check: u16 = shifted - 120u16;

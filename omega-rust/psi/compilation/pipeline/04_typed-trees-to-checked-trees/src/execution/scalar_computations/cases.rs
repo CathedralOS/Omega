@@ -2,6 +2,7 @@
 //! The same dynamic field computations retain their calls, traps and selected
 //! operators; knowing the constructed case does not erase their evaluation.
 use super::{Builder, CheckedScalarComputationHandle, ExpressionHandle, PrimitiveType};
+use crate::places::place_at;
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
     CheckedScalarComputationStructuralArgument,
@@ -66,12 +67,7 @@ impl Builder<'_, '_> {
         if self.uses_captured_dispatch_value(subject) {
             return None;
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            statement_index,
-            subject,
-        )?;
+        let place = place_at(self.program, self.state, statement_index, subject)?;
         let source = if let Some(expression) = place.root.as_expression() {
             // A saved subject denotes the dispatch's already completed value,
             // not its producer. Read that home without evaluating the producer

@@ -13,6 +13,7 @@ use super::{
     exact_const_primitive, exact_structured_const_carrier_is_eligible,
     validate_decoded_structured_const,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// `None` retains an open/deferred recipe. An invalid completed value reports
@@ -53,7 +54,7 @@ pub(crate) fn normalize_closed_const_expression_in_carrier(
     };
     let mut canonical = CanonicalConstValue::from_decoded(
         &value,
-        program.expression_table.display_name(expression),
+        expression_table(program).display_name(expression),
     )
     .ok_or_else(|| "completed const recipe exceeds canonical value encoding limits".to_owned())?;
     // The inner schema labels are replay consistency claims. The outer atom
@@ -80,10 +81,7 @@ impl Context<'_> {
         expression: ExpressionHandle,
         carrier: AppliedValueCarrier<'_>,
     ) -> Result<Option<DecodedCanonicalConstValue>, String> {
-        if !self
-            .program
-            .expression_table
-            .expression_is_valid(expression)
+        if !expression_table(self.program).expression_is_valid(expression)
             || self.active.contains(&expression)
         {
             return Err("const recipe has an invalid or cyclic expression edge".to_owned());
@@ -112,7 +110,7 @@ impl Context<'_> {
         let program = self.program;
         let carrier = carrier.resolved(program);
         let expected = carrier.reference;
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         // Boolean literals are closed independently of their receiving carrier.
         // The shared canonical validator still checks that carrier before the
         // value can be published or used as a constructor field.
@@ -223,7 +221,7 @@ impl Context<'_> {
                 let length = carrier
                     .array_length(program, length)
                     .ok_or("const array carrier extent is not closed")?;
-                let elements = program.expression_table.expression_handles(*elements);
+                let elements = expression_table(program).expression_handles(*elements);
                 if elements.len() != length {
                     return Err("const array recipe has the wrong element count".to_owned());
                 }
@@ -270,7 +268,7 @@ impl Context<'_> {
                             .collect::<Vec<_>>(),
                     )
                 };
-                let supplied = program.expression_table.struct_fields(literal.fields);
+                let supplied = expression_table(program).struct_fields(literal.fields);
                 if fields.len() != supplied.len() {
                     return Err("const constructor has the wrong field count".to_owned());
                 }

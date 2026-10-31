@@ -1,1 +1,1 @@
-a write, call, or alias invalidates the entry-relative ranking
+captured ranks do not prove natural nonincrease

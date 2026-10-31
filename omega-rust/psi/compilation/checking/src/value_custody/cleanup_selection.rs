@@ -3,6 +3,7 @@
 //! fields remain separate subjects. Ordinary tuple binding supplies substitution,
 //! and executable specialization never replaces the authored application.
 
+use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -32,8 +33,7 @@ fn declarations(program: &dyn crate::CheckingInput) -> impl Iterator<Item = &Cle
 }
 
 fn target(program: &dyn crate::CheckingInput, selection: &CleanupSelection) -> SymbolHandle {
-    program
-        .expression_table
+    expression_table(program)
         .static_machine_application(selection.application)
         .registration_operation
 }
@@ -113,29 +113,21 @@ pub(super) fn same_application(
     left: &CleanupSelection,
     right: &CleanupSelection,
 ) -> bool {
-    let left_application = program
-        .expression_table
-        .static_machine_application(left.application);
-    let right_application = program
-        .expression_table
-        .static_machine_application(right.application);
+    let left_application = expression_table(program).static_machine_application(left.application);
+    let right_application = expression_table(program).static_machine_application(right.application);
     if left_application.registration_operation != right_application.registration_operation {
         return false;
     }
-    let left_bindings = program
-        .expression_table
-        .static_machine_application_bindings(left.application);
-    let right_bindings = program
-        .expression_table
-        .static_machine_application_bindings(right.application);
+    let left_bindings =
+        expression_table(program).static_machine_application_bindings(left.application);
+    let right_bindings =
+        expression_table(program).static_machine_application_bindings(right.application);
     if left_bindings.is_empty()
         && right_bindings.is_empty()
-        && (!program
-            .expression_table
+        && (!expression_table(program)
             .static_machine_application_arguments(left.application)
             .is_empty()
-            || !program
-                .expression_table
+            || !expression_table(program)
                 .static_machine_application_arguments(right.application)
                 .is_empty())
     {
@@ -155,12 +147,10 @@ pub(super) fn same_application(
     {
         return false;
     }
-    let left_lifetimes = program
-        .expression_table
-        .static_machine_application_lifetimes(left.application);
-    let right_lifetimes = program
-        .expression_table
-        .static_machine_application_lifetimes(right.application);
+    let left_lifetimes =
+        expression_table(program).static_machine_application_lifetimes(left.application);
+    let right_lifetimes =
+        expression_table(program).static_machine_application_lifetimes(right.application);
     left_lifetimes.len() == right_lifetimes.len()
         && left_lifetimes
             .iter()
@@ -325,9 +315,8 @@ pub(super) fn validate_declaration_owners(
         }
     }
     for selection in declarations(program) {
-        let application = program
-            .expression_table
-            .static_machine_application(selection.application);
+        let application =
+            expression_table(program).static_machine_application(selection.application);
         let Some(machine) = program.machine(application.registration_operation) else {
             continue;
         };
@@ -339,8 +328,7 @@ pub(super) fn validate_declaration_owners(
             if parameter.is_const || shell.access != language_semantics::ReferenceAccess::Mutable {
                 return None;
             }
-            let substitutions = program
-                .expression_table
+            let substitutions = expression_table(program)
                 .static_machine_application_bindings(selection.application)
                 .iter()
                 .filter_map(|binding| match binding.value {

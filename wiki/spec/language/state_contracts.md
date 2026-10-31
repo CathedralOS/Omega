@@ -36,9 +36,11 @@ value static. Repeated predicate clauses in one scope conjoin their obligations.
 `requires machine Handler satisfies Trait::requirement` declares a nominal one.
 They retain the existing binder-kind and complete-contract rules, not inference
 from body uses. A nested callable's own `requires`, `ensures` and operational
-clauses belong to that callable. Its terminating semicolon closes that contract
-before subsequent clauses resume the enclosing declaration. Nested premises are
-not flattened into the enclosing machine's entry requirements.
+clauses belong to that callable. Its declaration-ending semicolon closes that
+complete contract before subsequent clauses resume the enclosing declaration.
+There are no clause-ending semicolons; see
+[header delimiters](#machine-header-delimiters). Nested premises are not flattened
+into the enclosing machine's entry requirements.
 
 Assembly removes the grouping word rather than replacing it with another
 `requires`: `asm requires ready ...` has one entry requirement, and
@@ -52,6 +54,53 @@ This is the accepted source contract, not a claim that either compiler already
 accepts all new forms. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)
 tracks both producers, repository and customer source migration, and deletion of
 the retired grammar and compatibility paths.
+
+## Machine header delimiters
+
+Named decision: `machine-clause-delimiters`, confirmed 2026-10-30.
+
+Machine header clauses have no trailing semicolons. This applies uniformly to
+`requires`, `ensures`, `reaches`, `invokes`, `suspends`, `blocks`, `crashes`,
+`terminates` (including `terminates by`), and other machine header clauses.
+The next clause keyword or the implementation body delimits a clause; a newline
+does not change its owner. A checked machine proceeds directly from its last
+clause to its body. A semicolon before that body does not terminate a clause and
+then resume the same declaration.
+
+A bodyless machine declaration or requirement ends with one semicolon after its
+complete header. That terminator belongs to the declaration, not whichever
+clause happens to come last. A nested `requires machine` is such a declaration:
+its semicolon closes the nested contract and subsequent clauses belong to the
+enclosing declaration.
+
+```omega
+machine invoke<machine Step>() -> u64
+requires machine Step() -> u64
+    terminates;
+crashes Trap
+{
+    Step()
+}
+```
+
+Here `terminates` belongs to `Step`, and `crashes Trap` belongs to `invoke`.
+To put a crash ceiling on `Step`, put that clause before its declaration
+terminator. A callback with several operational axes writes them together:
+
+```omega
+requires machine Target() -> u64
+    suspends
+    blocks
+    terminates;
+```
+
+No extra semicolon is needed after a termination clause to end that callable.
+An additional same-level terminator rejects; it is not a compatibility spelling.
+[Nested callable families](generics.md#nested-contracts-and-proof-families) still
+have one terminator per bodyless declaration: closing an inner requirement and
+then its enclosing bodyless requirement legitimately needs two declaration
+terminators. Neither is a clause terminator. Statement, data-field, and other
+declaration punctuation is unchanged by this rule.
 
 ## Bindings and arrivals
 

@@ -1,5 +1,6 @@
 //! Finalize source-issued static input occurrences after independent ordinary
 //! formation checks. Product root descriptors grant no authority here.
+use crate::flow::expressions;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Binding,
@@ -27,8 +28,7 @@ pub(super) fn collect(
             resolutions,
         )?;
     }
-    if !typed
-        .expression_table
+    if !expressions(typed)
         .static_machine_applications()
         .any(|(_, application)| !application.input_selections.is_empty())
     {
@@ -70,9 +70,7 @@ pub(super) fn collect(
         collect_inputs(
             typed,
             application.input_selections,
-            typed
-                .expression_table
-                .static_machine_application_arguments(handle),
+            expressions(typed).static_machine_application_arguments(handle),
             resolutions,
         )?;
     }

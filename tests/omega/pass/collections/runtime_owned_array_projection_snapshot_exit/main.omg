@@ -9,14 +9,14 @@ data Main {
 data Reply [copy] { case Values(row: [i32; 2]); case Empty; }
 
 machine row(rows: &[[i32; 2]; 2], index: u64) -> [i32; 2]
-requires index < 2;
+requires index < 2
 { rows[index] }
 machine plane(planes: &[[[i32; 2]; 2]; 2], index: u64) -> [[i32; 2]; 2]
-requires index < 2;
+requires index < 2
 { planes[index] }
 machine identity<T [copy]>(values: T) -> T { values }
 machine empty_row(rows: &[[i32; 0]; 2], index: u64) -> [i32; 0]
-requires index < 2;
+requires index < 2
 { rows[index] }
 machine emit_case(main: &mut Main, reply: &Reply) reaches Console {
     transition reply {
@@ -30,7 +30,7 @@ machine emit_case(main: &mut Main, reply: &Reply) reaches Console {
     machine none(main: &mut Main) { emit(main, [0, 0]); }
 }
 machine emit_later(main: &mut Main, rows: &[[i32; 2]; 2], index: u64) reaches Console
-requires index < 2;
+requires index < 2
 {
     transition { _ -> selected(main, rows, index) }
     machine selected(main: &mut Main, rows: &[[i32; 2]; 2], index: u64)

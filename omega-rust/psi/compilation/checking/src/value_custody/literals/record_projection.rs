@@ -10,6 +10,7 @@
 //! case; inactive payloads cannot supply a same-named scalar. Constructor
 //! establishment separately owes the case's predicate and ownership checks.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolKind;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
@@ -50,8 +51,7 @@ pub fn closed_scalar_place_projection(
                 let (field, _) = fields
                     .into_iter()
                     .find(|(field, _)| field.symbol == *symbol)?;
-                let actual = program
-                    .expression_table
+                let actual = expression_table(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .find(|actual| actual.field_symbol == field.symbol)?;
@@ -75,9 +75,8 @@ pub fn closed_scalar_place_projection(
                 if index >= length {
                     return None;
                 }
-                let elements = program.expression_table.array_literal_node(selected)?;
-                selected = *program
-                    .expression_table
+                let elements = expression_table(program).array_literal_node(selected)?;
+                selected = *expression_table(program)
                     .expression_handles(*elements)
                     .get(*index)?;
                 selected_type = *element_type;
@@ -131,10 +130,10 @@ pub(super) fn closed_scalar_projection(
     let mut root = expression;
     let mut has_field = false;
     loop {
-        if projections.len() >= program.expression_table.expression_count() {
+        if projections.len() >= expression_table(program).expression_count() {
             return None;
         }
-        let receiver = match program.expression_table.expression(root) {
+        let receiver = match expression_table(program).expression(root) {
             ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
                 has_field = true;
                 member.receiver
@@ -159,7 +158,7 @@ pub(super) fn closed_scalar_projection(
     let mut selected = root;
     let mut selected_type = root_type.unwrap_or_default();
     for projection in projections.into_iter().rev() {
-        match program.expression_table.expression(projection) {
+        match expression_table(program).expression(projection) {
             ExpressionNode::Member(member) => {
                 let (literal, definition) = record_constructor(program, selected)?;
                 if member.case_variant.is_some() && member.case_variant != literal.case_name {
@@ -172,8 +171,7 @@ pub(super) fn closed_scalar_projection(
                     member.member.as_str(),
                     member.case_variant.as_ref().map(|variant| variant.as_str()),
                 )?;
-                let actual = program
-                    .expression_table
+                let actual = expression_table(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .find(|actual| actual.field_symbol == field.symbol)?;
@@ -188,8 +186,8 @@ pub(super) fn closed_scalar_projection(
                 else {
                     return None;
                 };
-                let elements = program.expression_table.array_literal_node(selected)?;
-                let ordinal = program.expression_table.integer_node(indexed.index)?;
+                let elements = expression_table(program).array_literal_node(selected)?;
+                let ordinal = expression_table(program).integer_node(indexed.index)?;
                 if ordinal.landing().is_some_and(|landing| {
                     landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                         || landing.landed_type == numerics::literals::LandedIntegerType::Addr
@@ -201,8 +199,7 @@ pub(super) fn closed_scalar_projection(
                 if ordinal >= *length {
                     return None;
                 }
-                selected = *program
-                    .expression_table
+                selected = *expression_table(program)
                     .expression_handles(*elements)
                     .get(ordinal)?;
                 selected_type = *element_type;
@@ -237,7 +234,7 @@ fn builtin_index(
         program,
         spelling,
         &operands,
-        program.expression_table.source_span(expression),
+        expression_table(program).source_span(expression),
     )
     .is_empty()
         && program
@@ -265,10 +262,10 @@ fn record_constructor(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(&TableStructLiteral, &DataDefinition)> {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return None;
     }
-    let literal = program.expression_table.struct_literal_node(expression)?;
+    let literal = expression_table(program).struct_literal_node(expression)?;
     if !literal.type_symbol.is_valid()
         || program.symbols.get(literal.type_symbol).kind != SymbolKind::Data
     {
@@ -345,7 +342,7 @@ fn closed_record(
     let Some((literal, definition)) = record_constructor(program, expression) else {
         return false;
     };
-    let actuals = program.expression_table.struct_fields(literal.fields);
+    let actuals = expression_table(program).struct_fields(literal.fields);
     let Some(fields) = constructor_fields(program, literal, definition) else {
         return false;
     };
@@ -370,7 +367,7 @@ fn closed_record(
         let Some(actual) = matching.next() else {
             return false;
         };
-        if matching.next().is_some() || !program.expression_table.expression_is_valid(actual.value)
+        if matching.next().is_some() || !expression_table(program).expression_is_valid(actual.value)
         {
             return false;
         }
@@ -386,11 +383,11 @@ fn closed_value(
     reference: TypeReferenceHandle,
     active: &mut Vec<ExpressionHandle>,
 ) -> bool {
-    if active.contains(&expression) || !program.expression_table.expression_is_valid(expression) {
+    if active.contains(&expression) || !expression_table(program).expression_is_valid(expression) {
         return false;
     }
     match (
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         program.type_reference_table.type_reference(reference),
     ) {
         (ExpressionNode::StructLiteral(literal), TypeReferenceNode::Named { symbol, .. }) => {
@@ -403,7 +400,7 @@ fn closed_value(
                 length: typed_trees::types::FixedArrayLength::Literal(length),
             },
         ) => {
-            let actuals = program.expression_table.expression_handles(*elements);
+            let actuals = expression_table(program).expression_handles(*elements);
             if actuals.len() != *length || actuals.len() != elements.count() as usize {
                 return false;
             }

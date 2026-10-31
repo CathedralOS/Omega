@@ -63,13 +63,13 @@ machine selected_element() -> bool {
     select(&mut coordinate);
     coordinate < 2 && elements[coordinate] == 22
 }
-machine receive(value: &mut f32) -> i64 reaches ScalarIo blocks; {
+machine receive(value: &mut f32) -> i64 reaches ScalarIo blocks {
     transition { _ -> read(value) }
     machine read(value: &mut f32) -> i64 {
         block ScalarIo::read(0, value, 4)
     }
 }
-machine Main::main(main: &mut Main) reaches ScalarIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches ScalarIo blocks crashes Trap {
     let flag: bool = initial();
     let original: bool = flag;
     let held: &mut bool = &mut flag;
@@ -102,7 +102,7 @@ machine Main::main(main: &mut Main) reaches ScalarIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ScalarIo blocks; crashes Trap {
+machine entry_start() reaches ScalarIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

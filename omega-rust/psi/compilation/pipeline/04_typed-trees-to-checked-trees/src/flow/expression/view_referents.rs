@@ -4,6 +4,7 @@
 //! independently of later writes to their backing contents.
 
 use super::super::CapturedReferencePlace;
+use crate::places::place_at;
 /// Ephemeral results of the shared immutable completed-storage query.
 /// This is neither a second store inventory nor permission to load a pointer.
 pub(super) enum StoredReferenceContents {
@@ -773,7 +774,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<HandleSpan<FlowOperandReferent>> {
-        let source = validation::canonical_place_from_expression_in_state(
+        let source = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,

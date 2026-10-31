@@ -3,7 +3,7 @@
 
 use crate::checker::integer_ranges::{apply_handle_condition_complement, integer_literal_handle};
 use crate::obligations::{IntegerRange, ProofPlan};
-use crate::typed_expressions::{dehoisted_condition, dehoisted_operand};
+use crate::typed_expressions::{dehoisted_condition, dehoisted_operand, expression_table};
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::statement::TransitionGuardNode;
@@ -269,14 +269,8 @@ pub(crate) fn expressions_equivalent_for_proof(
             expressions_equivalent_for_proof(proof_plan, left, right.target)
         }
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            proof_plan
-                .program
-                .expression_table
-                .name_path_members(left.members)
-                == proof_plan
-                    .program
-                    .expression_table
-                    .name_path_members(right.members)
+            expression_table(proof_plan.program).name_path_members(left.members)
+                == expression_table(proof_plan.program).name_path_members(right.members)
         }
         (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
             left.target == right.target
@@ -289,17 +283,10 @@ pub(crate) fn expressions_equivalent_for_proof(
                     (false, false) => true,
                     _ => false,
                 }
-                && proof_plan
-                    .program
-                    .expression_table
+                && expression_table(proof_plan.program)
                     .expression_handles(left.arguments)
                     .iter()
-                    .zip(
-                        proof_plan
-                            .program
-                            .expression_table
-                            .expression_handles(right.arguments),
-                    )
+                    .zip(expression_table(proof_plan.program).expression_handles(right.arguments))
                     .all(|(left_argument, right_argument)| {
                         expressions_equivalent_for_proof(
                             proof_plan,
@@ -346,9 +333,7 @@ fn flat_place_segments(
     match proof_plan.program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => flat_place_segments(proof_plan, inner.target),
         ExpressionNode::Name(path) => Some(
-            proof_plan
-                .program
-                .expression_table
+            expression_table(proof_plan.program)
                 .name_path_members(path.members)
                 .iter()
                 .map(|member| member.as_str().to_owned())

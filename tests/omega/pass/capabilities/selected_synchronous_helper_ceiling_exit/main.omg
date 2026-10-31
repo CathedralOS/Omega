@@ -12,7 +12,7 @@ SelectedAlpha satisfies Alpha {
 SelectedBeta satisfies Beta {
     machine read() -> u64 { helper() }
 }
-public machine helper() -> u64 reaches Alpha + Beta invokes Alpha; { 73 }
+public machine helper() -> u64 reaches Alpha + Beta invokes Alpha { 73 }
 machine main() reaches Alpha + Beta crashes Trap {
     let value: u64 = Alpha::read();
     transition value == 73 { true -> done() _ -> wrong() }

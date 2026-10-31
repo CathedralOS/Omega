@@ -120,4 +120,4 @@ pub fn activation_claim_shape_in(
 }
 
 mod flow;
-pub use flow::{validate_flow, validate_machine};
+pub use flow::{validate_flow, validate_machine, validate_module};

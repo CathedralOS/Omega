@@ -4,7 +4,7 @@ public boundary trait Scheduler { machine park() reaches suspends; }
 public Immediate satisfies Scheduler { machine park() {} }
 data Envelope<T> { payload: T; }
 
-machine inspect(value: &mut u32) reaches Scheduler suspends; {
+machine inspect(value: &mut u32) reaches Scheduler suspends {
     suspend Scheduler::park();
     value = 7;
 }
@@ -16,17 +16,17 @@ machine main() reaches Scheduler crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 }
 
-machine inspect_shared(value: &u32) -> u32 reaches Scheduler suspends; {
+machine inspect_shared(value: &u32) -> u32 reaches Scheduler suspends {
     suspend Scheduler::park();
     value
 }
 
-machine inspect_carrier(carrier: Envelope<&u32>) -> u32 reaches Scheduler suspends; {
+machine inspect_carrier(carrier: Envelope<&u32>) -> u32 reaches Scheduler suspends {
     suspend Scheduler::park();
     carrier.payload
 }
 
-machine initialize(value: &write u32) reaches Scheduler suspends; {
+machine initialize(value: &write u32) reaches Scheduler suspends {
     suspend Scheduler::park();
     value = 9;
 }

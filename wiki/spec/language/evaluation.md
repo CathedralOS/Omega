@@ -130,7 +130,7 @@ selection. Executable checking and lowering enforce the same distinction.
 
 There is only the ordinary `terminates` guarantee. A closed acyclic checked
 body supplies it locally; a cyclic body proves `terminates by ...`; an open
-or separately compiled contract declares `terminates;` when consumers may rely
+or separately compiled contract declares `terminates` when consumers may rely
 on it. A terminating invocation can still be too expensive for its sponsor.
 
 [Logical work](../resources/logical_work.md) defines the canonical Terminal

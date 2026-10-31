@@ -4,6 +4,7 @@
 //! A callback's complete provider tuple and a map's complete capture tuple have
 //! separate retained applications. Preparation grants no callable admission.
 use super::super::{Diagnostic, TypedTrees};
+use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::static_applications::{
     StaticMachineBinding, StaticMachineBindingValue, StaticMachineLifetimeBinding,
@@ -30,18 +31,15 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             ));
         }
 
-        let source = program
-            .expression_table
+        let source = expressions_of(program)
             .static_machine_application(supplying)
             .clone();
-        let invocation = program.expression_table.retain_static_machine_application(
+        let invocation = expressions_of_mut(program).retain_static_machine_application(
             declaration.symbol,
             declaration.alias.clone().unwrap_or_default(),
             &application.arguments,
         );
-        let record = program
-            .expression_table
-            .static_machine_application_mut(invocation);
+        let record = expressions_of_mut(program).static_machine_application_mut(invocation);
         record.lexical_owner = source.lexical_owner;
         record.binding_declaration = declaration.symbol;
         let mut operands = Vec::new();
@@ -75,9 +73,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 value,
             });
         }
-        program
-            .expression_table
-            .set_static_machine_application_bindings(invocation, &bindings);
+        expressions_of_mut(program).set_static_machine_application_bindings(invocation, &bindings);
         let lifetimes = declaration
             .lifetime_parameters
             .iter()
@@ -88,8 +84,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 argument: typed_trees::name::Identifier::generated(argument),
             })
             .collect::<Vec<_>>();
-        program
-            .expression_table
+        expressions_of_mut(program)
             .set_static_machine_application_lifetimes(invocation, &lifetimes);
         let mut selected = Vec::new();
         for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
@@ -117,14 +112,13 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             } else if program.symbols.get(argument.symbol).kind
                 == symbols::SymbolKind::MachineParameter
             {
-                let provider = program.expression_table.retain_static_machine_application(
+                let provider = expressions_of_mut(program).retain_static_machine_application(
                     argument.symbol,
                     typed_trees::name::Identifier::generated(argument.display_name()),
                     &[],
                 );
-                let descriptor = program
-                    .expression_table
-                    .static_machine_application_mut(provider);
+                let descriptor =
+                    expressions_of_mut(program).static_machine_application_mut(provider);
                 descriptor.binding_declaration = argument.symbol;
                 descriptor.lexical_owner = source.lexical_owner;
                 program
@@ -146,8 +140,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             }
             selected.push(executable);
         }
-        program
-            .expression_table
+        expressions_of_mut(program)
             .set_static_machine_application_selected_machines(invocation, &selected);
         program
             .closed_conformance_application_at_mut(site)

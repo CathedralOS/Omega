@@ -14,7 +14,7 @@ pub(crate) use traversal_observations::{
 };
 
 use super::ResolvedLocalSource;
-use super::filesystem::{io_error, open_canonical_source_root, require_unchanged_entry};
+use super::filesystem::{IoResultAt, open_canonical_source_root, require_unchanged_entry};
 use super::identity::SourceIdentityHasher;
 use crate::SourceResolveError;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
@@ -33,9 +33,7 @@ pub(crate) fn capture_local_source(
     limits: LocalSourceLimits,
     policy: SourceTreePolicy,
 ) -> Result<CapturedLocalTree, SourceResolveError> {
-    let root = requested_root
-        .canonicalize()
-        .map_err(|error| io_error(requested_root, error))?;
+    let root = requested_root.canonicalize().at(requested_root)?;
     if !root.is_dir() {
         return Err(SourceResolveError::NotDirectory { path: root });
     }
@@ -53,9 +51,7 @@ pub(crate) fn capture_exact_materialized(
 ) -> Result<CapturedLocalTree, SourceResolveError> {
     capture_local_source_from_open_root(
         root.to_path_buf(),
-        root_directory
-            .try_clone()
-            .map_err(|error| io_error(root, error))?,
+        root_directory.try_clone().at(root)?,
         limits,
         SourceTreePolicy::ExactMaterialized,
     )
@@ -73,12 +69,10 @@ pub(crate) fn capture_local_source_from_open_root(
     // remade root leaves the handle pinned to the old inode while the path
     // moves on. Compare the canonical path's observation before and after the
     // traversal so that swap rejects instead of publishing a stale capture.
-    let opening_root = root_directory
-        .dir_metadata()
-        .map_err(|error| io_error(&root, error))?;
+    let opening_root = root_directory.dir_metadata().at(&root)?;
     let named_root = open_canonical_source_root(&root)?
         .dir_metadata()
-        .map_err(|error| io_error(&root, error))?;
+        .at(&root)?;
     require_unchanged_entry(&opening_root, &named_root, &root)?;
     let mut tree_observations = CapturedTreeObservations::default();
     visit_directory(
@@ -100,7 +94,7 @@ pub(crate) fn capture_local_source_from_open_root(
     verify_captured_tree(&root_directory, &root, &tree_observations)?;
     let closing_root = open_canonical_source_root(&root)?
         .dir_metadata()
-        .map_err(|error| io_error(&root, error))?;
+        .at(&root)?;
     require_unchanged_entry(&opening_root, &closing_root, &root)?;
     source_entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
 

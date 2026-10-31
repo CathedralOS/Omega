@@ -3,7 +3,7 @@
 use omega_language_std::console;
 data Counter { value: u64 in Trapping; }
 machine left(counter: &mut Counter, depth: u64)
-terminates by depth;
+terminates by depth
 {
     counter.value = counter.value + (depth as u64 in Trapping);
     counter.value = counter.value + (depth as u64 in Trapping);
@@ -11,7 +11,7 @@ terminates by depth;
     machine done() { }
 }
 machine right(counter: &mut Counter, depth: u64)
-terminates by depth;
+terminates by depth
 {
     counter.value = counter.value + (depth as u64 in Trapping);
     counter.value = counter.value + (depth as u64 in Trapping);

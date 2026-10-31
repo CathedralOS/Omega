@@ -3,7 +3,8 @@
 //! saved places consume only live flow predicates. Initializers and calls are
 //! never replayed to recover a tag after their evaluation point.
 
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use crate::places::place_at;
+use validation::CanonicalPlace;
 
 use checked_trees::{CheckFacts, ContractProofFactKind, ContractProofFactOwner, FlowExitFact};
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
@@ -352,7 +353,7 @@ impl CaseObservation<'_> {
     }
 
     fn stable_place(&self, expression: ExpressionHandle) -> Option<CanonicalPlace> {
-        let place = canonical_place_from_expression_in_state(
+        let place = place_at(
             self.program,
             self.state.symbol,
             self.exit.statement_index,

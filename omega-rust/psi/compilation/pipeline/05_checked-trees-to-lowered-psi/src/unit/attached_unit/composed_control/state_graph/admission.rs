@@ -11,6 +11,7 @@ use super::super::{CheckedTrees, LoweringError};
 use super::{
     CheckedComposedUnitControlMachinePlan, claims, entry_aliases, exclusive_handoffs, topology,
 };
+use crate::checked_facts::flow_facts;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
@@ -79,9 +80,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             "Unit graph has no authored entry state",
         ))?;
     if let Some(identity) = plan.result.structural_identity() {
-        let mut declarations = checked
-            .facts
-            .flow
+        let mut declarations = flow_facts(checked)
             .terminal_unit_effects
             .structural_types
             .iter()

@@ -14,7 +14,7 @@ machine main() {
 }
 // An unused generic payload in another case cannot invalidate the home case.
 data Choice<T> {
-    case #0 Empty;
-    case #1 Value(value: T);
+    #0 case Empty;
+    #1 case Value(value: T);
 }
 machine zero_is_empty<T>() ensures zero_value<Choice<T>>() in Choice::Empty {}

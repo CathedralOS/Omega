@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use checked_trees::{
     CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationDemand,
     CheckedBoundaryOperatorApplicationUseSite, CheckedOperatorFacts,
@@ -229,9 +230,8 @@ pub(crate) fn bind_boundary_operator_application_demands(
     // application coverage rejoin the selected realization to this row
     // whichever species spelled the call.
     for (_, requirement_use) in operators.named_requirement_uses.iter() {
-        let ExpressionNode::Call(call) = program
-            .expression_table
-            .expression(requirement_use.expression)
+        let ExpressionNode::Call(call) =
+            expressions(program).expression(requirement_use.expression)
         else {
             diagnostics.push(diagnostics::Diagnostic::error(
                 "retained direct requirement use no longer names a call expression",
@@ -660,8 +660,7 @@ fn named_expression_operand_types(
         }
     }
     operand_types.extend(
-        program
-            .expression_table
+        expressions(program)
             .expression_handles(call.arguments)
             .iter()
             .map(|argument| {

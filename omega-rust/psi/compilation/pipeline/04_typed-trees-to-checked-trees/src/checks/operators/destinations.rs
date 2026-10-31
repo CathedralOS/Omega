@@ -1,6 +1,7 @@
 //! Destination compatibility consumes finalized operator selection. Operand
 //! formats describe a builtin result only after selection retained that builtin.
 
+use crate::flow::indexed_statements;
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -14,10 +15,7 @@ pub(super) fn check(
     let mut diagnostics = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let mut check = |value, destination| {
                     check_destination(
                         program,

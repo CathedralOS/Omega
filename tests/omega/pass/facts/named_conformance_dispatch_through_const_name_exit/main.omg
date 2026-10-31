@@ -12,14 +12,14 @@ Selected satisfies Arithmetic<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         left + right
     }
 }
 
 machine apply<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -32,7 +32,7 @@ ensures result == left + right
 const CEILING: i32 = 50;
 
 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= CEILING
 requires 0 <= b && b <= CEILING
 ensures result == a + b
@@ -40,7 +40,7 @@ ensures result == a + b
     block apply<Selected>(a, b)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
     machine done() {}

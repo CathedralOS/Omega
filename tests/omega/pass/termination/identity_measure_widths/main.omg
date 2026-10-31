@@ -4,19 +4,17 @@
 data Countdown {}
 measure Countdown::Remaining32(value: u32) -> u32 { value }
 measure Countdown::Remaining64(value: u64) -> u64 { value }
-machine walk32(remaining: u32)
+machine walk32(remaining: u32) -> u32
     requires 0 <= remaining && remaining <= 5
-terminates by remaining -> Countdown::Remaining32 in 0..=5;
--> u32 {
+terminates by remaining -> Countdown::Remaining32 in 0..=5 {
     transition remaining > 0 {
         true -> walk32(remaining - 1)
         false -> remaining
     }
 }
-machine walk64(remaining: u64)
+machine walk64(remaining: u64) -> u64
     requires 0 <= remaining && remaining <= 5
-terminates by remaining -> Countdown::Remaining64 in 0..=5;
--> u64 {
+terminates by remaining -> Countdown::Remaining64 in 0..=5 {
     transition remaining > 0 {
         true -> walk64(remaining - 1)
         false -> remaining

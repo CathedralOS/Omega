@@ -2,6 +2,7 @@
 //! their generic parameter lists. This writes only a still-owned typed program;
 //! final checking resolutions publish into CheckFacts instead.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
@@ -79,14 +80,12 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         visit_machine(program, &mut roots, machine);
     }
     for (expression, owner) in roots.expressions {
-        let Some(call) = program.expression_table.call_node(expression) else {
+        let Some(call) = expressions_of(program).call_node(expression) else {
             continue;
         };
         if call.authored_machine_application.is_valid() {
             let application = call.authored_machine_application;
-            let retained = program
-                .expression_table
-                .static_machine_application_mut(application);
+            let retained = expressions_of_mut(program).static_machine_application_mut(application);
             if !retained.lexical_owner.is_valid() {
                 retained.lexical_owner = owner;
             }
@@ -94,24 +93,23 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         }
         if call.machine_arguments.is_empty()
             && !has_region_telescope(program, call.target_symbol)
-            && !program
-                .expression_table
+            && !expressions_of(program)
                 .name_path_node(call.receiver)
                 .is_some_and(|path| program.conformance_by_symbol(path.symbol).is_some())
         {
             continue;
         }
         let call = call.clone();
-        let application = program.expression_table.retain_static_machine_application(
+        let application = expressions_of_mut(program).retain_static_machine_application(
             call.target_symbol,
             call.target,
             &call.machine_arguments,
         );
-        program
-            .expression_table
+        expressions_of_mut(program)
             .static_machine_application_mut(application)
             .lexical_owner = owner;
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+        let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(expression)
+        else {
             unreachable!("retaining a source application does not replace its call");
         };
         call.authored_machine_application = application;
@@ -138,13 +136,12 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         })
         .collect::<Vec<_>>();
     for (handle, owner, call) in statement_calls {
-        let application = program.expression_table.retain_static_machine_application(
+        let application = expressions_of_mut(program).retain_static_machine_application(
             call.target_symbol,
             call.target,
             &call.machine_arguments,
         );
-        program
-            .expression_table
+        expressions_of_mut(program)
             .static_machine_application_mut(application)
             .lexical_owner = owner;
         let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
@@ -173,10 +170,7 @@ pub fn bind_pre_specialization_authored_selections(
     // an unused template's contracts must not acquire primitive token meaning.
     for (expression, target) in validation::collect_pre_specialization_operator_selections(program)?
     {
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+        for occurrence in expressions_of(program).authored_selection_occurrences(expression) {
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
                 continue;
             };
@@ -199,11 +193,8 @@ pub fn bind_pre_specialization_authored_selections(
     let owner_index =
         validation::expression_owners::OwnerEnvironmentIndex::for_preparation(program);
     validation::validate_executable_domain_test_carriers(program, &contract_facts, &owner_index)?;
-    for (expression, node) in program.expression_table.iter_expressions() {
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+    for (expression, node) in expressions_of(program).iter_expressions() {
+        for occurrence in expressions_of(program).authored_selection_occurrences(expression) {
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
                 return Err(Diagnostic::error(format!(
                     "expression retains unknown authored declaration selection occurrence {}",

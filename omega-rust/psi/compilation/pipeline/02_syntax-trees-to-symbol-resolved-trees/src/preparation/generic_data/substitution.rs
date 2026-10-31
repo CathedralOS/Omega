@@ -6,6 +6,9 @@ use crate::preparation::generic_data::EvaluatedConst;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use crate::preparation::generic_data::selected_data_item;
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use arena::Handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -86,9 +89,7 @@ pub(crate) fn substitute_member(
             warnings,
         )),
         DataMember::Variant(mut variant) => {
-            let payload = syntax
-                .tables
-                .items
+            let payload = syntax_items(&syntax)
                 .data_payload_fields(variant.payload)
                 .to_vec();
             let mut first = Handle::invalid();
@@ -311,8 +312,7 @@ fn copy_case_membership_fact(
         unreachable!("membership fact checked by caller")
     };
     let membership = *membership;
-    let arguments = snapshot
-        .type_references
+    let arguments = syntax_type_references(&snapshot)
         .type_reference_handles(membership.domain_arguments)
         .to_vec();
     let substituted: Vec<TypeReferenceHandle> = arguments
@@ -335,8 +335,7 @@ fn copy_case_membership_fact(
         .insert_type_reference_handles(substituted);
     let value = syntax.copy_expression_from(snapshot, membership.value);
     let domain = syntax.items.insert_identifier_path_members(
-        snapshot
-            .items
+        syntax_items(&snapshot)
             .identifier_path_members(membership.domain)
             .to_vec(),
     );
@@ -810,10 +809,7 @@ pub(crate) fn variant_fact_verdict(
             if self_member.as_str(syntax) != "self" {
                 return Undecided;
             }
-            match syntax
-                .expressions
-                .identifier_path_members(membership.domain)
-            {
+            match syntax_expressions(&syntax).identifier_path_members(membership.domain) {
                 [head, case] if head.as_str(syntax) == type_name => {
                     if case.as_str(syntax) == variant_name {
                         Holds
@@ -905,9 +901,7 @@ pub(crate) fn substitute_type_reference(
     const_values: &HashMap<String, i128>,
     warnings: &mut Vec<Diagnostic>,
 ) -> TypeReferenceHandle {
-    let node = syntax
-        .tables
-        .type_references
+    let node = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .clone();
     match node {
@@ -920,18 +914,14 @@ pub(crate) fn substitute_type_reference(
             lifetime_arguments,
             arguments,
         } => {
-            let argument_handles: Vec<TypeReferenceHandle> = syntax
-                .tables
-                .type_references
+            let argument_handles: Vec<TypeReferenceHandle> = syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
             let const_bindings: HashMap<String, i128> = substitution
                 .iter()
                 .filter_map(|(name, argument)| {
-                    let value = syntax
-                        .tables
-                        .type_references
+                    let value = syntax_type_references(&syntax)
                         .type_reference(*argument)
                         .as_named()?;
                     Some((name.clone(), value.as_str(syntax).parse::<i128>().ok()?))
@@ -939,9 +929,7 @@ pub(crate) fn substitute_type_reference(
                 .collect();
             let mut substituted_arguments = Vec::with_capacity(argument_handles.len());
             for (index, argument) in argument_handles.into_iter().enumerate() {
-                let node = syntax
-                    .tables
-                    .type_references
+                let node = syntax_type_references(&syntax)
                     .type_reference(argument)
                     .clone();
                 let substituted = match node {
@@ -1110,9 +1098,7 @@ fn substitute_constrained_type_reference(
         const_values,
         warnings,
     );
-    let source_constraints = syntax
-        .tables
-        .type_references
+    let source_constraints = syntax_type_references(&syntax)
         .constraints(constraints)
         .to_vec();
     let mut changed = substituted_base != base_type;
@@ -1120,9 +1106,7 @@ fn substitute_constrained_type_reference(
     for constraint in source_constraints {
         let (constraint, constraint_changed) = match constraint {
             TypeConstraintNode::Domain(domain) => {
-                let arguments = syntax
-                    .tables
-                    .type_references
+                let arguments = syntax_type_references(&syntax)
                     .type_reference_handles(domain.arguments)
                     .to_vec();
                 let mut domain_changed = false;
@@ -1207,9 +1191,7 @@ fn substitute_domain_index_argument(
     const_values: &HashMap<String, i128>,
     warnings: &mut Vec<Diagnostic>,
 ) -> TypeReferenceHandle {
-    match syntax
-        .tables
-        .type_references
+    match syntax_type_references(&syntax)
         .type_reference(argument)
         .clone()
     {
@@ -1291,9 +1273,7 @@ pub(crate) fn type_reference_mentions_parameter(
                 .split_once("::")
                 .map_or(base_name.as_str(syntax), |(head, _)| head);
             substitution.contains_key(head)
-                || syntax
-                    .tables
-                    .type_references
+                || syntax_type_references(&syntax)
                     .type_reference_handles(*arguments)
                     .iter()
                     .any(|&argument| {
@@ -1311,15 +1291,11 @@ pub(crate) fn type_reference_mentions_parameter(
             constraints,
         } => {
             type_reference_mentions_parameter(syntax, *base_type, substitution)
-                || syntax
-                    .tables
-                    .type_references
+                || syntax_type_references(&syntax)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Domain(domain) => syntax
-                            .tables
-                            .type_references
+                        TypeConstraintNode::Domain(domain) => syntax_type_references(&syntax)
                             .type_reference_handles(domain.arguments)
                             .iter()
                             .any(|&argument| {

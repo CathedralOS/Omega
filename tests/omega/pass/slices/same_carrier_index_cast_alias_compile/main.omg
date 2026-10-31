@@ -1,5 +1,5 @@
 machine read(items: &[u8], index: u64 in Wrapping) -> u8
-requires index < items.len;
+requires index < items.len
 {
     let position: u64 = index as u64;
     items[position]

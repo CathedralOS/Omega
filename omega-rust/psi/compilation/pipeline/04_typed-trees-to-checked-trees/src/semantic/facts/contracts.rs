@@ -1,4 +1,5 @@
 use super::points;
+use crate::flow::expressions;
 use crate::semantic::places::instantiate_call_contract_place;
 use arena::HandleSpan;
 use checked_trees::{
@@ -703,8 +704,7 @@ fn instantiate_call_contract_payload(
             (application.clone(), binder_labels)
         }
     };
-    let argument_labels = program
-        .expression_table
+    let argument_labels = expressions(program)
         .expression_handles(application.arguments)
         .iter()
         .map(|argument| {

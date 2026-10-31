@@ -19,11 +19,8 @@ pub(super) fn lower(
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::EstablishNativeCodeLayout { machine } => {
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::UnsupportedScalarArray(operation.id))?;
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedScalarArray)?;
             AbstractOperation::EstablishNativeCodeLayout {
                 psi_operation: operation.id,
                 result,
@@ -35,8 +32,9 @@ pub(super) fn lower(
             right,
             capacity_obligation,
         } => {
-            let result = operation.result.structural().cloned().ok_or(
-                LoweringError::InvalidByteSequenceConcatenation(operation.id),
+            let result = super::structural_result(
+                operation,
+                LoweringError::InvalidByteSequenceConcatenation,
             )?;
             // Preserve the validated live extents and source projections. An
             // owned result is fresh storage, never a view into either operand.
@@ -49,11 +47,8 @@ pub(super) fn lower(
             }
         }
         OperationKind::EstablishStructuralArray { elements } => {
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::UnsupportedScalarArray(operation.id))?;
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedScalarArray)?;
             AbstractOperation::EstablishStructuralArray {
                 psi_operation: operation.id,
                 result,
@@ -61,9 +56,8 @@ pub(super) fn lower(
             }
         }
         OperationKind::EstablishScalarArray { elements } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedScalarArray(operation.id));
-            };
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedScalarArray)?;
             // Canonical admission checked exact shape, leaf types and dominance.
             // Preserve those operands and their result identity for independent
             // current-IR validation; native layout is not decided by projection.
@@ -77,9 +71,8 @@ pub(super) fn lower(
             result_case,
             fields,
         } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
-            };
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedPayloadlessCase)?;
             AbstractOperation::EstablishCase {
                 psi_operation: operation.id,
                 result,
@@ -100,9 +93,8 @@ pub(super) fn lower(
             result_case,
             fields,
         } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedStructuralCase(operation.id));
-            };
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedStructuralCase)?;
             AbstractOperation::EstablishCase {
                 psi_operation: operation.id,
                 result,
@@ -150,35 +142,14 @@ pub(super) fn lower(
                 .iter()
                 .find(|(place, _, _)| place.id == destination)
                 .copied()
-                .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                })?;
+                .ok_or_else(|| unsupported_return(machine, block))?;
             let declaration = find_structural_type(structural_types, structural_type)
                 .cloned()
-                .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                })?;
+                .ok_or_else(|| unsupported_return(machine, block))?;
             if usize::try_from(ordinal) != Ok(lowered_unit_affine_locals.len())
                 || !matches!(declaration.shape, StructuralTypeShape::Record { ref fields, .. } if fields.is_empty())
             {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                });
+                return Err(unsupported_return(machine, block));
             }
             lowered_unit_affine_locals.push((operation.id, *place, declaration.clone()));
             AbstractOperation::EstablishTrivialAffineLocal {
@@ -213,6 +184,19 @@ pub(super) fn lower(
     })
 }
 
+/// The lowerer's unsupported-return error, naming the machine and the block's
+/// first outgoing edge.
+fn unsupported_return(machine: &TerminalMachine, block: &Block) -> LoweringError {
+    LoweringError::UnsupportedStructuralReturn {
+        machine: machine.id,
+        edge: block
+            .terminator
+            .edges()
+            .next()
+            .expect("every terminator carries an edge"),
+    }
+}
+
 /// The operation's structural result, cloned, or the unsupported-return
 /// error naming the machine's first outgoing edge.
 fn structural_result(
@@ -220,14 +204,9 @@ fn structural_result(
     machine: &TerminalMachine,
     block: &Block,
 ) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
-    operation.result.structural().cloned().ok_or_else(|| {
-        LoweringError::UnsupportedStructuralReturn {
-            machine: machine.id,
-            edge: block
-                .terminator
-                .edges()
-                .next()
-                .expect("every terminator carries an edge"),
-        }
-    })
+    operation
+        .result
+        .structural()
+        .cloned()
+        .ok_or_else(|| unsupported_return(machine, block))
 }

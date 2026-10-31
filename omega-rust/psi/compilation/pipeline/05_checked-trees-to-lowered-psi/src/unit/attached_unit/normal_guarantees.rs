@@ -6,6 +6,7 @@
 //! terms retain their own checked owners rather than becoming builtin scalars.
 //! Crashes and incomplete calls establish neither a result nor these facts.
 
+use crate::checked_facts::value_facts;
 use crate::lowering_error::LoweringError;
 use crate::scalar_lowering::contracts::{self, ContractStructuralResult, ContractViewNamespace};
 use crate::unit::ContractClause;
@@ -45,9 +46,7 @@ pub(crate) fn lower(
                 .type_reference(source_state.return_type),
             checked_trees::types::TypeReferenceNode::Constrained { .. }
         ) {
-        checked
-            .facts
-            .values
+        value_facts(checked)
             .scalar_type_refinement_predicates(source_state.return_type)
             .ok_or(LoweringError::Unsupported(
                 "scalar result has no complete checked value refinement",

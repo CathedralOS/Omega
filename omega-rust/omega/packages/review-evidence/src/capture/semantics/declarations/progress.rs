@@ -2,6 +2,7 @@
 //! subject coordinates that premise certifies.
 
 use super::nominal_identity;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewProgressSubject};
@@ -26,11 +27,9 @@ pub(crate) fn progress_profile<'a>(
         .domain_definitions()
         .iter()
         .filter(|domain| domain.semantic_id == profile);
-    let profile = matches.next().ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "{subject} has an unknown termination profile"
-        ))]
-    })?;
+    let profile = matches
+        .next()
+        .or_evidence(format!("{subject} has an unknown termination profile"))?;
     if matches.next().is_some() {
         return Err(vec![Diagnostic::error(format!(
             "{subject} has a duplicated termination profile"

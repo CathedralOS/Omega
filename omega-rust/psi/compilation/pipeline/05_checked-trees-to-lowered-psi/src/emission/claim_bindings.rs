@@ -4,6 +4,7 @@
 //! immutable while straight-line emission reserves checked completion names.
 //! Namespace reservation is not live custody: the producing operation alone
 //! establishes or receives the resource when execution completes.
+use crate::checked_facts::flow_facts;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
@@ -549,9 +550,7 @@ fn receiving_claim_places(
     // source-owned establishment authenticates the root; the construction's
     // typed child paths supply only correspondence, never new claim authority.
     let mut established_constructions = Vec::new();
-    let state_permissions = checked
-        .facts
-        .flow
+    let state_permissions = flow_facts(checked)
         .ownership
         .with_state_permissions(state, |handles| handles.to_vec());
     for handle in state_permissions {
@@ -576,18 +575,21 @@ fn receiving_claim_places(
             established_constructions.push(construction);
         }
     }
-    for (handle, operand) in flow.operands.iter().filter(|(_, operand)| {
-        operand.state_symbol == state
-            && operand.statement_index == statement
-            && operand.expression != expression
-            && !operand.constructed_children().is_empty()
-            && established_constructions.contains(&operand.expression)
-    }) {
-        roots.push((
-            handle,
-            facts::PlaceRoot::Expression(operand.expression),
-            Vec::new(),
-        ));
+    // An empty establishment roster contributes no construction roots.
+    if !established_constructions.is_empty() {
+        for (handle, operand) in flow.operands.iter().filter(|(_, operand)| {
+            operand.state_symbol == state
+                && operand.statement_index == statement
+                && operand.expression != expression
+                && !operand.constructed_children().is_empty()
+                && established_constructions.contains(&operand.expression)
+        }) {
+            roots.push((
+                handle,
+                facts::PlaceRoot::Expression(operand.expression),
+                Vec::new(),
+            ));
+        }
     }
     let mut receiving = Vec::new();
     for (handle, destination, path) in roots {
@@ -644,9 +646,7 @@ pub(crate) fn prepare_establishment_claims(
         }
     }
     let mut prepared: Vec<PreparedClaim> = Vec::new();
-    let state_permissions = checked
-        .facts
-        .flow
+    let state_permissions = flow_facts(checked)
         .ownership
         .with_state_permissions(state, |handles| handles.to_vec());
     for (root, receiving_path) in coordinates {
@@ -715,9 +715,7 @@ pub(crate) fn prepare_establishment_claims(
             let path = validation::structural_claim_path(
                 &checked.typed,
                 type_reference,
-                &checked
-                    .facts
-                    .flow
+                &flow_facts(checked)
                     .ownership
                     .segments
                     .span_or_empty(event.segments)[receiving_path.len()..],
@@ -926,9 +924,7 @@ pub(crate) fn lower_owned_operand_claims(
     ))?;
     let root = place.root;
     let prefix = place.segments.as_slice();
-    let evaluated_transfers = checked
-        .facts
-        .flow
+    let evaluated_transfers = flow_facts(checked)
         .ownership
         .permissions
         .iter()
@@ -1020,9 +1016,7 @@ pub(crate) fn lower_owned_operand_claims(
         let path = validation::structural_claim_path(
             &checked.typed,
             root_type,
-            checked
-                .facts
-                .flow
+            flow_facts(checked)
                 .ownership
                 .segments
                 .span_or_empty(event.segments),

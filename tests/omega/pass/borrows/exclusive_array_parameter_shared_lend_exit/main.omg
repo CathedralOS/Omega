@@ -46,7 +46,7 @@ machine sum_cells(grid: &mut [i32; 8]) -> i32 {
 }
 
 machine read_cell(grid: &[i32; 8], index: i32) -> i32
-requires index >= 0 && index < 8;
+requires index >= 0 && index < 8
 {
     grid[index]
 }

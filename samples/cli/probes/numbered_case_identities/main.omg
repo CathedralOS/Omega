@@ -2,8 +2,8 @@
 // `#N` on cases and payload members plus `retired #N` reservations at both
 // levels. They do not select or alter the runtime discriminant.
 data Lookup<T> {
-    case #1 Found(#1 value: T, retired #2);
-    case #2 Missing;
+    #1 case Found(#1 value: T, retired #2);
+    #2 case Missing;
     retired #3;
 }
 data Main { hits: i32 in Wrapping; }

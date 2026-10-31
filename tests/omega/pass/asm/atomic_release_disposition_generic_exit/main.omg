@@ -7,7 +7,7 @@ boundary trait Completion {
 }
 proposition acknowledged<Value>(ack: Ack<Value>, word: &Cell) = atomic_release_written<AtomicU32, Value>(&word.value, ack.nonce);
 machine finish(ack: Ack<u32>, word: &Cell) satisfies Completion::complete
-ensures acknowledged<u32>(ack, word);
+ensures acknowledged<u32>(ack, word)
 {
  word.value.store(ack.nonce, Publish);
 }

@@ -99,8 +99,9 @@ pub fn derive_checked_nominal_call_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<symbols::SymbolHandle> {
-    authored_selections::derive_checked_nominal_call_target(program, facts, expression)
+    authored_selections::derive_checked_nominal_call_target(program, facts, expression, owner_index)
 }
 
 /// Rederive the erased requires lane for one exact proof-expression call

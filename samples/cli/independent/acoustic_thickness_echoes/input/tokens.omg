@@ -4,8 +4,8 @@ use omega_language_std::console;
 use model::records;
 public machine read_token() -> Token
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(0, 0) }
@@ -41,8 +41,8 @@ crashes Trap
 // and malformed trailing characters are both rejected.
 public machine at_end() -> bool
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan() }

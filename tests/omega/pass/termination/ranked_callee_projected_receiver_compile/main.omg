@@ -16,7 +16,7 @@ data Cursor where remaining <= 8 { remaining: u64; }
 machine Cursor::step(cursor: &mut Cursor, remaining: u64) -> u64
 requires remaining <= 8
 ensures result <= 8
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     transition remaining > 0 {
         true -> Cursor::step(cursor, remaining - 1)

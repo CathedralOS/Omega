@@ -183,7 +183,7 @@ ensures
 // own requires discharges at the site through the depth-2 exchange.
 machine int_eq_transitive(a: IntPair, b: IntPair, c: IntPair) -> IntPair
 requires
-    (add(a.pos, b.neg)) == (add(b.pos, a.neg));
+    (add(a.pos, b.neg)) == (add(b.pos, a.neg)),
     (add(b.pos, c.neg)) == (add(c.pos, b.neg))
 ensures
     (add(a.pos, c.neg)) == (add(c.pos, a.neg))

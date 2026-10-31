@@ -118,7 +118,7 @@ impl TerminalExecution<'_> {
             });
         }
         if let Some(result) = result.as_structural()
-            && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
+            && ((requires_materialized_host_custody(&self.structural_types(), result.structural_type)
                 && !self.supports_scalar_aggregate_result(result)
                 && !self.supports_byte_sequence_result(result))
                 || self.structural_values.contains_key(&result.place)
@@ -145,8 +145,7 @@ impl TerminalExecution<'_> {
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && matches!(
-                self.program
-                    .structural_types()
+                self.structural_types()
                     .get(&result.structural_type)
                     .map(|definition| &definition.shape),
                 Some(StructuralTypeShape::ByteSequence(
@@ -164,7 +163,6 @@ impl TerminalExecution<'_> {
         result.projected_qualifications.is_empty()
             && (result.claims.is_empty() || result.multiplicity == StructuralMultiplicity::Linear)
             && self
-                .program
                 .structural_types()
                 .get(&result.structural_type)
                 .is_some_and(|declaration| {
@@ -178,7 +176,7 @@ impl TerminalExecution<'_> {
                         | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::PrimitiveScalar(_) => {
                             crate::values::ScalarAggregatePlan::new(declaration, |identity| {
-                                self.program.structural_types().get(&identity)
+                                self.structural_types().get(&identity)
                             })
                             .is_ok()
                         }
@@ -326,7 +324,7 @@ impl TerminalExecution<'_> {
                 && value.qualifications == expected.qualifications
                 && value.path.is_empty()
                 && !requires_materialized_host_custody(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     declaration.structural_type,
                 ) =>
             {

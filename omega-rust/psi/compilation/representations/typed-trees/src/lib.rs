@@ -11,12 +11,14 @@
 //! type system with closed numerics and type identities, evidence, and
 //! inspection snapshots. Contracts, ownership, and proofs are checked later.
 
+pub mod boundary_values;
 pub mod direct_calls;
 pub mod provider_declarations;
 pub mod references;
 pub mod service_declarations;
 pub mod typed_trees;
 
+pub use typed_trees::SpelledDeclarationTable;
 pub use typed_trees::calls::{
     boundary, dynamic_traits, finite_family, service, signature, static_applications,
 };

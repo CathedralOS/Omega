@@ -4,8 +4,8 @@
 // Expected rejection: may overflow `u32`
 
 linux_x86_64 machine divide_target(dividend: u32, divisor: u32) -> i32
-    requires dividend >= 200u32 && dividend <= 200u32;
-    requires divisor >= 4u32 && divisor <= 5u32;
+    requires dividend >= 200u32 && dividend <= 200u32
+    requires divisor >= 4u32 && divisor <= 5u32
 {
     let quotient: u32 = dividend / divisor;
     let check: u32 = quotient - 50u32;
@@ -18,8 +18,8 @@ linux_x86_64 machine divide_target(dividend: u32, divisor: u32) -> i32
 }
 
 linux_arm64 machine divide_target(dividend: u32, divisor: u32) -> i32
-    requires dividend >= 200u32 && dividend <= 200u32;
-    requires divisor >= 4u32 && divisor <= 5u32;
+    requires dividend >= 200u32 && dividend <= 200u32
+    requires divisor >= 4u32 && divisor <= 5u32
 {
     let quotient: u32 = dividend / divisor;
     let check: u32 = quotient - 50u32;
@@ -32,8 +32,8 @@ linux_arm64 machine divide_target(dividend: u32, divisor: u32) -> i32
 }
 
 macos_arm64 machine divide_target(dividend: u32, divisor: u32) -> i32
-    requires dividend >= 200u32 && dividend <= 200u32;
-    requires divisor >= 4u32 && divisor <= 5u32;
+    requires dividend >= 200u32 && dividend <= 200u32
+    requires divisor >= 4u32 && divisor <= 5u32
 {
     let quotient: u32 = dividend / divisor;
     let check: u32 = quotient - 50u32;
@@ -46,8 +46,8 @@ macos_arm64 machine divide_target(dividend: u32, divisor: u32) -> i32
 }
 
 windows_x86_64 machine divide_target(dividend: u32, divisor: u32) -> i32
-    requires dividend >= 200u32 && dividend <= 200u32;
-    requires divisor >= 4u32 && divisor <= 5u32;
+    requires dividend >= 200u32 && dividend <= 200u32
+    requires divisor >= 4u32 && divisor <= 5u32
 {
     let quotient: u32 = dividend / divisor;
     let check: u32 = quotient - 50u32;

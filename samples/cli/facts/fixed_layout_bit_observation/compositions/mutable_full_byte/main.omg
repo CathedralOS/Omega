@@ -4,7 +4,7 @@
 use omega::language::core::layout;
 public data Pair [copy] { payload: u8; neighbor: u8; }
 Swapped satisfies FixedLayout<Pair> {
- machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+ machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
   let mut entries: [FieldEntry; 64];
   entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 4, source_lsb: 0, width: 4 } };
   entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 0, source_lsb: 4, width: 4 } };

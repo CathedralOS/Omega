@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::proposition::ProofSubstitutions;
 
@@ -42,8 +43,7 @@ fn call_result_label(
     call_site: &validation::CallSite<'_>,
 ) -> String {
     let argument_list = |arguments| {
-        program
-            .expression_table
+        expressions(program)
             .expression_handles(arguments)
             .iter()
             .map(|argument| program.render_proof_expression(*argument, ProofSubstitutions::None))
@@ -224,11 +224,7 @@ fn reference_actual_storage_label(
     let rendered = match program.expression_table.expression(argument) {
         typed_trees::expression::ExpressionNode::Name(path)
             if path.symbol == path.head_symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1 =>
+                && expressions(program).name_path_members(path.members).len() == 1 =>
         {
             let statements = program.statement_table.statements(state.statement_nodes);
             let source = crate::flow::reference_route_source(

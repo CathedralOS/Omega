@@ -4,6 +4,7 @@
 //! no consumer reconstructs them from the shape of a Match or Boolean tree.
 
 use super::ConstructorMemberships;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
@@ -28,13 +29,7 @@ pub(super) fn validate(
         }
         let operands = captures.at(state.state_symbol, statement, test.subject);
         let proven = if operands.is_empty() {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.state_symbol,
-                statement,
-                test.subject,
-            )
-            .is_some_and(|place| {
+            place_at(program, state.state_symbol, statement, test.subject).is_some_and(|place| {
                 super::super::exits::exact_scalar_membership(
                     program,
                     facts,

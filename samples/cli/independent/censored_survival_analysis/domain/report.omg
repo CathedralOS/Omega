@@ -15,7 +15,7 @@ machine row_value(values: &[f64], index: u32) -> f64 {
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: &mut Reader, value: i64)
 reaches Console
-invokes Console;
+invokes Console
 {
     let widened: i64 = value;
     transition widened < 0 {
@@ -70,7 +70,7 @@ machine real(reader: &mut Reader, value: f64) reaches Console {
     }
 }
 public machine report(reader: &mut Reader, group: i32 in Wrapping, table: &Table) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("TABLE "); integer(reader, group as i64); Console::write_line("");
     transition { _ -> row(reader, table, 0) }
@@ -98,7 +98,7 @@ invokes Console;
     }
 }
 public machine logrank_report(reader: &mut Reader, result: &Logrank) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("LOGRANK "); real(reader, result.observed); Console::write(" "); real(reader, result.expected); Console::write(" "); real(reader, result.variance); Console::write(" "); real(reader, result.statistic); Console::write(" "); integer(reader, result.status as i64); Console::write_line("");
 }

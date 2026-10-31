@@ -7,6 +7,7 @@
 //! permission reconciliation and executable call custody, so a nested call
 //! cannot be classified as an unreceived result by only one consumer.
 
+use crate::frozen_program::expression_table;
 use checked_trees::FlowPermissionEventFact;
 use facts::PlaceSegment;
 use language_semantics::PermissionEventSource;
@@ -73,10 +74,9 @@ pub fn receiving_value<'a>(
         let Some(segment) = path.first() else {
             break;
         };
-        match (program.expression_table.expression(expression), segment) {
+        match (expression_table(program).expression(expression), segment) {
             (ExpressionNode::ArrayLiteral(values), PlaceSegment::FixedIndex { index }) => {
-                expression = *program
-                    .expression_table
+                expression = *expression_table(program)
                     .expression_handles(*values)
                     .get(*index)?;
             }
@@ -92,8 +92,7 @@ pub fn receiving_value<'a>(
                 if definition.symbol != literal.type_symbol {
                     return None;
                 }
-                expression = program
-                    .expression_table
+                expression = expression_table(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .find(|field| field.name == declared.name)?

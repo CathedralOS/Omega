@@ -26,6 +26,12 @@ mod authored_storage;
 mod behavior_policy;
 pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
 mod bounded_integer_type;
+mod callback_identities;
+pub use callback_identities::{
+    BoundaryNativeParameterOrigin, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
+    callback_nominal_report_fingerprint, callback_requirement_id, nominal_callback_binder_id,
+    nominal_callback_native_parameter_id,
+};
 pub mod byte_predicates;
 mod content;
 pub mod fnv1a;

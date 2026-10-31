@@ -17,6 +17,7 @@ pub(crate) use scalar_call::{normalized_foreign_constraint, user_direct_call_eff
 
 use scalar_call::declaration as scalar_call_declaration;
 
+use crate::register_model::{units, units_of, view_of};
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
 use crate::selected_form_encoding::trapping_forms::TrappingShape;
 use crate::{
@@ -550,14 +551,6 @@ fn alternative(
 }
 
 fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncodedEffects {
-    let physical = crate::x86_64_physical_register_model_ref();
-    let units = |name: &str| {
-        physical
-            .view_named(name)
-            .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
-            .units
-            .clone()
-    };
     if semantic == MachineSemanticKind::Crash {
         return selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"));
     }
@@ -567,12 +560,6 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
         return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
     }
-    let view = |name: &str| {
-        physical
-            .view_named(name)
-            .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
-            .id
-    };
     let (reads, writes) = match semantic {
         MachineSemanticKind::PortRegisterRead
         | MachineSemanticKind::PortRegisterWrite
@@ -736,13 +723,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::SaturatingDivide(_) => (
                 vec![],
                 vec![],
-                {
-                    let mut clobbers = units("rdx");
-                    clobbers.extend(units("rflags"));
-                    clobbers.sort_unstable();
-                    clobbers.dedup();
-                    clobbers
-                },
+                units_of(&["rdx", "rflags"]),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -798,10 +779,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ConditionalBranchI64LessThan => {
-                let mut uses = units("rflags");
-                uses.extend(units("rip"));
-                uses.sort_unstable();
-                uses.dedup();
+                let uses = units_of(&["rflags", "rip"]);
                 (
                     uses,
                     units("rip"),
@@ -815,11 +793,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             MachineSemanticKind::ReturnScalar
             | MachineSemanticKind::ReturnAggregate
             | MachineSemanticKind::ReturnUnit => {
-                let stack_pointer = view("rsp");
-                let mut defs = units("rsp");
-                defs.extend(units("rip"));
-                defs.sort_unstable();
-                defs.dedup();
+                let stack_pointer = view_of("rsp").id;
+                let defs = units_of(&["rsp", "rip"]);
                 (
                     units("rsp"),
                     defs,

@@ -15,6 +15,7 @@ use super::{
     DefineRuntimeCorrespondence, DefineRuntimePosition, DirectLiftRuntimeCorrespondence,
     PositionalRelation, RelationPlanError, RepresentativeStaticBinding, RepresentativeTelescope,
 };
+use crate::frozen_program::expression_table;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
@@ -350,8 +351,7 @@ fn proof_fact_depends_on_any(
         ProofFact::Membership(membership) => {
             expression_depends_on_any(program, membership.value, parameters)
         }
-        ProofFact::Proposition(application) => program
-            .expression_table
+        ProofFact::Proposition(application) => expression_table(program)
             .expression_handles(application.arguments)
             .iter()
             .try_fold(false, |depends, expression| {
@@ -368,7 +368,7 @@ fn expression_depends_on_any(
     parameters: &[SymbolHandle],
 ) -> Result<bool, RelationPlanError> {
     let depends = |expression| expression_depends_on_any(program, expression, parameters);
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => program
             .saved_value_source(saved)
             .ok_or(RelationPlanError::PreconditionDependencyUnresolved)
@@ -389,8 +389,7 @@ fn expression_depends_on_any(
             };
             Ok(value || result)
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .try_fold(false, |found, expression| {
@@ -412,8 +411,7 @@ fn expression_depends_on_any(
             } else {
                 false
             };
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .try_fold(receiver_depends, |found, expression| {
@@ -448,8 +446,7 @@ fn expression_depends_on_any(
             };
             Ok(start || end)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .try_fold(false, |found, field| {

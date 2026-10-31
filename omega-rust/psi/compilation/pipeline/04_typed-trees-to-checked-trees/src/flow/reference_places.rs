@@ -1,5 +1,6 @@
 //! Rebase a live reference before tracing the value currently in its referent.
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use super::canonical_place_segments_may_overlap;
@@ -75,12 +76,7 @@ pub(crate) fn reference_route_source(
                 ) {
                     return None;
                 }
-                let target = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    assignment.target,
-                )?;
+                let target = place_at(program, state.symbol, statement_index, assignment.target)?;
                 (target.root == PlaceRoot::Symbol(symbol) && target.segments.is_empty())
                     .then_some(assignment.value)
             }

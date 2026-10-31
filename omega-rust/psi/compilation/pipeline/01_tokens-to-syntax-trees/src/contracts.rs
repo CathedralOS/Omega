@@ -30,10 +30,10 @@ pub(crate) fn reject_retired_operational_reach(
     input: crate::input::token_cursor::Input<'_, '_>,
 ) -> Result<(), crate::diagnostics::parse_error::ParseError> {
     let replacement = match service.as_str(&input) {
-        "Suspend" => "suspends;",
-        "Block" => "blocks;",
-        "thread_block" => "blocks;",
-        "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
+        "Suspend" => "suspends",
+        "Block" => "blocks",
+        "thread_block" => "blocks",
+        "sync_wait" => "the appropriate independent `suspends` and/or `blocks` clause",
         _ => return Ok(()),
     };
     Err(input.error_here(format!(

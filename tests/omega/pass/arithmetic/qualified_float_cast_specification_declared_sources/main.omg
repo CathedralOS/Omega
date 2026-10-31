@@ -1,13 +1,13 @@
 use omega::language::core::float_operations;
 
 machine sample() -> f64
-    ensures result == 3.0;
+    ensures result == 3.0
 {
     3.0
 }
 
 machine format_sample() -> f64
-    ensures result == 3.75;
+    ensures result == 3.75
 {
     3.75
 }

@@ -1,11 +1,11 @@
 machine walk(remaining: u64) -> u64
-requires remaining <= 4;
-terminates;
-terminates by remaining in 0..=4;
+requires remaining <= 4
+terminates
+terminates by remaining in 0..=4
 {
     transition { _ -> inspect(remaining) }
     machine inspect(count: u64) -> u64
-    requires count <= 4;
+    requires count <= 4
     {
         transition count > 0 {
             true -> forward(count)
@@ -13,7 +13,7 @@ terminates by remaining in 0..=4;
         }
     }
     machine forward(count: u64) -> u64
-    requires count > 0 && count <= 4;
+    requires count > 0 && count <= 4
     {
         transition { _ -> inspect(count - 1) }
     }

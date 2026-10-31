@@ -13,6 +13,8 @@
 //! cannot claim an entry position at all — machine-rooted projections,
 //! qualified names, constants — keep their existing opaque atoms.
 
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
@@ -28,10 +30,7 @@ pub(super) fn guard_eval_sites(
 ) -> Vec<(ExpressionHandle, SymbolHandle, usize)> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
-        for (ordinal, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
+        for (ordinal, statement) in indexed_statements(program, state.statement_nodes) {
             if let Some(transition) = statement.as_transition()
                 && let TransitionGuardNode::When(guard) = transition.guard
             {
@@ -184,18 +183,13 @@ impl GuardContext<'_> {
                     if call.receiver.is_valid() {
                         pending.push(call.receiver);
                     }
-                    pending.extend(
-                        self.program
-                            .expression_table
-                            .expression_handles(call.arguments),
-                    );
+                    pending.extend(expressions(self.program).expression_handles(call.arguments));
                 }
                 ExpressionNode::ArrayLiteral(elements) => {
                     pending.extend(self.program.expression_table.expression_handles(*elements))
                 }
                 ExpressionNode::StructLiteral(literal) => pending.extend(
-                    self.program
-                        .expression_table
+                    expressions(self.program)
                         .struct_fields(literal.fields)
                         .iter()
                         .map(|field| field.value),

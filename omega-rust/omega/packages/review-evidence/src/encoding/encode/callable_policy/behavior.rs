@@ -41,9 +41,7 @@ pub(super) fn crash(
         }
         Ok(())
     })?;
-    encoder.field("published", |encoder| {
-        encoder.sequence(&crash.published, crash_route)
-    })?;
+    encoder.sequence_field("published", &crash.published, crash_route)?;
     encoder.field("structural_runtime_requirements", |encoder| {
         encoder.option(
             crash.structural_runtime_requirements.as_deref(),

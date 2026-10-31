@@ -12,12 +12,14 @@
 //! expression statements, and root bindings — stop the transport entirely
 //! rather than guess at what they may have written.
 
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 use facts::{FactPayload, PlaceRoot};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
+use crate::flow::state_statements;
 use crate::flow::statement_mutated_place;
+use crate::places::place_at;
 
 use super::ExitScalars;
 
@@ -48,7 +50,7 @@ impl ExitScalars<'_, '_> {
         let Some(state) = self.state() else {
             return false;
         };
-        let Some(place) = canonical_place_from_expression_in_state(
+        let Some(place) = place_at(
             self.program,
             self.exit.state_symbol,
             self.exit.statement_index,
@@ -72,10 +74,7 @@ impl ExitScalars<'_, '_> {
         if returned.is_valid() && !self.return_expression_is_stable(returned) {
             return false;
         }
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         // Walk backward: the first statement reaching the goal place is the
         // last write. Everything between it and the exit must be accounted
         // for before either side's leaves can be compared across contexts.
@@ -204,12 +203,9 @@ impl ExitScalars<'_, '_> {
                 };
                 for (left, right) in expressions {
                     for (subject, substitution) in [(left, right), (right, left)] {
-                        let Some(place) = canonical_place_from_expression_in_state(
-                            self.program,
-                            state.symbol,
-                            write_index,
-                            subject,
-                        ) else {
+                        let Some(place) =
+                            place_at(self.program, state.symbol, write_index, subject)
+                        else {
                             continue;
                         };
 
@@ -277,12 +273,7 @@ impl ExitScalars<'_, '_> {
             &mut nodes,
         );
         nodes.iter().all(|node| {
-            let Some(leaf) = canonical_place_from_expression_in_state(
-                self.program,
-                state.symbol,
-                write_index,
-                *node,
-            ) else {
+            let Some(leaf) = place_at(self.program, state.symbol, write_index, *node) else {
                 return true;
             };
 
@@ -306,12 +297,7 @@ impl ExitScalars<'_, '_> {
         state: &typed_trees::state::State,
         write_index: usize,
     ) -> bool {
-        if let Some(leaf) = canonical_place_from_expression_in_state(
-            self.program,
-            state.symbol,
-            write_index,
-            expression,
-        ) {
+        if let Some(leaf) = place_at(self.program, state.symbol, write_index, expression) {
             if matches!(leaf.root, PlaceRoot::Symbol(_)) {
                 if !super::stable_segments(&leaf.segments) {
                     return false;

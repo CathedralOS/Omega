@@ -8,6 +8,7 @@
 
 mod predicate_subjects;
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use checked_trees::{
@@ -664,7 +665,7 @@ fn current_actual(
     // its earlier producer. A reaching match/call may explain the value but
     // cannot replace the local's later guard namespace. Constructed children
     // already carry their own exact observation and completion epoch.
-    let mut place = validation::canonical_place_from_expression_in_state(
+    let mut place = place_at(
         program,
         capture.state_symbol,
         capture.statement_index,
@@ -1239,7 +1240,7 @@ pub(crate) fn entry_predicate(
             *operand = value.into();
             return Some(());
         }
-        let mut place = validation::canonical_place_from_expression_in_state(
+        let mut place = place_at(
             program,
             capture.state_symbol,
             capture.statement_index,

@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) {
 }
 
 machine Main::count_down(main: &mut Main, n: u32 in Wrapping) -> u32 in Wrapping
-terminates by n;
+terminates by n
 {
     transition n >= 1 {
         true -> count_down(main, n - 1)
@@ -35,8 +35,8 @@ terminates by n;
 }
 
 machine Main::signed_down(main: &mut Main, n: i64 in Wrapping, acc: i64 in Wrapping) -> i64 in Wrapping
-requires n >= 0;
-terminates by n -> Nat::Descending;
+requires n >= 0
+terminates by n -> Nat::Descending
 {
     transition 0 < n {
         true -> signed_down(main, n - 1, acc + 1)
@@ -45,7 +45,7 @@ terminates by n -> Nat::Descending;
 }
 
 machine Main::saturating_down(main: &mut Main, n: u8 in Saturating) -> u8 in Saturating
-terminates by n;
+terminates by n
 {
     transition n > 0 {
         true -> saturating_down(main, n - 1)
@@ -54,7 +54,7 @@ terminates by n;
 }
 
 machine Main::climb(main: &mut Main, cursor: u64 in Wrapping, limit: u64 in Wrapping) -> u64 in Wrapping
-terminates by (cursor, limit) -> Nat::BoundedDistance;
+terminates by (cursor, limit) -> Nat::BoundedDistance
 {
     transition cursor < limit {
         true -> climb(main, cursor + 1, limit)

@@ -22,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Main::walk(main: &mut Main, name: &[u8], i: u64) -> Score
-terminates by (i, name.len) -> Nat::BoundedDistance;
+terminates by (i, name.len) -> Nat::BoundedDistance
 {
     let step: Score = Main::step(name, i);
     transition i < name.len {

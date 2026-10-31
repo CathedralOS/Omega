@@ -6,7 +6,10 @@
 
 use validation::CanonicalPlace;
 
+use crate::flow::expressions;
+use crate::flow::state_statements;
 use crate::flow::{self};
+use crate::places::place_at;
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::{
@@ -313,9 +316,7 @@ where
         return Some(origin);
     }
     let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let statements = program
-        .statement_table
-        .statements(typed_state.statement_nodes);
+    let statements = state_statements(program, typed_state.statement_nodes);
     let order = program
         .statement_table
         .admitted_execution_order(typed_state.statement_nodes);
@@ -528,12 +529,7 @@ where
         {
             return Some(place);
         }
-        let mut source = validation::canonical_place_from_expression_in_state(
-            program,
-            state.state_symbol,
-            statement_index,
-            expression,
-        )?;
+        let mut source = place_at(program, state.state_symbol, statement_index, expression)?;
         source.segments.extend_from_slice(&remaining);
         // A member or index peel over a constructor has no storage of its own:
         // the demanded path arrives from the operand bound for that exact
@@ -574,8 +570,7 @@ where
                     }
                     return None;
                 };
-                expression = *program
-                    .expression_table
+                expression = *expressions(program)
                     .expression_handles(*elements)
                     .get(*index)?;
                 remaining = rest.to_vec();

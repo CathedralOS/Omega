@@ -576,11 +576,12 @@ pub(crate) fn retain_closed_reach_applications(
                         "closed reach call lost its original binder",
                     ))?;
                 let mut matches = occurrences.iter().filter(|occurrence| {
-                    occurrence.source_state == state.symbol
-                        && occurrence.statement_index == call.statement_index
-                        && occurrence.call_ordinal == call.call_ordinal
-                        && resolved_source_entry(checked, occurrence.source_target)
-                            == Some(call.target_state_symbol)
+                    occurrence.matches_statement(
+                        state.symbol,
+                        call.statement_index,
+                        call.call_ordinal,
+                    ) && resolved_source_entry(checked, occurrence.source_target)
+                        == Some(call.target_state_symbol)
                 });
                 let Some(occurrence) = matches.next() else {
                     // The complete owner substitution survives without an

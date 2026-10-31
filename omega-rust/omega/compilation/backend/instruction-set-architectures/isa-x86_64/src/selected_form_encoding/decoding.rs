@@ -1,5 +1,6 @@
 //! Decoding emitted instructions and validating them against the request.
 
+use crate::register_model::units_of;
 use crate::selected_form_encoding::instruction_bytes::{integer_bits, u12};
 use crate::selected_form_encoding::saturating_forms::{SaturatingForm, saturating_operation};
 use crate::selected_form_encoding::trapping_forms::{
@@ -2160,10 +2161,7 @@ pub(crate) fn footprint(
             | SelectedInstructionKind::ReturnUnit
     ) {
         let stack_pointer = physical.view_named("rsp").unwrap().id;
-        let mut defs = units("rsp");
-        defs.extend(units("rip"));
-        defs.sort_unstable();
-        defs.dedup();
+        let defs = units_of(&["rsp", "rip"]);
         MachineEncodedEffects {
             external_operand_reads: vec![],
             external_operand_writes: vec![],
@@ -2187,10 +2185,7 @@ pub(crate) fn footprint(
             | SelectedInstructionKind::ConditionalBranchU64LessThan
             | SelectedInstructionKind::ConditionalBranchI64LessThan
     ) {
-        let mut uses = units("rflags");
-        uses.extend(units("rip"));
-        uses.sort_unstable();
-        uses.dedup();
+        let uses = units_of(&["rflags", "rip"]);
         MachineEncodedEffects {
             external_operand_reads: vec![],
             external_operand_writes: vec![],

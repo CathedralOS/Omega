@@ -8,6 +8,7 @@
 //! second destination/signature whitelist would reject supported compositions
 //! without proving any additional semantic obligation.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -35,7 +36,7 @@ pub fn result_initializer_call_is_admitted(
             .is_some()
         && matches!(program.statement_table.statements(state.statement_nodes).last(),
             Some(StatementNode::Expression(expression)) if *expression == value)
-        && program.expression_table.expression_is_valid(value)
+        && expression_table(program).expression_is_valid(value)
     {
         return initializer_target_is_admitted(program, machine, value, state.return_type, true);
     }
@@ -83,7 +84,7 @@ pub fn unit_result_initializer_call_is_admitted(
     let Some(state) = states.next() else {
         return false;
     };
-    if states.next().is_some() || !program.expression_table.expression_is_valid(value) {
+    if states.next().is_some() || !expression_table(program).expression_is_valid(value) {
         return false;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -190,7 +191,7 @@ fn ordinary_structural_initializer(
     if !ordinary_structural_result_type(program, result_type) {
         return false;
     }
-    let Some(call) = program.expression_table.call_node(value) else {
+    let Some(call) = expression_table(program).call_node(value) else {
         return false;
     };
     program
@@ -240,7 +241,7 @@ fn initializer_target_is_admitted(
     result_type: typed_trees::types::TypeReferenceHandle,
     allow_ordinary: bool,
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(value) else {
+    let Some(call) = expression_table(program).call_node(value) else {
         return false;
     };
     if !call.target_symbol.is_valid()
@@ -307,8 +308,8 @@ fn initializer_target_is_admitted(
     if selected_parameter.is_some() {
         return !call.receiver.is_valid();
     }
-    program.expression_table.expression_is_valid(call.receiver)
-        && matches!(program.expression_table.expression(call.receiver),
+    expression_table(program).expression_is_valid(call.receiver)
+        && matches!(expression_table(program).expression(call.receiver),
             ExpressionNode::Name(path) if path.symbol == definition.symbol)
 }
 
@@ -326,10 +327,10 @@ fn local_initializer_has_operand_evaluation(
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(value) {
+    if !expression_table(program).expression_is_valid(value) {
         return false;
     }
-    let Some(_) = program.expression_table.call_node(value) else {
+    let Some(_) = expression_table(program).call_node(value) else {
         return false;
     };
     // A generic source local can retain static/evidence operands before
@@ -370,10 +371,10 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     if !value.is_valid() {
         return;
     }
-    let Some(call) = program.expression_table.call_node(value) else {
+    let Some(call) = expression_table(program).call_node(value) else {
         return;
     };
-    for argument in program.expression_table.expression_handles(call.arguments) {
+    for argument in expression_table(program).expression_handles(call.arguments) {
         if let Some(inner) = first_nested_call(program, *argument) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{state_name}`: a value-call argument cannot itself \
@@ -444,11 +445,10 @@ pub fn nested_boundary_applications_compose(
         if !expression.is_valid() {
             return true;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Call(call) => {
                 scalar_boundary_application(program, call)
-                    && program
-                        .expression_table
+                    && expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
                         .all(|argument| composes(program, *argument))
@@ -471,7 +471,7 @@ pub fn nested_boundary_applications_compose(
             _ => true,
         }
     }
-    matches!(program.expression_table.expression(value), ExpressionNode::Call(call)
+    matches!(expression_table(program).expression(value), ExpressionNode::Call(call)
         if scalar_boundary_application(program, call))
         && composes(program, value)
 }
@@ -485,7 +485,7 @@ fn first_nested_call(
     if !expression.is_valid() {
         return None;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             crate::value_custody::atomic_operations::atomic_execution_children(program, atomic)
                 .into_iter()
@@ -527,7 +527,7 @@ pub(super) fn report_void_value_callee(
     {
         return;
     }
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return;
     };
     let callee_display = call.target.as_str();

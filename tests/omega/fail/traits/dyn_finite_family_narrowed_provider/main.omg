@@ -18,7 +18,7 @@ data Item {
 
 machine Item::code<Width: u32>(item: &Item) -> u32 satisfies Shape<Item>::code
 requires
-    Width == 16 || Width == 32; {
+    Width == 16 || Width == 32 {
     let w: u32 in Wrapping = Width as u32 in Wrapping;
     let r: u32 = (item.value + w) as u32;
     transition {
@@ -44,7 +44,7 @@ Bumped satisfies Shape<Item> {
 
 machine scan(selected: dyn Shape<Item>, item: &Item, w: u32) -> u32
 requires
-    w == 16 || w == 32 || w == 64;
+    w == 16 || w == 32 || w == 64
 {
     let r: u32 = Shape::code<w>(selected, item);
     transition {

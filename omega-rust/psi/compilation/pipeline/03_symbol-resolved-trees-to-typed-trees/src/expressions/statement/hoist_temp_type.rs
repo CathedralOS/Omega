@@ -28,6 +28,8 @@
 //! ordinary call admission still checks the full signature, bounds and custody.
 
 use crate::lowerer::Lowerer;
+use crate::tables::resolved_expressions;
+use crate::tables::type_constraints;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -460,12 +462,8 @@ fn static_conformance_requirement_return(
     state: &resolved::state::State,
     call: &resolved::expression::TableCallExpression,
 ) -> Option<TypeReference> {
-    let ExpressionNode::Name(receiver) = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(call.receiver)
+    let ExpressionNode::Name(receiver) =
+        resolved_expressions(lowerer.source_trees).expression(call.receiver)
     else {
         return None;
     };
@@ -563,11 +561,7 @@ fn instantiate_declared_call_result(
         substitutions.push((parameter.symbol, concrete));
     }
     let formal_parameters = declared_call_parameters(lowerer.source_trees, target).to_vec();
-    let arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
+    let arguments = resolved_expressions(lowerer.source_trees)
         .expression_handles(call.arguments)
         .to_vec();
     for (formal, argument) in formal_parameters.iter().zip(arguments) {
@@ -812,10 +806,7 @@ fn arithmetic_domain(
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };
-    source_trees
-        .tables
-        .types
-        .constraints
+    type_constraints(source_trees)
         .span_or_empty(constrained.constraints)
         .iter()
         .find_map(|constraint| match constraint {
@@ -931,11 +922,7 @@ fn exact_domain_constraints<'t>(
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };
-    let constraints = source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constrained.constraints);
+    let constraints = type_constraints(source_trees).span_or_empty(constrained.constraints);
     if constraints.iter().any(|constraint| {
         matches!(
             constraint,
@@ -1257,12 +1244,7 @@ fn strict_dependent_param_field(
     let TypeReference::Constrained(constrained) = parameter else {
         return None;
     };
-    let constraints = lowerer
-        .source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constrained.constraints);
+    let constraints = type_constraints(lowerer.source_trees).span_or_empty(constrained.constraints);
     constraints.iter().find_map(|constraint| {
         let TypeConstraint::Range {
             maximum,

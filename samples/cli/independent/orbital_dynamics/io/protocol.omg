@@ -15,7 +15,7 @@ data Protocol {
 }
 // Fixed decimal notation, bounded to 512 bytes, exactly seven tokens and EOF.
 // Accumulator envelope prevents nonfinite values before any model operation.
-machine Protocol::read(protocol: &mut Protocol) -> bool reaches Console blocks; crashes Trap {
+machine Protocol::read(protocol: &mut Protocol) -> bool reaches Console blocks crashes Trap {
     protocol.position = 0; protocol.length = 0;
     protocol.accumulator = 0.0; protocol.scale = 1.0;
     protocol.fraction = false; protocol.fractional_digits = 0; protocol.negative = false;

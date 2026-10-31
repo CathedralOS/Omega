@@ -4,6 +4,7 @@
 //! Bind decoded fields by declaration symbol and rejoin selected operators
 //! before evaluating a predicate. Unknown expressions supply no evidence.
 
+use crate::frozen_program::expression_table;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField};
@@ -102,7 +103,7 @@ fn evaluate(
     if depth > 128 {
         return Err("closed scalar predicate exceeds the evaluation depth bound");
     }
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return Err("closed scalar predicate has an invalid expression handle");
     }
     let operand = |expression| {
@@ -125,7 +126,7 @@ fn evaluate(
         .ok_or("closed scalar predicate has no resolved Boolean carrier")?;
         Ok((Scalar::Boolean(value), Some(carrier)))
     };
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => Ok((
             Scalar::Integer(
                 value
@@ -137,8 +138,7 @@ fn evaluate(
         ExpressionNode::Boolean(value) => boolean(*value),
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid()
-                || program
-                    .expression_table
+                || expression_table(program)
                     .name_path_members(path.members)
                     .len()
                     != 1
@@ -180,7 +180,7 @@ fn evaluate(
             boolean(!value)
         }
         ExpressionNode::Call(call) => {
-            let arguments = program.expression_table.expression_handles(call.arguments);
+            let arguments = expression_table(program).expression_handles(call.arguments);
             let values = arguments
                 .iter()
                 .map(|argument| {
@@ -299,13 +299,12 @@ fn names_subject(
     subject: SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
         return false;
     };
     subject.is_valid()
         && path.symbol == subject
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1
@@ -335,11 +334,10 @@ fn case_membership(
     } else {
         return None;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(case_expression) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(case_expression) else {
         return None;
     };
-    if program
-        .expression_table
+    if expression_table(program)
         .name_path_members(path.members)
         .len()
         != 2

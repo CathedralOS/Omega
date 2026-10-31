@@ -9,7 +9,7 @@ data Operands {
 }
 
 machine remainder_field(dividend: u32, divisor: u32) -> i32
-    requires divisor >= 16u32 && divisor <= 17u32;
+    requires divisor >= 16u32 && divisor <= 17u32
 {
     let ops: Operands = Operands { dividend: dividend, divisor: divisor };
     let rem: u32 = ops.dividend % ops.divisor;

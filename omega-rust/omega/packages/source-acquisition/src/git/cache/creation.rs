@@ -26,7 +26,7 @@ use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, GIT_CONFIG_SHA256, LocalSourceLimits,
 };
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 
 use super::identity::git_cache_metadata;
 use super::repository::VerifiedGitRepository;
@@ -104,7 +104,7 @@ pub(crate) fn create_git_cache_entry(
     pending
         .directory()?
         .remove_dir("empty-template")
-        .map_err(|error| io_error(&empty_template, error))?;
+        .at(&empty_template)?;
 
     let metadata_path = pending.root.join(GIT_CACHE_METADATA);
     let mut metadata_options = CapabilityOpenOptions::new();
@@ -117,17 +117,12 @@ pub(crate) fn create_git_cache_entry(
     let mut metadata = pending
         .directory()?
         .open_with(GIT_CACHE_METADATA, &metadata_options)
-        .map_err(|error| io_error(&metadata_path, error))?;
+        .at(&metadata_path)?;
     #[cfg(unix)]
     {
-        let mut permissions = metadata
-            .metadata()
-            .map_err(|error| io_error(&metadata_path, error))?
-            .permissions();
+        let mut permissions = metadata.metadata().at(&metadata_path)?.permissions();
         permissions.set_mode(0o600);
-        metadata
-            .set_permissions(permissions)
-            .map_err(|error| io_error(&metadata_path, error))?;
+        metadata.set_permissions(permissions).at(&metadata_path)?;
     }
     metadata
         .write_all(&git_cache_metadata(
@@ -135,13 +130,9 @@ pub(crate) fn create_git_cache_entry(
             requested_rev,
             execution_transport,
         ))
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .sync_all()
-        .map_err(|error| io_error(&metadata_path, error))?;
-    let metadata_custody = metadata
-        .metadata()
-        .map_err(|error| io_error(&metadata_path, error))?;
+        .at(&metadata_path)?;
+    metadata.sync_all().at(&metadata_path)?;
+    let metadata_custody = metadata.metadata().at(&metadata_path)?;
     verify_capability_cache_node_owner_and_mode(
         CacheCustodyKind::Git,
         &metadata_path,

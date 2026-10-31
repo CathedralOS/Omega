@@ -1,11 +1,11 @@
 // Sum-case and structured-payload identities carry explicit numbering:
-// `case #1 Found(#1 value: T, retired #2)` numbers the case, its
+// `#1 case Found(#1 value: T, retired #2)` numbers the case, its
 // payload member, and a retired slot; `retired #3` retires a whole
 // case position. These are stable data metadata — they do not select
 // or alter the runtime discriminant.
 data Lookup<T> {
-    case #1 Found(#1 value: T, retired #2);
-    case #2 Missing;
+    #1 case Found(#1 value: T, retired #2);
+    #2 case Missing;
     retired #3;
 }
 machine pick<T>(query: T) -> Lookup<T> { Lookup::Found { value: query } }

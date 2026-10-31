@@ -82,11 +82,11 @@ windows_x86_64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::O
 satisfies NativeBytes::release via windows_x86_64_release_binding();
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap
-    ensures result.pointer != 0; {
+    ensures result.pointer != 0 {
         let pointer: addr = NativeBytes::allocate(1, 1);
         transition pointer != 0 { true -> supplied(pointer) _ -> failed() }
         machine supplied(pointer: addr) -> Buffer reaches
-        requires pointer != 0; ensures result.pointer == pointer; {
+        requires pointer != 0 ensures result.pointer == pointer {
             Buffer { pointer: pointer }
         }
         machine failed() -> Buffer reaches crashes Trap { crash Trap; }
@@ -95,13 +95,13 @@ InitialSupplyProvider satisfies InitialSupply {
 WriterProvider satisfies Writer {
     machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
     ensures result.pointer == buffer.pointer,
-        Owned::content(old(&buffer)) == Retained::content(&result); {
+        Owned::content(old(&buffer)) == Retained::content(&result) {
         let { pointer } = buffer;
         PendingWrite { pointer: pointer }
     }
     machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
     ensures result.pointer == pending.pointer,
-        Retained::content(old(&pending)) == Owned::content(&result); {
+        Retained::content(old(&pending)) == Owned::content(&result) {
         let { pointer } = pending;
         Buffer { pointer: pointer }
     }

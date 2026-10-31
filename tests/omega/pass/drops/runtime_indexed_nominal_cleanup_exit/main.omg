@@ -13,7 +13,7 @@ public boundary trait Console {
 
 public data ConsoleNativeProvider {}
 public NativeConsole satisfies Console {
-    machine write_byte(byte: i32) reaches Console terminates; {
+    machine write_byte(byte: i32) reaches Console terminates {
         ConsoleNativeProvider::write_byte(byte);
     }
     machine exit_process(return_code: i32) reaches Console {
@@ -25,7 +25,7 @@ public NativeConsole satisfies Console {
 // not to the standard compiler-owned Console primitive.
 data PosixConsoleIo {}
 boundary requirement PosixConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-terminates;
+terminates
 reaches Console;
 data PosixConsoleImports {}
 macos_arm64 machine macos_arm64_write_binding() -> ForeignBinding<26, 6, 0> {
@@ -75,7 +75,7 @@ linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i3
 // the low byte of an i32 cell.
 data WindowsConsoleIo { }
 boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-terminates;
+terminates
 reaches Console;
 data WindowsConsoleImports { }
 windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {

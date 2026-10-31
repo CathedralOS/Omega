@@ -16,12 +16,8 @@ pub(in crate::encoding::encode) fn applications(
     encoder: &mut Encoder,
     applications: &PackagePolicyBoundaryApplications,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("demands", |encoder| {
-        encoder.sequence(&applications.demands, demand)
-    })?;
-    encoder.field("realizations", |encoder| {
-        encoder.sequence(&applications.realizations, realization)
-    })
+    encoder.sequence_field("demands", &applications.demands, demand)?;
+    encoder.sequence_field("realizations", &applications.realizations, realization)
 }
 
 pub(in crate::encoding::encode) fn demand(

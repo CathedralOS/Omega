@@ -13,11 +13,12 @@
 //! Proof-only predicate roots remain outside this storage judgment, as before;
 //! mathematical constructor entailment is not occurrence-bound storage evidence.
 
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 use super::super::super::return_values::exit_return_expression;
 use super::scalar_exits::*;
 use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -75,12 +76,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         return;
     }
     let entry_contexts = active_context_handles(&facts.flow.contexts, exit.entry_semantic_contexts);
-    let base = canonical_place_from_expression_in_state(
-        program,
-        exit.state_symbol,
-        exit.statement_index,
-        returned,
-    );
+    let base = place_at(program, exit.state_symbol, exit.statement_index, returned);
     // A reference return observes the completed descriptor's live referents.
     // An owned return keeps its detached value namespace below; redirecting a
     // copy to a historical source would let later writes change its evidence.

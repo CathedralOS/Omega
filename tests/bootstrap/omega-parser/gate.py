@@ -57,11 +57,11 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 571918,
-                     "1b83c166c1ecf30f7466a84f3ea9ad8ac2253341700c1e6c69bd2db3d6e3b1c5")
+    require_identity("D", compiler, 571866,
+                     "ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29")
     entry = (gate / "main.epsilon").read_bytes()
-    require_identity("parser customer entry", entry, 10867,
-                     "42e53e69af142994a46558d311bcb0d5e1ffdddf17760173c76229f19cd45555")
+    require_identity("parser customer entry", entry, 12774,
+                     "211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56")
     customer = compiler + entry
     expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
     print(f"Complete D customer: {len(customer)} bytes, "
@@ -93,7 +93,7 @@ def main():
     if observation != expected:
         raise SystemExit(f"Interpreted D parser: expected {expected.hex()}, "
                          f"received {observation.hex()}")
-    print("Interpreted D parser: 16 invocations, exact Exit(0) and A", flush=True)
+    print("Interpreted D parser: 20 invocations, exact Exit(0) and A", flush=True)
 
 
 if __name__ == "__main__":

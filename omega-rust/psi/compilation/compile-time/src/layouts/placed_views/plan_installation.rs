@@ -1,5 +1,6 @@
 //! Post-typing replay and installation of one derived placed-view plan.
 
+use crate::build_time_evaluation::type_reference_table;
 use std::collections::BTreeMap;
 
 use access_plans::{AtomicPermissions, FieldAccess, ValidatedPlacementPlan};
@@ -148,9 +149,7 @@ pub(super) fn install_placed_view_plan(
                 "placed view retained origin is not an exact application",
             )]);
         };
-        let operands = typed
-            .type_reference_table
-            .type_reference_handles(*arguments);
+        let operands = type_reference_table(typed).type_reference_handles(*arguments);
         if *base_symbol != template_symbol
             || !lifetime_arguments.is_empty()
             || !matches!(operands, [policy_operand, schema_operand]
@@ -209,9 +208,8 @@ pub(super) fn install_placed_view_plan(
                     entry.field()
                 ))]
             })?;
-        let accessor_type_symbol = typed
-            .type_reference_table
-            .type_symbol(view_field.type_reference);
+        let accessor_type_symbol =
+            type_reference_table(typed).type_symbol(view_field.type_reference);
         let accessor_data = typed
             .data_definitions()
             .iter()

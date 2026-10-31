@@ -14,6 +14,7 @@
 //! consumers. Reflection metadata is projected to the exact declared roster
 //! before both checking and execution; unclaimed metadata is not a field.
 
+use crate::build_time_evaluation::type_reference_table;
 use build_time_values::BuildTimeValue;
 use checked_interpreter::BuildMachineEvaluationRequest;
 use typed_trees::{TypedTrees, machine::Machine, types::TypeReferenceNode};
@@ -44,13 +45,11 @@ pub(super) fn policy_request<'a>(
         if positional_count != arguments.len() + 1 {
             return Err(missing_context());
         }
-        let context_type = match typed
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference { referee, .. } => *referee,
-            _ => parameter.type_reference,
-        };
+        let context_type =
+            match type_reference_table(typed).type_reference(parameter.type_reference) {
+                TypeReferenceNode::Reference { referee, .. } => *referee,
+                _ => parameter.type_reference,
+            };
         let TypeReferenceNode::Named { symbol, .. } =
             typed.type_reference_table.type_reference(context_type)
         else {

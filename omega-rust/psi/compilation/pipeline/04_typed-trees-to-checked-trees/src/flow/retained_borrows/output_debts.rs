@@ -4,6 +4,7 @@
 //! supply membership only after replay of their original applied declaration.
 
 use super::captured_inputs::RetainedSources;
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{
     BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage, FlowControlFacts,
@@ -28,7 +29,7 @@ pub(in crate::flow) fn sources(
     {
         return None;
     }
-    let holder = validation::canonical_place_from_expression_in_state(
+    let holder = place_at(
         program,
         state_symbol,
         operand.statement_index,

@@ -8,7 +8,7 @@ Selected satisfies Family { Family::row = produce; }
 Other satisfies Family { Family::row = produce; }
 machine input(slot: &mut u32) -> u32 { slot = 32; 7 }
 machine create(selected: dyn Family, width: u32) -> Indexed<16>
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 {
     let mut limit: u32 = 16;
     let saved: u32 = limit;
@@ -19,8 +19,8 @@ machine check(item: Indexed<16>) crashes Trap {
     transition item.value == 7 { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
-machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32; { create(selected, width) }
+machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32 { create(selected, width) }
 machine transport(selected: dyn Family, width: u32) crashes Trap
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 { check(relay(selected, width)); }
 machine main() crashes Trap { transport(Selected as dyn Family, 16); transport(Other as dyn Family, 32); }

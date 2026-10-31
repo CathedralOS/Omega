@@ -2,6 +2,7 @@
 
 use super::contextual_projection::contextual_canonical_place_from_expression;
 use super::member_resolution::effective_member_symbol;
+use crate::frozen_program::expression_table;
 
 use super::declared_symbols::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
@@ -124,7 +125,7 @@ pub fn canonical_collection_element_place(
         let range = match segment {
             facts::PlaceSegment::FixedRange { start, end } => Some((start, Some(end))),
             facts::PlaceSegment::Index { expression } => {
-                let range = program.expression_table.range_node(expression)?;
+                let range = expression_table(program).range_node(expression)?;
                 let ordinal = |bound| {
                     program
                         .closed_integer_expression_value_in(bound, machine.symbol)?
@@ -196,7 +197,7 @@ pub fn index_place_segment(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> facts::PlaceSegment {
-    if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
+    if let ExpressionNode::Range(range) = expression_table(program).expression(expression)
         && let Some((start, end)) = fixed_half_open_range(program, range)
     {
         return facts::PlaceSegment::FixedRange { start, end };
@@ -227,7 +228,7 @@ pub fn element_place_segment(
         crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
         if nodes.iter().any(|node| {
             matches!(
-                program.expression_table.expression(*node),
+                expression_table(program).expression(*node),
                 ExpressionNode::Call(_)
             )
         }) {
@@ -268,13 +269,12 @@ fn exact_fixed_element(
     if let Some(initializer) = immutable_name_initializer(program, expression) {
         return exact_fixed_element(program, initializer, depth + 1);
     }
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Member(member) = expression_table(program).expression(expression) else {
         return None;
     };
     let initializer = immutable_name_initializer(program, member.receiver)?;
-    let literal = program.expression_table.struct_literal_node(initializer)?;
-    let field = program
-        .expression_table
+    let literal = expression_table(program).struct_literal_node(initializer)?;
+    let field = expression_table(program)
         .struct_fields(literal.fields)
         .iter()
         .find(|field| field.field_symbol == member.member_symbol)?;
@@ -310,7 +310,7 @@ fn immutable_name_initializer(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
         return None;
     };
     if !path.symbol.is_valid() || path.head_symbol != path.symbol {
@@ -419,11 +419,11 @@ fn collect_arm_bindings(
     let mut nodes = Vec::new();
     crate::expression_traversal::collect_expression_tree(program, root, &mut nodes);
     for node in nodes {
-        let ExpressionNode::Match(dispatch) = program.expression_table.expression(node) else {
+        let ExpressionNode::Match(dispatch) = expression_table(program).expression(node) else {
             continue;
         };
         let mut patterns = Vec::new();
-        for arm in program.expression_table.match_arms(dispatch.arms) {
+        for arm in expression_table(program).match_arms(dispatch.arms) {
             let MatchPattern::Value(pattern) = arm.pattern else {
                 continue;
             };
@@ -431,8 +431,7 @@ fn collect_arm_bindings(
             // Failed patterns execute; their arm values do not. A pattern can
             // change storage that a later literal arm's coordinate reads.
             patterns.push(pattern);
-            let Some(value) = program
-                .expression_table
+            let Some(value) = expression_table(program)
                 .integer_node(pattern)
                 .and_then(|literal| literal.value_i64())
             else {
@@ -455,7 +454,7 @@ fn states_naming(
     crate::expression_traversal::collect_expression_tree(program, endpoint, &mut nodes);
     let mut states = Vec::new();
     for node in nodes {
-        let ExpressionNode::Name(path) = program.expression_table.expression(node) else {
+        let ExpressionNode::Name(path) = expression_table(program).expression(node) else {
             continue;
         };
         if !path.head_symbol.is_valid() {
@@ -503,7 +502,7 @@ fn folded_coordinate(
                 let value = if let Some(first) = matched.next() {
                     matched.all(|value| value == first).then_some(first)?
                 } else {
-                    let call = program.expression_table.call_node(operand)?;
+                    let call = expression_table(program).call_node(operand)?;
                     let (Some(low), Some(high)) = crate::normal_return_integer_bounds(
                         program,
                         machine_symbol,
@@ -519,7 +518,7 @@ fn folded_coordinate(
                     let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
                     crate::expression_result_type_reference(program, machine, state, operand)?
                 } else {
-                    let call = program.expression_table.call_node(operand)?;
+                    let call = expression_table(program).call_node(operand)?;
                     crate::call_target_return_type(
                         program,
                         crate::call_target_symbol(program, call),
@@ -569,14 +568,13 @@ pub fn canonical_place_from_expression(
         return None;
     }
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             program.saved_value_source(saved)?;
-            let anchor = program
-                .expression_table
+            let anchor = expression_table(program)
                 .value_capture(saved.capture)
                 .value_anchor;
-            if !program.expression_table.expression_is_valid(anchor) {
+            if !expression_table(program).expression_is_valid(anchor) {
                 return None;
             }
             Some(CanonicalPlace {
@@ -602,14 +600,13 @@ pub fn canonical_place_from_expression(
                     segments: Vec::new(),
                 });
             }
-            let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
+            let root_symbol = first_valid_name_path_symbol(path, expression_table(program))?;
             let mut place = CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(root_symbol),
                 segments: Vec::new(),
             };
-            let members = program.expression_table.name_path_members(path.members);
-            for (offset, retained) in program
-                .expression_table
+            let members = expression_table(program).name_path_members(path.members);
+            for (offset, retained) in expression_table(program)
                 .name_path_member_symbols(path.member_symbols)
                 .iter()
                 .skip(1)
@@ -767,14 +764,14 @@ pub fn place_root_may_be_symbol(
         if !leaf.is_valid() {
             return false;
         }
-        leaf = match program.expression_table.expression(leaf) {
+        leaf = match expression_table(program).expression(leaf) {
             ExpressionNode::Borrow(inner) => inner.target,
             ExpressionNode::Cast(cast) if cast_preserves_place(program, cast) => cast.value,
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(path) => {
                 return !name_materializes_value(program, leaf)
-                    && first_valid_name_path_symbol(path, &program.expression_table)
+                    && first_valid_name_path_symbol(path, expression_table(program))
                         .is_none_or(|root| root == symbol);
             }
             _ => return false,
@@ -788,7 +785,7 @@ pub(super) fn name_materializes_value(
 ) -> bool {
     crate::exact_case_reference_owner(program, expression).is_some()
         || matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && program.symbols.get(path.symbol).kind == SymbolKind::Const

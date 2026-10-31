@@ -15,6 +15,7 @@ use crate::custody::publication::synchronize_directory;
 #[cfg(all(test, unix))]
 use crate::custody::tree::{CacheCustodyKind, verify_git_cache_root_custody};
 use crate::limits::GIT_CACHE_METADATA;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 #[cfg(all(test, unix))]
 use crate::tree::filesystem::open_absolute_directory_nofollow;
@@ -48,7 +49,7 @@ pub(crate) fn invalidate_git_cache_entry_from_open_parent(
 ) -> Result<(), SourceResolveError> {
     let classified = cache_directory
         .symlink_metadata(entry_name)
-        .map_err(|error| io_error(entry_root, error))?;
+        .at(entry_root)?;
     if classified.file_type().is_symlink() || !classified.is_dir() {
         return Err(cache_invalid(
             entry_root,
@@ -58,9 +59,7 @@ pub(crate) fn invalidate_git_cache_entry_from_open_parent(
     let entry_directory = cache_directory
         .open_dir_nofollow(entry_name)
         .map_err(|error| cache_invalid(entry_root, error.to_string()))?;
-    let opened = entry_directory
-        .dir_metadata()
-        .map_err(|error| io_error(entry_root, error))?;
+    let opened = entry_directory.dir_metadata().at(entry_root)?;
     if !same_capability_file_identity(&classified, &opened) {
         return Err(cache_invalid(
             entry_root,
@@ -80,7 +79,7 @@ pub(super) fn synchronize_cache_parent(
     cache_directory: &CapabilityDirectory,
     cache_root: &Path,
 ) -> Result<(), SourceResolveError> {
-    synchronize_directory(cache_directory).map_err(|error| io_error(cache_root, error))
+    synchronize_directory(cache_directory).at(cache_root)
 }
 
 #[cfg(not(unix))]

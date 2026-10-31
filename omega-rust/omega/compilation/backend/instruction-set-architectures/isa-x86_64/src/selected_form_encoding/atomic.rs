@@ -22,6 +22,7 @@
 //! `AtomicPointerV1`, not in these bytes.
 
 use super::{X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint};
+use crate::register_model::units;
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
 use register_model::RegisterViewId;
 use selected_instructions::{
@@ -57,14 +58,6 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
             (0..form.operation.input_count()).collect(),
             form.observed_operand().into_iter().collect(),
         )
-    };
-    let physical = crate::x86_64_physical_register_model_ref();
-    let units = |name: &str| {
-        physical
-            .view_named(name)
-            .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
-            .units
-            .clone()
     };
     if writes_rflags(form.operation) {
         effects.implicit_unit_clobbers.extend(units("rflags"));

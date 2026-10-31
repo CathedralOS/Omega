@@ -23,6 +23,7 @@ use crate::custody::publication::synchronize_directory;
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::{SourceResolveError, cache_invalid};
 use crate::limits::STAGING_SEQUENCE;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 
 pub(crate) struct PendingGitBatchRequest {
@@ -39,9 +40,7 @@ impl PendingGitBatchRequest {
         entry: &CapabilityDirectory,
         entry_root: &Path,
     ) -> Result<Self, SourceResolveError> {
-        let parent = entry
-            .try_clone()
-            .map_err(|error| io_error(entry_root, error))?;
+        let parent = entry.try_clone().at(entry_root)?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
             let name = OsString::from(format!(
@@ -79,18 +78,18 @@ impl PendingGitBatchRequest {
                 let mut permissions = pending
                     .file()
                     .metadata()
-                    .map_err(|error| io_error(&pending.display_path, error))?
+                    .at(&pending.display_path)?
                     .permissions();
                 permissions.set_mode(0o600);
                 pending
                     .file()
                     .set_permissions(permissions)
-                    .map_err(|error| io_error(&pending.display_path, error))?;
+                    .at(&pending.display_path)?;
             }
             let identity = pending
                 .parent
                 .symlink_metadata(&pending.name)
-                .map_err(|error| io_error(&pending.display_path, error))?;
+                .at(&pending.display_path)?;
             pending.identity = Some(identity);
             pending.verify_current()?;
             return Ok(pending);
@@ -135,7 +134,7 @@ impl PendingGitBatchRequest {
         let named = self
             .parent
             .symlink_metadata(&self.name)
-            .map_err(|error| io_error(&self.display_path, error))?;
+            .at(&self.display_path)?;
         if named.file_type().is_symlink()
             || !named.is_file()
             || !self
@@ -148,11 +147,9 @@ impl PendingGitBatchRequest {
                 "Git batch-request name no longer identifies the retained file",
             ));
         }
-        self.parent
-            .remove_file(&self.name)
-            .map_err(|error| io_error(&self.display_path, error))?;
+        self.parent.remove_file(&self.name).at(&self.display_path)?;
         #[cfg(unix)]
-        synchronize_directory(&self.parent).map_err(|error| io_error(&self.display_path, error))?;
+        synchronize_directory(&self.parent).at(&self.display_path)?;
         self.removed = true;
         Ok(())
     }
@@ -165,10 +162,8 @@ fn verify_git_batch_request_identity(
     file: &File,
     expected: &CapabilityMetadata,
 ) -> Result<(), SourceResolveError> {
-    let named = parent
-        .symlink_metadata(name)
-        .map_err(|error| io_error(path, error))?;
-    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    let named = parent.symlink_metadata(name).at(path)?;
+    let opened = file.metadata().at(path)?;
     if named.file_type().is_symlink()
         || !named.is_file()
         || !opened.is_file()

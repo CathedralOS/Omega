@@ -3,7 +3,7 @@
 // the clause never binds it, and that state's declared `u64` must not lend
 // the premise an unsigned operand that proves `values[0]` on a slice.
 machine first(values: &[u8], index: u64) -> u8
-requires later_bound < values.len;
+requires later_bound < values.len
 {
     transition { _ -> finish(values[0], 1) }
 

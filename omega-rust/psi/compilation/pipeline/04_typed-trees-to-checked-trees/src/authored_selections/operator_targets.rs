@@ -7,6 +7,7 @@ use crate::authored_selections::contract_resolution;
 use crate::authored_selections::member_targets::{
     expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
 };
+use crate::flow::expressions;
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -293,13 +294,11 @@ pub(crate) fn checked_operator_target_for_occurrence(
         }
     };
     let copied_target = || {
-        program
-            .expression_table
+        expressions(program)
             .iter_expressions()
             .filter(|(candidate, _)| *candidate != expression)
             .filter(|(candidate, _)| {
-                program
-                    .expression_table
+                expressions(program)
                     .authored_selection_occurrences(*candidate)
                     .any(|retained| retained == occurrence)
             })
@@ -570,8 +569,7 @@ fn operator_contract_value_type(
     expression: typed_trees::expression::ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let name = program
-        .expression_table
+    let name = expressions(program)
         .name_path_members(path.members)
         .last()?
         .as_str();

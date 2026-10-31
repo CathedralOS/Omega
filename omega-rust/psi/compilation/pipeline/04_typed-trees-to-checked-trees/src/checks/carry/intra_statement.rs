@@ -1,3 +1,5 @@
+use crate::flow::expressions;
+use crate::places::place_at;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -195,12 +197,7 @@ impl EvaluationTraversal<'_, '_> {
         if !self.target_reached {
             return;
         }
-        let canonical_matches = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state_symbol,
-            self.statement_index,
-            expression,
-        )
+        let canonical_matches = place_at(self.program, self.state_symbol, self.statement_index, expression)
         .is_some_and(|place| {
             matches!(place.root, facts::PlaceRoot::Symbol(root) if root == self.symbol)
                 || place.segments.iter().any(|segment| {
@@ -210,9 +207,7 @@ impl EvaluationTraversal<'_, '_> {
         let name_matches = matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(path)
-                if self.program
-                    .expression_table
-                    .name_path_members(path.members)
+                if expressions(self.program).name_path_members(path.members)
                     .first()
                     .is_some_and(|member| member.as_str() == self.fallback_name)
         );

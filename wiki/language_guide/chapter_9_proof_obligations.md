@@ -75,9 +75,9 @@ The requirement promises a terminal outcome under its explicit premises.
 A checked cyclic implementation supplies a private ranking witness, for example:
 
 ```omega
-terminates by remaining -> Nat::Descending;
-terminates by items -> Slice::Length;
-terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+terminates by remaining -> Nat::Descending
+terminates by items -> Slice::Length
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit
 ```
 
 These are illustrative clause forms, not complete algorithms. Every relevant

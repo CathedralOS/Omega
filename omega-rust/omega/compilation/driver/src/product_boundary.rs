@@ -870,7 +870,8 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
         ],
     );
     assert!(publication.contains("candidate.explicitly_selected"));
-    assert!(publication.contains("module.boundary_machines"));
+    let compact_publication = publication.split_whitespace().collect::<String>();
+    assert!(compact_publication.contains("module.boundary_machines"));
     assert!(publication.contains("crate::choose("));
     assert!(publication.contains("crate::admit("));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
@@ -882,6 +883,121 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     assert!(adapter.contains("provider_selection::admit("));
     assert!(!adapter.contains("check_operator_family_selections"));
     assert!(!adapter.contains("IndependentComponentJoin"));
+}
+
+#[test]
+fn boundary_value_layout_consumes_source_free_recipes() {
+    let materialization = include_str!("../../backend/layout/src/boundary_values.rs");
+    assert_absent(
+        &[materialization],
+        "boundary value layout reopens source",
+        &[
+            "TypedTrees",
+            "TypeReference",
+            "SymbolHandle",
+            "typed_trees",
+            "closed_data_definition",
+        ],
+    );
+    assert!(materialization.contains("recipes: &BoundaryValueRecipes"));
+    let recipes =
+        include_str!("../../../../psi/foundation/language-semantics/src/boundary_values.rs");
+    assert_absent(
+        &[recipes],
+        "boundary value recipes retain source or target choice",
+        &[
+            "TypedTrees",
+            "TypeReference",
+            "SymbolHandle",
+            "NativeTarget",
+        ],
+    );
+    let preparation = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/boundary_values.rs"
+    );
+    assert!(preparation.contains("closed_values"));
+    assert!(!preparation.contains("NativeTarget"));
+}
+
+#[test]
+fn calling_materialization_consumes_prepared_psi_telescopes() {
+    let signatures = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs"
+    );
+    let materialization = signatures
+        .split("pub(crate) fn materialize_prepared_signature(")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn exact_boundary_layout_root_symbol(")
+        .next()
+        .unwrap();
+    assert_absent(
+        &[materialization],
+        "calling materialization rebuilds source telescope",
+        &[
+            "state_signature_parameters",
+            "state_signature_type_parameters",
+            "MachineParameterContract",
+            "native_callback_parameters",
+            "nominal_callback_native_parameter_id",
+            "callback_nominal_report_fingerprint",
+        ],
+    );
+    assert!(materialization.contains("declaration.projection"));
+    assert!(materialization.contains("telescope.parameters"));
+    let computation = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
+    );
+    let defaults = computation
+        .split("pub(crate) fn evaluate_default_calling_application(")
+        .nth(1)
+        .unwrap()
+        .split("pub fn compute_boundary_calling_plans(")
+        .next()
+        .unwrap();
+    assert_absent(
+        &[defaults],
+        "default calling selection rescans source",
+        &[".traits()", ".machines()", "trait_machine_signatures"],
+    );
+    assert!(defaults.contains("declaration.default_eligible"));
+    assert!(computation.contains("std::ptr::eq(&*checked.typed, services.context().typed)"));
+    let catalog = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/catalog.rs"
+    );
+    assert!(catalog.contains("PreparedBoundarySignatures::prepare(context)"));
+}
+
+#[test]
+fn calling_policy_selection_consumes_prepared_psi_applications() {
+    let computation = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
+    );
+    assert_absent(
+        &[computation],
+        "target calling policy selection reopens source relationships",
+        &[
+            "standard_calling_vocabularies",
+            "trait_requirements",
+            "boundary_policy_instances",
+            "collect_boundary_signatures",
+            "AppliedTraitScope",
+            "trait_implementation_applications",
+            "captured_machine_applications",
+        ],
+    );
+    assert!(computation.contains("calling.requests()"));
+    assert!(computation.contains("signatures.applied_declaration(application)"));
+    assert!(computation.contains("calling.bindings(application)"));
+    let preparation = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/signatures/calling_applications.rs"
+    );
+    assert!(preparation.contains("standard_calling_vocabularies"));
+    assert!(preparation.contains("trait_implementation_applications"));
+    assert!(preparation.contains("captured_machine_applications"));
+    assert!(preparation.contains("HandleSpan<PreparedCallingInstance>"));
+    assert!(!preparation.contains("TargetProfile"));
+    assert!(!preparation.contains("machine_for_target"));
 }
 
 #[test]

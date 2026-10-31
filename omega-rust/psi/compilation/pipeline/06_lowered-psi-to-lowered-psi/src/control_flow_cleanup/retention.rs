@@ -1,6 +1,7 @@
 //! Module-level identities and machine transitions that prevent control-flow
 //! cleanup from deleting still-referenced Terminal rows.
 
+use crate::retained_identities::proof_values::{retain_contract_values, retain_proposition};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::TerminalModule;
@@ -77,14 +78,6 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
             .iter()
             .map(|application| application.registrar),
     );
-    fn retain_proposition(
-        proposition: &semantic_vocabulary::Proposition,
-        evidence: &mut BlockLocalEvidence,
-    ) {
-        proposition.visit_value_ids(|value| {
-            evidence.values.insert(value);
-        });
-    }
     for coercion in &module.scalar_qualifications.coercions {
         evidence.edges.insert(coercion.edge);
         evidence.values.insert(coercion.source);
@@ -102,7 +95,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     }
     for invariant in &module.scalar_block_invariants {
         evidence.blocks.insert(invariant.header);
-        retain_proposition(&invariant.predicate, &mut evidence);
+        retain_proposition(&invariant.predicate, &mut evidence.values);
         for arrival in &invariant.arrivals {
             evidence.edges.insert(arrival.edge);
         }
@@ -115,7 +108,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         for bucket in &contract.crash_continuations {
             for alternative in &bucket.alternatives {
                 if let terminal_psi::CrashRouteGuard::Predicate(term) = alternative {
-                    retain_proposition(term.proposition(), &mut evidence);
+                    retain_proposition(term.proposition(), &mut evidence.values);
                 }
             }
         }
@@ -146,22 +139,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         for composition in &machine.content_partition_compositions {
             evidence.operations.insert(composition.producer_operation);
         }
-        for proposition in &machine.contract.requires {
-            retain_proposition(proposition, &mut evidence);
-        }
-        for clause in &machine.contract.ensures {
-            retain_proposition(&clause.proposition, &mut evidence);
-        }
-        for clause in &machine.contract.outcome_specific_ensures {
-            retain_proposition(&clause.proposition, &mut evidence);
-        }
-        for bucket in &machine.contract.crash_routes {
-            for alternative in &bucket.alternatives {
-                if let terminal_psi::CrashRouteGuard::Predicate(term) = alternative {
-                    retain_proposition(term.proposition(), &mut evidence);
-                }
-            }
-        }
+        retain_contract_values(&machine.contract, &mut evidence.values);
     }
     evidence
 }

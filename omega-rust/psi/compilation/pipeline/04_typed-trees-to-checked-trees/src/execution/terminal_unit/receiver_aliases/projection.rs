@@ -1,6 +1,8 @@
 //! Join source coordinates to checked capture and normalized receiver paths.
 
 use super::{ExpressionHandle, ExpressionNode};
+use crate::flow::expressions;
+use crate::places::place_at;
 pub(super) fn formation_place(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -22,9 +24,7 @@ pub(super) fn formation_place(
         visited.push(current);
         match program.expression_table.expression(current) {
             ExpressionNode::Name(name) => {
-                let symbols = program
-                    .expression_table
-                    .name_path_member_symbols(name.member_symbols);
+                let symbols = expressions(program).name_path_member_symbols(name.member_symbols);
                 let members = program.expression_table.name_path_members(name.members);
                 if !name.symbol.is_valid()
                     || !name.head_symbol.is_valid()
@@ -88,12 +88,7 @@ pub(super) fn formation_place(
         expression,
         machine.symbol,
     )?;
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        expression,
-    )?;
+    let place = place_at(program, state.symbol, statement_index, expression)?;
 
     if !place
         .segments

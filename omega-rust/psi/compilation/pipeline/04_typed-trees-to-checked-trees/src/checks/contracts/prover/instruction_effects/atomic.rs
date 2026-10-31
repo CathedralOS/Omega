@@ -2,6 +2,7 @@
 //! destination and scalar operand. Generic type arguments retain the exact
 //! atomic cell/value pair; a same-sized integer or another cell is not enough.
 use super::{QueryArgument, QueryArguments};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::types::PrimitiveType;
 use validation::CanonicalPlace;
@@ -38,12 +39,7 @@ fn receiver_places(
     required: QueryArgument,
 ) -> Option<Vec<CanonicalPlace>> {
     let (expression, suffix) = arguments.source_projection(program, required, &[])?;
-    let mut place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement,
-        expression,
-    )?;
+    let mut place = place_at(program, state.symbol, statement, expression)?;
     if !suffix.is_empty() {
         let reference =
             validation::canonical_place_type_reference(program, state.symbol, statement, &place)?;

@@ -116,10 +116,7 @@ impl SourceFields<'_> {
                     TraitApplicationArguments {
                         lexical_owner: owner,
                         enclosing_data_applications: enclosing_applications,
-                        arguments: self
-                            .program
-                            .type_reference_table
-                            .type_reference_handles(*arguments),
+                        arguments: self.program.type_reference_handles(*arguments),
                         lifetimes: &[],
                     },
                 )

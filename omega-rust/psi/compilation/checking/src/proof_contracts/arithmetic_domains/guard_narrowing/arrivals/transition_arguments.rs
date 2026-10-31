@@ -4,6 +4,7 @@ use super::{
     TransitionGuardNode, TransitionTargetNode, ValueEnvironment, analyze,
     narrow_environment_by_condition,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::statement::TableTransition;
 
 /// Analyze an exact target-arm argument without importing facts from another occurrence.
@@ -71,10 +72,7 @@ fn stable_builtin_value(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expression_table(program).expression_at_depth(expression, depth) else {
         return false;
     };
     let stable = |value| stable_builtin_value(program, machine, state, value, depth + 1);

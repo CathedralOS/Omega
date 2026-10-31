@@ -15,6 +15,7 @@ use crate::monomorphization::{
     Candidate, ExpressionHandle, ExpressionNode, Handle, HandleSpan, StatementNode, SymbolHandle,
     TypedTrees,
 };
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(crate) fn statement_span_handles(
     span: HandleSpan<StatementNode>,
@@ -100,15 +101,12 @@ pub(crate) fn rewrite_cloned_calls(
     macro_rules! substitute_application {
         ($application:expr) => {
             substitute_forwarded_machine_arguments(
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut($application),
+                expressions_of_mut(program).static_machine_application_arguments_mut($application),
                 &static_argument_rewrites,
                 &argument_rewrites,
             );
             substitute_forwarded_machine_arguments(
-                program
-                    .expression_table
+                expressions_of_mut(program)
                     .static_machine_application_selected_machines_mut($application),
                 &static_argument_rewrites,
                 &argument_rewrites,
@@ -232,7 +230,7 @@ pub(crate) fn rewrite_cloned_calls(
             if !application.is_valid()
                 && let Some((registration_operation, arguments)) = erased_application
             {
-                let application = program.expression_table.retain_static_machine_application(
+                let application = expressions_of_mut(program).retain_static_machine_application(
                     registration_operation,
                     target,
                     &arguments,
@@ -248,8 +246,7 @@ pub(crate) fn rewrite_cloned_calls(
     }
     let runtime_calls =
         cloned_runtime_call_subjects(program, states, state_symbols, expression_start);
-    let handles: Vec<_> = program
-        .expression_table
+    let handles: Vec<_> = expressions_of(program)
         .iter_expressions_from(expression_start)
         .map(|(handle, _)| handle)
         .collect();
@@ -260,7 +257,7 @@ pub(crate) fn rewrite_cloned_calls(
             &evidence_rewrites,
             &static_argument_rewrites,
         );
-        let clone_state_arguments = match program.expression_table.expression(handle).clone() {
+        let clone_state_arguments = match expressions_of(program).expression(handle).clone() {
             ExpressionNode::Call(snapshot)
                 if state_symbols
                     .iter()
@@ -275,33 +272,30 @@ pub(crate) fn rewrite_cloned_calls(
                     .map(|ordinal| runtime_calls[ordinal].1.as_slice())
                     .unwrap_or(&[]);
                 (!subjects.is_empty()).then(|| {
-                    let mut arguments = program
-                        .expression_table
+                    let mut arguments = expressions_of(program)
                         .expression_handles(snapshot.arguments)
                         .to_vec();
                     insert_subject_operands(&mut arguments, subjects);
-                    program
-                        .expression_table
-                        .insert_expression_handles(arguments)
+                    expressions_of_mut(program).insert_expression_handles(arguments)
                 })
             }
             _ => None,
         };
-        let evidence_dispatch = match program.expression_table.expression(handle) {
+        let evidence_dispatch = match expressions_of(program).expression(handle) {
             ExpressionNode::Call(call) => evidence_target_rewrites
                 .iter()
                 .find(|rewrite| rewrite.placeholder == call.target_symbol),
             _ => None,
         };
-        let selected_carrier = match program.expression_table.expression(handle) {
+        let selected_carrier = match expressions_of(program).expression(handle) {
             ExpressionNode::Call(call) => selected_carriers
                 .iter()
                 .find(|(parameter, _, _)| *parameter == call.target_symbol)
                 .map(|(_, symbol, name)| (*symbol, name.clone())),
             _ => None,
         }
-        .map(|(symbol, name)| insert_subject_name(&mut program.expression_table, name, symbol));
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+        .map(|(symbol, name)| insert_subject_name(expressions_of_mut(program), name, symbol));
+        let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) else {
             continue;
         };
         if let Some(query) = &mut call.native_code_layout {
@@ -351,12 +345,13 @@ pub(crate) fn rewrite_cloned_calls(
         if !application.is_valid()
             && let Some((registration_operation, arguments)) = erased_application
         {
-            let application = program.expression_table.retain_static_machine_application(
+            let application = expressions_of_mut(program).retain_static_machine_application(
                 registration_operation,
                 target,
                 &arguments,
             );
-            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
+            else {
                 unreachable!();
             };
             call.authored_machine_application = application;
@@ -388,8 +383,7 @@ fn restore_recursive_invocation_targets(
             if !application.is_valid() {
                 return None;
             }
-            let operation = program
-                .expression_table
+            let operation = expressions_of(program)
                 .static_machine_application(application)
                 .registration_operation;
             if operation != candidate.template.template_symbol && operation != source_entry {
@@ -420,8 +414,7 @@ fn restore_recursive_invocation_targets(
         ) else {
             continue;
         };
-        let arguments = program
-            .expression_table
+        let arguments = expressions_of(program)
             .static_machine_application_arguments(call.authored_machine_application)
             .to_vec();
         if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
@@ -429,13 +422,12 @@ fn restore_recursive_invocation_targets(
             call.machine_arguments = arguments.into();
         }
     }
-    let expressions = program
-        .expression_table
+    let expressions = expressions_of(program)
         .iter_expressions_from(expression_start)
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     for handle in expressions {
-        let Some(call) = program.expression_table.call_node(handle) else {
+        let Some(call) = expressions_of(program).call_node(handle) else {
             continue;
         };
         let Some(target) = original_target(
@@ -445,11 +437,10 @@ fn restore_recursive_invocation_targets(
         ) else {
             continue;
         };
-        let arguments = program
-            .expression_table
+        let arguments = expressions_of(program)
             .static_machine_application_arguments(call.authored_machine_application)
             .to_vec();
-        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) {
+        if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) {
             call.target_symbol = target;
             call.machine_arguments = arguments.into();
         }
@@ -540,7 +531,7 @@ pub(crate) fn rewrite_clone_transition_subjects(
             .statement_table
             .expression_handles(*arguments)
             .to_vec();
-        insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
+        insert_subject_names(expressions_of_mut(program), &mut arguments, subjects);
         let new_arguments = program.statement_table.insert_expression_handles(arguments);
         let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
             program.statement_table.transition_target_mut(target)

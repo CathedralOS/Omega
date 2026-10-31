@@ -56,7 +56,7 @@ machine <= Nat::less_or_equal(left: Nat, right: Nat) -> bool
 
 machine - Nat::subtract(left: Nat, right: Nat) -> Nat
 requires
-    right <= left;
+    right <= left
 {
     transition { _ -> (saturating_sub(left, right)) }
 }
@@ -70,7 +70,7 @@ requires
 // ensures-extraction rung.
 public machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring<Nat>::add
-terminates by a;
+terminates by a
 {
     transition a {
         Nat::Zero -> (b)
@@ -80,7 +80,7 @@ terminates by a;
 
 public machine mul(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring<Nat>::mul
-terminates by a;
+terminates by a
 {
     transition a {
         Nat::Zero -> Nat::Zero
@@ -122,7 +122,7 @@ ensures
 // Consumers cite the theorem as a statement; it never computes a dummy Nat.
 public machine add_zero_right(a: Nat)
 satisfies CommutativeSemiring<Nat>::add_identity
-terminates by a;
+terminates by a
 ensures
     (add(a, Nat::Zero)) == a
 {
@@ -145,7 +145,7 @@ ensures
 // Bridges length_append's trailing `add(length(s), Succ(Zero))` to
 // `Succ(length(s))` in seq.omg's length_snoc. Lean analog: `Nat.add_one`.
 machine add_one_right(a: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (add(a, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: a })
 {
@@ -173,7 +173,7 @@ ensures
 // `lhs == rhs` law rewriting matching applications everywhere), not the
 // laws themselves.
 machine add_succ_law(a: Nat, b: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })
 {
@@ -194,7 +194,7 @@ ensures
 // payload).
 public machine add_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::add_comm
-terminates by a;
+terminates by a
 ensures
     (add(a, b)) == (add(b, a))
 {
@@ -217,7 +217,7 @@ ensures
 // normalize by unfolding plus the inductive hypothesis.
 public machine add_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::add_assoc
-terminates by a;
+terminates by a
 ensures
     (add(add(a, b), c)) == (add(a, add(b, c)))
 {
@@ -237,7 +237,7 @@ ensures
 // mul's RIGHT annihilator (the left one is compute-mode; this one is the
 // induction).
 machine mul_zero_right(a: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (mul(a, Nat::Zero)) == Nat::Zero
 {
@@ -256,7 +256,7 @@ ensures
 // under Nat's CommutativeSemiring conformance, and the msr_step sub-state
 // deletes entirely.
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (mul(a, Nat::Succ { prev: b })) == (add(a, mul(a, b)))
 {
@@ -290,7 +290,7 @@ ensures
 // imports in scope.
 machine mul_distributes(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::mul_distributes
-terminates by a;
+terminates by a
 ensures
     (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
 {
@@ -313,7 +313,7 @@ ensures
 // `add(add(c, X), Y)`) the rearrange tier discharges under the
 // CommutativeSemiring conformance.
 machine mul_distributes_right(a: Nat, b: Nat, c: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (mul(add(a, b), c)) == (add(mul(a, c), mul(b, c)))
 {
@@ -332,7 +332,7 @@ ensures
 // which both sides meet at `add(mul(b, c), mul(prev, mul(b, c)))`.
 machine mul_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::mul_assoc
-terminates by a;
+terminates by a
 ensures
     (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
 {
@@ -368,7 +368,7 @@ ensures
 // and the machine's own ensures is the inductive hypothesis. Lean analog:
 // `Nat.mul_one`.
 machine mul_one_right(a: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (mul(a, Nat::Succ { prev: Nat::Zero })) == a
 {
@@ -382,7 +382,7 @@ ensures
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 public machine mul_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::mul_comm
-terminates by a;
+terminates by a
 ensures
     (mul(a, b)) == (mul(b, a))
 {
@@ -409,7 +409,7 @@ ensures
 // the lemma quotient transitivity stands on (comm+assoc alone cannot
 // cancel).
 machine add_cancel(c: Nat, a: Nat, b: Nat) -> Nat
-terminates by c;
+terminates by c
 requires
     (add(c, a)) == (add(c, b))
 ensures
@@ -451,7 +451,7 @@ machine pred(a: Nat) -> Nat
 // from the exact operator above rather than silently routing bare `-` to
 // clamping.
 public machine saturating_sub(a: Nat, b: Nat) -> Nat
-terminates by b;
+terminates by b
 {
     transition b {
         Nat::Zero -> (a)
@@ -463,7 +463,7 @@ terminates by b;
 // returns `a` outright). Lean analog: Nat.sub_zero.
 machine sub_zero_right(a: Nat) -> Nat
 ensures
-    result == a;
+    result == a,
     (saturating_sub(a, Nat::Zero)) == a
 {
     transition { _ -> (saturating_sub(a, Nat::Zero)) }
@@ -474,7 +474,7 @@ ensures
 // each Succ arm rewrites under pred with the inductive hypothesis. Lean
 // analog: Nat.succ_sub_succ.
 machine succ_sub_succ(a: Nat, b: Nat) -> Nat
-terminates by b;
+terminates by b
 ensures
     (saturating_sub(Nat::Succ { prev: a }, Nat::Succ { prev: b })) == (saturating_sub(a, b))
 {
@@ -492,7 +492,7 @@ ensures
 // `b` (the Zero arm computes; each Succ arm is pred of the inductive
 // hypothesis's Zero). Lean analog: Nat.zero_sub.
 machine sub_zero_left(b: Nat) -> Nat
-terminates by b;
+terminates by b
 ensures
     (saturating_sub(Nat::Zero, b)) == Nat::Zero
 {
@@ -511,7 +511,7 @@ ensures
 // (prev, prev), then the ensures is the inductive hypothesis. Lean analog:
 // Nat.sub_self.
 machine sub_self(a: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (saturating_sub(a, a)) == Nat::Zero
 {
@@ -533,7 +533,7 @@ ensures
 // inductive hypothesis. This is the Rat ladder's normalization workhorse.
 // Lean analog: Nat.add_sub_cancel_left.
 machine add_sub_cancel(b: Nat, a: Nat) -> Nat
-terminates by b;
+terminates by b
 ensures
     (saturating_sub((add(b, a)), b)) == a
 {
@@ -604,7 +604,7 @@ ensures
 // saturating_sub(saturating_sub(a, q), a) == Zero, and closes with pred_le_left. Lean analog:
 // Nat.sub_le.
 machine sub_le(a: Nat, b: Nat) -> Nat
-terminates by b;
+terminates by b
 ensures
     (saturating_sub((saturating_sub(a, b)), a)) == Nat::Zero
 {
@@ -682,7 +682,7 @@ ensures
 // premise b == Succ pb. Lean analog: Nat.sub_lt.
 machine sub_lt(a: Nat, b: Nat) -> Nat
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero,
     (saturating_sub(b, a)) == Nat::Zero
 ensures
     (saturating_sub(Nat::Succ { prev: (saturating_sub(a, b)) }, a)) == Nat::Zero
@@ -707,7 +707,7 @@ ensures
 // equation (saturating_sub(b, a) == Zero), and whose instantiated ensures IS the
 // strict-edge fact saturating_sub(Succ(saturating_sub(a, b)), a) == Zero. Lean analog: Nat.mod.
 machine mod(a: Nat, b: Nat) -> Nat
-terminates by a;
+terminates by a
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
 ensures
@@ -752,7 +752,7 @@ ensures
 // to recover saturating_sub(b, pa) == Succ (Succ w), takes the inductive hypothesis
 // at (pa, b, Succ w), and closes through add_succ_law.
 machine sub_eq_add(a: Nat, b: Nat, w: Nat) -> Nat
-terminates by a;
+terminates by a
 requires
     (saturating_sub(b, a)) == (Nat::Succ { prev: w })
 ensures
@@ -775,7 +775,7 @@ ensures
 // sub_zero_left's fact; the Succ arm strips one Succ from each side with
 // succ_sub_succ and is the inductive hypothesis.
 machine le_add(a: Nat, w: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (saturating_sub(Nat::Succ { prev: a }, (add(a, Nat::Succ { prev: w })))) == Nat::Zero
 {
@@ -844,7 +844,7 @@ ensures
 // at the let-citation (result < divisor) close the obligation. Lean analog:
 // Nat.gcd.
 machine gcd(a: Nat, b: Nat) -> Nat
-terminates by b;
+terminates by b
 {
     transition b {
         Nat::Zero -> (a)
@@ -863,7 +863,7 @@ terminates by b;
 // dispatch and the same sub_lt strict edge as mod; the b <= a arm wraps
 // the recursion in one Succ. Lean analog: Nat.div.
 machine div(a: Nat, b: Nat) -> Nat
-terminates by a;
+terminates by a
 requires
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero
 {

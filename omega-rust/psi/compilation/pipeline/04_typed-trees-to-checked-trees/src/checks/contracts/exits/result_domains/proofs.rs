@@ -1,10 +1,9 @@
 //! proofs slice of result_domains.
 
-use validation::canonical_place_from_expression_in_state;
-
 use super::super::super::return_values::exit_return_expression;
 use super::{domain_predicate_meaning, exact_integer_reference};
 use crate::flow::canonical_place_from_semantic_place;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
 use facts::{FactContextHandle, FactOrigin, FactPayload};
 use typed_trees::types::TypeReferenceNode;
@@ -212,11 +211,7 @@ fn establishes_scalar_predicates_visited(
                 membership.semantic_domain,
             );
             if parent.is_none()
-                || !typed_trees::domain::domain_subject_reference(
-                    program,
-                    domain,
-                    membership.value,
-                )
+                || !typed_trees::domain::domain_subject_reference(program, domain, membership.value)
             {
                 ScalarPredicateJudgment::Unknown
             } else {
@@ -231,7 +226,13 @@ fn establishes_scalar_predicates_visited(
                     ..Default::default()
                 };
                 establishes_scalar_predicates_inner(
-                    program, facts, exit, contexts, parent, &constraint, visited,
+                    program,
+                    facts,
+                    exit,
+                    contexts,
+                    parent,
+                    &constraint,
+                    visited,
                 )
             }
         } else if let Some(expression) = fact.as_expression() {
@@ -250,14 +251,9 @@ fn establishes_scalar_predicates_visited(
                 ScalarPredicateJudgment::Proven
             } else {
                 let mut subjects = Vec::new();
-                let has_meaning = domain_predicate_meaning(
-                    program,
-                    domain,
-                    *expression,
-                    &mut subjects,
-                    0,
-                )
-                .is_some();
+                let has_meaning =
+                    domain_predicate_meaning(program, domain, *expression, &mut subjects, 0)
+                        .is_some();
                 if has_meaning {
                     let known = proof.current_value(returned);
                     let evaluated = super::super::super::prover::evaluate_scalar(
@@ -279,9 +275,7 @@ fn establishes_scalar_predicates_visited(
                         },
                         &|_, _| true,
                     );
-                    if evaluated
-                        == Some(super::super::super::prover::ScalarValue::Boolean(true))
-                    {
+                    if evaluated == Some(super::super::super::prover::ScalarValue::Boolean(true)) {
                         ScalarPredicateJudgment::Proven
                     } else if evaluated
                         == Some(super::super::super::prover::ScalarValue::Boolean(false))
@@ -609,7 +603,7 @@ impl ScalarReturnProof<'_> {
                 if !primitive.accepts_integer_literal() {
                     return None;
                 }
-                let subject = canonical_place_from_expression_in_state(
+                let subject = place_at(
                     self.program,
                     self.exit.state_symbol,
                     self.exit.statement_index,
@@ -672,7 +666,7 @@ impl ScalarReturnProof<'_> {
             self.program,
             expression,
             &mut |leaf| {
-                let subject = canonical_place_from_expression_in_state(
+                let subject = place_at(
                     self.program,
                     self.exit.state_symbol,
                     self.exit.statement_index,
@@ -741,12 +735,8 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     if !returned.is_valid() {
         return false;
     }
-    let Some(mut subject) = canonical_place_from_expression_in_state(
-        program,
-        exit.state_symbol,
-        exit.statement_index,
-        returned,
-    ) else {
+    let Some(mut subject) = place_at(program, exit.state_symbol, exit.statement_index, returned)
+    else {
         return false;
     };
     if !crate::flow::place_cases_are_selected(

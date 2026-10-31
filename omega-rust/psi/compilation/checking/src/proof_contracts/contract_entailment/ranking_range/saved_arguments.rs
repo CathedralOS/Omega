@@ -18,6 +18,7 @@
 //! the incoming value only while nothing can write it away.
 use super::{BigInt, Engine, ExpressionHandle, Machine, Polynomial, State, lengths, meanings};
 use crate::StrictArithmeticExpressionBinding;
+use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
@@ -261,7 +262,7 @@ fn plain_name(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let path = program.expression_table.name_path_node(expression)?;
+    let path = expression_table(program).name_path_node(expression)?;
     (program.expression_table.name_path_is_single_member(path)).then_some(path.symbol)
 }
 
@@ -326,14 +327,13 @@ fn stable_references(
             return false;
         }
         nodes.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if let ExpressionNode::Call(call) = node {
             // Selection is code, not an implicit data argument. Its complete
             // effects are covered by the caller's frame judgment; public
             // numeric clauses depend on the explicit actuals captured here.
             pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied(),
@@ -343,7 +343,7 @@ fn stable_references(
         }
     }
     nodes.iter().all(|node| {
-        let Some(path) = program.expression_table.name_path_node(*node) else {
+        let Some(path) = expression_table(program).name_path_node(*node) else {
             return true;
         };
         let symbol = path.head_symbol;
@@ -379,7 +379,7 @@ fn bind_local_lengths(
         program, expression, &mut nodes, &mut seen,
     );
     for node in nodes {
-        let Some(member) = program.expression_table.member_node(node) else {
+        let Some(member) = expression_table(program).member_node(node) else {
             continue;
         };
         if CollectionMeasure::from_authored_spelling(member.member.as_str())

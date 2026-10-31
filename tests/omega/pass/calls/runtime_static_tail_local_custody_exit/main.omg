@@ -4,7 +4,7 @@
 data Counter { value: u64; }
 
 machine Counter::even(counter: &mut Counter, remaining: u64) -> u64
-terminates by remaining;
+terminates by remaining
 {
     transition remaining == 0 {
         true -> finish(counter)
@@ -17,7 +17,7 @@ terminates by remaining;
 }
 
 machine Counter::odd(counter: &mut Counter, remaining: u64) -> u64
-terminates by remaining;
+terminates by remaining
 {
     transition remaining == 0 {
         true -> finish(counter)

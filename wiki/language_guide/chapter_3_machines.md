@@ -25,6 +25,28 @@ conclusions. Traits and named conformances bundle mathematical operations,
 witnesses, and laws. General logical expressions do not add an executable
 machine supply mode; see [chapter 10](chapter_10_compile_time_proofs.md).
 
+## Header Punctuation
+
+Machine clauses do not end with semicolons. The next clause or the body ends
+the current clause:
+
+```omega
+machine identity(value: u64) -> u64
+requires value <= 100
+ensures result == value
+terminates
+{
+    value
+}
+```
+
+A bodyless declaration ends with one semicolon after the complete header, as in
+`machine identity(value: u64) -> u64 terminates;`. The same applies to a nested
+`requires machine`: its final semicolon closes that required callable, and the
+next clause belongs to the enclosing machine. `terminates`, `suspends`, and
+`blocks` have no special punctuation. See the
+[header delimiter rule](../spec/language/state_contracts.md#machine-header-delimiters).
+
 ## One Construct, Several Uses
 
 The same machine can be called at runtime and evaluated by the compiler when
@@ -336,7 +358,7 @@ A terminating cycle needs an authored ranking witness:
 
 ```omega
 machine sum(n: u64, acc: u64) -> u64
-terminates by n -> Nat::Descending;
+terminates by n -> Nat::Descending
 {
     transition n {
         0 -> acc

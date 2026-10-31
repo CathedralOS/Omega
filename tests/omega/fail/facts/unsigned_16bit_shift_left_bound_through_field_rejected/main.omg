@@ -8,7 +8,7 @@ data Operands {
 }
 
 machine shift_field(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16;
+    requires val >= 25u16 && val <= 30u16
 {
     let ops: Operands = Operands { val: val };
     let shifted: u16 = ops.val << 2u16;

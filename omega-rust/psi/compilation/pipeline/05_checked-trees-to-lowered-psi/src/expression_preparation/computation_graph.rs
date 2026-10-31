@@ -1,3 +1,4 @@
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::{
@@ -56,9 +57,7 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
             // Discovery prepares original storage only. Invocations and loan
             // formation still execute at their retained DAG positions, including
             // selected arms, rather than ahead of the value.
-            for call in checked
-                .facts
-                .values
+            for call in value_facts(checked)
                 .structural_values
                 .call_schedule(value)
                 .map(|(_, calls)| calls)
@@ -146,9 +145,7 @@ fn collect_call_targets(
     // but the application itself is no longer a callable dependency. Match
     // the exact source coordinate, never the target alone: another occurrence
     // calling that same machine may still require an invocation frame.
-    let transfers = checked
-        .facts
-        .flow
+    let transfers = flow_facts(checked)
         .terminal_unit_effects
         .composed_for_machine(machine)
         .into_iter()
@@ -235,9 +232,7 @@ pub(crate) fn reachable_structural_values(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<checked_trees::CheckedStructuralValueHandle>, LoweringError> {
-    let roots = checked
-        .facts
-        .values
+    let roots = value_facts(checked)
         .scalar_computations
         .roots_for_machine(machine);
     let mut values = Vec::new();
@@ -289,9 +284,7 @@ fn value_calls(
     let mut calls = Vec::new();
     for value in dependencies {
         calls.extend(
-            checked
-                .facts
-                .values
+            value_facts(checked)
                 .structural_values
                 .call_schedule(value)
                 .map(|(_, calls)| calls)
@@ -421,7 +414,7 @@ fn collect_reachable_nodes(
                     if let Some(place) = argument.as_place() {
                         extend_range(checked, place, &mut pending);
                         if matches!(place.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
-                            let root = produced_value_root(checked, *source_call, place)?.root;
+                            let root = produced_value_root(checked, source_call.statement().ok_or(LoweringError::Unsupported("declaration call has no structural producer custody"))?, place)?.root;
                             if !structural_roots.contains(&root) {
                                 structural_roots.push(root);
                             }
@@ -609,9 +602,7 @@ pub(crate) fn structural_dependencies(
                 }
             }
             Value::Reference { selectors, .. } => scalars.extend(
-                checked
-                    .facts
-                    .values
+                value_facts(checked)
                     .scalar_computations
                     .operands
                     .span(*selectors)
@@ -667,17 +658,7 @@ pub(crate) fn produced_value_root<'checked>(
         return unsupported("computed structural operand lost its checked invocation");
     }
     let call = control.calls.get(source_call);
-    let mut owners = control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .filter(|state| {
-            control
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .any(|candidate| std::ptr::eq(candidate, call))
-        });
+    let mut owners = control.call_owners(source_call).into_iter();
     let state = owners.next().ok_or(LoweringError::Unsupported(
         "computed structural operand has no invocation state",
     ))?;
@@ -720,9 +701,7 @@ pub(crate) fn fields<'a>(
     checked: &'a CheckedTrees,
     subject: &CheckedScalarCaseConstruction,
 ) -> Result<&'a [CheckedScalarCaseComputationField], LoweringError> {
-    checked
-        .facts
-        .values
+    value_facts(checked)
         .scalar_computations
         .case_fields
         .span(subject.fields)

@@ -270,7 +270,10 @@ fn validate_named_site_carrier(
     let source_site = checked_trees::NominalMachineUseSite::Expression(named_use.expression);
     let mut joins = lowered.source_call_occurrences.iter().filter(|occurrence| {
         occurrence.source_site == Some(source_site)
-            && occurrence.source_state == state_symbol
+            && occurrence
+                .origin
+                .statement()
+                .is_some_and(|site| site.state == state_symbol)
             && occurrence.source_target == site.selected_operator
     });
     let join = match (joins.next(), joins.next()) {

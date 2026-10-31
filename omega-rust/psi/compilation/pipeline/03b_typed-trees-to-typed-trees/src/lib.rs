@@ -14,6 +14,7 @@ mod expression_roots;
 mod monomorphization;
 mod operators;
 mod preparation;
+mod tables;
 
 pub use preparation::{
     PreparationAdmission, PreparationRequest, PreparedProductRequirement, TypedPreparation,

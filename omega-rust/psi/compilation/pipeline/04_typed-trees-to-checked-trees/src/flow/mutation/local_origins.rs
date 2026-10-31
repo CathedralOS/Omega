@@ -10,7 +10,6 @@
 //! query must not discard unknown alternatives.
 
 use validation::CanonicalPlace;
-use validation::canonical_place_from_expression_in_state;
 use validation::push_field_place_segments;
 use validation::resolve_member_symbol_from_type_symbol;
 use validation::symbol_type_symbol;
@@ -20,6 +19,7 @@ use crate::flow::canonical_place_segments_equal;
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::StorageRegion;
 use crate::flow::mutation::normalize_write_only_range_place;
+use crate::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -185,12 +185,7 @@ pub(super) fn assignment_storage_regions(
             _ => break,
         };
     }
-    let mut direct = canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        assignment.target,
-    );
+    let mut direct = place_at(program, state_symbol, statement_index, assignment.target);
     if let Some(place) = &mut direct {
         normalize_write_only_range_place(program, state_symbol, place);
         if !place_requires_local_write_origin(

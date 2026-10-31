@@ -293,11 +293,8 @@ pub(in crate::legalization) fn structural_argument_at(
                 || caller_parameter.projected_qualifications
                     != semantic_parameter.projected_qualifications
                 || caller_parameter.shape
-                    != crate::structural_inputs::structural_reference_input::parameter_shape(
-                        semantic_parameter,
-                        declarations,
-                    )
-                    .ok_or(LegalizationError::custody())?
+                    != crate::structural_inputs::parameter_shape(semantic_parameter, declarations)
+                        .ok_or(LegalizationError::custody())?
             {
                 return Err(LegalizationError::custody());
             }
@@ -448,11 +445,8 @@ pub(in crate::legalization) fn structural_argument_at(
         // descriptor. Admit a scalar only when discarding that codec cannot
         // expose bytes outside any backing admitted by its checked loan.
         if projection.scalar_descriptor {
-            let shape = crate::structural_inputs::structural_reference_input::shape(
-                projection.selected,
-                declarations,
-            )
-            .ok_or(LegalizationError::custody())?;
+            let shape = crate::structural_inputs::shape(projection.selected, declarations)
+                .ok_or(LegalizationError::custody())?;
             let exported_width =
                 crate::structural_inputs::structural_reference_input::scalar_reference_export_width(
                     projection.selected,

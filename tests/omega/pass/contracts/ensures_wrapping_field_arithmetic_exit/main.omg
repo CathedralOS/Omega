@@ -19,7 +19,7 @@ machine Countdown::arm(countdown: &mut Countdown, start: u32 in Wrapping)
 requires
     start < 8
 ensures
-    countdown.remaining > 0;
+    countdown.remaining > 0,
     countdown.remaining - 1 < 8
 {
     countdown.remaining = start + 1;
@@ -27,7 +27,7 @@ ensures
 
 machine Countdown::tick(countdown: &mut Countdown) -> u32 in Wrapping
 requires
-    countdown.remaining > 0;
+    countdown.remaining > 0,
     countdown.remaining - 1 < 8
 {
     countdown.remaining = countdown.remaining - 1;

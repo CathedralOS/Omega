@@ -3,6 +3,7 @@
 //! never participates. Arithmetic uses the same walk as executable values.
 
 use super::{ArithmeticDomain, Diagnostic, ExpressionHandle, PrimitiveType, ValueEnvironment};
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 
@@ -39,7 +40,7 @@ pub(crate) fn validate_declaration_value_range(
     // ordinary declaration construction proof before it can supply an index.
     let mut pending = vec![expression];
     while let Some(operand) = pending.pop() {
-        let node = program.expression_table.expression(operand);
+        let node = expression_table(program).expression(operand);
         // These operations carry access, bounds or custody obligations beyond
         // scalar arithmetic and selected call contracts. An unused declaration
         // must decline missing formation evidence just as an executed one does.
@@ -77,7 +78,7 @@ pub(crate) fn validate_declaration_value_range(
                 Diagnostic::error(format!(
                     "{owner} has no declaration formation evidence for {obligation}"
                 ))
-                .with_source_span(program.expression_table.source_span(operand)),
+                .with_source_span(expression_table(program).source_span(operand)),
             );
         }
         if matches!(
@@ -92,9 +93,7 @@ pub(crate) fn validate_declaration_value_range(
                 operand,
             )
             .or_else(|| {
-                let reference = program
-                    .expression_table
-                    .constructed_value_type_reference(operand);
+                let reference = expression_table(program).constructed_value_type_reference(operand);
                 reference.is_valid().then_some(reference)
             });
             let formation = reference.and_then(|reference| {
@@ -165,7 +164,7 @@ pub(super) fn binary_result_fits(
     if prior_facts.is_empty() {
         return false;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     if !matches!(

@@ -137,19 +137,19 @@ machine selected_layer(mode: i32, depth: f64) -> i32 {
     machine layered(depth: f64) -> i32 { layer_at(depth) }
 }
 
-machine regime(index: i32, density: f64) reaches Console invokes Console; {
+machine regime(index: i32, density: f64) reaches Console invokes Console {
     Console::write("REGIME "); number(index);
     transition index == 1 { true -> quadratic(index, density) false -> linear(index, density) }
     machine quadratic(index: i32, density: f64) { Console::write_line(" quadratic"); neutral(index, density); }
     machine linear(index: i32, density: f64) { Console::write_line(" linear"); neutral(index, density); }
 }
-machine neutral(index: i32, density: f64) reaches Console invokes Console; {
+machine neutral(index: i32, density: f64) reaches Console invokes Console {
     let fluid: Layer = layer(index);
     transition density == fluid.density { true -> report(index) false -> quiet() }
     machine report(index: i32) { Console::write("NEUTRAL "); number(index); Console::write_line(""); }
     machine quiet() {}
 }
-machine crossing(step: i32, before: i32, after: i32, density: f64) reaches Console invokes Console; {
+machine crossing(step: i32, before: i32, after: i32, density: f64) reaches Console invokes Console {
     transition before != after { true -> report(step, before, after, density) false -> quiet() }
     machine report(step: i32, before: i32, after: i32, density: f64) {
         Console::write("CROSS "); number(step); Console::write(" "); number(before); Console::write(" "); number(after); Console::write_line("");
@@ -157,7 +157,7 @@ machine crossing(step: i32, before: i32, after: i32, density: f64) reaches Conso
     }
     machine quiet() {}
 }
-machine trace(step: i32, index: i32, particle: Particle, net: f64, residual: f64) reaches Console invokes Console; crashes Trap {
+machine trace(step: i32, index: i32, particle: Particle, net: f64, residual: f64) reaches Console invokes Console crashes Trap {
     Console::write("TRACE "); number(step); Console::write(" "); number(index);
     Console::write(" "); micro(particle.depth); Console::write(" "); micro(particle.velocity);
     Console::write(" "); micro(net); Console::write(" "); micro(residual); Console::write_line("");

@@ -322,7 +322,7 @@ machine AccessPlan::with_bounded(
     access: FieldAccess,
     fuel: u64
 ) -> AccessPlan
-terminates by fuel;
+terminates by fuel
 requires fuel >= 1 && fuel <= 128
 {
     transition { _ -> seek(plan, key, access, 0, fuel) }
@@ -552,7 +552,7 @@ public machine Placed::view_extent<'storage, P, T, Role>(
     &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
 >
 reaches ResourceProfileSupply
-invokes ResourceProfileSupply;
+invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
     Placed::view_from_profile<P, T, Role>(storage, &profile)
@@ -574,7 +574,7 @@ public machine Placed::view_extent_mut<'storage, P, T, Role>(
     &'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
 >
 reaches ResourceProfileSupply
-invokes ResourceProfileSupply;
+invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
     Placed::view_mut_from_profile<P, T, Role>(storage, &profile)
@@ -694,7 +694,7 @@ public machine Placed::initialize_owned<P, T>(
     PlacementInitializationFailure
 >
 reaches PlacementLifecycle + ResourceProfileSupply
-invokes PlacementLifecycle;
+invokes PlacementLifecycle
 {
     PlacementLifecycle<P, T>::initialize(storage, value)
 }
@@ -707,7 +707,7 @@ public machine Placed::move_out_owned<P, T>(
 )
     -> PlacementReturn<Extent in Granted & Vacant, T>
 reaches PlacementLifecycle + ResourceProfileSupply
-invokes PlacementLifecycle;
+invokes PlacementLifecycle
 {
     transition PlacementLifecycle<P, T>::move_out(storage) {
         PlacementExtraction::Moved { storage, value } ->

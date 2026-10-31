@@ -1,5 +1,7 @@
 use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
+use crate::tables::expression_table_mut;
+use crate::tables::resolved_statements;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -62,11 +64,7 @@ pub(super) fn lower_call_statement(
     )? {
         let mut occurrences = call.authored_call_selection.into_iter().collect::<Vec<_>>();
         occurrences.extend(call.authored_static_argument_selections.iter().copied());
-        let arguments = lowerer
-            .source_trees
-            .tables
-            .bodies
-            .statements
+        let arguments = resolved_statements(lowerer.source_trees)
             .expression_handles(call.arguments)
             .to_vec()
             .into_iter()
@@ -79,9 +77,7 @@ pub(super) fn lower_call_statement(
             arguments,
             call.operational_acknowledgement,
         )?;
-        lowerer
-            .typed_trees
-            .expression_table
+        expression_table_mut(&mut lowerer.typed_trees)
             .attach_authored_selection_occurrences(expression, occurrences);
         return Ok(typed::statement::StatementNode::Expression(expression));
     }

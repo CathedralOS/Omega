@@ -3,7 +3,7 @@ use demography::model;
 use omega::language::core::numeric_conversion;
 // Decimal output uses no allocation and includes a sign for net emigration.
 public machine number(value: i64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition value < 0 { true -> negative(value) false -> begin(value) }
     machine negative(value: i64 in Wrapping) { Console::write_byte(45); transition { _ -> begin(0 - value) } }
@@ -29,7 +29,7 @@ invokes Console;
     machine done() {}
 }
 public machine row(year: i64 in Wrapping, census: &Census, balance: &Balance) reaches Console
-invokes Console;
+invokes Console
 {
     number(year); Console::write(","); number(census.newborn); Console::write(",");
     number(census.juvenile); Console::write(","); number(census.adult); Console::write(",");

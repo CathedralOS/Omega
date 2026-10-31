@@ -18,7 +18,7 @@ machine scan_services(
     available_index: u64,
     fuel: u64
 ) -> bool
-terminates by fuel;
+terminates by fuel
 requires required_index <= 32 && available_index <= 32 &&
          fuel >= 1 && fuel <= 2049
 {
@@ -85,7 +85,7 @@ machine cover_regions(
     region_index: u64,
     fuel: u64
 ) -> bool
-terminates by fuel;
+terminates by fuel
 requires covered <= byte_length && region_index <= 32 &&
          fuel >= 1 && fuel <= 128
 {
@@ -191,7 +191,7 @@ machine fill_profile(
     region_index: u64,
     fuel: u64
 ) -> ResourceProfile
-terminates by fuel;
+terminates by fuel
 requires region_index <= 32 && fuel >= 1 && fuel <= 65
 {
     transition {

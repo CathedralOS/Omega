@@ -15,7 +15,7 @@ machine compare(value: f64, cleared: bool) -> bool {
 }
 
 machine read(context: &mut Context) -> bool
-requires context.sample in Sample::Reading;
+requires context.sample in Sample::Reading
 {
     // The first operand copies the payload before the second replaces its
     // source. The detached scalar keeps its value without retaining a loan.

@@ -26,7 +26,7 @@ machine number(value: f64) reaches Console {
     }
     machine done() { }
 }
-public machine emit(feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console; crashes Trap {
+public machine emit(feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console crashes Trap {
     Console::write_line("model: fixed_temperature_pressure supplied_K; ideal equilibrium y=K*x");
     transition solution.status {
         0 -> liquid(feed, solution)
@@ -48,7 +48,7 @@ public machine emit(feed: &io::input::Feed, solution: &model::flash::Solution) r
         ambiguous_rows(feed);
     }
 }
-machine summary(feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console; crashes Trap {
+machine summary(feed: &io::input::Feed, solution: &model::flash::Solution) reaches Console invokes Console crashes Trap {
     Console::write("vapor_fraction: "); number(solution.beta); Console::write_line("");
     transition { _ -> scan(feed, solution, 0) }
     machine scan(feed: &io::input::Feed, solution: &model::flash::Solution, position: u32) {
@@ -85,7 +85,7 @@ machine summary(feed: &io::input::Feed, solution: &model::flash::Solution) reach
 
 // With every active K=1, conservation has zero constant and beta coefficients.
 // Emit that split-independent identity, without inventing phase presence or beta.
-machine ambiguous_rows(feed: &io::input::Feed) reaches Console invokes Console; crashes Trap {
+machine ambiguous_rows(feed: &io::input::Feed) reaches Console invokes Console crashes Trap {
     transition { _ -> scan(feed, 0) }
     machine scan(feed: &io::input::Feed, position: u32) {
         transition position < feed.count && position < 8 {

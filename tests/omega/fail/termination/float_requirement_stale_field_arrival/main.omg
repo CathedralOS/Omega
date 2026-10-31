@@ -1,9 +1,8 @@
 use omega::language::core::float_operations;
 data Reading { value: f64; }
-machine countdown(reading: &mut Reading, count: u64)
-requires reading.value >= 0.0 && count <= 4;
-terminates by count in 0..=4;
--> f64 {
+machine countdown(reading: &mut Reading, count: u64) -> f64
+requires reading.value >= 0.0 && count <= 4
+terminates by count in 0..=4 {
     reading.value = -1.0;
     transition count == 0 {
         true -> reading.value

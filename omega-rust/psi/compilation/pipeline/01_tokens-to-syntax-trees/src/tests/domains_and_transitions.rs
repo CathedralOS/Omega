@@ -98,7 +98,7 @@ fn accepts_exit_contract_clauses_on_nested_machines() {
 fn parses_machine_termination_clauses() {
     let source = r#"
         machine walk(items: &[Item], remaining: usize)
-        terminates by remaining -> Nat::Descending;
+        terminates by remaining -> Nat::Descending
         {
         }
         "#;
@@ -116,7 +116,7 @@ fn parses_machine_termination_tuple_subjects() {
     // ranked-subject tuple, bound in order to the named view's parameters.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates by (index, limit) -> Nat::BoundedDistance;
+        terminates by (index, limit) -> Nat::BoundedDistance
         {
         }
         "#;
@@ -135,7 +135,7 @@ fn parses_machine_termination_argumented_view() {
     // subject stays alone on the arrow's left.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates by index -> Nat::IncreasingTo(limit);
+        terminates by index -> Nat::IncreasingTo(limit)
         {
         }
         "#;
@@ -419,7 +419,7 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
     let source = r#"
         machine grant(value: u64) -> u64
         ensures
-            result in Carry::Portable;
+            result in Carry::Portable
         {
             transition { _ -> value }
         }

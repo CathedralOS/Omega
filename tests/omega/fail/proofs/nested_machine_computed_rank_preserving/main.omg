@@ -2,7 +2,7 @@
 use omega::language::core::nat;
 
 machine descend(value: Nat) -> Nat
-terminates by value;
+terminates by value
 requires saturating_sub(value, value) == Nat::Zero
 {
     transition { _ -> forward(value) }

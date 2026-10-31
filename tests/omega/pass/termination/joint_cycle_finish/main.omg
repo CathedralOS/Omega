@@ -1,9 +1,8 @@
 // One joint cycle permits a preserving edge when the return edge
 // strictly decreases the rank — and an acyclic finishing state
 // (`finish() -> u64`) needs no rank parameter.
-machine left(remaining: u64)
-terminates by remaining in 0..=9;
--> u64
+machine left(remaining: u64) -> u64
+terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition remaining > 0 {
@@ -12,9 +11,8 @@ requires remaining <= 9
     }
     machine finish() -> u64 { 70 }
 }
-machine right(remaining: u64)
-terminates by remaining in 0..=9;
--> u64
+machine right(remaining: u64) -> u64
+terminates by remaining in 0..=9
 requires remaining > 0 && remaining <= 9
 {
     transition { _ -> left(remaining - 1) }

@@ -39,7 +39,7 @@ impl OperationFrame<'_, '_> {
                         state: self.state,
                         statement_index: call.coordinate.statement_index as usize,
                         call_ordinal: call.coordinate.call_ordinal as usize,
-                    },
+                    }.into(),
                     source_site: call.source_site(),
                     target: call.target.machine,
                     frontier: Default::default(),

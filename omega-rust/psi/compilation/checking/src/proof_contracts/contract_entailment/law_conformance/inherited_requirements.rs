@@ -1,6 +1,7 @@
 //! Inherited requirement proposition applications and satisfier
 //! parameters.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::synthesize_indexed_law_binder_labels;
 use crate::proof_contracts::contract_entailment::{StateSignature, TraitDefinition};
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
@@ -106,8 +107,7 @@ pub fn inherited_requirement_proposition_label(
             )
         })
         .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
+    let argument_labels = expression_table(program)
         .expression_handles(endpoint.application.arguments)
         .iter()
         .map(|argument| {

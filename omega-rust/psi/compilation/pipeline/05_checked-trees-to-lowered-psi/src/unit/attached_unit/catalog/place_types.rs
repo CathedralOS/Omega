@@ -5,6 +5,7 @@
 //! do not recursively expand reference edges in the type catalog. A caller that
 //! happens to construct the referent must not supply an isolated callee's types.
 use super::*;
+use crate::checked_facts::value_facts;
 use crate::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as Source,
@@ -450,9 +451,7 @@ fn source_type(
         }),
         Source::StructuralExpression { expression } => statement
             .and_then(|statement| {
-                checked
-                    .facts
-                    .values
+                value_facts(checked)
                     .structural_values
                     .completed_expression_dependency(
                         &checked.expression_table,

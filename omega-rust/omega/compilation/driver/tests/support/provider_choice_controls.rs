@@ -61,9 +61,14 @@ pub(super) fn prepare(
         profile.target_name().to_owned(),
         inventory.prepare(profile.target_name()),
     )];
+    let deployment = checked
+        .build()
+        .config
+        .provider_deployment()
+        .map_err(|errors| format!("provider choice deployment inputs: {errors:?}"))?;
     let publication = TargetProviderPreparationRequest {
-        application_roots: None,
-        application_scopes: &[],
+        application_roots: deployment.roots.as_deref(),
+        application_scopes: &deployment.scopes,
         context,
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         overrides: &checked.build().config.provider_selections,

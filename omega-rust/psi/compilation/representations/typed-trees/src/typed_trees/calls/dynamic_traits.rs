@@ -197,10 +197,7 @@ impl TypedTrees {
             ProofFact::Membership(membership) => {
                 symbols.push(membership.domain_symbol);
                 self.collect_expression_symbols(membership.value, symbols);
-                for argument in self
-                    .type_reference_table
-                    .type_reference_handles(membership.domain_arguments)
-                {
+                for argument in self.type_reference_handles(membership.domain_arguments) {
                     collect_type_reference_symbols(self, *argument, symbols);
                 }
             }
@@ -455,10 +452,7 @@ fn collect_type_reference_symbols(
             ..
         } => {
             symbols.push(*base_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 collect_type_reference_symbols(program, *argument, symbols);
             }
         }
@@ -481,10 +475,7 @@ fn collect_type_reference_symbols(
             symbol, arguments, ..
         } => {
             symbols.push(*symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 collect_type_reference_symbols(program, *argument, symbols);
             }
         }
@@ -522,10 +513,7 @@ fn collect_type_reference_lifetimes(
             for lifetime in lifetime_arguments {
                 push_lifetime_name(lifetimes, lifetime);
             }
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 collect_type_reference_lifetimes(program, *argument, lifetimes);
             }
         }

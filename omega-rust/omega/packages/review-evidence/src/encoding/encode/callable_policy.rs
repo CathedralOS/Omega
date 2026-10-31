@@ -28,9 +28,7 @@ pub(super) fn policy(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", policy.package)?;
     encoder.string_field("target", policy.target.identity().as_str())?;
-    encoder.field("callables", |encoder| {
-        encoder.sequence(&policy.callables, encode_callable)
-    })
+    encoder.sequence_field("callables", &policy.callables, encode_callable)
 }
 
 pub(super) fn encode_callable_conformance(
@@ -58,9 +56,7 @@ pub(super) fn encode_callable_conformance(
             Ok(())
         })
     })?;
-    encoder.field("arguments", |encoder| {
-        encoder.sequence(&conformance.arguments, encode_type_identity)
-    })?;
+    encoder.sequence_field("arguments", &conformance.arguments, encode_type_identity)?;
     encoder.field("alias", |encoder| {
         encoder.option(conformance.alias.as_deref(), |encoder, alias| {
             encoder.string(alias)

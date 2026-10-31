@@ -5,6 +5,7 @@
 //! evaluation of an effectful or failing sibling constructor expression.
 
 use super::structural_fields;
+use crate::flow::expressions;
 use checked_trees::CheckedOperatorFacts;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -53,8 +54,7 @@ pub(crate) fn selected_leaf(
         if element_index >= *length {
             return None;
         }
-        selected = *program
-            .expression_table
+        selected = *expressions(program)
             .expression_handles(*elements)
             .get(element_index)?;
         reference = *element_type;

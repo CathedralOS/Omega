@@ -18,7 +18,7 @@ data Main {
 }
 
 machine sum_entries(s: &[Entry], acc: i32 in Wrapping) -> i32
-terminates by s -> Slice::Length;
+terminates by s -> Slice::Length
 {
     transition s.len > 0 {
         true -> sum_entries(s[1..], acc + s[0].value)

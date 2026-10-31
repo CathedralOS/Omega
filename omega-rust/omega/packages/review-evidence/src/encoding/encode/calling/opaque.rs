@@ -18,7 +18,5 @@ pub(super) fn encode(
         use_,
         "calling policy has unresolved selection ownership"
     )?;
-    encoder.field("occurrences", |encoder| {
-        encoder.sequence(&use_.occurrences, encode_opaque_occurrence)
-    })
+    encoder.sequence_field("occurrences", &use_.occurrences, encode_opaque_occurrence)
 }

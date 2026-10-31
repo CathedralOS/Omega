@@ -18,6 +18,7 @@
 //! domains and wire.
 
 pub(crate) use optimization::codec_bytes;
+pub mod boundary_values;
 pub mod callback_declarations;
 
 mod boundary_bodies;

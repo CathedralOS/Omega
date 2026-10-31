@@ -1,6 +1,7 @@
 use validation::canonical_place_from_expression;
 
 use crate::flow::canonical_place_segments_equal;
+use crate::flow::expressions;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 mod relative;
 
@@ -105,10 +106,7 @@ pub(super) fn collect_dependency_paths_from_expression(
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
+            for field in expressions(program).struct_fields(struct_literal.fields) {
                 collect_child!(field.value);
             }
         }

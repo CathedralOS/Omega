@@ -42,9 +42,7 @@ impl RecordFileRoot {
         directory: CapabilityDirectory,
         display_path: PathBuf,
     ) -> Result<Self, RecordFileError> {
-        let metadata = directory
-            .dir_metadata()
-            .map_err(|error| io_error(&display_path, error))?;
+        let metadata = io_at(directory.dir_metadata(), &display_path)?;
         if !metadata.is_dir() {
             return Err(RecordFileError::NotRegularFile { path: display_path });
         }
@@ -52,6 +50,16 @@ impl RecordFileRoot {
             display_path,
             directory,
         })
+    }
+
+    fn verify_regular(
+        &self,
+        file_name: &OsStr,
+        file: &CapabilityFile,
+    ) -> Result<(), RecordFileError> {
+        let display_path = self.display_path.join(file_name);
+        let metadata = io_at(file.metadata(), &display_path)?;
+        verify_regular_identity(&self.directory, file_name, &metadata, &display_path)
     }
 
     pub fn read(
@@ -86,14 +94,9 @@ impl RecordFileRoot {
         }
         let mut options = CapabilityOpenOptions::new();
         options.read(true).follow(FollowSymlinks::No);
-        let file = self
-            .directory
-            .open_with(file_name, &options)
-            .map_err(|error| io_error(&display_path, error))?;
-        verify_capability_regular_identity(&self.directory, file_name, &file, &display_path)?;
-        let metadata = file
-            .metadata()
-            .map_err(|error| io_error(&display_path, error))?;
+        let file = io_at(self.directory.open_with(file_name, &options), &display_path)?;
+        self.verify_regular(file_name, &file)?;
+        let metadata = io_at(file.metadata(), &display_path)?;
         if metadata.len() > u64::try_from(limits.maximum_bytes).unwrap_or(u64::MAX) {
             return Err(RecordFileError::ByteLimitExceeded {
                 actual: metadata.len(),
@@ -148,27 +151,14 @@ impl RecordFileRoot {
         }
 
         let confirmation = (|| {
-            verify_capability_regular_identity(
-                &self.directory,
-                file_name,
-                &stage.file,
-                &display_path,
-            )?;
+            self.verify_regular(file_name, &stage.file)?;
             stage.remove()?;
             synchronize_directory(&self.directory, &self.display_path)?;
             synchronize_directory(&staging.directory, &staging.display_path)?;
-            verify_capability_regular_identity(
-                &self.directory,
-                file_name,
-                &stage.file,
-                &display_path,
-            )
+            self.verify_regular(file_name, &stage.file)
         })();
 
-        confirmation.map_err(|error| RecordFileError::PublishedButUnconfirmed {
-            path: display_path,
-            message: record_error_message(error),
-        })
+        confirmation.map_err(unconfirmed_at(&display_path))
     }
 
     /// Atomically replace one existing regular file beneath this exact root.
@@ -187,10 +177,8 @@ impl RecordFileRoot {
         enforce_byte_limit(bytes.len(), limits)?;
         let file_name = single_file_name(relative_path)?;
         let display_path = self.display_path.join(file_name);
-        let destination_metadata = self
-            .directory
-            .symlink_metadata(file_name)
-            .map_err(|error| io_error(&display_path, error))?;
+        let destination_metadata =
+            io_at(self.directory.symlink_metadata(file_name), &display_path)?;
         if destination_metadata.file_type().is_symlink() || !destination_metadata.is_file() {
             return Err(RecordFileError::NotRegularFile { path: display_path });
         }
@@ -205,12 +193,12 @@ fn synchronize_directory(
     directory: &CapabilityDirectory,
     display_path: &Path,
 ) -> Result<(), RecordFileError> {
-    directory
-        .open(".")
-        .map_err(|error| io_error(display_path, error))?
-        .into_std()
-        .sync_all()
-        .map_err(|error| io_error(display_path, error))
+    io_at(
+        io_at(directory.open("."), display_path)?
+            .into_std()
+            .sync_all(),
+        display_path,
+    )
 }
 
 #[cfg(not(unix))]
@@ -280,30 +268,13 @@ impl RootRecordRead<'_> {
             .directory
             .remove_file(&self.file_name)
             .map_err(|error| io_error(&self.display_path, error))?;
-        synchronize_directory(&self.root.directory, &self.root.display_path).map_err(|error| {
-            RecordFileError::PublishedButUnconfirmed {
-                path: self.display_path,
-                message: record_error_message(error),
-            }
-        })
+        synchronize_directory(&self.root.directory, &self.root.display_path)
+            .map_err(unconfirmed_at(&self.display_path))
     }
 
     pub fn verify_current(&mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
-        self.file
-            .seek(SeekFrom::Start(0))
-            .map_err(|error| io_error(&self.display_path, error))?;
-        let current = read_bytes_bounded(&mut self.file, &self.display_path, limits)?;
-        if current != self.bytes {
-            return Err(RecordFileError::ContentsChanged {
-                path: self.display_path.clone(),
-            });
-        }
-        verify_capability_regular_identity(
-            &self.root.directory,
-            &self.file_name,
-            &self.file,
-            &self.display_path,
-        )
+        replay_exact(&mut self.file, &self.display_path, &self.bytes, limits)?;
+        self.root.verify_regular(&self.file_name, &self.file)
     }
 }
 
@@ -322,27 +293,13 @@ fn single_file_name(path: &Path) -> Result<&OsStr, RecordFileError> {
     Ok(file_name)
 }
 
-fn verify_capability_regular_identity(
-    directory: &CapabilityDirectory,
-    relative_path: &OsStr,
-    file: &CapabilityFile,
-    display_path: &Path,
-) -> Result<(), RecordFileError> {
-    let handle_metadata = file
-        .metadata()
-        .map_err(|error| io_error(display_path, error))?;
-    verify_regular_identity(directory, relative_path, &handle_metadata, display_path)
-}
-
 fn verify_regular_identity(
     directory: &CapabilityDirectory,
     relative_path: &OsStr,
     handle_metadata: &cap_std::fs::Metadata,
     display_path: &Path,
 ) -> Result<(), RecordFileError> {
-    let path_metadata = directory
-        .symlink_metadata(relative_path)
-        .map_err(|error| io_error(display_path, error))?;
+    let path_metadata = io_at(directory.symlink_metadata(relative_path), display_path)?;
     if path_metadata.file_type().is_symlink()
         || !path_metadata.is_file()
         || !handle_metadata.is_file()
@@ -411,9 +368,7 @@ fn read_bytes_bounded(
     let mut bytes = Vec::new();
     let mut chunk = [0_u8; 8192];
     loop {
-        let count = reader
-            .read(&mut chunk)
-            .map_err(|error| io_error(path, error))?;
+        let count = io_at(reader.read(&mut chunk), path)?;
         if count == 0 {
             break;
         }
@@ -438,6 +393,32 @@ fn enforce_byte_limit(actual: usize, limits: RecordFileLimits) -> Result<(), Rec
         });
     }
     Ok(())
+}
+
+fn unconfirmed_at(path: &Path) -> impl FnOnce(RecordFileError) -> RecordFileError + '_ {
+    move |error| RecordFileError::PublishedButUnconfirmed {
+        path: path.to_path_buf(),
+        message: record_error_message(error),
+    }
+}
+
+fn replay_exact(
+    file: &mut CapabilityFile,
+    path: &Path,
+    expected: &[u8],
+    limits: RecordFileLimits,
+) -> Result<(), RecordFileError> {
+    io_at(file.seek(SeekFrom::Start(0)), path)?;
+    if read_bytes_bounded(&mut *file, path, limits)? != expected {
+        return Err(RecordFileError::ContentsChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+fn io_at<T>(result: std::io::Result<T>, path: &Path) -> Result<T, RecordFileError> {
+    result.map_err(|error| io_error(path, error))
 }
 
 fn io_error(path: &Path, error: std::io::Error) -> RecordFileError {

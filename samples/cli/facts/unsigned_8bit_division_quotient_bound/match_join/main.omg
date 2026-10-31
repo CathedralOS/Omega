@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine divide_match_join(dividend: u8, divisor: u8, choose: bool) -> i32
-    requires dividend >= 120u8 && dividend <= 120u8;
-    requires divisor >= 4u8 && divisor <= 4u8;
+    requires dividend >= 120u8 && dividend <= 120u8
+    requires divisor >= 4u8 && divisor <= 4u8
 {
     let quotient: u8 = match choose {
         true -> dividend / divisor,

@@ -7,7 +7,8 @@
 //! assignment or borrowing authority.
 
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, unsupported,
+    Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value,
+    expression_table, unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 impl Evaluator<'_> {
@@ -27,10 +28,7 @@ impl Evaluator<'_> {
                     Halt::Unsupported("saved subject has no active evaluated capture".to_owned())
                 }),
             ExpressionNode::Name(path) => {
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 // Resolution may retain a field path in one Name rather than
                 // nested Members. Observe its recast layout too, but preserve
                 // a bare reference binding instead of snapshotting its target.

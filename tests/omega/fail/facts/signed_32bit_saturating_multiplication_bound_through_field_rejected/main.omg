@@ -9,8 +9,8 @@ data Operands {
 }
 
 machine multiply_field(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 21i32;
-    requires rhs >= 5i32 && rhs <= 10i32;
+    requires lhs >= 10i32 && lhs <= 21i32
+    requires rhs >= 5i32 && rhs <= 10i32
 {
     let ops: Operands = Operands { lhs: lhs, rhs: rhs };
     let a: i32 in Saturating = ops.lhs as i32 in Saturating;

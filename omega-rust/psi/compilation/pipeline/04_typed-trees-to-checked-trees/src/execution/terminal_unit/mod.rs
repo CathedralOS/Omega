@@ -194,6 +194,7 @@ pub(crate) fn build_checked_unit_effect_plans(
 ) {
     let mut shapes = ShapeCollector::new(program);
     let mut prepared_calls = structural_value_calls::PreparedCalls::default();
+    let retained_records = state_graph::RetainedBorrowRecords::new(facts);
     let mut boundary_gaps = Vec::new();
     let (boundary_machines, dynamic_slots, boundary_symbols) =
         phase_profile::scope("05.d.8_10.a.3.1.boundary_and_dynamic", || {
@@ -325,6 +326,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     state_graph::build_traced(
                         program,
                         facts,
+                        &retained_records,
                         scalar_callees,
                         &mut shapes,
                         &mut attempt_calls,

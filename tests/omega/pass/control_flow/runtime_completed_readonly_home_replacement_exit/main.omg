@@ -5,7 +5,7 @@ data Cell { value: u32; }
 
 machine countdown(remaining: u32) -> u32
 requires remaining <= 3
-terminates by remaining in 0..=3;
+terminates by remaining in 0..=3
 {
     transition { _ -> observe(&Cell { value: remaining }, remaining) }
 

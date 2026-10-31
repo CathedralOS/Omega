@@ -18,6 +18,7 @@
 //! - `derives`  — a narrower capability is produced from an existing capability
 //!   passed into the boundary call.
 
+use crate::flow::expressions;
 use arena::Arena;
 use checked_trees::FlowFacts;
 use flow_effects::{
@@ -432,8 +433,7 @@ fn expression_path_head(
     match program.expression_table.expression(receiver) {
         ExpressionNode::Member(member) => expression_path_head(program, member.receiver),
         ExpressionNode::Borrow(inner) => expression_path_head(program, inner.target),
-        ExpressionNode::Name(name) => program
-            .expression_table
+        ExpressionNode::Name(name) => expressions(program)
             .name_path_members(name.members)
             .first()
             .map(|identifier| identifier.as_str().to_owned()),
@@ -498,11 +498,7 @@ fn assignment_target_is_field(
         ExpressionNode::Borrow(inner) => assignment_target_is_field(program, inner.target),
         ExpressionNode::Name(name) => {
             // A multi-segment name path rooted at `self` (e.g. `self.field`).
-            program
-                .expression_table
-                .name_path_members(name.members)
-                .len()
-                > 1
+            expressions(program).name_path_members(name.members).len() > 1
         }
         _ => false,
     }

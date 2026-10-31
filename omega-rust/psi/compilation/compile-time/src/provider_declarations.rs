@@ -16,6 +16,7 @@ mod retained_selections;
 mod selection;
 pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
 
+use crate::build_time_evaluation::expression_table;
 use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;
 pub(crate) use checking_applications::source_checking_applications;
@@ -105,8 +106,7 @@ fn harvest_provider_selections(
                         requests.push(ProviderSelectionCall {
                             target: call.target.as_str(),
                             arguments: &call.machine_arguments,
-                            value_arguments: typed
-                                .expression_table
+                            value_arguments: expression_table(typed)
                                 .expression_handles(call.arguments),
                             source_span: provider_selection_expression_source_span(
                                 typed,
@@ -208,8 +208,7 @@ fn provider_selection_expression_source_span(
 ) -> source::SourceSpan {
     // The declaration occurrence names the call itself. An expression's
     // enclosing span can be synthetic after receiver/statement lowering.
-    typed
-        .expression_table
+    expression_table(typed)
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| typed.authored_declaration_selections().get(occurrence))
         .find(|selection| {

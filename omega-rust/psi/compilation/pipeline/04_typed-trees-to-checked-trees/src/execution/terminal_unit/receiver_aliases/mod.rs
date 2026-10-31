@@ -6,6 +6,8 @@ use super::{
 use crate::execution::terminal_unit::types::{
     lent_storage_identity, state_flow, structural_access_for_type_reference,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::calls;
 
@@ -48,9 +50,7 @@ fn formation(
         return None;
     }
     let access = exclusive_access(program, local.type_reference)?;
-    let borrow = program
-        .expression_table
-        .borrow_expression(local.initial_value)?;
+    let borrow = expressions(program).borrow_expression(local.initial_value)?;
     if !matches!(
         (&access, borrow.access),
         (
@@ -231,9 +231,8 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
     if parent_local.is_mutable || facts.borrow.reborrow_disposition_events.is_empty() {
         return None;
     }
-    let ExpressionNode::Borrow(parent_borrow) = program
-        .expression_table
-        .expression(parent_local.initial_value)
+    let ExpressionNode::Borrow(parent_borrow) =
+        expressions(program).expression(parent_local.initial_value)
     else {
         return None;
     };
@@ -269,23 +268,11 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
         )
         .collect::<Option<Vec<_>>>()?;
 
-    let parent_source = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        0,
-        parent_borrow.target,
-    )?;
+    let parent_source = place_at(program, state.symbol, 0, parent_borrow.target)?;
     let child_sources = child_borrows
         .iter()
         .enumerate()
-        .map(|(offset, borrow)| {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                offset + 1,
-                borrow.target,
-            )
-        })
+        .map(|(offset, borrow)| place_at(program, state.symbol, offset + 1, borrow.target))
         .collect::<Option<Vec<_>>>()?;
     let candidates = facts
         .borrow

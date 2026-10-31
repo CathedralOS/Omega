@@ -9,8 +9,8 @@ data Operands {
 }
 
 machine subtract_field(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 125i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 125i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let ops: Operands = Operands { lhs: lhs, rhs: rhs };
     let a: i64 in Saturating = ops.lhs as i64 in Saturating;

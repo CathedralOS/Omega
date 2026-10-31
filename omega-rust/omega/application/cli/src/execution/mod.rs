@@ -16,6 +16,10 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
+// The receiving CLI sponsors reference execution independently of program meaning.
+// A measured long workload may request more fuel; exhaustion still declines comparison.
+const DEFAULT_TERMINAL_FUEL_ALLOWANCE: u64 = 10_000_000;
+
 pub struct RunRequest {
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
@@ -25,6 +29,8 @@ pub struct RunRequest {
     /// demands a stdin host import, replaying that stream to Terminal and native
     /// execution. Programs without stdin imports run without reading caller stdin.
     pub compare_interpreter: bool,
+    /// Positive sponsor budget per Terminal invocation; None selects ten million.
+    pub terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub keep_artifacts: bool,
 }
 
@@ -110,6 +116,9 @@ impl std::fmt::Display for RunError {
 impl std::error::Error for RunError {}
 
 pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
+    let terminal_fuel_allowance = request
+        .terminal_fuel_allowance
+        .map_or(DEFAULT_TERMINAL_FUEL_ALLOWANCE, std::num::NonZeroU64::get);
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
@@ -125,29 +134,36 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             target_name: request.target_name.clone(),
         },
         Vec::new(),
+        terminal_fuel_allowance,
     )
     .map_err(RunError::Compilation)?;
     // Only comparison of a stdin-reading program needs a finite snapshot.
     // Programs without a stdin host import complete preflight and execution
     // with `None` without blocking on an open caller pipe or console.
-    let (replay_input, interpretation) =
-        if request.compare_interpreter && request.target_name.is_none() {
-            match compilation::interpret_product(&report, None, target_name) {
-                Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
-                    capability: "runtime-standard-input",
-                    ..
-                }) => {
-                    let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
-                        .map_err(RunError::StandardInput)?;
-                    let input = captured.open_input().map_err(RunError::StandardInput)?;
-                    let retry = compilation::interpret_product(&report, Some(input), target_name);
-                    (Some(captured), Some(retry))
-                }
-                outcome => (None, Some(outcome)),
+    let (replay_input, interpretation) = if request.compare_interpreter
+        && request.target_name.is_none()
+    {
+        match compilation::interpret_product(&report, None, target_name, terminal_fuel_allowance) {
+            Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
+                capability: "runtime-standard-input",
+                ..
+            }) => {
+                let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
+                    .map_err(RunError::StandardInput)?;
+                let input = captured.open_input().map_err(RunError::StandardInput)?;
+                let retry = compilation::interpret_product(
+                    &report,
+                    Some(input),
+                    target_name,
+                    terminal_fuel_allowance,
+                );
+                (Some(captured), Some(retry))
             }
-        } else {
-            (None, None)
-        };
+            outcome => (None, Some(outcome)),
+        }
+    } else {
+        (None, None)
+    };
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
@@ -202,6 +218,13 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                     .map_err(RunError::ReferenceOutput)?;
                 std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
                     .map_err(RunError::ReferenceOutput)?;
+                let fuel = format!(
+                    "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
+                    reference.fuel_usage.total_units(),
+                    reference.fuel_usage.schedule(),
+                );
+                std::fs::write(build_dir.join("terminal.fuel.tsv"), fuel)
+                    .map_err(RunError::ReferenceOutput)?;
                 let events = reference
                     .effects
                     .iter()
@@ -239,6 +262,8 @@ pub struct CaseRunRequest {
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
+    /// Positive sponsor budget per Terminal invocation; None selects ten million.
+    pub terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     /// Input files, run in this order; each case is named by its file stem.
     pub inputs: Vec<PathBuf>,
     /// Receives `<case>.stdout`, `<case>.stderr`, `<case>.terminal.stdout`,
@@ -260,6 +285,9 @@ pub struct CaseRunOutcome {
 }
 
 pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunError> {
+    let terminal_fuel_allowance = request
+        .terminal_fuel_allowance
+        .map_or(DEFAULT_TERMINAL_FUEL_ALLOWANCE, std::num::NonZeroU64::get);
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
@@ -286,6 +314,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
             target_name: None,
         },
         reference_inputs,
+        terminal_fuel_allowance,
     )
     .map_err(RunError::Compilation)?;
     if request.keep_artifacts {
@@ -333,6 +362,12 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         if let Some(Ok(reference)) = interpretation.as_ref() {
             write("terminal.stdout", &reference.stdout)?;
             write("terminal.stderr", &reference.stderr)?;
+            let fuel = format!(
+                "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
+                reference.fuel_usage.total_units(),
+                reference.fuel_usage.schedule(),
+            );
+            write("terminal.fuel.tsv", fuel.as_bytes())?;
         }
         let exit = ProcessExitObservation::observe(&output.status);
         let comparison = compare_interpretation(exit, interpretation);

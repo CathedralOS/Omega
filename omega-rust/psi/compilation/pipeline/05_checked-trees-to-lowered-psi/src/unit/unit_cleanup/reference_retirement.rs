@@ -5,6 +5,7 @@
 //! appending it to the captured storage path; case identities require that type.
 
 use super::{CleanupRegion, LoweringError};
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, StructuralValueStorage};
 use checked_trees::CheckedUnitEffectOperationPlan;
@@ -86,9 +87,7 @@ pub(crate) fn lower_reference_completion_regions(
             .any(|(region, _): &(CleanupRegion, Vec<CleanupRegion>)| region.action == action)
         {
             let mut owners = Vec::new();
-            for owner in checked
-                .facts
-                .flow
+            for owner in flow_facts(checked)
                 .terminal_unit_effects
                 .cleanup_control
                 .reference_owner_cleanups

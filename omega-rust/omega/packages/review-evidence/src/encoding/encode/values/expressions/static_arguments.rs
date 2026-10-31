@@ -37,9 +37,7 @@ fn encode_contract_static_argument_body(
                     Ok(())
                 })
             })?;
-            encoder.field("arguments", |encoder| {
-                encoder.sequence(arguments, encode_contract_static_argument)
-            })?;
+            encoder.sequence_field("arguments", arguments, encode_contract_static_argument)?;
         }
         PackageReviewContractStaticArgument::ConstInteger(value) => {
             encoder.tag("const_integer", 2);
@@ -77,13 +75,9 @@ fn encode_contract_static_argument_body(
         } => {
             encoder.tag("conformance_application", 8);
             encoder.field_by("declaration", declaration, encode_nominal)?;
-            encoder.field("arguments", |encoder| {
-                encoder.sequence(arguments, encode_contract_static_argument)
-            })?;
+            encoder.sequence_field("arguments", arguments, encode_contract_static_argument)?;
             encoder.field_by("trait_identity", trait_identity, encode_nominal)?;
-            encoder.field("trait_arguments", |encoder| {
-                encoder.sequence(trait_arguments, encode_type_identity)
-            })?;
+            encoder.sequence_field("trait_arguments", trait_arguments, encode_type_identity)?;
         }
     }
     Ok(())

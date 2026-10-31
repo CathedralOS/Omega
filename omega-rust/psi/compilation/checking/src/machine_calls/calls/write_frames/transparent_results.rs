@@ -1,6 +1,7 @@
 //! Origins of transparent call results and the calls that preserve them.
 
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
 use crate::machine_calls::calls::write_frames::inference::{
     BoolTruth, FrameInference, ParameterValues,
@@ -130,7 +131,7 @@ fn map_call_result_origins(
         return None;
     }
 
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let actual_values = inference.argument_values(program, arguments);
     let mut result_origins = transparent_callee_result_origins(
         program,
@@ -163,8 +164,7 @@ fn map_call_result_origins(
                 .iter()
                 .enumerate()
                 .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
-            *program
-                .expression_table
+            *expression_table(program)
                 .expression_handles(call.arguments)
                 .get(argument_index)?
         };
@@ -192,7 +192,7 @@ pub(crate) fn transparent_place_expression_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let origins = match program.expression_table.expression(expression) {
+    let origins = match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => {
             transparent_place_expression_origins(program, inner.target, symbols, inference)?
         }
@@ -243,7 +243,7 @@ pub(crate) fn transparent_place_expression_origins(
         )?,
         ExpressionNode::Match(dispatch) => {
             let mut selected = Vec::new();
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
                 for origin in
                     transparent_place_expression_origins(program, arm.value, symbols, inference)?
                 {
@@ -362,7 +362,7 @@ impl ResultSelection {
         let StatementNode::Assignment(assignment) = statement else {
             return;
         };
-        let ExpressionNode::Name(target) = program.expression_table.expression(assignment.target)
+        let ExpressionNode::Name(target) = expression_table(program).expression(assignment.target)
         else {
             return;
         };
@@ -614,7 +614,7 @@ fn contributed_parameters(
     reachability: &mut ResultReachability,
     result: ExpressionHandle,
 ) -> Option<Vec<SymbolHandle>> {
-    match program.expression_table.expression(result) {
+    match expression_table(program).expression(result) {
         ExpressionNode::Borrow(borrow) => {
             contributed_parameters(program, state, current, reachability, borrow.target)
         }
@@ -658,7 +658,7 @@ fn contributed_parameters(
             }
             let (_, callee_state) =
                 super::call_targets::machine_state_by_symbol(program, call.target_symbol)?;
-            let callee_arguments = program.expression_table.expression_handles(call.arguments);
+            let callee_arguments = expression_table(program).expression_handles(call.arguments);
             parameters_reached_through(
                 program,
                 state,

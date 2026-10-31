@@ -13,6 +13,6 @@ ensures result.code == 0;
 
 // A declared guarantee is not unconditional evidence for this call.
 machine wrong(table: &Table, value: u64) -> Status
-ensures result.code == 0; {
+ensures result.code == 0 {
     Table::read(table, value)
 }

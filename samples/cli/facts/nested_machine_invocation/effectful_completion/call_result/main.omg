@@ -1,9 +1,9 @@
 // Every completed helper carries result != -1, so accept can consume its result.
 // Expected exit: 0
 data Storage { value: i64; touched: u64; canary: u64; }
-machine identity(value: i64) -> i64 ensures result == value; { value }
+machine identity(value: i64) -> i64 ensures result == value { value }
 machine probe(output: &mut Storage, value: i64, select: bool) -> i64
-ensures result != -1;
+ensures result != -1
 {
     transition { _ -> apply(output, identity(value)) }
     machine apply(output: &mut Storage, value: i64) -> i64 {
@@ -15,7 +15,7 @@ ensures result != -1;
         output.value
     }
 }
-machine accept(value: i64) -> i64 requires value != -1; { value }
+machine accept(value: i64) -> i64 requires value != -1 { value }
 machine main() crashes Trap {
     let mut output: Storage = Storage { value: 77, touched: 0, canary: 33 };
     let result_0: i64 = accept(probe(&mut output, 7, true));

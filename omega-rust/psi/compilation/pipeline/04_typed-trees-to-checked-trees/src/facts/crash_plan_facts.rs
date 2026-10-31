@@ -1,6 +1,7 @@
 //! Crash contract capsules, published crash plans, buckets and sites.
 
 use crate::facts::crash_calls;
+use crate::flow::indexed_statements;
 use validation::contract_structure::{
     callable_binders, declared_callable, declared_fact, declared_termination, generic_binders,
     is_true_crash_route, signature_generic_binders,
@@ -653,10 +654,7 @@ fn build_checked_crash_sites(
 ) -> Vec<checked_trees::CheckedCrashSite> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
-        for (statement_ordinal, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
+        for (statement_ordinal, statement) in indexed_statements(program, state.statement_nodes) {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };

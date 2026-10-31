@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::occurrences::CallSite;
 use crate::machine_calls::calls::occurrences::CallSiteTraversal;
 use crate::{call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target};
@@ -7,16 +8,14 @@ pub(super) fn find_call_site_in_expression<'program>(
     traversal: &mut CallSiteTraversal<'program, '_>,
     expression: ExpressionHandle,
 ) -> Option<CallSite<'program>> {
-    match traversal.program.expression_table.expression(expression) {
+    match expression_table(traversal.program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             if let Some(site) = find_call_site_in_expression(traversal, dispatch.subject) {
                 return Some(site);
             }
-            for arm in traversal.program.expression_table.match_arms(dispatch.arms) {
-                for pattern in traversal
-                    .program
-                    .expression_table
-                    .match_pattern_operands(arm.pattern)
+            for arm in expression_table(traversal.program).match_arms(dispatch.arms) {
+                for pattern in
+                    expression_table(traversal.program).match_pattern_operands(arm.pattern)
                 {
                     if let Some(site) = traversal
                         .selected(|traversal| find_call_site_in_expression(traversal, pattern))
@@ -45,11 +44,7 @@ pub(super) fn find_call_site_in_expression<'program>(
             None
         }
         ExpressionNode::ArrayLiteral(values) => {
-            for value in traversal
-                .program
-                .expression_table
-                .expression_handles(*values)
-            {
+            for value in expression_table(traversal.program).expression_handles(*values) {
                 if let Some(call_site) = find_call_site_in_expression(traversal, *value) {
                     return Some(call_site);
                 }
@@ -122,11 +117,7 @@ pub(super) fn find_call_site_in_expression<'program>(
                 return Some(call_site);
             }
 
-            for argument in traversal
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-            {
+            for argument in expression_table(traversal.program).expression_handles(call.arguments) {
                 if let Some(call_site) = find_call_site_in_expression(traversal, *argument) {
                     return Some(call_site);
                 }
@@ -143,11 +134,7 @@ pub(super) fn find_call_site_in_expression<'program>(
         ExpressionNode::Borrow(inner) => find_call_site_in_expression(traversal, inner.target),
         ExpressionNode::Unary(unary) => find_call_site_in_expression(traversal, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in traversal
-                .program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
+            for field in expression_table(traversal.program).struct_fields(struct_literal.fields) {
                 if let Some(call_site) = find_call_site_in_expression(traversal, field.value) {
                     return Some(call_site);
                 }

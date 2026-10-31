@@ -8,6 +8,7 @@
 
 use super::invocations::CheckedInitializers;
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::build_time_evaluation::expression_table;
 use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -242,9 +243,7 @@ pub(crate) fn settle(
             if !root.is_valid() {
                 continue;
             }
-            for occurrence in source_probes
-                .expression_table
-                .authored_selection_occurrences(root)
+            for occurrence in expression_table(&source_probes).authored_selection_occurrences(root)
             {
                 let selection = source_probes
                     .authored_declaration_selections()
@@ -320,13 +319,11 @@ pub(crate) fn settle(
         // the exact selected use; replay must never reinterpret a copied call
         // at the alias token as a newly authored invocation. The declaration's
         // original expression and its call inventory remain independently kept.
-        let uses = typed
-            .expression_table
+        let uses = expression_table(typed)
             .iter_expressions()
             .filter_map(|(expression, _)| {
                 let reference = typed.expression_table.source_span(expression);
-                typed
-                    .expression_table
+                expression_table(typed)
                     .authored_selection_occurrences(expression)
                     .any(|occurrence| {
                         typed

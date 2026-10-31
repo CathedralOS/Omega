@@ -8,6 +8,7 @@
 //! today's premises as evidence about an earlier extraction. The same spatial
 //! comparison serves source windows, arm joins and executable window repair.
 
+use crate::places::place_at;
 use checked_trees::FlowOperandFact;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
@@ -301,7 +302,7 @@ fn copies_agree(
         return false;
     };
     let place = |value: &crate::flow::CapturedValue<'_>| {
-        let mut place = validation::canonical_place_from_expression_in_state(
+        let mut place = place_at(
             program,
             value.operand.state_symbol,
             value.operand.statement_index,

@@ -263,13 +263,7 @@ pub(super) fn view_arrival<'caller>(
     semantic_vocabulary::BlockId,
     &'caller terminal_psi::StructuralParameterDeclaration,
 )> {
-    let mut arrivals = caller.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut arrivals = structural_case::arrivals(caller, place);
     let (block, declaration) = arrivals.next()?;
     let shape = terminal_psi::find_structural_type(structural_types, declaration.structural_type)
         .map(|row| &row.shape)?;

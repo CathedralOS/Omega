@@ -28,6 +28,7 @@ use typed_trees::operator::{primitive_float_binary_semantics, resolve_named_expr
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
+use crate::places::place_at;
 use crate::values::float_predicates::{comparison, has_ieee_meaning, literal};
 
 pub(in crate::checks::contracts) fn expression_establishes_domain_predicate(
@@ -211,12 +212,7 @@ fn premise_implies_bound(
     format: FloatFormat,
     required: facts::FloatPredicate,
 ) -> bool {
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        value,
-    ) else {
+    let Some(place) = place_at(program, state.symbol, statement_index, value) else {
         return false;
     };
     boolean_premises(program, facts, contexts).any(|premise| {
@@ -367,12 +363,7 @@ fn operand_is_finite(
     statement_index: usize,
     operand: ExpressionHandle,
 ) -> bool {
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        operand,
-    ) else {
+    let Some(place) = place_at(program, state.symbol, statement_index, operand) else {
         return false;
     };
     boolean_premises(program, facts, contexts).any(|premise| {
@@ -394,20 +385,10 @@ fn left_is_at_least_right(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    let Some(left_place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        left,
-    ) else {
+    let Some(left_place) = place_at(program, state.symbol, statement_index, left) else {
         return false;
     };
-    let Some(right_place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        right,
-    ) else {
+    let Some(right_place) = place_at(program, state.symbol, statement_index, right) else {
         return false;
     };
     boolean_premises(program, facts, contexts).any(|premise| {
@@ -489,13 +470,8 @@ fn same_place(
     expression: ExpressionHandle,
     expected: &validation::CanonicalPlace,
 ) -> bool {
-    validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        expression,
-    )
-    .is_some_and(|place| crate::flow::canonical_places_agree(program, &place, expected))
+    place_at(program, state.symbol, statement_index, expression)
+        .is_some_and(|place| crate::flow::canonical_places_agree(program, &place, expected))
 }
 
 fn boolean_premises<'a>(

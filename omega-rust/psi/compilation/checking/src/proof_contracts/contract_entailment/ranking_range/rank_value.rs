@@ -1,7 +1,7 @@
 //! Denotation and its pending application travel together until caller facts
 //! are installed. Normalizing a rank never proves its intermediate operations.
 
-use super::{BTreeMap, Engine, ExpressionHandle, Machine, Polynomial, identity_views};
+use super::{BTreeMap, Engine, ExpressionHandle, Polynomial, identity_views};
 
 pub(super) struct RankValue {
     pub value: Polynomial,
@@ -23,21 +23,14 @@ impl RankValue {
 
     pub fn computed(
         program: &dyn crate::CheckingInput,
-        machine: &Machine,
         engine: &mut Engine<'_>,
         subject: ExpressionHandle,
         parameter: symbols::SymbolHandle,
         body: ExpressionHandle,
     ) -> Option<Self> {
         let input = engine.normalize(subject)?;
-        let body = identity_views::computed_measure_polynomial(program, machine, parameter, body)?;
-        let value = super::inductive_judgment::apply_argument_map(
-            &body,
-            &BTreeMap::from([(
-                identity_views::COMPUTATION_PARAMETER_ATOM.to_owned(),
-                input.clone(),
-            )]),
-        )?;
+        let value =
+            identity_views::computed_measure_value(program, engine, parameter, body, &input)?;
         Some(Self {
             value,
             application: Some(DeclaredApplication {
@@ -63,11 +56,19 @@ impl RankValue {
     }
 
     pub fn forms(&self, engine: &mut Engine<'_>) -> bool {
+        self.formation(engine).is_some()
+    }
+
+    pub fn formation(
+        &self,
+        engine: &mut Engine<'_>,
+    ) -> Option<Option<super::super::IntegerApplicationFormation>> {
         let Some(application) = &self.application else {
-            return true;
+            return Some(None);
         };
-        engine
-            .form_declared_integer_application(application.measure, &application.input)
-            .is_some_and(|formed| engine.substituted(&formed) == engine.substituted(&self.value))
+        let formed =
+            engine.form_declared_integer_application(application.measure, &application.input)?;
+        (engine.substituted(&formed.value) == engine.substituted(&self.value))
+            .then_some(formed.formation)
     }
 }

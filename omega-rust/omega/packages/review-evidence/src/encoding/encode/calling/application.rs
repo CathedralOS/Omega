@@ -117,8 +117,6 @@ pub(crate) fn encode_application(
         })
     })?;
     encoder.field_by("callbacks", &application.callbacks, callbacks::encode)?;
-    encoder.field("opaque_uses", |encoder| {
-        encoder.sequence(&application.opaque_uses, opaque::encode)
-    })?;
+    encoder.sequence_field("opaque_uses", &application.opaque_uses, opaque::encode)?;
     encoder.field_by("physical", &application.physical, encode_physical)
 }

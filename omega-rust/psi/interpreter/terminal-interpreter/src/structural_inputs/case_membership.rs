@@ -68,7 +68,7 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
-        let declaration = self.program.structural_declaration(parent_type)?;
+        let declaration = self.structural_declaration(parent_type)?;
         if let Some(case) = case {
             let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
                 &declaration.shape
@@ -117,7 +117,7 @@ impl TerminalExecution<'_> {
             .iter()
             .filter_map(|binding| {
                 match case_projection_in_value_is_active(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     root,
                     self.structural_cases.as_map(),
                     &binding.path,
@@ -200,7 +200,7 @@ impl TerminalExecution<'_> {
         let mut structural_type = root.structural_type;
         let mut parent = StructuralRuntimePlace::from(root);
         for segment in &target.path[root.path.len()..] {
-            let declaration = self.program.structural_declaration(structural_type)?;
+            let declaration = self.structural_declaration(structural_type)?;
             match segment {
                 StructuralPathSegment::Field(identity) => {
                     let common = match &declaration.shape {
@@ -301,7 +301,7 @@ impl TerminalExecution<'_> {
         let mut case_fields = None;
         let mut saw_case = false;
         for segment in path {
-            let declaration = self.program.structural_declaration(leaf.structural_type)?;
+            let declaration = self.structural_declaration(leaf.structural_type)?;
             match segment {
                 CanonicalStructuralPathSegment::Referent => {
                     if case_fields.is_some() {
@@ -404,11 +404,11 @@ impl TerminalExecution<'_> {
                 parameter.place,
             )?;
             let selected_type = resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 root.structural_type,
                 &contents.path,
             )?;
-            let declaration = self.program.structural_declaration(selected_type)?;
+            let declaration = self.structural_declaration(selected_type)?;
             // This input form establishes a complete empty-payload case. It
             // cannot claim that a missing payload satisfies its declaration.
             let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =

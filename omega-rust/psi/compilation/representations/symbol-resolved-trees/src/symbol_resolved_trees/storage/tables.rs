@@ -79,7 +79,7 @@ impl SymbolResolvedTreeTables {
             symbol_resolved_trees,
             &predecessor.roots,
             completed_machines,
-            predecessor.tables.declarations.assembly_blocks.len(),
+            predecessor.declarations().assembly_blocks.len(),
         );
         tables
     }

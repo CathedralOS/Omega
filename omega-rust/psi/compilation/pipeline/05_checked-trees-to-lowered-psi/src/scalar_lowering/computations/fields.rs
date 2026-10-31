@@ -42,6 +42,7 @@ use super::super::{
 use super::{
     CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, storage, unsupported,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, PrimitiveReadSource,
@@ -74,14 +75,12 @@ impl super::Expansion<'_> {
         site: &super::Site<'_>,
     ) -> Result<usize, LoweringError> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-        let CheckedScalarComputationKind::StructuralField { result_type, .. } = self
-            .checked
-            .facts
-            .values
-            .scalar_computations
-            .nodes
-            .get(computation)
-            .kind
+        let CheckedScalarComputationKind::StructuralField { result_type, .. } =
+            value_facts(&self.checked)
+                .scalar_computations
+                .nodes
+                .get(computation)
+                .kind
         else {
             return unsupported("field observation lost its complete checked result type");
         };
@@ -97,10 +96,7 @@ impl super::Expansion<'_> {
                     } else {
                         receiver_expression.is_valid()
                             && receiver_expression
-                                == self
-                                    .checked
-                                    .facts
-                                    .values
+                                == value_facts(&self.checked)
                                     .structural_values
                                     .nodes
                                     .get(*root)

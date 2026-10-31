@@ -12,6 +12,7 @@
 //! owner, so composing a conversion cannot reinterpret a source operation in
 //! the callee's scope or replace its arithmetic policy.
 
+use crate::flow::expressions;
 use checked_trees::{CheckFacts, CheckedArithmeticPolicyAdapter};
 use facts::{FactContextHandle, FactPayload, ProgramPoint};
 use numerics::float_projection::FloatProjectionContractIdentity;
@@ -590,9 +591,7 @@ fn source_value(
 ) -> Option<FloatSourceValue> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            let members = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let members = expressions(program).name_path_member_symbols(path.member_symbols);
             let identities = if members.is_empty() {
                 vec![path.symbol]
             } else {

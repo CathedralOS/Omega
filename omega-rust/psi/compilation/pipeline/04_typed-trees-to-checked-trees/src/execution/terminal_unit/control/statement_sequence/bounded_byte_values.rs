@@ -11,6 +11,7 @@ use super::{CheckedStructuralAccess, Multiplicity};
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference,
 };
+use crate::flow::expressions;
 use checked_trees::CheckedByteSequenceCarrier;
 
 /// Plan the initializer under the declaration's capacity and byte predicates.
@@ -22,9 +23,7 @@ pub(in crate::execution::terminal_unit) fn value_plan(
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<checked_trees::CheckedByteSequenceValuePlan> {
-    if !program
-        .expression_table
-        .expression_is_valid(local.initial_value)
+    if !expressions(program).expression_is_valid(local.initial_value)
         || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
         || structural_access_for_type_reference(program, local.type_reference)
             != Some(CheckedStructuralAccess::Owned)

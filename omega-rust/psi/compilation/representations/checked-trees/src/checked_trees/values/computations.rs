@@ -448,22 +448,6 @@ impl Default for CheckedScalarComputation {
 }
 
 impl CheckedScalarComputation {
-    /// Calls already retain their exact evaluated invocation. Its authored
-    /// expression owns normal completion; a folded enclosing root cannot.
-    pub fn completion_expression(
-        &self,
-        control: &crate::FlowControlFacts,
-    ) -> typed_trees::expression::ExpressionHandle {
-        if let CheckedScalarComputationKind::Call { source_call, .. } = &self.kind {
-            return if control.calls.is_valid(*source_call) {
-                control.calls.get(*source_call).authored_expression
-            } else {
-                typed_trees::expression::ExpressionHandle::invalid()
-            };
-        }
-        self.evaluated_expression()
-    }
-
     /// The executed occurrence, not a folded enclosing destination or a pure
     /// value marker rewritten by an erased cast.
     pub fn evaluated_expression(&self) -> typed_trees::expression::ExpressionHandle {
@@ -504,6 +488,9 @@ impl CheckedScalarComputation {
             }
             | CheckedScalarComputationKind::WithOperands {
                 source_expression, ..
+            }
+            | CheckedScalarComputationKind::Call {
+                source_expression, ..
             } => *source_expression,
             CheckedScalarComputationKind::CaseMembership {
                 completion_expression,
@@ -511,8 +498,7 @@ impl CheckedScalarComputation {
             } => *completion_expression,
             CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
             CheckedScalarComputationKind::Value(_) => self.value_source,
-            CheckedScalarComputationKind::SelectedComparison { .. }
-            | CheckedScalarComputationKind::Call { .. } => {
+            CheckedScalarComputationKind::SelectedComparison { .. } => {
                 typed_trees::expression::ExpressionHandle::invalid()
             }
         }
@@ -655,11 +641,10 @@ pub enum CheckedScalarComputationKind {
     /// executable runs and, for a boundary, retains its separate contract and
     /// provider identity.
     Call {
-        /// The invocation's flow row; its `static_requirement_dispatch`
-        /// names a checked ordinary static selection. Named proof outputs
-        /// and portable boundary calls retain their separate execution and
-        /// evidence routes.
-        source_call: Handle<crate::FlowCallFact>,
+        /// The exact evaluated invocation, independent of a folded outer root.
+        source_expression: typed_trees::expression::ExpressionHandle,
+        /// Genuine statement or declaration-application admission custody.
+        source_call: crate::CheckedCallOrigin,
         callee: CheckedScalarCallee,
         /// Authored occurrence identity, not its position in execution order.
         call_ordinal: u32,

@@ -22,6 +22,7 @@ mod nominal_admission;
 mod type_refinement;
 pub use type_refinement::infer_call_type_arguments;
 
+use crate::frozen_program::expression_table;
 use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
@@ -231,7 +232,7 @@ pub(crate) fn form_static_machine_selections(
     // the program is frozen for the duration of the pass so one build covers
     // all lookups.
     let index = machine_state_index(program);
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expression_table(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             // These occurrences belong to mathematical declaration elaboration,
             // whose kernel checks their level and term applications. A runtime
@@ -255,14 +256,12 @@ pub(crate) fn form_static_machine_selections(
             }
             let (target_symbol, target, arguments) = if call.authored_machine_application.is_valid()
             {
-                let application = program
-                    .expression_table
+                let application = expression_table(program)
                     .static_machine_application(call.authored_machine_application);
                 (
                     application.registration_operation,
                     application.target.as_str(),
-                    program
-                        .expression_table
+                    expression_table(program)
                         .static_machine_application_arguments(call.authored_machine_application),
                 )
             } else {
@@ -299,17 +298,14 @@ pub(crate) fn form_static_machine_selections(
                     }
                     let (target_symbol, target, arguments) =
                         if call.authored_machine_application.is_valid() {
-                            let application = program
-                                .expression_table
+                            let application = expression_table(program)
                                 .static_machine_application(call.authored_machine_application);
                             (
                                 application.registration_operation,
                                 application.target.as_str(),
-                                program
-                                    .expression_table
-                                    .static_machine_application_arguments(
-                                        call.authored_machine_application,
-                                    ),
+                                expression_table(program).static_machine_application_arguments(
+                                    call.authored_machine_application,
+                                ),
                             )
                         } else {
                             (
@@ -487,8 +483,7 @@ fn form_call_selection(
     // executable target supplies a closed requirement's substituted contract;
     // equal local tuples from another trait application cannot supply it.
     let source_target = match site {
-        ValidatedNominalMachineUseSite::Expression(handle) => program
-            .expression_table
+        ValidatedNominalMachineUseSite::Expression(handle) => expression_table(program)
             .call_node(handle)
             .map(|call| call.target_symbol),
         ValidatedNominalMachineUseSite::Statement(handle) => program
@@ -597,7 +592,7 @@ fn form_call_selection(
             if !arguments.is_empty() {
                 let source_span = match site {
                     ValidatedNominalMachineUseSite::Expression(handle) => {
-                        program.expression_table.source_span(handle)
+                        expression_table(program).source_span(handle)
                     }
                     ValidatedNominalMachineUseSite::Statement(handle) => {
                         program
@@ -640,9 +635,7 @@ fn form_call_selection(
     // type operands above still fix this invocation; each selected instance
     // retains its own complete tuple for ordinary bound and contract admission.
     let selected_machines = if application.is_valid() {
-        program
-            .expression_table
-            .static_machine_application_selected_machines(application)
+        expression_table(program).static_machine_application_selected_machines(application)
     } else {
         &[]
     };
@@ -665,10 +658,7 @@ fn form_call_selection(
     // Const operands are exact substitutions too, even though they are not
     // eligible Type inference variables in this callable shape pass.
     if application.is_valid() {
-        for binding in program
-            .expression_table
-            .static_machine_application_bindings(application)
-        {
+        for binding in expression_table(program).static_machine_application_bindings(application) {
             let actual = match binding.value {
                 typed_trees::static_applications::StaticMachineBindingValue::Type(actual)
                 | typed_trees::static_applications::StaticMachineBindingValue::Const(actual) => {
@@ -1143,11 +1133,9 @@ fn validate_conformance_machine_selections(
             diagnostics.push(Diagnostic::error(reason));
             continue;
         }
-        let selected = program
-            .expression_table
-            .static_machine_application_selected_machines(invocation);
-        let substitutions = program
-            .expression_table
+        let selected =
+            expression_table(program).static_machine_application_selected_machines(invocation);
+        let substitutions = expression_table(program)
             .static_machine_application_bindings(invocation)
             .iter()
             .filter_map(|binding| match binding.value {
@@ -1197,9 +1185,7 @@ fn validate_conformance_machine_selections(
                 required,
             );
             let exact = original.zip(view).is_some_and(|(original, view)| {
-                let provider = program
-                    .expression_table
-                    .static_machine_application(view.provider);
+                let provider = expression_table(program).static_machine_application(view.provider);
                 provider_tuple_matches_source(program, original, view.provider)
                     && provider.registration_operation
                         == program
@@ -1207,8 +1193,7 @@ fn validate_conformance_machine_selections(
                             .and_then(|machine| program.machine_states(machine).first())
                             .map_or(original.symbol, |state| state.symbol)
                     && provider.lexical_owner
-                        == program
-                            .expression_table
+                        == expression_table(program)
                             .static_machine_application(invocation)
                             .lexical_owner
                     && view.caller_operands.len() == substitutions.len()
@@ -1218,8 +1203,7 @@ fn validate_conformance_machine_selections(
                         },
                     )
                     && view.caller_lifetimes
-                        == program
-                            .expression_table
+                        == expression_table(program)
                             .static_machine_application_lifetimes(invocation)
             });
             if !exact {
@@ -1266,7 +1250,7 @@ fn provider_tuple_matches_source(
     original: &StaticMachineArgument,
     handle: typed_trees::static_applications::StaticMachineApplicationHandle,
 ) -> bool {
-    let descriptor = program.expression_table.static_machine_application(handle);
+    let descriptor = expression_table(program).static_machine_application(handle);
     let Some(application) = &original.application else {
         return true;
     };
@@ -1274,9 +1258,7 @@ fn provider_tuple_matches_source(
         return application.arguments.is_empty() && application.lifetime_arguments.is_empty();
     };
     let parameters = program.machine_type_parameters(machine);
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(handle);
+    let bindings = expression_table(program).static_machine_application_bindings(handle);
     let mut type_ordinal = 0;
     let mut const_ordinal = 0;
     let mut machine_ordinal = 0;
@@ -1361,9 +1343,7 @@ fn provider_tuple_matches_source(
         }
     }
     if !application.lifetime_arguments.is_empty() {
-        let lifetimes = program
-            .expression_table
-            .static_machine_application_lifetimes(handle);
+        let lifetimes = expression_table(program).static_machine_application_lifetimes(handle);
         if lifetimes.len() != application.lifetime_arguments.len()
             || lifetimes.len() != machine.lifetime_parameters.len()
             || lifetimes

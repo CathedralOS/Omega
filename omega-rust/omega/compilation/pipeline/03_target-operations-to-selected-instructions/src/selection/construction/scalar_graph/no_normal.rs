@@ -17,25 +17,13 @@ fn scratch(
     scalar_type: semantic_vocabulary::ScalarType,
     operand: usize,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(
-        builder
-            .registers
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
+    let id = VirtualRegisterId(super::next_index(builder.registers.len())?);
     builder.registers.push(VirtualRegister {
         id,
         class,
         scalar_type,
         origin: VirtualRegisterOrigin::InstructionScratch {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| SelectedInstructionError::custody())?,
-            ),
+            instruction: SelectedInstructionId(super::next_index(builder.instructions.len())?),
             operand: operand
                 .try_into()
                 .map_err(|_| SelectedInstructionError::custody())?,

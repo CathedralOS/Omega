@@ -8,7 +8,7 @@ public boundary trait Observe { machine read(bytes: &[u8]) -> u8 reaches; }
 data Observer { }
 machine Observer::read(bytes: &[u8]) -> u8 satisfies Observe::read {
     transition bytes.len > 0 { true -> first(bytes) false -> (0) }
-    machine first(bytes: &[u8]) -> u8 requires bytes.len > 0; { bytes[0] }
+    machine first(bytes: &[u8]) -> u8 requires bytes.len > 0 { bytes[0] }
 }
 machine ordinary(bytes: &[u8]) -> u8 { Observer::read(bytes) }
 machine forwarded(bytes: &mut [u8]) -> bool {
@@ -19,7 +19,7 @@ machine forwarded(bytes: &mut [u8]) -> bool {
         false -> (false)
     }
     machine write(bytes: &mut [u8], boundary: u8, direct: u8) -> bool
-    requires bytes.len > 0;
+    requires bytes.len > 0
     {
         bytes[0] = 29;
         boundary == 17 && direct == 17 && bytes[0] == 29

@@ -12,8 +12,8 @@ machine modify(store: &mut Store) -> u64
 ensures result == 11 { store.other = 77; 11 }
 machine demand(value: u64) requires value == 11 {}
 machine captured_write(values: &mut [u64])
-requires values.len >= 2;
-ensures values[0] == 11;
+requires values.len >= 2
+ensures values[0] == 11
 {
     let mut position: u64 = 0;
     values[position] = select_eleven(&mut position);

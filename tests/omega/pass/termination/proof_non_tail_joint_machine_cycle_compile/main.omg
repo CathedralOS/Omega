@@ -8,9 +8,8 @@ data ProofNat {
 
 machine main() {}
 
-machine left(n: ProofNat)
-terminates by n;
--> ProofNat
+machine left(n: ProofNat) -> ProofNat
+terminates by n
 {
     transition n {
         ProofNat::Zero -> ProofNat::Zero
@@ -18,9 +17,8 @@ terminates by n;
     }
 }
 
-machine right(n: ProofNat)
-terminates by n;
--> ProofNat
+machine right(n: ProofNat) -> ProofNat
+terminates by n
 {
     transition n {
         ProofNat::Zero -> ProofNat::Zero

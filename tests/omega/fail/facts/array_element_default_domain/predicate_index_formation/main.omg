@@ -1,0 +1,8 @@
+public data Tallies [copy]
+requires self.values[0] >= 0 && self.values[0] <= 16,
+    self.values[1] >= 0 && self.values[1] <= 16,
+    self.values[4] >= 0 && self.values[4] <= 16,
+    self.values[3] >= 0 && self.values[3] <= 16
+{ values: [i32; 4]; }
+
+machine main() {}

@@ -11,7 +11,7 @@ public boundary trait ForeignReports {
 }
 public FirmwareReports satisfies ForeignReports {
     machine read<'scope>(table: &'scope Table, output: &mut Output<'scope>) -> Status
-    ensures result.code == 0; {
+    ensures result.code == 0 {
         Table::read(table, output)
     }
 }

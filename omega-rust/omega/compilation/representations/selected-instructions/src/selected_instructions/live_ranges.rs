@@ -4,7 +4,9 @@
 //! to the selected-instruction transformation stage.
 
 mod identity;
+mod interference;
 pub use identity::{live_range_function_digest, live_range_identity_from_digests};
+pub use interference::VirtualInterferences;
 
 use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
@@ -47,7 +49,7 @@ pub struct FunctionLiveRanges {
     pub copy_affinities: Vec<CopyAffinity>,
     pub early_clobbers: Vec<EarlyClobberConstraint>,
     pub architectural_units: Vec<ArchitecturalUnitLiveRange>,
-    pub interference: Vec<VirtualInterference>,
+    pub interference: VirtualInterferences,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

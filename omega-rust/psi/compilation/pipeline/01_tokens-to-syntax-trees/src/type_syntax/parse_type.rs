@@ -8,6 +8,7 @@ use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::type_refs;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
@@ -86,7 +87,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-        return Ok((syntax_trees.type_references.insert_unit(), input));
+        return Ok((type_refs(syntax_trees).insert_unit(), input));
     }
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
@@ -180,12 +181,10 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             ));
         }
         return Ok((
-            syntax_trees
-                .type_references
-                .insert(TypeReferenceNode::DynamicTrait {
-                    trait_name,
-                    trait_arguments,
-                }),
+            type_refs(syntax_trees).insert(TypeReferenceNode::DynamicTrait {
+                trait_name,
+                trait_arguments,
+            }),
             input,
         ));
     }
@@ -258,22 +257,18 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             // to the same `Slice` node, so the spellings are interchangeable
             // (`Slice<u8> in Utf8` == `[u8] in Utf8`). Like `Join`, `Slice` is a
             // reserved type name so the fold is unambiguous with user generics.
-            syntax_trees
-                .type_references
-                .insert(TypeReferenceNode::Slice {
-                    element_type: first_argument,
-                })
+            type_refs(syntax_trees).insert(TypeReferenceNode::Slice {
+                element_type: first_argument,
+            })
         } else {
-            syntax_trees
-                .type_references
-                .insert(TypeReferenceNode::Generic {
-                    base_name,
-                    lifetime_arguments,
-                    arguments,
-                })
+            type_refs(syntax_trees).insert(TypeReferenceNode::Generic {
+                base_name,
+                lifetime_arguments,
+                arguments,
+            })
         }
     } else {
-        syntax_trees.type_references.insert_named(base_name)
+        type_refs(syntax_trees).insert_named(base_name)
     };
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
@@ -326,12 +321,10 @@ fn parse_static_argument_reference<'tokens, 'source>(
                 syntax_trees.display_expression_name(expression),
                 syntax_trees.expressions.source_span(expression),
             );
-            return Ok((syntax_trees.type_references.insert_named(name), rest));
+            return Ok((type_refs(syntax_trees).insert_named(name), rest));
         }
         Ok((
-            syntax_trees
-                .type_references
-                .insert(TypeReferenceNode::ConstExpression(expression)),
+            type_refs(syntax_trees).insert(TypeReferenceNode::ConstExpression(expression)),
             rest,
         ))
     } else if input
@@ -356,9 +349,7 @@ fn parse_static_argument_reference<'tokens, 'source>(
                 || expression_rest.at_punctuation(PunctuationKind::Greater))
         {
             Ok((
-                syntax_trees
-                    .type_references
-                    .insert(TypeReferenceNode::ConstExpression(expression)),
+                type_refs(syntax_trees).insert(TypeReferenceNode::ConstExpression(expression)),
                 expression_rest,
             ))
         } else {
@@ -434,7 +425,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
         }
         cursor = rest.take_punctuation(PunctuationKind::Ampersand, "&")?;
     }
-    let constraints = syntax_trees.type_references.insert_constraints(constraints);
+    let constraints = type_refs(syntax_trees).insert_constraints(constraints);
     let type_reference = syntax_trees
         .type_references
         .insert(TypeReferenceNode::Constrained {
@@ -468,9 +459,7 @@ pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
         break;
     }
     Ok((
-        syntax_trees
-            .type_references
-            .insert_type_reference_handles(arguments),
+        type_refs(syntax_trees).insert_type_reference_handles(arguments),
         input,
     ))
 }
@@ -515,13 +504,11 @@ fn parse_borrow_type_reference<'tokens, 'source>(
         allow_trailing_domain,
     )?;
     let type_reference = if is_reference {
-        syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Reference {
-                referee: type_reference,
-                access,
-                lifetime,
-            })
+        type_refs(syntax_trees).insert(TypeReferenceNode::Reference {
+            referee: type_reference,
+            access,
+            lifetime,
+        })
     } else {
         type_reference
     };
@@ -619,6 +606,6 @@ pub(crate) fn parse_type_constraint_handles<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-    let constraints = syntax_trees.type_references.insert_constraints(constraints);
+    let constraints = type_refs(syntax_trees).insert_constraints(constraints);
     Ok((constraints, input))
 }

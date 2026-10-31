@@ -1,6 +1,6 @@
 // Each recursive occurrence needs its own classified tail edge.
 machine first(remaining: u64, limit: u64)
-terminates by remaining;
+terminates by remaining
 crashes Trap
 {
     transition remaining > 0 { true -> step(remaining, limit) false -> base(limit) }
@@ -15,7 +15,7 @@ crashes Trap
     machine bad() { crash Trap; }
 }
 machine second(remaining: u64, limit: u64)
-terminates by remaining;
+terminates by remaining
 crashes Trap
 {
     transition remaining > 0 { true -> step(remaining, limit) false -> base(limit) }

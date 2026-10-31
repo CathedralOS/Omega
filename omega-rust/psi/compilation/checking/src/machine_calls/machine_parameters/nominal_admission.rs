@@ -1,5 +1,6 @@
 use super::type_refinement::{TypeBinding, required_type_matches_exact};
 use super::{MachineStateIndex, machine_and_state, machine_parameter_contract_definition};
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{MachineParameterContract, TypeParameter};
@@ -27,10 +28,7 @@ fn retain_conformance_operands<'a>(
     if !application.is_valid() {
         return;
     }
-    for binding in program
-        .expression_table
-        .static_machine_application_bindings(application)
-    {
+    for binding in expression_table(program).static_machine_application_bindings(application) {
         if let typed_trees::static_applications::StaticMachineBindingValue::Conformance(argument) =
             &binding.value
             && !operands
@@ -87,8 +85,7 @@ pub(super) fn validate_nominal_machine_selection(
         .filter(|handle| handle.is_valid())
         .or_else(|| applied.as_ref().map(|view| view.provider));
     let provider_operands = provider_application.map(|provider| {
-        let mut operands = program
-            .expression_table
+        let mut operands = expression_table(program)
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match binding.value {
@@ -170,9 +167,7 @@ pub(super) fn validate_nominal_machine_selection(
                 .collect::<Vec<_>>();
             retain_conformance_operands(program, application, &mut operands);
             let lifetimes = if application.is_valid() {
-                program
-                    .expression_table
-                    .static_machine_application_lifetimes(application)
+                expression_table(program).static_machine_application_lifetimes(application)
             } else {
                 &[]
             };
@@ -181,15 +176,13 @@ pub(super) fn validate_nominal_machine_selection(
             let provider_lifetimes = provider_application
                 .map(|handle| {
                     crate::machine_calls::static_bindings::lifetime_identity_rows(
-                        program
-                            .expression_table
-                            .static_machine_application_lifetimes(handle),
+                        expression_table(program).static_machine_application_lifetimes(handle),
                     )
                 })
                 .unwrap_or_default();
             let provider_scopes = provider_application
                 .map(|handle| {
-                    let provider = program.expression_table.static_machine_application(handle);
+                    let provider = expression_table(program).static_machine_application(handle);
                     AppliedTypeIdentityScope {
                         declaration: provider.binding_declaration,
                         arguments: provider_operands.as_deref().unwrap_or(&[]),
@@ -199,14 +192,12 @@ pub(super) fn validate_nominal_machine_selection(
                 .into_iter()
                 .collect::<Vec<_>>();
             let actual_owner = provider_application.map_or(actual_owner, |handle| {
-                program
-                    .expression_table
+                expression_table(program)
                     .static_machine_application(handle)
                     .lexical_owner
             });
             let caller_owner = if application.is_valid() {
-                program
-                    .expression_table
+                expression_table(program)
                     .static_machine_application(application)
                     .lexical_owner
             } else {
@@ -267,19 +258,15 @@ pub(super) fn validate_nominal_machine_selection(
             AppliedTypeIdentityScope, IndexIdentityArgument, applied_index_identity,
             applied_type_identity,
         };
-        let provider = program
-            .expression_table
+        let provider = expression_table(program)
             .static_machine_application(provider_application.expect("applied provider tuple"));
-        let caller_owner = program
-            .expression_table
+        let caller_owner = expression_table(program)
             .static_machine_application(application)
             .lexical_owner;
         let provider_lifetimes = crate::machine_calls::static_bindings::lifetime_identity_rows(
-            program
-                .expression_table
-                .static_machine_application_lifetimes(
-                    provider_application.expect("applied provider tuple"),
-                ),
+            expression_table(program).static_machine_application_lifetimes(
+                provider_application.expect("applied provider tuple"),
+            ),
         );
         let caller_lifetimes =
             crate::machine_calls::static_bindings::lifetime_identity_rows(applied.caller_lifetimes);
@@ -440,8 +427,7 @@ pub(super) fn validate_nominal_machine_selection(
                 ));
                 return Err(());
             };
-            if program
-                .expression_table
+            if expression_table(program)
                 .static_machine_application(instance.binding_application)
                 .binding_declaration
                 != template.symbol
@@ -486,8 +472,7 @@ pub(super) fn validate_nominal_machine_selection(
     if matching_rows != 1 {
         let provider_tuple = provider_application
             .map(|handle| {
-                program
-                    .expression_table
+                expression_table(program)
                     .static_machine_application_bindings(handle)
                     .iter()
                     .filter_map(|binding| match binding.value {

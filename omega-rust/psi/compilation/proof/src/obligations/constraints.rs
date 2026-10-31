@@ -15,7 +15,9 @@ use crate::obligations::ranges::{
     integer_constraints_are_exact, integer_constraints_are_wrapping,
     integer_range_from_constraints,
 };
-use crate::typed_expressions::{call_expression_return_type, expression_type_reference};
+use crate::typed_expressions::{
+    call_expression_return_type, expression_type_reference, type_reference_table,
+};
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral};
 use typed_trees::machine::Machine;
@@ -246,8 +248,7 @@ pub(crate) fn collect_constraints(
         } => {
             let mut derived = collect_constraints(program, *base_type);
             derived.extend_iter(
-                program
-                    .type_reference_table
+                type_reference_table(program)
                     .constraints(*constraints)
                     .iter()
                     .filter_map(|constraint| {
@@ -268,8 +269,7 @@ pub(crate) fn collect_constraints(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             collect_constraints(program, *element_type)
         }
-        TypeReferenceNode::Generic { arguments, .. } => program
-            .type_reference_table
+        TypeReferenceNode::Generic { arguments, .. } => type_reference_table(program)
             .type_reference_handles(*arguments)
             .iter()
             .flat_map(|argument| collect_constraints(program, *argument))

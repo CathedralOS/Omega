@@ -2,7 +2,7 @@
 // Rejected: the parameter does not carry `index < items.len`, so
 // `Index < items.len` cannot be discharged at read_at.
 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }

@@ -1,6 +1,7 @@
 //! Bound generic cleanup inputs are ordinary call obligations. Their origin is
 //! the retained generic death row, not an authored `requires` clause; only the
 //! actual's evaluated operand facts can discharge the instantiated predicate.
+use crate::flow::expressions;
 use validation::CanonicalPlace;
 
 use checked_trees::{
@@ -131,9 +132,7 @@ pub(super) fn check(
             crate::labels::machine_name(program, state.machine_symbol),
             proposition,
             crate::labels::machine_name(program, requirement.hook_machine),
-            program
-                .expression_table
-                .display_name(requirement.hook_clause),
+            expressions(program).display_name(requirement.hook_clause),
         )));
     }
 }

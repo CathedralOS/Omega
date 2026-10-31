@@ -1,9 +1,8 @@
 data Pair where left <= 5, right <= 5 { left: u32; right: u32; }
 
-machine walk(remaining: u32)
+machine walk(remaining: u32) -> u32
 requires remaining <= 5
-terminates by remaining in 0..=5;
--> u32 {
+terminates by remaining in 0..=5 {
     transition { _ -> iterate(Pair { left: remaining, right: 4 }) }
     machine iterate(pending: Pair) -> u32 {
         let captured: Pair = pending;

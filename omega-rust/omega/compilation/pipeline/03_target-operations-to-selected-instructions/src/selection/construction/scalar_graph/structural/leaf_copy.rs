@@ -238,10 +238,7 @@ pub(super) fn reseat(
     )
     .ok_or(invalid())?;
     if geometry.byte_offset != *byte_offset
-        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        )
+        || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(invalid());
     }
@@ -388,10 +385,7 @@ pub(super) fn project_operand<'indices>(
         )
         .ok_or_else(invalid)?;
     if !geometry.readable
-        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        )
+        || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(SelectedInstructionError::custody_because(
             "aggregate operand lost its readable projection or selectors",

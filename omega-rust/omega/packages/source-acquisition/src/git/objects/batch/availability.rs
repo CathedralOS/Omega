@@ -13,7 +13,7 @@ use crate::git::executable::executor::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::git_command::{GitCommandCapture, run_git_output};
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 use bounded_process::BoundedProcessInput;
 use resolver_execution::ResolverExecutionPhase;
 use std::fs::File;
@@ -58,16 +58,13 @@ pub(in crate::git) fn probe_exact_git_object(
         request
             .file_mut()
             .write_all(&bytes[..=oid.len()])
-            .map_err(|error| io_error(&request.display_path, error))?;
+            .at(&request.display_path)?;
         request
             .file_mut()
             .seek(SeekFrom::Start(0))
-            .map_err(|error| io_error(&request.display_path, error))?;
+            .at(&request.display_path)?;
         request.verify_current()?;
-        let stdin = request
-            .file()
-            .try_clone()
-            .map_err(|error| io_error(&request.display_path, error))?;
+        let stdin = request.file().try_clone().at(&request.display_path)?;
         execute(executor, repository, oid, stdin)
     })();
     let namespace = repository

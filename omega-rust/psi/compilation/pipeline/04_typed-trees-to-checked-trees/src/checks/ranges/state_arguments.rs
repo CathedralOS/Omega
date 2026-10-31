@@ -35,6 +35,7 @@ mod expressions;
 mod statements;
 
 use super::expression_transfer::ExpressionTransfer;
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -407,10 +408,7 @@ fn expression_has_internal_call(
     depth: usize,
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
         return false;
     };
     let next = depth + 1;
@@ -421,8 +419,7 @@ fn expression_has_internal_call(
                 .iter()
                 .any(|state| state.symbol == call.target_symbol)
                 || expression_has_internal_call(program, non_entry_states, call.receiver, next)
-                || program
-                    .expression_table
+                || expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|arg| expression_has_internal_call(program, non_entry_states, *arg, next))
@@ -454,8 +451,7 @@ fn expression_has_internal_call(
                 expression_has_internal_call(program, non_entry_states, atomic.value, next)
             }
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .any(|value| expression_has_internal_call(program, non_entry_states, *value, next)),
@@ -472,8 +468,7 @@ fn expression_has_internal_call(
             expression_has_internal_call(program, non_entry_states, range.start, next)
                 || expression_has_internal_call(program, non_entry_states, range.end, next)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| {

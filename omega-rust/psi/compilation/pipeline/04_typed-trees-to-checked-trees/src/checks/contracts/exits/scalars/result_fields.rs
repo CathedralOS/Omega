@@ -24,7 +24,10 @@ use super::{
     ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, is_scalar_roster_local,
     stable_segments,
 };
+use crate::flow::expressions;
+use crate::flow::state_statements;
 use crate::flow::{self};
+use crate::places::place_at;
 use checked_trees::CheckedScalarExpression;
 use facts::PlaceRoot;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -620,11 +623,7 @@ impl ExitScalars<'_, '_> {
             let mut lengths = Vec::new();
             let mut patterns = Vec::new();
             for arm in arms {
-                patterns.extend(
-                    self.program
-                        .expression_table
-                        .match_pattern_operands(arm.pattern),
-                );
+                patterns.extend(expressions(self.program).match_pattern_operands(arm.pattern));
                 let mut arm_matched = matched.to_vec();
                 if let Some((subject, value)) =
                     self.matched_arm_integer(dispatch.subject, arm.pattern)
@@ -795,7 +794,7 @@ impl ExitScalars<'_, '_> {
                 primitive,
             )?
         } else {
-            let mut place = validation::canonical_place_from_expression_in_state(
+            let mut place = place_at(
                 self.program,
                 state.symbol,
                 self.exit.statement_index,
@@ -959,10 +958,7 @@ impl ExitScalars<'_, '_> {
         // a field-specific write history. Require parameter preservation in
         // every state in that case, never replay a same-spelled entry binding.
         for state in self.program.machine_states(self.machine) {
-            let statements = self
-                .program
-                .statement_table
-                .statements(state.statement_nodes);
+            let statements = state_statements(self.program, state.statement_nodes);
             let prefix = if state.symbol == self.exit.state_symbol {
                 statements.get(..self.exit.statement_index)?
             } else if entry.symbol == self.exit.state_symbol {

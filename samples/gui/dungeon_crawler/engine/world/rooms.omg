@@ -56,13 +56,13 @@ where Rooms >= 1 {
 }
 
 public machine exit_for<const Rooms: u64>(room: &Room<Rooms>, direction: i32) -> Exit<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     room.exits[direction as u64]
 }
 
 public machine tile_at<const Rooms: u64>(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32
-terminates;
+terminates
 requires Rooms >= 1
 ensures result >= 0 && result <= 4 {
     transition column < 0 || column > ROOM_LAST_COLUMN || row < 0 || row > ROOM_LAST_ROW {

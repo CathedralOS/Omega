@@ -6,6 +6,7 @@ use super::super::{
     PredicateOrderingConsequence,
 };
 use super::*;
+use crate::frozen_program::expression_table;
 
 pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     program: &dyn crate::CheckingInput,
@@ -76,7 +77,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
                 }
             }
         }
-        let Some(binary) = program.expression_table.binary_node(*expression) else {
+        let Some(binary) = expression_table(program).binary_node(*expression) else {
             continue;
         };
         if !matches!(
@@ -339,9 +340,7 @@ impl Implication<'_> {
         path: Path,
         expression: ExpressionHandle,
     ) -> Option<Vec<(Path, Integer)>> {
-        if self
-            .program
-            .expression_table
+        if expression_table(self.program)
             .indexed_node(expression)
             .is_some()
         {

@@ -3,7 +3,7 @@ data Wrapped [copy] where embed(left + right) >= 0 {
     right: i8 in Wrapping;
 }
 machine make(value: i8) -> Wrapped
-requires value >= 126 && value <= 127;
+requires value >= 126 && value <= 127
 {
     Wrapped { left: value as i8 in Wrapping, right: 1 }
 }

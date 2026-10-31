@@ -14,6 +14,7 @@ use super::{
     value_proves_qualification_in_contexts,
 };
 use crate::labels::{machine_name, symbol_name};
+use crate::places::place_at;
 
 type Occurrence = ((u32, u32), usize, (u32, u32));
 
@@ -261,12 +262,7 @@ fn live_bounds_satisfy_domain(
     else {
         return false;
     };
-    let Some(subject) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement,
-        value,
-    ) else {
+    let Some(subject) = place_at(program, state.state_symbol, statement, value) else {
         return false;
     };
     crate::values::integer_bounds_at_place(

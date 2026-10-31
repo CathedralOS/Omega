@@ -1,5 +1,5 @@
 machine first(remaining: u64) -> u64
-terminates by remaining;
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 {
@@ -7,7 +7,7 @@ terminates by remaining;
     }
 }
 machine second(remaining: u64) -> u64
-terminates by remaining;
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 {

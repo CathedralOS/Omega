@@ -6,7 +6,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::syntax_trees::SyntaxTrees;
-use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use arena::HandleSpan;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -305,16 +306,8 @@ pub(crate) fn snapshot_type_reference_handle(
             arguments,
         } => TypeReferenceSnapshot::Generic {
             base_name: snapshot_identifier(syntax_trees, base_name),
-            lifetime_arguments: lifetime_arguments
-                .iter()
-                .map(|value| snapshot_identifier(syntax_trees, value))
-                .collect(),
-            arguments: syntax_trees
-                .type_references
-                .type_reference_handles(*arguments)
-                .iter()
-                .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
-                .collect(),
+            lifetime_arguments: snapshot_identifier_slice(syntax_trees, lifetime_arguments),
+            arguments: snapshot_type_references(syntax_trees, *arguments),
         },
         TypeReferenceNode::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
             expression: snapshot_expression_handle(syntax_trees, *expression),
@@ -324,18 +317,25 @@ pub(crate) fn snapshot_type_reference_handle(
             trait_arguments,
         } => TypeReferenceSnapshot::DynamicTrait {
             trait_name: snapshot_identifier(syntax_trees, trait_name),
-            trait_arguments: syntax_trees
-                .type_references
-                .type_reference_handles(*trait_arguments)
-                .iter()
-                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                .collect(),
+            trait_arguments: snapshot_type_references(syntax_trees, *trait_arguments),
         },
         TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
             name: snapshot_identifier(syntax_trees, name),
         },
         TypeReferenceNode::Unit => TypeReferenceSnapshot::Unit,
     }
+}
+
+pub(crate) fn snapshot_type_references(
+    syntax_trees: &SyntaxTrees,
+    span: HandleSpan<TypeReferenceHandle>,
+) -> Vec<TypeReferenceSnapshot> {
+    syntax_trees
+        .type_references
+        .type_reference_handles(span)
+        .iter()
+        .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
+        .collect()
 }
 
 fn snapshot_fixed_array_length(
@@ -366,12 +366,7 @@ fn snapshot_type_constraint(
         },
         TypeConstraintNode::Domain(domain) => TypeConstraintSnapshot::Domain {
             name: snapshot_identifier(syntax_trees, &domain.name),
-            arguments: syntax_trees
-                .type_references
-                .type_reference_handles(domain.arguments)
-                .iter()
-                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                .collect(),
+            arguments: snapshot_type_references(syntax_trees, domain.arguments),
         },
         TypeConstraintNode::Range {
             minimum,
@@ -525,12 +520,10 @@ pub(crate) fn snapshot_expression_handle(
                     .expressions
                     .identifier_path_members(cast.semantic_domain),
             ),
-            semantic_domain_arguments: syntax_trees
-                .type_references
-                .type_reference_handles(cast.semantic_domain_arguments)
-                .iter()
-                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                .collect(),
+            semantic_domain_arguments: snapshot_type_references(
+                syntax_trees,
+                cast.semantic_domain_arguments,
+            ),
         },
         ExpressionNode::Call(call) => snapshot_call_expression(syntax_trees, call),
         ExpressionNode::UndeterminedNaN(format) => ExpressionSnapshot::UndeterminedNaN {
@@ -738,4 +731,14 @@ pub(crate) fn snapshot_identifier_slice(
     path.iter()
         .map(|value| snapshot_identifier(syntax_trees, value))
         .collect()
+}
+
+pub(crate) fn snapshot_item_identifier_path(
+    syntax_trees: &SyntaxTrees,
+    span: HandleSpan<Identifier>,
+) -> Vec<IdentifierSnapshot> {
+    snapshot_identifier_slice(
+        syntax_trees,
+        syntax_trees.items.identifier_path_members(span),
+    )
 }

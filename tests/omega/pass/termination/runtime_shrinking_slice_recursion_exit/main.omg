@@ -51,9 +51,8 @@ machine Main::main(main: &mut Main) reaches Console {
 // caller's record: `items` is a shared view of `main.entries`, and taking
 // `&mut Main` beside it would mutate the record a live shared child freezes.
 // The shrinking-slice recursion this fixture exists to cover is unchanged.
-machine Main::accumulate(items: &[Entry], carried: u32 in Wrapping)
-terminates by items -> Slice::Length;
--> u32 in Wrapping {
+machine Main::accumulate(items: &[Entry], carried: u32 in Wrapping) -> u32 in Wrapping
+terminates by items -> Slice::Length {
     transition items.len > 0 {
         true -> accumulate(items[1..], carried + items[0].value)
         false -> (carried)

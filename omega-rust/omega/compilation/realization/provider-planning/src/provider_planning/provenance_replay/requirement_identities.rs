@@ -2,7 +2,7 @@
 //! leaves and provider boundary arguments.
 
 use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
-use crate::provider_planning::{ProviderBinding, TypedTrees};
+use crate::provider_planning::{ProviderBinding, TypedTrees, is_unit_type};
 use checked_trees::typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
 use target::HostedIntrinsicBundle;
 
@@ -273,10 +273,7 @@ fn exact_catalog_i32_to_unit_signature(
         && !parameter.is_mutable
         && typed.primitive_type_reference(parameter.type_reference)
             == Some(checked_trees::typed_trees::types::PrimitiveType::I32)
-        && matches!(
-            typed.type_reference_table.type_reference(return_type),
-            checked_trees::typed_trees::types::TypeReferenceNode::Unit
-        )
+        && is_unit_type(typed, return_type)
 }
 
 /// Map one retained typed external-binding identity to its provider-plan

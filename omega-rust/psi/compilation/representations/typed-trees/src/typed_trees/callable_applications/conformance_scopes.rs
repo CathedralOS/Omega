@@ -20,9 +20,7 @@ impl TypedTrees {
         if !supplying_application.is_valid() {
             return None;
         }
-        let source = self
-            .expression_table
-            .static_machine_application(supplying_application);
+        let source = self.static_machine_application(supplying_application);
         self.portable_conformance_application_identity_in_owner(application, source.lexical_owner)
     }
 
@@ -102,7 +100,6 @@ impl TypedTrees {
             // Specialization owns the executable body, not its caller's regions.
             // The retained binding application preserves the supplying telescope.
             let owner = self
-                .expression_table
                 .static_machine_application(binding_application)
                 .lexical_owner;
             let arguments = application

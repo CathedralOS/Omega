@@ -5,7 +5,7 @@
 // the rank carrier `at` is preserved.
 machine walk<T [copy]>(b: &mut Box<T>, at: u64) -> u64
 requires at < 8
-terminates by at -> Nat::Descending in 0..=7;
+terminates by at -> Nat::Descending in 0..=7
 {
     transition at == 0 {
         true -> done(b)

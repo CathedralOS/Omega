@@ -5,6 +5,8 @@
 //! read and its write epoch; ordinary predicate inference still needs preserved
 //! repeatable inputs. Generated names and adjacency grant no authority.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -220,8 +222,7 @@ pub(crate) fn saved_guard_observations<'program>(
                     // transport the same decision. Follow preserved aliases
                     // through this worklist, without a second recovery path.
                     if observation.current_expression.is_valid()
-                        && program
-                            .expression_table
+                        && expressions(program)
                             .name_path_node(observation.expression)
                             .is_some()
                     {
@@ -387,12 +388,7 @@ fn reads_survive(
             ExpressionNode::Atomic(_) => return false,
             _ => return true,
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            node,
-        );
+        let place = place_at(program, state.symbol, statement_index, node);
         let preserved = |root, segments: &[facts::PlaceSegment]| {
             validation::frame_coordinate_path(program, root, segments).is_some_and(|path| {
                 writes
@@ -572,13 +568,11 @@ pub(super) fn expression_is_stable_predicate(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| expression_is_stable_predicate(program, field.value)),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .all(|value| expression_is_stable_predicate(program, *value)),

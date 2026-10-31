@@ -6,6 +6,7 @@ use validation::selection_resolution::declaration_target;
 use crate::authored_selections::operator_targets::{
     authored_operand_descriptor, authored_operand_type,
 };
+use crate::flow::indexed_statements;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
@@ -117,10 +118,7 @@ pub(super) fn for_each_statement_containing(
 ) -> Option<()> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let mut expressions = Vec::new();
                 validation::expression_traversal::collect_statement_expression_trees(
                     program,

@@ -10,6 +10,7 @@
 //! specialization driver invokes this only before collecting selections or
 //! after consuming them, restarting the round when an insertion was necessary.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -30,7 +31,7 @@ pub(in crate::monomorphization) fn materialize(
                         .primitive_type_reference(local.type_reference)
                         .is_none()
                     || !matches!(
-                        program.expression_table.expression(local.initial_value),
+                        expressions_of(program).expression(local.initial_value),
                         ExpressionNode::Call(_)
                     )
                 {
@@ -82,14 +83,12 @@ pub(in crate::monomorphization) fn materialize(
                     .expect("one generated reference result");
                 let name = typed_trees::name::Identifier::generated(name);
                 let reference = super::super::body_rewriting::insert_subject_name(
-                    &mut program.expression_table,
+                    expressions_of_mut(program),
                     name.clone(),
                     symbol,
                 );
-                let source_span = program.expression_table.source_span(local.initial_value);
-                program
-                    .expression_table
-                    .set_source_span(reference, source_span);
+                let source_span = expressions_of(program).source_span(local.initial_value);
+                expressions_of_mut(program).set_source_span(reference, source_span);
                 program.statement_table.push_statement(
                     &mut body,
                     StatementNode::LocalData(TableLocalData {

@@ -7,7 +7,7 @@ use omega_language_std::console;
 data Main { }
 
 machine count_to_eight(index: u64) -> u64
-terminates by (index, 8) -> Nat::BoundedDistance;
+terminates by (index, 8) -> Nat::BoundedDistance
 {
     transition index < 8 {
         true -> count_to_eight(index + 1)
@@ -16,7 +16,7 @@ terminates by (index, 8) -> Nat::BoundedDistance;
 }
 
 machine count_to_sixteen(index: u32) -> u32
-terminates by index -> Nat::IncreasingTo(16);
+terminates by index -> Nat::IncreasingTo(16)
 {
     transition index < 16 {
         true -> count_to_sixteen(index + 1)

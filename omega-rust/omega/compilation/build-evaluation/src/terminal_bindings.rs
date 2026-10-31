@@ -14,7 +14,7 @@ use language_semantics::declaration_selection::{
 use psi_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
@@ -80,6 +80,12 @@ impl BindingState {
     }
 }
 
+const LOCK_POISONED: &str = "Build binding activation lock was poisoned";
+
+fn lock_state(state: &Mutex<BindingState>) -> Result<MutexGuard<'_, BindingState>, &'static str> {
+    state.lock().map_err(|_| LOCK_POISONED)
+}
+
 impl BindingState {
     fn take_executed(&mut self) -> Result<Vec<ExecutedBuildSelection>, String> {
         if self.pending.iter().any(Option::is_some) || self.query.is_some() {
@@ -138,10 +144,7 @@ impl TerminalBuildBindingHost {
     }
 
     pub(crate) fn awaiting_provider(&self) -> Result<Option<BuildProviderRequest>, String> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let state = lock_state(&self.state)?;
         Ok(state.awaiting_provider()?.cloned())
     }
 
@@ -150,10 +153,7 @@ impl TerminalBuildBindingHost {
         &self,
         provider: &psi_compiler::ProducedBuildProvider,
     ) -> Result<bool, String> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let state = lock_state(&self.state)?;
         let request = state
             .awaiting_provider()?
             .ok_or("Build has no provider readiness pause")?;
@@ -175,10 +175,7 @@ impl TerminalBuildBindingHost {
         &self,
         provider: &psi_compiler::ProducedBuildProvider,
     ) -> Result<(), String> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let mut state = lock_state(&self.state)?;
         let request = state
             .awaiting_provider()?
             .ok_or("Build has no provider readiness pause")?
@@ -214,10 +211,7 @@ impl TerminalBuildBindingHost {
     /// Retire committed selections after the sole activation has returned.
     /// The activation owner prevents a second execution with these adapters.
     pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedBuildSelection>, String> {
-        self.state
-            .lock()
-            .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
-            .take_executed()
+        lock_state(&self.state)?.take_executed()
     }
 }
 
@@ -335,11 +329,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 "Build provider readiness disagrees with its source-issued request",
             ));
         };
-        let mut state = self
-            .host
-            .state
-            .lock()
-            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let mut state = lock_state(&self.host.state).map_err(refuse)?;
         let (ticket, values) =
             activation_ticket(arguments, structural_arguments, &state, &call.request)?;
         if !values.is_empty() {
@@ -398,11 +388,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .iter()
             .find(|call| call.operation == *operation && call.boundary == *boundary)
             .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
-        let mut state = self
-            .host
-            .state
-            .lock()
-            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let mut state = lock_state(&self.host.state).map_err(refuse)?;
         if call.action == TerminalBuildBindingOperation::Prepare {
             if !arguments.is_empty()
                 || structural_arguments.as_slice() != std::slice::from_ref(&self.host.original)

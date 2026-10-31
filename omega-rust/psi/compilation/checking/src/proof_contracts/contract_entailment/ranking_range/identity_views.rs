@@ -8,12 +8,9 @@
 
 use super::super::Engine;
 use super::fields::declared_field;
-use crate::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticValue,
-};
+use crate::frozen_program::expression_table;
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
@@ -70,28 +67,23 @@ pub struct ScalarViewComputation {
     pub body: ExpressionHandle,
 }
 
-/// A body computing over its single parameter with `+` and `*` on integer
-/// literals (`{ value + 1 }`, `{ value * 2 }`, `{ value * value + 3 }`), on
-/// one unsigned carrier shared by the parameter and the result. The shape is
-/// syntactic: operator meaning, strict monotonicity, and carrier formation
-/// are judged where the view is applied to a subject (`declared_scalar_view`).
-/// It is deliberately not a `MeasureBodyShape`: `measure_body_shape` keeps
-/// classifying only forwards and field projections, so a consumer that admits
-/// those two shapes does not admit a computation by omission.
+/// A scalar body's exact declaration and carrier. This is classification,
+/// never admission: the application owner separately forms its input, every
+/// body node and its output under the actual captured values. No syntactic
+/// operator family or global monotonicity stands in for that judgment.
 pub struct ComputationBodyShape {
     pub carrier: BuiltinTypeAtom,
-    pub constraints: Vec<(ExpressionHandle, ExpressionHandle, bool)>,
     pub parameter: SymbolHandle,
     pub body: ExpressionHandle,
 }
 
-/// Classify a computation body; `None` for a forward, a projection, or any
-/// other body (`measure_body_shape` owns the first two).
+/// Describe a scalar declaration without granting its body a proof. Callers
+/// select identity and structural projections through their own owners first.
 pub fn computation_body_shape(
     program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<ComputationBodyShape> {
-    let [body] = program.expression_table.expression_handles(measure.body) else {
+    let [body] = expression_table(program).expression_handles(measure.body) else {
         return None;
     };
     let parameter = measure.parameter.as_ref()?;
@@ -100,35 +92,25 @@ pub fn computation_body_shape(
         || program.symbols.get(measure.symbol).kind != SymbolKind::Measure
         || binder.kind != SymbolKind::Parameter
         || binder.parent != measure.symbol
-        || !computation_shape(program, *body, parameter.symbol, 0)
     {
         return None;
     }
-    let (carrier, mut constraints) = unsigned_carrier(program, parameter.type_reference)?;
-    let (result, result_constraints) = unsigned_carrier(program, measure.return_type)?;
+    let (carrier, _) = unsigned_carrier(program, parameter.type_reference)?;
+    let (result, _) = unsigned_carrier(program, measure.return_type)?;
     if result != carrier {
         return None;
     }
-    constraints.extend(result_constraints);
     Some(ComputationBodyShape {
         carrier,
-        constraints,
         parameter: parameter.symbol,
         body: *body,
     })
 }
 
-/// Resolve `view_path` to a unique declared scalar measure and admit it for
-/// `subject` in `state`: an identity forward exactly as `declared_identity_view`,
-/// or a computation whose every operator has builtin meaning in the measure's
-/// declaration and whose normalized polynomial is strictly increasing on
-/// the naturals (every coefficient positive, some term of degree at least
-/// one). Strict monotonicity is what lets a subject's descent stand for the
-/// produced rank's descent; formation inside the carrier is a separate
-/// obligation the range judgment proves from the entry hypotheses, so an
-/// unbounded subject with `{ value * 2 }` still rejects there. Anything else
-/// -- a subtraction, a constant body, a non-builtin operator, an uncovered
-/// domain -- is `None`.
+/// Resolve the exact scalar declaration for this subject. Identity forwards
+/// keep their own qualification judgment. A computed view is formed only at
+/// application, and every edge compares its produced value; decreasing the
+/// input does not imply that an arbitrary declared body decreases.
 pub fn declared_scalar_view(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -158,47 +140,30 @@ pub fn declared_scalar_view(
         None => {
             let ComputationBodyShape {
                 carrier,
-                constraints,
                 parameter,
                 body,
             } = computation_body_shape(program, measure)?;
-            if !identity_subject_matches(program, state, subject, carrier)
-                || !measure_constraints_cover_subject(program, state, subject, &constraints)
-            {
-                return None;
-            }
-            let machine = owning_machine(program, state)?;
-            // The syntactic shape admits only `+`, `*`, literals and the
-            // parameter, so the polynomial has no negative coefficient unless a
-            // literal is negative; monotonicity still needs a term the
-            // parameter actually reaches.
-            let polynomial = computed_measure_polynomial(program, machine, parameter, body)?;
-            let strictly_increasing = polynomial
-                .terms
-                .values()
-                .all(|coefficient| !coefficient.is_negative() && !coefficient.is_zero())
-                && polynomial.terms.keys().any(|monomial| !monomial.is_empty());
-            strictly_increasing.then_some(DeclaredScalarView {
-                measure: measure.symbol,
-                carrier,
-                computation: Some(ScalarViewComputation { parameter, body }),
-            })
+            identity_subject_matches(program, state, subject, carrier).then_some(
+                DeclaredScalarView {
+                    measure: measure.symbol,
+                    carrier,
+                    computation: Some(ScalarViewComputation { parameter, body }),
+                },
+            )
         }
     }
 }
 
-/// A private template coordinate shared by classification and rank application.
-pub(super) const COMPUTATION_PARAMETER_ATOM: &str = "\0ranking:view:parameter";
-
-/// Normalize a measure body under its own declared formal and selected meaning.
-/// The selecting machine supplies proof context, not the measure's operand
-/// types or operator namespace. Rejoin the exact declaration before publishing
-/// the scoped roster; rank membership and carrier formation remain separate.
-pub(super) fn computed_measure_polynomial(
+/// Normalize the body in its actual supplying declaration and this engine's
+/// value namespace. Opaque operations retain their operands here rather than
+/// escaping from an isolated parameter-polynomial template. This computes no
+/// formation proof; the shared application owner still discharges that later.
+pub(super) fn computed_measure_value(
     program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    engine: &mut Engine<'_>,
     parameter: SymbolHandle,
     body: ExpressionHandle,
+    input: &super::Polynomial,
 ) -> Option<super::Polynomial> {
     if !parameter.is_valid() {
         return None;
@@ -216,22 +181,13 @@ pub(super) fn computed_measure_polynomial(
         .iter()
         .find(|measure| measure.symbol == owner)?;
     if measure.parameter.as_ref()?.symbol != parameter
-        || program.expression_table.expression_handles(measure.body) != [body]
+        || expression_table(program).expression_handles(measure.body) != [body]
     {
         return None;
     }
-    let mut engine = Engine::strict(program, machine, &[]);
-    engine.normalize_scoped_value(&ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-        owner,
-        expression: body,
-        bindings: vec![ScopedArithmeticBinding {
-            binder: ScopedArithmeticBinder::Symbol(parameter),
-            value: ScopedArithmeticValue::Atom {
-                identity: COMPUTATION_PARAMETER_ATOM.to_owned(),
-                unsigned: true,
-            },
-        }],
-    }))
+    engine.with_formal_arguments(owner, &[(parameter, input.clone())], |engine| {
+        engine.normalize(body)
+    })
 }
 
 /// Classify only bodies whose projection is justified by resolved declarations.
@@ -239,7 +195,7 @@ pub fn measure_body_shape(
     program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<MeasureBodyShape> {
-    let [body] = program.expression_table.expression_handles(measure.body) else {
+    let [body] = expression_table(program).expression_handles(measure.body) else {
         return None;
     };
     let parameter = measure.parameter.as_ref()?;
@@ -273,7 +229,7 @@ pub fn measure_body_shape(
     let mut chain = Vec::new();
     let mut cursor = *body;
     loop {
-        match program.expression_table.expression(cursor) {
+        match expression_table(program).expression(cursor) {
             ExpressionNode::Member(member) => {
                 if !member.member_symbol.is_valid() || member.case_variant.is_some() {
                     return None;
@@ -422,24 +378,24 @@ pub fn identity_subject_matches(
     subject: ExpressionHandle,
     carrier: BuiltinTypeAtom,
 ) -> bool {
-    let reference = if let ExpressionNode::Name(path) = program.expression_table.expression(subject)
-    {
-        program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| {
-                program.expression_table.name_path_is_single_member(path)
-                    && parameter.symbol == path.symbol
-            })
-            .map(|parameter| parameter.type_reference)
-    } else {
-        let Some(machine) = owning_machine(program, state) else {
-            return false;
+    let reference =
+        if let ExpressionNode::Name(path) = expression_table(program).expression(subject) {
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| {
+                    expression_table(program).name_path_is_single_member(path)
+                        && parameter.symbol == path.symbol
+                })
+                .map(|parameter| parameter.type_reference)
+        } else {
+            let Some(machine) = owning_machine(program, state) else {
+                return false;
+            };
+            // Computed subjects need their selected result type; `.len` spelling
+            // or a subtraction node cannot manufacture a u64 result carrier.
+            crate::expression_result_type_reference(program, machine, state, subject)
         };
-        // Computed subjects need their selected result type; `.len` spelling
-        // or a subtraction node cannot manufacture a u64 result carrier.
-        crate::expression_result_type_reference(program, machine, state, subject)
-    };
     let Some(reference) = reference else {
         return false;
     };
@@ -505,67 +461,17 @@ fn unsigned_carrier(
 
 /// `+`/`*` trees over the parameter and integer literals, mentioning the
 /// parameter at least once. Meaning and monotonicity are judged separately.
-fn computation_shape(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    binder: SymbolHandle,
-    depth: usize,
-) -> bool {
-    fn shape(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        binder: SymbolHandle,
-        depth: usize,
-        mentions: &mut bool,
-    ) -> bool {
-        let Some(node) = program
-            .expression_table
-            .expression_at_depth(expression, depth)
-        else {
-            return false;
-        };
-        match node {
-            ExpressionNode::Integer(_) => true,
-            ExpressionNode::Name(_) => {
-                let parameter = is_parameter(program, expression, binder);
-                *mentions |= parameter;
-                parameter
-            }
-            ExpressionNode::Atomic(atomic) => {
-                shape(program, atomic.value, binder, depth + 1, mentions)
-            }
-            ExpressionNode::Binary(binary)
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Add | BinaryOperator::Multiply
-                ) =>
-            {
-                shape(program, binary.left, binder, depth + 1, mentions)
-                    && shape(program, binary.right, binder, depth + 1, mentions)
-            }
-            _ => false,
-        }
-    }
-    let mut mentions = false;
-    matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Binary(_)
-    ) && shape(program, expression, binder, depth, &mut mentions)
-        && mentions
-}
-
 fn is_parameter(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     binder: SymbolHandle,
 ) -> bool {
-    let Some(path) = program.expression_table.name_path_node(expression) else {
+    let Some(path) = expression_table(program).name_path_node(expression) else {
         return false;
     };
     path.symbol == binder
         && path.head_symbol == binder
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1

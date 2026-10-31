@@ -5,6 +5,7 @@
 
 use super::place_paths_overlap;
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::places::place_at;
 use checked_trees::{
     CheckFacts, FlowOwnedSelectionReceipt, FlowOwnershipFacts, FlowPermissionEventFact,
 };
@@ -109,12 +110,8 @@ impl SelectionOccurrences {
             }
         }
         if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
-            && let Some(destination) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                assignment.target,
-            )
+            && let Some(destination) =
+                place_at(program, state.symbol, statement_index, assignment.target)
             && let Some(region) = self.consumed.iter().find(|region| {
                 region.place.root == destination.root
                     && place_paths_overlap(&destination.segments, &region.place.segments)

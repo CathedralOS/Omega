@@ -4,6 +4,7 @@
 
 use crate::interpreter::evaluator::{
     EvalResult, Evaluator, TypeReferenceHandle, TypeReferenceNode, Value, trap,
+    type_reference_table,
 };
 
 impl Evaluator<'_> {
@@ -12,10 +13,7 @@ impl Evaluator<'_> {
         value: &mut Value,
         reference: TypeReferenceHandle,
     ) -> EvalResult<()> {
-        let reference = self
-            .program
-            .type_reference_table
-            .unconstrained_type_reference(reference);
+        let reference = type_reference_table(self.program).unconstrained_type_reference(reference);
         match self.program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => {
                 // Detached arguments carry the referent snapshot. The entry

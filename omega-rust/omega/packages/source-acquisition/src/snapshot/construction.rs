@@ -4,6 +4,7 @@ use crate::SourceResolveError;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 #[cfg(not(unix))]
 use crate::error::git_tree_invalid;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
@@ -20,9 +21,7 @@ pub(crate) fn open_or_create_snapshot_directory(
     relative_path: &Path,
     display_root: &Path,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let mut directory = root
-        .try_clone()
-        .map_err(|error| io_error(display_root, error))?;
+    let mut directory = root.try_clone().at(display_root)?;
     let mut display_path = display_root.to_path_buf();
     for component in relative_path.components() {
         let Component::Normal(name) = component else {
@@ -85,10 +84,8 @@ pub(crate) fn write_snapshot_file_from_open_root(
             io_error(&display_path, error)
         }
     })?;
-    file.write_all(bytes)
-        .map_err(|error| io_error(&display_path, error))?;
-    file.sync_all()
-        .map_err(|error| io_error(&display_path, error))?;
+    file.write_all(bytes).at(&display_path)?;
+    file.sync_all().at(&display_path)?;
     set_open_snapshot_file_mode(&file, &display_path, executable)
 }
 
@@ -163,7 +160,7 @@ pub(super) fn set_open_snapshot_file_mode(
 
     let mode = if executable { 0o555 } else { 0o444 };
     file.set_permissions(cap_std::fs::Permissions::from_mode(mode))
-        .map_err(|error| io_error(path, error))
+        .at(path)
 }
 
 #[cfg(not(unix))]
@@ -172,11 +169,7 @@ pub(super) fn set_open_snapshot_file_mode(
     path: &Path,
     _executable: bool,
 ) -> Result<(), SourceResolveError> {
-    let mut permissions = file
-        .metadata()
-        .map_err(|error| io_error(path, error))?
-        .permissions();
+    let mut permissions = file.metadata().at(path)?.permissions();
     permissions.set_readonly(true);
-    file.set_permissions(permissions)
-        .map_err(|error| io_error(path, error))
+    file.set_permissions(permissions).at(path)
 }

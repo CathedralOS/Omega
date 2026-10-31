@@ -23,6 +23,8 @@
 //! while calls it cannot close keep their authored expression for ordinary
 //! post-typing admission.
 
+use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::type_references;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -62,8 +64,7 @@ fn evaluate_application_group(
     let selection_authority = context.selection_authority.clone();
     let mut endpoint_leaves = Vec::new();
     collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
-    let has_call_const_expression = syntax
-        .type_references
+    let has_call_const_expression = type_references(&syntax)
         .const_expression_nodes()
         .into_iter()
         .any(|(_, expression)| contains_call(&syntax, expression));
@@ -395,8 +396,7 @@ fn evaluate_application_group(
             &evaluation_domain,
         )?;
         for (expression, source_span) in endpoint_leaves {
-            let value = typed
-                .expression_table
+            let value = expression_table(&typed)
                 .iter_expressions()
                 .filter(|(handle, _)| typed.expression_table.source_span(*handle) == source_span)
                 .find_map(|(_, node)| match node {

@@ -6,6 +6,7 @@
 //! rejoins every retained selection to its original source scopes.
 
 use super::{Diagnostic, TypedTrees};
+use crate::tables::expressions_of_mut;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 
@@ -99,25 +100,21 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         let name = typed_trees::name::Identifier::generated(
             program.symbols.display_path(declaration, "::"),
         );
-        let supplying = program.expression_table.retain_static_machine_application(
+        let supplying = expressions_of_mut(program).retain_static_machine_application(
             declaration,
             name,
             std::slice::from_ref(&operand),
         );
-        let source = program
-            .expression_table
-            .static_machine_application_mut(supplying);
+        let source = expressions_of_mut(program).static_machine_application_mut(supplying);
         source.lexical_owner = owner;
         source.binding_declaration = declaration;
-        program
-            .expression_table
-            .set_static_machine_application_bindings(
-                supplying,
-                &[StaticMachineBinding {
-                    parameter,
-                    value: StaticMachineBindingValue::Conformance(operand),
-                }],
-            );
+        expressions_of_mut(program).set_static_machine_application_bindings(
+            supplying,
+            &[StaticMachineBinding {
+                parameter,
+                value: StaticMachineBindingValue::Conformance(operand),
+            }],
+        );
         program.trait_implementation_applications.insert(
             typed_trees::typed_trees::TraitImplementationApplication {
                 source_scope,

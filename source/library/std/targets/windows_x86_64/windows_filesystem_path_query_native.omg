@@ -52,6 +52,6 @@ requires code_page == 65001 && flags == 128 && characters > 0 && characters <= U
 NativeWindowsFilesystemPathImports satisfies WindowsFilesystemPathIo {
     machine final_path(handle: i64, output: &mut [u16; 4096], capacity: u32, flags: u32) -> u32
     requires handle != 0 && handle != -1 && capacity == 4096 && flags == 0
-    reaches FilesystemMetadataQuery blocks;
+    reaches FilesystemMetadataQuery blocks
     { block WindowsFilesystemPathImports::final_path(handle, output, capacity, flags) }
 }

@@ -31,6 +31,9 @@
 //! by one Equatable implementation; recursive types are rejected (inline
 //! expansion would not terminate).
 
+use crate::tables::resolved_statements;
+use crate::tables::type_constraints;
+use crate::tables::type_references;
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};
@@ -451,10 +454,7 @@ pub(crate) fn byte_sequence_text_carrier(
     let resolved::types::TypeReference::Constrained(constrained) = type_reference else {
         return false;
     };
-    if !program
-        .tables
-        .types
-        .constraints
+    if !type_constraints(program)
         .span_or_empty(constrained.storage.constraints)
         .iter()
         .any(|constraint| matches!(constraint, resolved::types::TypeConstraint::Domain(_)))
@@ -507,12 +507,7 @@ pub(crate) fn table_type_base_name(
     if !type_reference.is_valid() {
         return None;
     }
-    match program
-        .tables
-        .types
-        .references
-        .type_reference(type_reference)
-    {
+    match type_references(program).type_reference(type_reference) {
         resolved::types::TypeReferenceNode::Reference { referee, .. } => {
             table_type_base_name(program, *referee)
         }
@@ -582,12 +577,7 @@ impl EqualityScope {
         state: &resolved::state::State,
     ) -> Self {
         let mut scope = Self::for_state_interface(program, machine, state);
-        for statement in program
-            .tables
-            .bodies
-            .statements
-            .statements(state.statement_nodes)
-        {
+        for statement in resolved_statements(program).statements(state.statement_nodes) {
             if let resolved::statement::StatementNode::LocalData(local) = statement
                 && let Some(base) = table_type_base_name(program, local.type_reference)
             {

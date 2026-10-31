@@ -1,0 +1,35 @@
+// Expected exit: 0
+// Two simultaneously live 5 MiB frames exceed a default 8 MiB loader stack.
+// The nested call keeps the caller's backing borrowed and checks both homes.
+machine nested(caller: &[u8; 5242880]) -> u64 crashes Trap {
+    let mut resident: [u8; 5242880];
+    resident[0] = 7;
+    resident[2621440] = 11;
+    resident[5242879] = 13;
+    transition caller[0] == 17 && caller[2621440] == 37 && caller[5242879] == 233 {
+        true -> finish(&resident)
+        _ -> bad()
+    }
+    machine finish(resident: &[u8; 5242880]) -> u64 crashes Trap {
+        transition resident[0] == 7 && resident[2621440] == 11 && resident[5242879] == 13 {
+            true -> 31
+            _ -> invalid()
+        }
+        machine invalid() -> u64 crashes Trap { crash Trap; }
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let mut caller: [u8; 5242880];
+    caller[0] = 17;
+    caller[2621440] = 37;
+    caller[5242879] = 233;
+    let observed: u64 = nested(&caller);
+    transition observed == 31 && caller[0] == 17 && caller[2621440] == 37 && caller[5242879] == 233 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

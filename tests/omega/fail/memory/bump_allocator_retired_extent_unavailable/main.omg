@@ -17,7 +17,7 @@ data Held {
 
 machine invalid(whole: Extent in Granted & Vacant, capacity: u64) -> Held
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {

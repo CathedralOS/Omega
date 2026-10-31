@@ -17,6 +17,7 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource,
 };
 use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity};
+use crate::flow::indexed_statements;
 use checked_trees::CheckedNormalCleanupAction;
 
 /// Retain the original anonymous owner's completion request. Finalization
@@ -263,9 +264,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             crate::collections::push_unique(&mut retained_owners, root);
         }
     }
-    let (_, statement_node) = program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
+    let (_, statement_node) = indexed_statements(program, state.statement_nodes)
         .find(|(position, _)| *position == statement as usize)?;
     let completed = crate::checks::ownership_occurrences::completed_expressions(
         program,

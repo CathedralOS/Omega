@@ -42,6 +42,18 @@ macro_rules! refusal {
 }
 pub(crate) use refusal;
 
+/// One diagnostic sentence for an optional lookup: the projection says which
+/// lookup failed and stops restating the option-to-diagnostic constructor.
+pub(crate) trait EvidenceOption<T> {
+    fn or_evidence(self, message: impl Into<String>) -> Result<T, Vec<diagnostics::Diagnostic>>;
+}
+
+impl<T> EvidenceOption<T> for Option<T> {
+    fn or_evidence(self, message: impl Into<String>) -> Result<T, Vec<diagnostics::Diagnostic>> {
+        self.ok_or_else(|| vec![diagnostics::Diagnostic::error(message)])
+    }
+}
+
 pub(crate) use callables::project_checked_callable_policy;
 pub(crate) use input::PackageReviewInput;
 pub use package_policy::project_checked_package_policy;

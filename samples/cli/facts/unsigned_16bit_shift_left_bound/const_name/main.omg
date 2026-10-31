@@ -7,7 +7,7 @@ const SHIFT_AMOUNT: u16 = 2u16;
 const EXPECTED_VAL: u16 = 120u16;
 
 machine shift_const(val: u16) -> i32
-    requires val >= INPUT_VAL && val <= INPUT_VAL;
+    requires val >= INPUT_VAL && val <= INPUT_VAL
 {
     let shifted: u16 = val << SHIFT_AMOUNT;
     let check: u16 = shifted - EXPECTED_VAL;

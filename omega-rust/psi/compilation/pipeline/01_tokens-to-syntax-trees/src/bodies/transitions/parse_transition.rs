@@ -1,5 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{items, stmts, stmts_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -96,9 +97,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
             let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
             (
-                syntax_trees
-                    .statements
-                    .insert_transition_target(TransitionTargetNode::Terminal),
+                stmts(syntax_trees).insert_transition_target(TransitionTargetNode::Terminal),
                 input,
             )
         } else {
@@ -147,8 +146,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         let proof_selectors = bindings
             .first()
             .map(|bindings| {
-                syntax_trees
-                    .statements
+                stmts(syntax_trees)
                     .insert_outcome_proof_selectors(bindings.proof_selectors.iter().cloned())
             })
             .unwrap_or_else(HandleSpan::empty);
@@ -166,7 +164,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     }
 
     for (name, initial_value) in subject_captures {
-        let capture = syntax_trees.statements.insert(StatementNode::LocalData(
+        let capture = stmts(syntax_trees).insert(StatementNode::LocalData(
             syntax_trees::statement::TableLocalData {
                 role: language_core::LocalBindingRole::DispatchSubject,
                 name,
@@ -176,12 +174,12 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 relevance: language_core::BindingRelevance::Relevant,
             },
         ));
-        let handle = syntax_trees.items.append_statement_handle(capture);
+        let handle = items(syntax_trees).append_statement_handle(capture);
         statements.push(handle);
     }
 
     for (marker_name, subject_place) in pattern_markers {
-        let marker = syntax_trees.statements.insert(StatementNode::LocalData(
+        let marker = stmts(syntax_trees).insert(StatementNode::LocalData(
             syntax_trees::statement::TableLocalData {
                 role: language_core::LocalBindingRole::ArmPattern,
                 name: syntax_trees::identifier::Identifier::generated(marker_name),
@@ -191,24 +189,21 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 relevance: language_core::BindingRelevance::Relevant,
             },
         ));
-        let handle = syntax_trees.items.append_statement_handle(marker);
+        let handle = items(syntax_trees).append_statement_handle(marker);
         statements.push(handle);
     }
 
     for (guard, target, proof_selectors, source_span) in parsed_arms {
-        let statement =
-            syntax_trees
-                .statements
-                .insert(StatementNode::Transition(TableTransition {
-                    target,
-                    continuation: TransitionTargetHandle::invalid(),
-                    guard,
-                    proof_selectors,
-                    exit: Default::default(),
-                    ends_dispatch: false,
-                    source_span,
-                }));
-        let handle = syntax_trees.items.append_statement_handle(statement);
+        let statement = stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+            target,
+            continuation: TransitionTargetHandle::invalid(),
+            guard,
+            proof_selectors,
+            exit: Default::default(),
+            ends_dispatch: false,
+            source_span,
+        }));
+        let handle = items(syntax_trees).append_statement_handle(statement);
         arm_statements.push(statement);
         statements.push(handle);
     }
@@ -219,12 +214,10 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         .last()
         .expect("empty dispatch rejected above");
     if let StatementNode::Transition(mut transition) =
-        syntax_trees.statements.statement(last).clone()
+        stmts_of(syntax_trees).statement(last).clone()
     {
         transition.ends_dispatch = true;
-        syntax_trees
-            .statements
-            .replace_statement(last, StatementNode::Transition(transition));
+        stmts(syntax_trees).replace_statement(last, StatementNode::Transition(transition));
     }
 
     // A two-arm Boolean subject needs only the first test: the opposite arm
@@ -264,9 +257,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         if covered
             && let Some(last) = arm_statements.last()
             && let StatementNode::Transition(transition) =
-                syntax_trees.statements.statement(*last).clone()
+                stmts_of(syntax_trees).statement(*last).clone()
         {
-            syntax_trees.statements.replace_statement(
+            stmts(syntax_trees).replace_statement(
                 *last,
                 StatementNode::Transition(TableTransition {
                     guard: syntax_trees::statement::TransitionGuardNode::Always,

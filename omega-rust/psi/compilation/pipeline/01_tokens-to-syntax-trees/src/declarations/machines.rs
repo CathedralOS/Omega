@@ -5,6 +5,7 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::tables::{exprs, exprs_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -37,9 +38,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         (None, input)
     };
     let (path, input) = parse_path_handle_span(input, |member| {
-        syntax_trees
-            .expressions
-            .append_identifier_path_member(member)
+        exprs(syntax_trees).append_identifier_path_member(member)
     })?;
     let (generic_parameters, input) = parse_generic_parameters(
         syntax_trees,
@@ -176,7 +175,7 @@ struct MachinePath {
 }
 
 fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) -> MachinePath {
-    let members = syntax_trees.expressions.identifier_path_members(path);
+    let members = exprs_of(syntax_trees).identifier_path_members(path);
 
     if members.len() <= 1 {
         return MachinePath {

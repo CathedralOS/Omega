@@ -1,14 +1,15 @@
-// The RUNTIME-index guarded element increment: `tallies[main.k]` is hoisted to
-// the local `t`, the guard `t < 16` admits it to `bump`'s bounded contract,
-// and `tallies[ki] = v + 1` is exact under `v < 16`. The revoked element
-// suffix `[i32 [0..=16]; 4]` and index suffix `k: u64 [0..=3]` moved to plain
-// carriers plus `bump`'s requires: `v < 16` is the increment bound, `ki < 4`
-// is the index bound (`main.k`'s literal 2 discharges it at the edge).
-// Requires admission matches the guard on the hoisted LOCAL rather than the
-// indexed path, so the operand-hoist rename no longer participates.
-// ZII tallies[2]=0 -> +1 -> exit 1.
+// Expected exit: 1
+// ZII tallies[2] is incremented to1 under the saved element guard. The owner
+// retains all four signed0..16 element predicates and its standing k<=3 bound;
+// bump's admission carries both bounds on the detached scalar across the call.
 use omega_language_std::console;
-data Main {
+data Main
+requires self.tallies[0] >= 0 && self.tallies[0] <= 16,
+    self.tallies[1] >= 0 && self.tallies[1] <= 16,
+    self.tallies[2] >= 0 && self.tallies[2] <= 16,
+    self.tallies[3] >= 0 && self.tallies[3] <= 16,
+    self.k <= 3
+{
     tallies: [i32; 4];
     k: u64;
 }
@@ -19,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> bump(main, t)
         false -> full(main)
     }
-    machine bump(main: &mut Main, v: i32) requires v < 16, main.k < 4 {
+    machine bump(main: &mut Main, v: i32) requires v >= 0 && v < 16 {
         main.tallies[main.k] = v + 1;
         transition main.tallies[2] == 1 {
             true -> matched(main)

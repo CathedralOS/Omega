@@ -13,7 +13,7 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> report(main, value)
         ByteRead::Eof -> fallback(main)
     }
-    machine report(main: &mut Main, value: i32) requires 0 <= value && value <= 255; {
+    machine report(main: &mut Main, value: i32) requires 0 <= value && value <= 255 {
         Main::number(main, value as u64);
         Console::exit_process(0);
     }

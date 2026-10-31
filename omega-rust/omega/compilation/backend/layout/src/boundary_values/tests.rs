@@ -21,27 +21,35 @@ fn symbol(typed: &TypedTrees, name: &str) -> symbols::SymbolHandle {
         .symbol
 }
 
+fn data_recipes(
+    typed: &TypedTrees,
+    names: &[&str],
+) -> (
+    language_semantics::boundary_values::BoundaryValueRecipes,
+    Vec<arena::Handle<language_semantics::boundary_values::BoundaryValueRecipe>>,
+) {
+    let mut preparation =
+        typed_trees::boundary_values::BoundaryValuePreparation::new(typed, &[], &[]);
+    let roots = names
+        .iter()
+        .map(|name| preparation.data(symbol(typed, name), name))
+        .collect();
+    (preparation.finish(), roots)
+}
+
 #[test]
 fn records_preserve_padding_float_classification_and_distinct_occurrences() {
     let typed =
         typed("data Padded { tag: u8; value: u64; } data Floats { left: f32; right: f32; }");
-    let mut values = BoundaryValueLayout::new(
-        &typed,
-        target::TargetProfile::MacosArm64.native_target(),
-        &[],
-        &[],
-    );
-    let (padded, padded_root) = values
-        .data(symbol(&typed, "Padded"), "Padded")
-        .expect("padded");
+    let (recipes, roots) = data_recipes(&typed, &["Padded", "Floats", "Padded"]);
+    drop(typed);
+    let mut values =
+        BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target(), &[]);
+    let (padded, padded_root) = values.value_type(&recipes, roots[0]).expect("padded");
     assert_eq!(padded, ValueShape::integer(16, 8));
-    let (floats, floats_root) = values
-        .data(symbol(&typed, "Floats"), "Floats")
-        .expect("floats");
+    let (floats, floats_root) = values.value_type(&recipes, roots[1]).expect("floats");
     assert_eq!(floats, ValueShape::homogeneous_float_aggregate(4, 2));
-    let (_, repeated_root) = values
-        .data(symbol(&typed, "Padded"), "Padded")
-        .expect("repeated");
+    let (_, repeated_root) = values.value_type(&recipes, roots[2]).expect("repeated");
     assert_ne!(padded_root, repeated_root);
     let graph = values.graph();
     for (root, offsets) in [
@@ -66,15 +74,10 @@ fn records_preserve_padding_float_classification_and_distinct_occurrences() {
 fn arrays_and_unsized_references_retain_their_structural_classes() {
     let typed =
         typed("data Values { words: [u16; 3]; slice: &[u8]; text: &string; scalar: &u64; }");
-    let mut values = BoundaryValueLayout::new(
-        &typed,
-        target::TargetProfile::UefiX64.native_target(),
-        &[],
-        &[],
-    );
-    let (shape, root) = values
-        .data(symbol(&typed, "Values"), "Values")
-        .expect("values");
+    let (recipes, roots) = data_recipes(&typed, &["Values"]);
+    drop(typed);
+    let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target(), &[]);
+    let (shape, root) = values.value_type(&recipes, roots[0]).expect("values");
     assert_eq!(shape, ValueShape::integer(48, 8));
     let graph = values.graph();
     let BoundaryValueClass::Record { first_field, .. } = graph.shapes[usize::from(root)].class
@@ -112,28 +115,22 @@ fn unsupported_by_value_carriers_fail_at_layout_construction() {
         ("data Empty {}", "Empty", "zero-sized"),
     ] {
         let typed = typed(source);
-        let mut values = BoundaryValueLayout::new(
-            &typed,
-            target::TargetProfile::UefiX64.native_target(),
-            &[],
-            &[],
-        );
+        let (recipes, roots) = data_recipes(&typed, &[name]);
+        drop(typed);
+        let mut values =
+            BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target(), &[]);
         let error = values
-            .data(symbol(&typed, name), name)
+            .value_type(&recipes, roots[0])
             .expect_err("unsupported carrier");
         assert!(error.contains(reason), "{error}");
     }
     let typed = typed("boundary data Opaque;");
-    let opaque = symbol(&typed, "Opaque");
-    let mut values = BoundaryValueLayout::new(
-        &typed,
-        target::TargetProfile::UefiX64.native_target(),
-        &[],
-        &[],
-    );
+    let (recipes, roots) = data_recipes(&typed, &["Opaque"]);
+    drop(typed);
+    let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target(), &[]);
     assert!(
         values
-            .data(opaque, "Opaque")
+            .value_type(&recipes, roots[0])
             .expect_err("unselected opaque")
             .contains("selects no exact")
     );
@@ -165,8 +162,19 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
         panic!("field");
     };
     let field_symbol = field.symbol;
+    // Fixed storage now joins by the complete application, not just a data
+    // symbol. Keep the synthetic fixture's declaration and plan paired.
+    let application =
+        typed
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+            });
+    let declarations = typed.roots.data_definitions;
+    typed.data_definitions.span_mut_or_empty(declarations)[0].generic_instance = Some(application);
     typed.plan_laid_layouts.push(PlanLaidLayout {
-        application: Default::default(),
+        application,
         semantic_type: Default::default(),
         policy_application: Default::default(),
         target_inputs: Vec::new(),
@@ -209,9 +217,10 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
         }),
     });
     let target = target::TargetProfile::UefiX64.native_target();
-    let mut values = BoundaryValueLayout::new(&typed, target, &[], &[]);
+    let (recipes, roots) = data_recipes(&typed, &["Packed"]);
+    let mut values = BoundaryValueLayout::new(target, &[]);
     let (shape, _) = values
-        .data(definition.symbol, "Packed")
+        .value_type(&recipes, roots[0])
         .expect("selected layout");
     assert_eq!(shape, ValueShape::integer(8, 4));
     assert_eq!(values.graph().fields[0].byte_offset, 4);
@@ -224,8 +233,9 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
         panic!("invariant fixture");
     };
     geometry.integer_fields[0].stored_width_bits = 7;
-    let error = BoundaryValueLayout::new(&typed, target, &[], &[])
-        .data(definition.symbol, "Packed")
+    let (recipes, roots) = data_recipes(&typed, &["Packed"]);
+    let error = BoundaryValueLayout::new(target, &[])
+        .value_type(&recipes, roots[0])
         .expect_err("invalid width");
     assert!(error.contains("invalid stored-integer width 7"));
     let typed_trees::PlanLaidRealizations::Invariant(geometry) =
@@ -235,8 +245,9 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
     };
     geometry.integer_fields[0].stored_width_bits = 16;
     typed.plan_laid_layouts[0].field_symbols[0] = symbols::SymbolHandle::invalid();
-    let error = BoundaryValueLayout::new(&typed, target, &[], &[])
-        .data(definition.symbol, "Packed")
+    let (recipes, roots) = data_recipes(&typed, &["Packed"]);
+    let error = BoundaryValueLayout::new(target, &[])
+        .value_type(&recipes, roots[0])
         .expect_err("wrong member identity");
     assert!(error.contains("layout publishes"));
 }

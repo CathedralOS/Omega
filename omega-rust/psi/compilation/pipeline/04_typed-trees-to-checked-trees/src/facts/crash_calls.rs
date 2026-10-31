@@ -30,6 +30,7 @@ use crate::facts::crash_calls::summary_predicates::{
     SummaryCrashBucket, normalize_summary_buckets,
 };
 use crate::facts::crash_plan_facts::declared_parameter_names;
+use crate::flow::expressions;
 use checked_trees::CrashPredicateExpression;
 pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
@@ -194,8 +195,7 @@ fn predicate_expression(
         ExpressionNode::Call(call) => CrashPredicateExpression::Call {
             target: call.target.as_str().to_owned(),
             receiver: Box::new(lower(call.receiver)),
-            arguments: program
-                .expression_table
+            arguments: expressions(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .map(|argument| lower(*argument))

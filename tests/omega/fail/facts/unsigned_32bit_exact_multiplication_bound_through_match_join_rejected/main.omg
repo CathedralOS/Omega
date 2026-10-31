@@ -4,8 +4,8 @@
 // Expected rejection: may overflow `u32`
 
 machine multiply_match_join(lhs: u32, rhs: u32, choose: bool) -> i32
-    requires lhs >= 20u32 && lhs <= 30u32;
-    requires rhs >= 15u32 && rhs <= 26u32;
+    requires lhs >= 20u32 && lhs <= 30u32
+    requires rhs >= 15u32 && rhs <= 26u32
 {
     let prod: u32 = match choose {
         true -> lhs * rhs,

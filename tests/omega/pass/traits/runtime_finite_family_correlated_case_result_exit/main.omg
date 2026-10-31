@@ -23,7 +23,7 @@ machine Item::other<Width: u32, Depth: u32>(item: &Item) -> Choice satisfies Sha
 Primary satisfies Shape<Item> { Shape::code = Item::code; }
 Other satisfies Shape<Item> { Shape::code = Item::other; }
 machine scan(selected: dyn Shape<Item>, item: &Item, width: u32, depth: u32) -> Choice
-requires (width == 16 && depth == 4) || (width == 32 && depth == 8);
+requires (width == 16 && depth == 4) || (width == 32 && depth == 8)
 { Shape::code<width, depth>(selected, item) }
 machine valid(choice: Choice, width: u32, depth: u32, provider: u32) -> bool {
     transition choice {

@@ -66,9 +66,7 @@ impl PackageLock {
         let mut budget = Budget::new(limits);
         budget.entries::<PackageLockTarget>(count)?;
         let mut targets = Vec::<PackageLockTarget>::new();
-        targets
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(targets, count, Error);
         for _ in 0..count {
             let profile = reader.field("target")?;
             let profile = TargetProfile::ALL
@@ -98,9 +96,7 @@ impl PackageLock {
             let count = reader.count("occurrences", maximum)?;
             budget.entries::<PackagePolicyOccurrence>(count)?;
             let mut occurrences = Vec::new();
-            occurrences
-                .try_reserve_exact(count)
-                .map_err(|_| Error::AllocationFailed)?;
+            crate::reserve!(occurrences, count, Error);
             for _ in 0..count {
                 let row = reader.field("occurrence")?;
                 let mut fields = row.split(' ');

@@ -10,18 +10,18 @@ Provider satisfies Grants {
 }
 machine consume(value: &Token, calls: &mut u64) -> u64
 requires value in Token::Fair
-terminates;
+terminates
 {
     calls = (calls as u64 in Wrapping + 1) as u64;
     value.identity
 }
 machine invoke(selected: &Token, calls: &mut u64) -> u64
 requires selected in Token::Fair
-terminates;
+terminates
 { consume(selected, calls) }
 machine select(left: Token, right: Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, index < 2
-terminates;
+terminates
 {
     let local_left: Token = left;
     let local_right: Token = right;

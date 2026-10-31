@@ -4,6 +4,7 @@
 //! Catalog membership names a theory; it never substitutes for a cast's checked
 //! introduction evidence. Preparation freezes identities before any machine emits.
 
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -862,9 +863,7 @@ pub(crate) fn type_atoms(
                         | TypeConstraintNode::Range { .. } => {}
                         TypeConstraintNode::Domain(domain)
                             if !domain.establishment_routes.is_empty()
-                                && checked
-                                    .facts
-                                    .values
+                                && value_facts(checked)
                                     .scalar_type_refinement_predicates(current)
                                     .is_some() =>
                         {
@@ -896,9 +895,7 @@ pub(crate) fn type_atoms(
                         // predicate-free membership atom in this catalog.
                         TypeConstraintNode::Domain(domain)
                             if domain.predicate_presence.is_present()
-                                && checked
-                                    .facts
-                                    .values
+                                && value_facts(checked)
                                     .scalar_type_refinement_predicates(current)
                                     .is_some() => {}
                         TypeConstraintNode::Domain(domain)
@@ -984,9 +981,7 @@ pub(crate) fn retained_scalar_restriction(
 ) -> Option<&checked_trees::CheckedUnitStructuralFieldType> {
     let primitive = checked.primitive_type_reference(reference)?;
     let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-    checked
-        .facts
-        .flow
+    flow_facts(checked)
         .terminal_unit_effects
         .structural_types
         .iter()

@@ -10,6 +10,7 @@ use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, SymbolHandle,
 };
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::{StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
 use typed_trees::data::{TypeParameter, TypeParameterKind};
@@ -95,7 +96,7 @@ fn const_bound_expression(
         if !expression.is_valid() {
             return false;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Integer(_) => true,
             ExpressionNode::Name(_) => binder(program, parameters, expression).is_some(),
             ExpressionNode::Borrow(inner) => leaves_are_static(program, parameters, inner.target),
@@ -117,7 +118,7 @@ fn const_bound_expression(
         if !expression.is_valid() {
             return false;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Name(_) => binder(program, parameters, expression).is_some(),
             ExpressionNode::Borrow(inner) => contains_binder(program, parameters, inner.target),
             ExpressionNode::Binary(binary) => {
@@ -350,7 +351,7 @@ fn collect_const_comparisons(
     expression: ExpressionHandle,
     comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
 ) {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return;
     };
     if binary.operator == BinaryOperator::And {
@@ -394,7 +395,7 @@ fn const_parameter_operand(
     if !expression.is_valid() {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(_) => true,
         ExpressionNode::Name(_) => binder(program, parameters, expression).is_some(),
         ExpressionNode::Borrow(inner) => const_parameter_operand(program, parameters, inner.target),
@@ -455,7 +456,7 @@ fn scoped_value_bound(
     else {
         return false;
     };
-    let Some(path) = program.expression_table.name_path_node(scoped.name) else {
+    let Some(path) = expression_table(program).name_path_node(scoped.name) else {
         return false;
     };
     program
@@ -510,7 +511,7 @@ fn value_bounds(
     {
         return Some([value.clone(), value]);
     }
-    if let Some(call) = program.expression_table.call_node(value) {
+    if let Some(call) = expression_table(program).call_node(value) {
         let (callee, entry) = crate::declarations::transitions::resolved_transition_target_state(
             program,
             call.target_symbol,
@@ -523,7 +524,7 @@ fn value_bounds(
             callee,
             entry,
             &call.machine_arguments,
-            program.expression_table.expression_handles(call.arguments),
+            expression_table(program).expression_handles(call.arguments),
         )?;
         // A runtime-bound `Value` subject arrives as an ordinary trailing
         // state parameter on the callee; its declared result range names that
@@ -532,8 +533,7 @@ fn value_bounds(
         // caller's variable is reassigned. Arguments without a term leave the
         // parameter unbound, so bounds that name it stay unprovable rather
         // than guessing at a value.
-        for (argument, parameter) in program
-            .expression_table
+        for (argument, parameter) in expression_table(program)
             .expression_handles(call.arguments)
             .iter()
             .zip(program.state_parameters(entry).iter())
@@ -605,7 +605,7 @@ pub(crate) fn selected_const_call_result_bounds(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<(TypeReferenceHandle, i64, i64)> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     if call.receiver.is_valid() || !call.selects_only_nominal_route() {
         return None;
     }
@@ -636,8 +636,8 @@ fn selected_term(
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, Polynomial)],
 ) -> Option<Polynomial> {
-    if let Some(path) = program.expression_table.name_path_node(expression)
-        && program.expression_table.name_path_is_single_member(path)
+    if let Some(path) = expression_table(program).name_path_node(expression)
+        && expression_table(program).name_path_is_single_member(path)
         && let Some((_, value)) = bindings.iter().find(|(symbol, _)| *symbol == path.symbol)
     {
         return Some(value.clone());

@@ -6,14 +6,14 @@ requires (self in Decision::Done)
 { case Ready(index: u64); case Done; }
 public boundary trait Reading { machine read() -> u64 reaches blocks; }
 public Reader satisfies Reading {
-    machine read() -> u64 blocks; {
+    machine read() -> u64 blocks {
         let gate: Gate;
         let mut peer: Peer;
         let result: u64 = block poll(&gate, &mut peer, 1u64);
         peer.visited
     }
 }
-public machine pause(gate: &Gate) -> u64 blocks; { gate.slot }
+public machine pause(gate: &Gate) -> u64 blocks { gate.slot }
 machine observe(index: u64) -> Decision
 requires index >= 1 && index <= 16
 {

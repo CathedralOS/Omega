@@ -9,7 +9,7 @@ use super::publication::direct_cache_child_name;
 use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
 use crate::SourceResolveError;
 use crate::limits::PROCESS_POLL_INTERVAL;
-use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{IoResultAt, io_error, open_absolute_directory_nofollow};
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use platform_custody::lock_file::open_or_create_lock_file;
 use std::ffi::{OsStr, OsString};
@@ -42,9 +42,7 @@ impl CacheEntryLock {
         lock_name: &OsStr,
     ) -> Result<(File, CapabilityDirectory, OsString), SourceResolveError> {
         let path = parent_path.join(lock_name);
-        let parent = retained_parent
-            .try_clone()
-            .map_err(|error| io_error(parent_path, error))?;
+        let parent = retained_parent.try_clone().at(parent_path)?;
         verify_retained_cache_parent_path(kind, parent_path, &parent)?;
         let file = open_verified_cache_lock(kind, &path, &parent, lock_name)?;
         Ok((file, parent, lock_name.to_os_string()))
@@ -75,7 +73,7 @@ impl CacheEntryLock {
     #[cfg(test)]
     pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
         let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
-        file.lock().map_err(|error| io_error(path, error))?;
+        file.lock().at(path)?;
         verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
         Ok(Self {
             file,
@@ -292,12 +290,8 @@ fn open_verified_cache_lock(
             format!("could not open cache lock without following links: {error}"),
         )
     })?;
-    let handle_metadata = capability_file
-        .metadata()
-        .map_err(|error| io_error(path, error))?;
-    let path_metadata = parent
-        .symlink_metadata(lock_name)
-        .map_err(|error| io_error(path, error))?;
+    let handle_metadata = capability_file.metadata().at(path)?;
+    let path_metadata = parent.symlink_metadata(lock_name).at(path)?;
     if !handle_metadata.is_file()
         || path_metadata.file_type().is_symlink()
         || !path_metadata.is_file()
@@ -329,9 +323,7 @@ pub(crate) fn verify_cache_lock_path_identity(
     lock_name: &OsStr,
     file: &File,
 ) -> Result<(), SourceResolveError> {
-    let path_metadata = parent
-        .symlink_metadata(lock_name)
-        .map_err(|error| io_error(path, error))?;
+    let path_metadata = parent.symlink_metadata(lock_name).at(path)?;
     if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
         return Err(cache_custody_invalid(
             kind,
@@ -339,7 +331,7 @@ pub(crate) fn verify_cache_lock_path_identity(
             "cache lock was replaced while being acquired",
         ));
     }
-    let handle_metadata = file.metadata().map_err(|error| io_error(path, error))?;
+    let handle_metadata = file.metadata().at(path)?;
     if !handle_metadata.is_file()
         || !same_std_and_capability_file_identity(&handle_metadata, &path_metadata)
     {
@@ -424,13 +416,10 @@ pub(crate) fn verify_cache_lock_path_identity_for_test(
     file: &File,
 ) -> Result<(), SourceResolveError> {
     let parent_path = path.parent().expect("test cache lock has a parent");
-    let canonical_parent = parent_path
-        .canonicalize()
-        .map_err(|error| io_error(parent_path, error))?;
+    let canonical_parent = parent_path.canonicalize().at(parent_path)?;
     let lock_name = path.file_name().expect("test cache lock has a name");
     let canonical_path = canonical_parent.join(lock_name);
-    let parent = open_absolute_directory_nofollow(&canonical_parent)
-        .map_err(|error| io_error(&canonical_parent, error))?;
+    let parent = open_absolute_directory_nofollow(&canonical_parent).at(&canonical_parent)?;
     verify_cache_lock_path_identity(kind, &canonical_path, &parent, lock_name, file)
 }
 

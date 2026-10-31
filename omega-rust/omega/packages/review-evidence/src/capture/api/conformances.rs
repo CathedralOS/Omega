@@ -4,6 +4,7 @@ use super::super::semantics::declarations::{
 };
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{PackageReviewConformanceShape, PackageReviewEvidenceInterface};
@@ -69,12 +70,10 @@ pub(crate) fn project_public_conformances<'a>(
                     .ok()
                     .and_then(|ordinal| conformance.lifetime_parameters.get(ordinal))
                     .cloned()
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
+                    .or_evidence(format!(
                             "public conformance `{}` retains a target-trait lifetime outside its checked telescope",
                             identity.path
-                        ))]
-                    })
+                        ))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let trait_arguments = compilation
@@ -124,20 +123,16 @@ pub(crate) fn project_public_conformances<'a>(
             let declaring_trait = nominal_identity(compilation, row.declaring_trait)?;
             let definition = compilation
                 .trait_definition_by_symbol(row.declaring_trait)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "public conformance `{}` has a row with an unresolved declaring trait",
-                        identity.path
-                    ))]
-                })?;
+                .or_evidence(format!(
+                    "public conformance `{}` has a row with an unresolved declaring trait",
+                    identity.path
+                ))?;
             let requirement = compilation
                 .trait_machine_signature_by_symbol(definition, row.requirement)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
+                .or_evidence(format!(
                         "public conformance `{}` has a row outside its declaring trait's requirement sequence",
                         identity.path
-                    ))]
-                })?;
+                    ))?;
             let requirement = trait_requirement_identity(compilation, definition, requirement)?;
             let matching = interface
                 .requirements

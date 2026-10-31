@@ -8,6 +8,7 @@
 //! Only successful judgments return to the exact declaration; private unqualified
 //! copies never leave preparation or supply qualification evidence themselves.
 
+use crate::build_time_evaluation::type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstQualification, Item};
@@ -240,9 +241,8 @@ pub(crate) fn defer_unproved(syntax: &mut SyntaxTrees) {
             continue;
         }
         definition.qualification = None;
-        while let TypeReferenceNode::Constrained { base_type, .. } = syntax
-            .type_references
-            .type_reference(definition.type_reference)
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            type_references(syntax).type_reference(definition.type_reference)
         {
             definition.type_reference = *base_type;
         }

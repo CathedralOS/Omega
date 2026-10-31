@@ -15,8 +15,8 @@
 // standard-library dependency.
 machine triangle(n: u64, acc: u64) -> u64
 requires n <= 100, acc <= 5050,
-    2 * acc + n * (n + 1) <= 10100;
-terminates by n;
+    2 * acc + n * (n + 1) <= 10100
+terminates by n
 {
     transition n == 0 {
         true -> acc

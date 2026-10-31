@@ -15,6 +15,7 @@
 //! records it in the call plan; lowering reads that record and never decides
 //! it again. These source facts are not portable PCC openings.
 
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralPathQualification, CheckedStructuralResultClaimPlan,
@@ -32,6 +33,8 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 mod declaration_predicates;
+#[cfg(test)]
+mod state_selection_tests;
 
 pub use declaration_predicates::{
     DeclarationPredicateRow, declaration_facts_carried, machine_declaration_predicates,
@@ -186,7 +189,7 @@ pub fn structural_state_contract_predicates(
         for (fact_handle, fact) in contract.facts.handles().zip(facts) {
             match fact {
                 typed_trees::domain::ProofFact::Membership(membership) => {
-                    let path = program.expression_table.name_path_node(membership.value)?;
+                    let path = expression_table(program).name_path_node(membership.value)?;
                     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(
                         program,
                         membership.value,
@@ -1245,9 +1248,8 @@ fn structural_authored_arguments<'program>(
     parameter_count: usize,
 ) -> Result<&'program [typed_trees::expression::ExpressionHandle], &'static str> {
     let authored_arguments = if call.authored_expression.is_valid() {
-        let ExpressionNode::Call(authored) = program
-            .expression_table
-            .expression(call.authored_expression)
+        let ExpressionNode::Call(authored) =
+            expression_table(program).expression(call.authored_expression)
         else {
             return Err("structural call occurrence has no authored expression");
         };
@@ -1256,9 +1258,7 @@ fn structural_authored_arguments<'program>(
         {
             return Err("structural call expression target changed");
         }
-        program
-            .expression_table
-            .expression_handles(authored.arguments)
+        expression_table(program).expression_handles(authored.arguments)
     } else {
         match program
             .statement_table
@@ -1312,6 +1312,26 @@ fn structural_authored_arguments<'program>(
         return Err("structural call has no exact explicit argument roster");
     }
     Ok(authored_arguments)
+}
+
+fn semantic_caller_state(
+    control: &checked_trees::FlowControlFacts,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+) -> Result<&checked_trees::FlowStateFact, &'static str> {
+    let mut states = control
+        .machine_states(caller_machine)
+        .into_iter()
+        .filter(|state| {
+            state.machine_symbol == caller_machine && state.state_symbol == caller_state
+        });
+    let state = states
+        .next()
+        .ok_or("structural call has no semantic state")?;
+    if states.next().is_some() {
+        return Err("structural call has ambiguous semantic states");
+    }
+    Ok(state)
 }
 
 pub fn structural_call_custody(
@@ -1431,21 +1451,7 @@ pub fn structural_call_custody(
     } else {
         structural_result_qualifications(program, return_type)?
     };
-    let mut states = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .filter(|state| {
-            state.machine_symbol == caller_machine && state.state_symbol == caller_state
-        });
-    let state = states
-        .next()
-        .ok_or("structural call has no semantic state")?;
-    if states.next().is_some() {
-        return Err("structural call has ambiguous semantic states");
-    }
+    let state = semantic_caller_state(&facts.flow.control, caller_machine, caller_state)?;
     let retained_calls = facts.flow.control.calls.span_or_empty(state.calls);
     if retained_calls.len() != state.calls.len() {
         return Err("structural call semantic occurrence span is stale");

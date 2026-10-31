@@ -21,6 +21,7 @@
 //! outside its window. A dynamic index or any projection the scan cannot
 //! separate stays opaque and reaches everything at or below it.
 
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{
@@ -84,8 +85,7 @@ pub(crate) fn fixed_index_segment(
     index: ExpressionHandle,
 ) -> PlaceSegment {
     let constant = |expression: ExpressionHandle| {
-        program
-            .expression_table
+        expressions(program)
             .constant_integer_value(expression)
             .and_then(|value| usize::try_from(value).ok())
     };
@@ -477,8 +477,7 @@ fn expression_may_overwrite(
                     pending.push(call.receiver);
                 }
                 pending.extend(
-                    program
-                        .expression_table
+                    expressions(program)
                         .expression_handles(call.arguments)
                         .iter()
                         .copied(),

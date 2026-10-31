@@ -108,12 +108,11 @@ pub fn canonical_place_segments_equal(
             facts::PlaceSegment::Index {
                 expression: right_expression,
             },
-        ) => program
-            .expression_table
-            .expressions_structurally_equal(left_expression, right_expression),
+        ) => expression_table(program).expressions_structurally_equal(left_expression, right_expression),
         _ => false,
     })
 }
+use crate::frozen_program::expression_table;
 use checked_trees::expression::ExpressionHandle;
 
 /// Whether two canonical places name the same storage at one program point:
@@ -241,11 +240,10 @@ fn expression_static_index(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return None;
     }
-    program
-        .expression_table
+    expression_table(program)
         .constant_integer_value(expression)
         .and_then(|value| usize::try_from(value).ok())
 }
@@ -271,8 +269,8 @@ fn index_expressions_may_overlap(
 ) -> bool {
     // Cross-call frames may erase a selector handle while retaining its
     // collection dimension. The arena's dummy expression is not index zero.
-    if !program.expression_table.expression_is_valid(left)
-        || !program.expression_table.expression_is_valid(right)
+    if !expression_table(program).expression_is_valid(left)
+        || !expression_table(program).expression_is_valid(right)
     {
         return true;
     }
@@ -281,8 +279,8 @@ fn index_expressions_may_overlap(
     }
 
     match (
-        program.expression_table.expression(left),
-        program.expression_table.expression(right),
+        expression_table(program).expression(left),
+        expression_table(program).expression(right),
     ) {
         (
             checked_trees::expression::ExpressionNode::Integer(left_value),

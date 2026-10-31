@@ -4,6 +4,7 @@
 //! closure also consumes nested application arguments and type-held selections,
 //! through the representation's reference walk rather than a source-shape walk.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::references::TypedReferences;
@@ -89,9 +90,7 @@ pub(crate) fn specialization_selection_dependency_symbols(
         if !application.is_valid() {
             return None;
         }
-        for argument in program
-            .expression_table
-            .static_machine_application_arguments(application)
+        for argument in expression_table(program).static_machine_application_arguments(application)
         {
             typed_trees::references::visit_static_argument(program, &mut dependencies, argument);
         }
@@ -124,10 +123,6 @@ impl Extend<SymbolHandle> for MachineSelectionDependencies<'_> {
 
 impl TypedReferences for MachineSelectionDependencies<'_> {
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        if self.types.contains(&reference) {
-            return false;
-        }
-        self.types.push(reference);
-        true
+        crate::machine_calls::record_reference(&mut self.types, reference)
     }
 }

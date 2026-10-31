@@ -3,14 +3,14 @@
 // Expected exit: 0
 
 machine remainder_other_state(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 64u64;
+    requires divisor >= 64u64 && divisor <= 64u64
 {
     let rem: u64 = dividend % divisor;
     transition {
         _ -> check_state(rem)
     }
     machine check_state(r: u64) -> i32
-        requires r <= 63u64;
+        requires r <= 63u64
     {
         let headroom: u64 = 63u64 - r;
         transition r == 13u64 && headroom == 50u64 {

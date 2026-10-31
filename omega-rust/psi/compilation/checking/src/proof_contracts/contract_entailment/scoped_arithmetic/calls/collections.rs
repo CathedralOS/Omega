@@ -13,6 +13,7 @@ use super::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
 };
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::collection_operations::{
     MeasureReceiver, collection_measure_member,
 };
@@ -25,10 +26,7 @@ impl<'program> ScopedCalls<'program> {
     ) -> Option<ScopedArithmeticValue> {
         self.step()?;
         if self.depth >= 64
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(source.expression)
+            || !expression_table(self.program).expression_is_valid(source.expression)
         {
             return None;
         }
@@ -36,7 +34,7 @@ impl<'program> ScopedCalls<'program> {
             return Some(value.clone());
         }
         let ExpressionNode::Call(call) =
-            self.program.expression_table.expression(source.expression)
+            expression_table(self.program).expression(source.expression)
         else {
             return None;
         };
@@ -65,10 +63,7 @@ impl<'program> ScopedCalls<'program> {
         // guarantee as evidence.
         self.lengths.push((source.clone(), result.clone()));
         let parameters = owner_parameters(self.program, &owner);
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.program).expression_handles(call.arguments);
         if parameters.len() != arguments.len()
             || !crate::machine_calls::contract_dependencies::independent_call_application(
                 self.program,
@@ -123,7 +118,7 @@ impl<'program> ScopedCalls<'program> {
             _ => owner_symbol(&owner),
         };
         for expression in occurrences {
-            let Some(member) = self.program.expression_table.member_node(expression) else {
+            let Some(member) = expression_table(self.program).member_node(expression) else {
                 continue;
             };
             let observation = if let Some((symbol, reference)) =
@@ -134,8 +129,7 @@ impl<'program> ScopedCalls<'program> {
                 }
                 result.map(|value| (reference, value.clone()))
             } else {
-                self.program
-                    .expression_table
+                expression_table(self.program)
                     .name_path_node(member.receiver)
                     .and_then(|name| {
                         let parameter = parameters.iter().find(|parameter| {

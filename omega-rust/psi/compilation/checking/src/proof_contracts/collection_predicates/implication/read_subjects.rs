@@ -10,6 +10,7 @@
 //! separately owes the converse over all original carriers, including guards.
 
 use super::{Frame, Implication, Integer, Path, Value};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::collection_predicates::{
     PredicateApplication, PredicateIntegerOperand, PredicateIntegerReadSubject,
 };
@@ -44,12 +45,10 @@ impl Implication<'_> {
         let mut reads = Vec::new();
         for expression in expressions {
             self.spend()?;
-            let Some(indexed) = self.program.expression_table.indexed_node(expression) else {
+            let Some(indexed) = expression_table(self.program).indexed_node(expression) else {
                 continue;
             };
-            if self
-                .program
-                .expression_table
+            if expression_table(self.program)
                 .constant_integer_value(indexed.index)
                 .is_some()
             {
@@ -98,7 +97,8 @@ impl Implication<'_> {
         path: Path,
         expression: ExpressionHandle,
     ) -> Option<Vec<(Path, Integer)>> {
-        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(expression)
+        let ExpressionNode::Indexed(indexed) =
+            expression_table(self.program).expression(expression)
         else {
             return None;
         };

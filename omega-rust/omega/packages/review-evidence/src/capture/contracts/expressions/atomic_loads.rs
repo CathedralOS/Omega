@@ -9,10 +9,7 @@ pub(crate) fn project_contract_atomic_load(
     project_child: impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     if !atomic.value.is_valid() || atomic.result.is_valid() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contains an inconsistent atomic-load expression",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("contains an inconsistent atomic-load expression"));
     }
     let ordering = match atomic.ordering {
         language_core::atomic::AtomicOrderingPlan::Load(
@@ -25,16 +22,10 @@ pub(crate) fn project_contract_atomic_load(
             language_core::atomic::MemoryOrdering::GlobalOrder,
         ) => PackageReviewAtomicLoadOrdering::GlobalOrder,
         language_core::atomic::AtomicOrderingPlan::Load(_) => {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contains an atomic load with an invalid ordering",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("contains an atomic load with an invalid ordering"));
         }
         _ => {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contains a mutation-bearing atomic contract expression",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("contains a mutation-bearing atomic contract expression"));
         }
     };
     Ok(PackageReviewContractExpression::AtomicLoad {

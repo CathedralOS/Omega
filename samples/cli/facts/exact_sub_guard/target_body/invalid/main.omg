@@ -3,35 +3,35 @@
 
 linux_x86_64 machine deduct(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     remaining - 2
 }
 
 linux_arm64 machine deduct(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     remaining - 2
 }
 
 macos_arm64 machine deduct(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     remaining - 2
 }
 
 windows_x86_64 machine deduct(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     remaining - 2
 }
 
 machine walk(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     deduct(remaining)
 }

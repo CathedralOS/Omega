@@ -9,6 +9,8 @@
 //! dependencies and subsequent write invalidation.
 
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionDependencyScope};
+use crate::flow::expressions;
+use crate::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -38,8 +40,7 @@ pub(super) fn transport_reads(
                 continue;
             };
             let Some((destination, _)) =
-                program
-                    .expression_table
+                expressions(program)
                     .iter_expressions()
                     .find(|(destination, _)| {
                         transport.expressions_correspond(*expression, *destination, 0)
@@ -167,14 +168,7 @@ impl StateTransport<'_, '_> {
                         Some(state),
                         expression,
                     )
-                    .then(|| {
-                        validation::canonical_place_from_expression_in_state(
-                            program,
-                            state.symbol,
-                            self.statement_index,
-                            expression,
-                        )
-                    })
+                    .then(|| place_at(program, state.symbol, self.statement_index, expression))
                     .flatten()
                 };
                 match (

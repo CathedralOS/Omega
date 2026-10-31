@@ -7,6 +7,7 @@ use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment,
 };
+use crate::flow::expressions;
 
 pub(super) fn binding_arguments_match(
     program: &dyn ::validation::CheckingInput,
@@ -228,9 +229,7 @@ pub(super) fn binding_arguments_match(
             validation::CallSite::TransitionNamed { .. } => Default::default(),
         };
         let target_application = if invocation.is_valid() {
-            let application = program
-                .expression_table
-                .static_machine_application(invocation);
+            let application = expressions(program).static_machine_application(invocation);
             let Some((callee, _)) =
                 validation::call_target_state(program, application.registration_operation)
                     .and_then(|state| validation::find_state(program, state.symbol))
@@ -256,9 +255,7 @@ pub(super) fn binding_arguments_match(
                 program,
                 callee.symbol,
                 application.lexical_owner,
-                program
-                    .expression_table
-                    .static_machine_application_lifetimes(invocation),
+                expressions(program).static_machine_application_lifetimes(invocation),
             ) else {
                 return false;
             };

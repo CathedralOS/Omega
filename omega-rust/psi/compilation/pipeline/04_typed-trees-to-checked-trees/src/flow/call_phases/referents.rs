@@ -13,6 +13,7 @@
 
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
+use crate::flow::indexed_statements;
 mod batches;
 mod guarantees;
 use arena::HandleSpan;
@@ -616,10 +617,7 @@ fn parameter_symbols_for_storage(
             let Some(state) = program.state_by_symbol(state_symbol) else {
                 continue;
             };
-            for (_, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (_, statement) in indexed_statements(program, state.statement_nodes) {
                 let Some(transition) = statement.as_transition() else {
                     continue;
                 };
@@ -697,10 +695,7 @@ fn state_keeps_byte_class_after_element_stores(
     required: validation::field_domains::ByteSequencePredicate,
 ) -> ElementStoreClass {
     let mut last_store = None;
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };

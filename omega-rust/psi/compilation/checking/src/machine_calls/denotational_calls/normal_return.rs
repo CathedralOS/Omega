@@ -1,5 +1,6 @@
 //! Conditional equality of concrete value-only calls during validation.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -60,8 +61,7 @@ pub(crate) fn plain_value_call_target<'program>(
         || program.machine_states(machine).first()?.symbol != state.symbol
         || !primitive_value_machine(program, machine)
         || program.state_parameters(state).len()
-            != program
-                .expression_table
+            != expression_table(program)
                 .expression_handles(call.arguments)
                 .len()
     {
@@ -192,7 +192,7 @@ fn closed_expression(
     }
     let child =
         |expression| closed_expression(program, machine, state, expression, available, depth + 1);
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
         ExpressionNode::Name(path) => {
             path.symbol.is_valid()
@@ -217,8 +217,7 @@ fn closed_expression(
         }
         ExpressionNode::Call(call) => {
             plain_value_call_target(program, call).is_some()
-                && program
-                    .expression_table
+                && expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| child(*argument))

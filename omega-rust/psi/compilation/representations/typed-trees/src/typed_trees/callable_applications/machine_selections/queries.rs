@@ -61,10 +61,7 @@ impl TypedTrees {
                     && *prepared_demand == demand
                     && source_required == expected)
                     .then_some(AppliedMachineCallable {
-                        lexical_owner: self
-                            .expression_table
-                            .static_machine_application(*provider)
-                            .lexical_owner,
+                        lexical_owner: self.static_machine_application(*provider).lexical_owner,
                         provider: *provider,
                         selected_entry: *entry,
                         required,
@@ -110,13 +107,8 @@ impl TypedTrees {
                     return false;
                 };
                 let operands = self.callable_substitutions.span_or_empty(*caller_operands);
-                let owner = self
-                    .expression_table
-                    .static_machine_application(invocation)
-                    .lexical_owner;
-                let previous_bindings = self
-                    .expression_table
-                    .static_machine_application_bindings(*provider);
+                let owner = self.static_machine_application(invocation).lexical_owner;
+                let previous_bindings = self.static_machine_application_bindings(*provider);
                 *source == invocation
                     && *position == ordinal
                     && *entry == selected
@@ -126,18 +118,9 @@ impl TypedTrees {
                         .callable_lifetime_substitutions
                         .span_or_empty(*caller_lifetimes)
                         == caller_lifetime_bindings
-                    && self
-                        .expression_table
-                        .static_machine_application(*provider)
-                        .lexical_owner
-                        == self
-                            .expression_table
-                            .static_machine_application(invocation)
-                            .lexical_owner
-                    && self
-                        .expression_table
-                        .static_machine_application_lifetimes(*provider)
-                        == provider_lifetimes
+                    && self.static_machine_application(*provider).lexical_owner
+                        == self.static_machine_application(invocation).lexical_owner
+                    && self.static_machine_application_lifetimes(*provider) == provider_lifetimes
                     && previous_bindings.len() == provider_bindings.len()
                     && previous_bindings
                         .iter()
@@ -206,10 +189,7 @@ impl TypedTrees {
                     return None;
                 };
                 (*source == invocation).then_some(AppliedMachineCallable {
-                    lexical_owner: self
-                        .expression_table
-                        .static_machine_application(*provider)
-                        .lexical_owner,
+                    lexical_owner: self.static_machine_application(*provider).lexical_owner,
                     provider: *provider,
                     selected_entry: *entry,
                     required,

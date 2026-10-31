@@ -16,6 +16,7 @@ use crate::lowering::name::lower_names;
 use crate::lowering::statement::lower_statement_handle;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_items;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -348,8 +349,7 @@ pub(crate) fn lower_machine_signature_contracts(
     contracts: HandleSpan<syntax::item::CapabilityContract>,
     states: HandleSpan<Handle<symbol_resolved_trees::state::State>>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
-    let has_outcome_rows = syntax_trees
-        .items
+    let has_outcome_rows = syntax_items(&syntax_trees)
         .capability_contracts(contracts)
         .iter()
         .any(|contract| {
@@ -656,8 +656,7 @@ pub(crate) fn lower_state_parameters(
     let mut span = HandleSpan::empty();
 
     for parameter in syntax_trees.items.state_parameters(parameters) {
-        let authored_type = syntax_trees
-            .items
+        let authored_type = syntax_items(&syntax_trees)
             .state_parameter(*parameter)
             .type_reference;
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;

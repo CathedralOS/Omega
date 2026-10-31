@@ -5,6 +5,7 @@ use crate::expressions::expression::lower_expression_handle_from_table;
 use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
+use crate::tables::resolved_expressions;
 use crate::type_reference::domain_aliases::expand_domain_reference;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -265,12 +266,8 @@ pub(crate) fn lower_expression_fact(
     lowerer: &mut Lowerer,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::domain::ProofFact, Diagnostic> {
-    if let resolved::expression::ExpressionNode::Call(call) = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(expression)
+    if let resolved::expression::ExpressionNode::Call(call) =
+        resolved_expressions(lowerer.source_trees).expression(expression)
         && is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol)
     {
         return crate::expressions::proposition::lower_proposition_application(lowerer, call)
@@ -283,12 +280,7 @@ pub(crate) fn lower_statement_fact(
     lowerer: &mut Lowerer,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<arena::Handle<typed::domain::ProofFact>, Diagnostic> {
-    let span = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .source_span(expression);
+    let span = resolved_expressions(lowerer.source_trees).source_span(expression);
     let fact = lower_expression_fact(lowerer, expression)?;
     let handle = lowerer.typed_trees.proof_facts.insert(fact);
     lowerer.typed_trees.set_proof_fact_source_span(handle, span);

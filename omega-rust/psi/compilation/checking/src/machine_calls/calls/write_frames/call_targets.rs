@@ -9,6 +9,7 @@
 
 use super::boundary_calls::boundary_trait_signature_for_parts;
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -31,8 +32,7 @@ pub(super) fn call_argument_types(
     // retaining these types keeps detached scalar actuals independent of the
     // caller's storage-origin inventory. Unknown selections add no context.
     let call_site = match site {
-        super::caller_aliases::CallerWriteSite::Expression(expression) => program
-            .expression_table
+        super::caller_aliases::CallerWriteSite::Expression(expression) => expression_table(program)
             .call_node(expression)
             .filter(|call| program.call_has_no_runtime_receiver_for_target(call))
             .map(|call| crate::machine_calls::calls::CallSite::Expression { expression, call }),
@@ -66,8 +66,7 @@ pub(super) fn call_argument_types(
             .collect();
     }
     let explicit_operator_roster = match site {
-        super::caller_aliases::CallerWriteSite::Expression(expression) => program
-            .expression_table
+        super::caller_aliases::CallerWriteSite::Expression(expression) => expression_table(program)
             .call_node(expression)
             .is_some_and(|call| program.call_has_no_runtime_receiver_for_target(call)),
         super::caller_aliases::CallerWriteSite::Call(call) => {

@@ -9,7 +9,7 @@ machine read_edge(v: &[u8], i: u64) -> u8 {
     transition i < v.len { true -> inner(v, i) _ -> (0) }
 
     machine inner(v: &[u8], i: u64) -> u8
-    requires i < v.len;
+    requires i < v.len
     {
         v[i]
     }

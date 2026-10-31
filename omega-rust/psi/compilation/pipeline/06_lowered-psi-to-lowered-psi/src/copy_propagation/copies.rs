@@ -12,8 +12,8 @@
 
 use crate::edge_arguments::drop_removed_positions_across_edges;
 use crate::retained_identities::proof_values::{
-    call_erased_arguments, crash_continuations, retain_crash_routes, retain_erased_arguments,
-    retain_proposition,
+    call_erased_arguments, crash_continuations, retain_contract_values, retain_crash_routes,
+    retain_erased_arguments, retain_proposition,
 };
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -32,16 +32,7 @@ pub(super) fn propagate(
     retained_values.extend(coverage.values.iter().copied());
     // Propositions carried by contracts, crash sites, and call continuations
     // keep the exact identities they mention: they are proof terms, not uses.
-    for proposition in &machine.contract.requires {
-        retain_proposition(proposition, retained_values);
-    }
-    for clause in &machine.contract.ensures {
-        retain_proposition(&clause.proposition, retained_values);
-    }
-    for guarantee in &machine.contract.outcome_specific_ensures {
-        retain_proposition(&guarantee.proposition, retained_values);
-    }
-    retain_crash_routes(&machine.contract.crash_routes, retained_values);
+    retain_contract_values(&machine.contract, retained_values);
     let operations = machine.operations().collect::<Vec<_>>();
     for operation in &operations {
         retain_crash_routes(crash_continuations(&operation.kind), retained_values);

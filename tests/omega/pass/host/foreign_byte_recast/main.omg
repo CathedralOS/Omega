@@ -6,7 +6,7 @@ use omega::language::core::layout;
 // service ceilings.
 
 public SignedByte2 satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

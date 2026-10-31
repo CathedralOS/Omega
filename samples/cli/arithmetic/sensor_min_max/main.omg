@@ -21,7 +21,9 @@ use omega_language_std::math;
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-data Main {
+data Main
+requires self.i >= 0 && self.i <= 6
+{
     nums: [f64; 6];
     i: i32;
     cur: f64;
@@ -49,14 +51,14 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 1;
 
     transition {
-        _ -> step(main)
+        _ -> block step(main)
     }
 
     // Loop head: fold readings until every element has been visited.
     machine step(main: &mut Main) {
         transition main.i < 6 {
-            true -> body(main)
-            _ -> done(main)
+            true -> block body(main)
+            _ -> block done(main)
         }
     }
 
@@ -67,7 +69,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.lo = min_f64(main.lo, main.cur);
         main.hi = max_f64(main.hi, main.cur);
         transition {
-            _ -> advance(main)
+            _ -> block advance(main)
         }
     }
 
@@ -75,15 +77,15 @@ machine Main::main(main: &mut Main) reaches Console {
     // `bump` proves `i + 1` cannot overflow -- fully Exact, no domain.
     machine advance(main: &mut Main) {
         transition main.i < 6 {
-            true -> bump(main)
-            _ -> step(main)
+            true -> block bump(main)
+            _ -> block step(main)
         }
     }
 
     machine bump(main: &mut Main) {
         main.i = main.i + 1;
         transition {
-            _ -> step(main)
+            _ -> block step(main)
         }
     }
 

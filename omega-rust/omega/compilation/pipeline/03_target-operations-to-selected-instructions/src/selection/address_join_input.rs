@@ -9,7 +9,8 @@
 //! both derive the edge transport here from the legalized function and their
 //! own transport state; neither trusts the other's choice.
 
-use crate::selection::place_declaration::declares_block_parameter;
+use crate::selection::place_declaration::{arrivals, declares_block_parameter};
+use abstract_operations::control_flow::address_joins::is_address_join_in;
 
 use calling_conventions::ValueShape;
 use legalized_operations::LegalizedScalarFunction;
@@ -26,20 +27,11 @@ pub(crate) fn join(
     place: PlaceId,
 ) -> Option<(BlockId, &StructuralParameterDeclaration)> {
     let signature = source.structural.as_ref()?;
-    let mut matching = source.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = arrivals(source, place);
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block
-        && abstract_operations::control_flow::address_joins::is_address_join_in(
-            parameter,
-            &signature.structural_types,
-        )
+        && is_address_join_in(parameter, &signature.structural_types)
         && declares_block_parameter(signature, place, block, parameter.position))
     .then_some((block, parameter))
 }
@@ -143,10 +135,7 @@ pub(crate) fn projection(
             &signature.structural_types,
         )
     }?;
-    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-        indices,
-        &geometry.elements,
-    ) {
+    if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
         return None;
     }
     let referent = geometry.selected;
@@ -164,10 +153,7 @@ pub(crate) fn projection(
     } else {
         geometry.byte_offset
     };
-    let Some(lent) = crate::structural_inputs::structural_reference_input::shape(
-        referent,
-        &signature.structural_types,
-    ) else {
+    let Some(lent) = crate::structural_inputs::shape(referent, &signature.structural_types) else {
         return None;
     };
     if referent != parameter.structural_type {

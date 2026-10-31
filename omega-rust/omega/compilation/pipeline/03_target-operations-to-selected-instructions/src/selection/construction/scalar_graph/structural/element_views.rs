@@ -33,10 +33,7 @@ pub(super) fn element_stride(
     let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
         return None;
     };
-    let shape = crate::structural_inputs::structural_reference_input::shape(
-        *element,
-        signature.structural_types.as_slice(),
-    )?;
+    let shape = crate::structural_inputs::shape(*element, signature.structural_types.as_slice())?;
     crate::structural_inputs::structural_reference_input::align(shape.byte_size, shape.alignment)
         .filter(|stride| *stride != 0)
 }
@@ -126,9 +123,7 @@ fn element_view_read(
             signature.structural_types.as_slice(),
         )
         .ok_or_else(|| invalid())?;
-    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-        indices, &elements,
-    ) {
+    if !crate::structural_inputs::runtime_indices_match(indices, &elements) {
         return Err(invalid());
     }
     let pointer = element_backing_pointer(builder, row, source)?;

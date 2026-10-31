@@ -20,6 +20,7 @@ pub(crate) mod operand_owners;
 pub(crate) mod type_inputs;
 
 use crate::preparation::declaration_selection::ConstantSelection;
+use crate::tables::body_expressions;
 use crate::{constant, lowering, preparation, selection};
 pub use body_completion::{
     DeferredResolvedFrontier, RebasedResolvedBodyCompletion, ResolvedBodyCompletion,
@@ -284,11 +285,7 @@ impl ConstArgumentSelection {
         self.expressions.iter().copied().map(|expression| {
             (
                 expression,
-                self.program
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression(expression),
+                body_expressions(&self.program).expression(expression),
             )
         })
     }
@@ -384,12 +381,13 @@ pub fn prepare_const_qualification_selection<'authored>(
         retained_base,
     } = request;
     preparation::target_families::normalize(&mut syntax, sources.as_deref())?;
-    let constant_selection = preparation::declaration_selection::ConstantSelection::with_shared_base(
-        &syntax,
-        sources.clone(),
-        top_level_bindings.clone(),
-        retained_base.clone(),
-    )?;
+    let constant_selection =
+        preparation::declaration_selection::ConstantSelection::with_shared_base(
+            &syntax,
+            sources.clone(),
+            top_level_bindings.clone(),
+            retained_base.clone(),
+        )?;
     preparation::generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     let mut demanded = false;
     for definition in destinations {

@@ -76,9 +76,7 @@ pub(crate) fn encode_data_member(
             encoder.tag("variant", 1);
             encoder.field_by("identity", *identity, encode_optional_u64)?;
             encoder.field("name", |encoder| encoder.string(name))?;
-            encoder.field("payload", |encoder| {
-                encoder.sequence(payload, encode_data_field)
-            })?;
+            encoder.sequence_field("payload", payload, encode_data_field)?;
             encoder.field("retired_payload_identities", |encoder| {
                 encoder.sequence(retired_payload_identities, |encoder, identity| {
                     encoder.u64_field("identity", *identity)?;

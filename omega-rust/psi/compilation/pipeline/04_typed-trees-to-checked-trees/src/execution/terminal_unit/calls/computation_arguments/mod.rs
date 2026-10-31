@@ -14,6 +14,8 @@ use crate::execution::terminal_unit::types::{
     dense_structural_parameter_index, parameter_qualifications,
     structural_access_for_type_reference,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::SymbolHandle;
@@ -57,12 +59,7 @@ pub(crate) fn structural_computation_argument(
         }
         _ => return None,
     };
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        call.statement_index,
-        expression,
-    )?;
+    let place = place_at(program, state.symbol, call.statement_index, expression)?;
 
     rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
@@ -204,12 +201,7 @@ pub(crate) fn subslice_computation_argument(
     exact_actual(program, call, expression, target)?;
     rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
     let owner = program.machine(machine)?;
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        call.statement_index,
-        expression,
-    )?;
+    let place = place_at(program, state.symbol, call.statement_index, expression)?;
 
     // Local storage already owns its identity. Only a parameter
     // root needs the caller's structural signature namespace; rebuilding the
@@ -272,14 +264,11 @@ fn exact_actual(
     let target_position = validation::call_target_parameters(program, call.target_symbol)?
         .iter()
         .position(|parameter| parameter == target)?;
-    let ExpressionNode::Call(authored) = program
-        .expression_table
-        .expression(call.authored_expression)
+    let ExpressionNode::Call(authored) = expressions(program).expression(call.authored_expression)
     else {
         return None;
     };
-    let exact_actual = program
-        .expression_table
+    let exact_actual = expressions(program)
         .expression_handles(authored.arguments)
         .get(target_position)
         == Some(&expression);

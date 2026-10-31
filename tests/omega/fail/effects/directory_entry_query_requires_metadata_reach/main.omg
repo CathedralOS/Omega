@@ -3,9 +3,9 @@ use omega::language::core::filesystem_authority;
 
 // An entry's absent native kind may require a no-follow metadata query.
 public machine list_without_metadata(path: &[u8] in Path) -> DirEntryResult
-blocks;
+blocks
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-invokes FilesystemService;
+invokes FilesystemService
 {
     block FilesystemService::read_dir_nth(path, 0)
 }

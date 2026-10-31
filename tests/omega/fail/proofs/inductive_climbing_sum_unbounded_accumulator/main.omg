@@ -27,7 +27,7 @@ machine Main::main(main: &mut Main) {
 }
 
 machine Main::climb(main: &mut Main, limit: u64, index: u64, acc: u64) -> u64
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 ensures
     embed(result) >= embed(acc) + embed(limit) - embed(index)
 {

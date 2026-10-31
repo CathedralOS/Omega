@@ -64,7 +64,7 @@ pub(crate) fn type_requirements(
                             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
                         ) {
                             let owner = crate::expression_preparation::computation_graph::produced_value_root(
-                                checked, *source_call, subject,
+                                checked, source_call.statement().ok_or(LoweringError::Unsupported("declaration call has no structural producer custody"))?, subject,
                             )?;
                             types.push(stored_structural_identity(checked, owner.type_reference));
                         }
