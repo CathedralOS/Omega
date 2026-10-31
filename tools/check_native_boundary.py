@@ -125,20 +125,36 @@ def realization_checker_entry_violations(metadata):
 
 def representation_spelling_violations(root):
     """The retired text spelling must not decide a runtime representation."""
+    receiver = r"[A-Za-z_][A-Za-z_0-9]*(?:\s*\.\s*[A-Za-z_][A-Za-z_0-9]*)*"
     patterns = (
         re.compile(r'\.as_str\s*\([^)]*\)\s*(?:==|!=)\s*"string"'),
-        re.compile(r'matches!\s*\(.*\.as_str\s*\([^)]*\).*"string"'),
-        re.compile(r'\bname\s*==\s*"string"'),
+        re.compile(r'"string"\s*(?:==|!=)\s*' + receiver + r'\s*\.\s*as_str\s*\([^)]*\)'),
+        re.compile(r'\bname\s*(?:==|!=)\s*"string"'),
+        re.compile(r'"string"\s*(?:==|!=)\s*\bname\b'),
     )
+    # Keep this macro check bounded to one line: a greedy cross-file match
+    # would conflate an unrelated matches! with a later string literal.
+    match_pattern = re.compile(r'matches!\s*\(.*\.as_str\s*\([^)]*\).*"string"')
     violations = []
     for owner in ("omega-rust/psi", "omega-rust/omega"):
         for path in (root / owner).rglob("*.rs"):
-            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if any(pattern.search(line) for pattern in patterns):
-                    violations.append(
-                        f"{path.relative_to(root)}:{line_number}: runtime representation depends on retired text spelling"
-                    )
+            text = path.read_text(encoding="utf-8")
+            lines = {
+                text.count("\n", 0, match.start()) + 1
+                for pattern in patterns
+                for match in pattern.finditer(text)
+            }
+            lines.update(
+                line_number
+                for line_number, line in enumerate(text.splitlines(), 1)
+                if match_pattern.search(line)
+            )
+            for line_number in sorted(lines):
+                violations.append(
+                    f"{path.relative_to(root)}:{line_number}: runtime representation depends on retired text spelling"
+                )
     return violations
+
 
 def main():
     root = Path(__file__).resolve().parent.parent

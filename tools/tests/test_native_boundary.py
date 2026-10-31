@@ -191,6 +191,37 @@ class RepresentationSpellingTests(unittest.TestCase):
             source.write_text('matches!(node, TypeReferenceNode::Slice { .. });\n', encoding="utf-8")
             self.assertEqual(representation_spelling_violations(root), [])
 
+    def test_reversed_representation_comparisons_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "omega-rust/omega/compilation/classification.rs"
+            source.parent.mkdir(parents=True)
+            for expression in (
+                '"string" == name.as_str();',
+                '"string" != self.name.as_str(syntax);',
+                '"string" == name;',
+                'name != "string";',
+            ):
+                with self.subTest(expression=expression):
+                    source.write_text(expression + "\n", encoding="utf-8")
+                    self.assertEqual(len(representation_spelling_violations(root)), 1)
+
+    def test_formatted_comparisons_and_literal_data_stay_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "omega-rust/psi/compilation/classification.rs"
+            source.parent.mkdir(parents=True)
+            for expression in (
+                'name\n .as_str(syntax)\n ==\n "string";',
+                '"string"\n !=\n self.name.as_str(syntax);',
+                'name\n ==\n "string";',
+            ):
+                with self.subTest(expression=expression):
+                    source.write_text(expression + "\n", encoding="utf-8")
+                    self.assertEqual(len(representation_spelling_violations(root)), 1)
+            source.write_text('let name = "string";\nlet class = RepresentationClass::Slice;\n', encoding="utf-8")
+            self.assertEqual(representation_spelling_violations(root), [])
+
 
 if __name__ == "__main__":
     unittest.main()
