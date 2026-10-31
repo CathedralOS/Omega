@@ -139,6 +139,6 @@ map and the owning task or design page. Do not append milestone history here.
 
 Current public contracts live in [Terminal Psi](../../spec/terminal-psi/product.md),
 [content custody](../../spec/resources/content_custody.md),
-[placed access](../../spec/resources/placed_access.md), and
+[placed access](../../spec/resources/access.md), and
 [component publication](../../spec/build/component_publication.md).
 This customer map does not replace those contracts.

@@ -162,12 +162,12 @@ recasts/codecs, and `size_of`/`align_of` layout geometry
 [counts and addresses](wiki/spec/language/counts_and_addresses.md)); borrowed
 projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
 claim retirement, borrowed-storage restoration windows, content custody,
-placed/MMIO access, and atomic concurrency orderings
+policy-governed/MMIO access, and atomic concurrency orderings
 ([structural access](wiki/spec/terminal-psi/structural_access.md),
 [ownership](wiki/spec/terminal-psi/ownership.md),
 [loans](wiki/spec/terminal-psi/loans.md),
 [content custody](wiki/spec/resources/content_custody.md),
-[placed access](wiki/spec/resources/placed_access.md),
+[access policies](wiki/spec/resources/access.md),
 [concurrency](wiki/spec/language/concurrency.md)); and named-implementation/`dyn`
 dispatch, multi-argument calling plans across register and stack slots,
 live-across-call preservation, disjoint stack-frame homes, boundary/provider

@@ -28,10 +28,17 @@ superseded recognizer rather than preserving it as another source dialect.
 
 ## Ownership
 
+The access contract uses `AccessPolicy::plan(schema) -> AccessPlan`, containing
+`LayoutPlan`, field decisions and required reach. Layout helpers return data;
+the final validator independently checks complete schema coverage and permitted
+operations. Seeding inaccessible decisions deduplicates keys across fragments,
+not obligations across fields. `ACCESS-POLICY-VOCABULARY` owns the coordinated
+core, consumer, internal-identifier and fixture migration in [TASKS.md](../../../../TASKS.md).
+
 `layout_plans/` reflects checked schemas, evaluates authored plans, and
 validates them. `plan_laid/` owns pre-resolution desugaring and post-typing
 installation. `placed_views/`, `access_plans/` and `wire_plans.rs` own concrete
-view probing, placed-access policy evaluation and wire-plan installation. Omega
+view probing, policy-governed access policy evaluation and wire-plan installation. Omega
 schedules these target-neutral services and supplies target realization inputs;
 it does not reinterpret their semantics.
 

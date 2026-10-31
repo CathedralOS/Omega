@@ -19,7 +19,7 @@ uses `resolve_numeric_probe`, scans resolved calls, validates sealed borrowed
 View prototypes, substitutes exact type actuals into declared return types, and
 writes selected policy/schema/template references back into syntax. Its downstream
 consumer joins declarations and invokes `require_common_floor_for_invocation` for
-every use location. The accepted [placed-access contract](../../../../../wiki/spec/resources/placed_access.md)
+every use location. The accepted [placed-access contract](../../../../../wiki/spec/resources/access.md)
 requires visibility and direct-dependency authority before synthesis.
 
 ## What cannot be omitted

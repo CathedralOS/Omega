@@ -90,7 +90,7 @@ selected boundary contracts:
 [ownership](../terminal-psi/ownership.md) define these meanings. An unused result
 or empty reach alone does not prove purity. Purity is a closed classification
 reconstructed from operation semantics. Calls, traps, services, atomics,
-volatile/placed accesses, cleanup, and transitions are barriers unless an exact
+volatile/policy-governed accesses, cleanup, and transitions are barriers unless an exact
 rule proves the proposed change preserves their contract.
 
 Operation identity retains width, signedness, domain/provider, and arithmetic

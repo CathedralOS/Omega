@@ -1,7 +1,7 @@
-# Placed access to original RAM
+# Access views over original RAM
 
 Expected exit: 0 from `omega run --both main.omg` after ordinary package
-preparation. The program borrows initialized RAM through `Placed::view_mut`,
+preparation. The program borrows initialized RAM through `Access::view_mut`,
 writes a nonzero-offset accessor in a helper state, reads another accessor,
 then observes the original RAM after the loan ends. A returned reference selects
 between two distinct backings; both choices execute, and the unselected backing

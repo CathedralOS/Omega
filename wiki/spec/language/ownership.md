@@ -312,7 +312,7 @@ additional to accounting for each whole claim; per-child containment or equal
 scalar totals cannot rule out overlapping children. Retired content means
 leaving checked custody, not necessarily destruction or reclamation.
 
-Borrowed subranges and placed views may retain one owned root without splitting
+Borrowed subranges and access views may retain one owned root without splitting
 its content. Independently owned children require conservation. Merging cannot
 restore discarded permissions; authority that must return is a separate loan
 or claim. A counted pool of `n` units is not a protocol requiring delivery to

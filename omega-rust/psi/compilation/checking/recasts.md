@@ -8,7 +8,7 @@ The owner ratified [deferred target establishment](../../../../wiki/spec/layouts
 for exclusive storage casts on 2026-10-25. A pending target-shaped place must carry
 exact establishment and source-restoration debt, not publish valid-value facts or
 fall through an unchecked cast. The accepted rule does not relax shared casts,
-geometry, domain authority, atomic access or placed-view restrictions. This docs
+geometry, domain authority, atomic access or access-view restrictions. This docs
 settlement does not establish implementation coverage; `DEFERRED-RECAST-ESTABLISHMENT`
 under P2 in TASKS.md owns the source-to-native acceptance, including failure cleanup.
 
@@ -263,6 +263,6 @@ The interpreter retains the same reference-recast descriptor for shared and
 mutable locals and arguments: original cells and captured coordinates stay
 separate from the checked reference access. Shared record views therefore read
 the original backing rather than an assembled copy.
-`Placed<P, T>` and its accessors are excluded: representation equivalence
-cannot replace the placement access plan. Source, lowering and execution
+`Access<P, T>` and its accessors are excluded: representation equivalence
+cannot replace the access plan. Source, lowering and execution
 coverage lives in `tests/omega/{pass,fail}/recast/` through the corpus runner.
