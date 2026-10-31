@@ -19,6 +19,10 @@ pub(crate) enum NativeBridgeEncodingError {
 }
 type Error = NativeBridgeEncodingError;
 
+fn frame_offset(base: u32, addend: u32) -> Result<u32, Error> {
+    base.checked_add(addend).ok_or(Error::FrameOverflow)
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum WordLocation {
     Register(MachineRegister),
@@ -133,17 +137,11 @@ pub(crate) fn value_pieces(
                         .find(|width| *width <= remaining)
                         .ok_or(Error::UnsupportedValueTransport)?;
                     pieces.push(ValuePiece {
-                        location: WordLocation::Stack(
-                            stack_byte_offset
-                                .checked_add(copied)
-                                .ok_or(Error::FrameOverflow)?,
-                        ),
-                        value_byte_offset: value_byte_offset
-                            .checked_add(copied)
-                            .ok_or(Error::FrameOverflow)?,
+                        location: WordLocation::Stack(frame_offset(stack_byte_offset, copied)?),
+                        value_byte_offset: frame_offset(value_byte_offset, copied)?,
                         byte_size: width as u8,
                     });
-                    copied = copied.checked_add(width).ok_or(Error::FrameOverflow)?;
+                    copied = frame_offset(copied, width)?;
                     remaining -= width;
                 }
             }
@@ -176,9 +174,7 @@ pub(crate) fn value_pieces(
         if piece.value_byte_offset != end {
             return Err(Error::UnsupportedValueTransport);
         }
-        end = end
-            .checked_add(u32::from(piece.byte_size))
-            .ok_or(Error::FrameOverflow)?;
+        end = frame_offset(end, u32::from(piece.byte_size))?;
     }
     if end != byte_size {
         return Err(Error::UnsupportedValueTransport);
@@ -192,7 +188,7 @@ pub(crate) fn allocate_value(cursor: &mut u32, byte_size: u32) -> Result<u32, Er
         .map(|value| value & !7)
         .ok_or(Error::FrameOverflow)?;
     let offset = *cursor;
-    *cursor = cursor.checked_add(byte_size).ok_or(Error::FrameOverflow)?;
+    *cursor = frame_offset(*cursor, byte_size)?;
     Ok(offset)
 }
 
@@ -468,7 +464,7 @@ impl Encoding {
                 .into_iter()
                 .find(|size| *size <= extent - offset)
                 .ok_or(Error::UnsupportedValueTransport)?;
-            let slot = snapshot.checked_add(offset).ok_or(Error::FrameOverflow)?;
+            let slot = frame_offset(snapshot, offset)?;
             // Frame addressing may reuse the base scratch. Reload the saved
             // pointer after every frame operation, including large offsets.
             if !load {
@@ -479,7 +475,7 @@ impl Encoding {
             if load {
                 self.memory(bytes, self.scratch, slot, size as u8, false)?;
             }
-            offset = offset.checked_add(size).ok_or(Error::FrameOverflow)?;
+            offset = frame_offset(offset, size)?;
         }
         Ok(())
     }
@@ -506,13 +502,11 @@ impl Encoding {
                             .ok_or(Error::UnsupportedValueTransport)?;
                         self.copy_word(
                             bytes,
-                            snapshot.checked_add(offset).ok_or(Error::FrameOverflow)?,
-                            destination
-                                .checked_add(offset)
-                                .ok_or(Error::FrameOverflow)?,
+                            frame_offset(snapshot, offset)?,
+                            frame_offset(*destination, offset)?,
                             size as u8,
                         )?;
-                        offset = offset.checked_add(size).ok_or(Error::FrameOverflow)?;
+                        offset = frame_offset(offset, size)?;
                     }
                     *destination
                 } else {
@@ -534,9 +528,7 @@ impl Encoding {
                 self.memory(
                     bytes,
                     register,
-                    snapshot
-                        .checked_add(piece.value_byte_offset)
-                        .ok_or(Error::FrameOverflow)?,
+                    frame_offset(snapshot, piece.value_byte_offset)?,
                     piece.byte_size,
                     false,
                 )?;
@@ -556,10 +548,8 @@ impl Encoding {
             if let WordLocation::Stack(offset) = piece.location {
                 self.copy_word(
                     bytes,
-                    bias.checked_add(offset).ok_or(Error::FrameOverflow)?,
-                    snapshot
-                        .checked_add(piece.value_byte_offset)
-                        .ok_or(Error::FrameOverflow)?,
+                    frame_offset(bias, offset)?,
+                    frame_offset(snapshot, piece.value_byte_offset)?,
                     piece.byte_size,
                 )?;
             }
@@ -579,9 +569,7 @@ impl Encoding {
             if let WordLocation::Stack(offset) = piece.location {
                 self.copy_word(
                     bytes,
-                    snapshot
-                        .checked_add(piece.value_byte_offset)
-                        .ok_or(Error::FrameOverflow)?,
+                    frame_offset(snapshot, piece.value_byte_offset)?,
                     offset,
                     piece.byte_size,
                 )?;
@@ -592,9 +580,7 @@ impl Encoding {
                 self.memory(
                     bytes,
                     register,
-                    snapshot
-                        .checked_add(piece.value_byte_offset)
-                        .ok_or(Error::FrameOverflow)?,
+                    frame_offset(snapshot, piece.value_byte_offset)?,
                     piece.byte_size,
                     true,
                 )?;
