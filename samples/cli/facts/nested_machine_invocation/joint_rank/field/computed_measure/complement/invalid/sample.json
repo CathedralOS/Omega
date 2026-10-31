@@ -1,0 +1,6 @@
+{
+  "mode": "reject",
+  "rejection_contains": [
+    "preserving cycle has no strict measure DECREASE"
+  ]
+}
