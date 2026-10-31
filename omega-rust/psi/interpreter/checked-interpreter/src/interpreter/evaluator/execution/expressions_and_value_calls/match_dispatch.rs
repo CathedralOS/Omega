@@ -5,7 +5,7 @@
 //! readable operator name or source classification alone does not.
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, Frame, Halt,
-    PrimitiveType, Value, unsupported,
+    PrimitiveType, Value, expression_table, unsupported,
 };
 use arena::Handle;
 use checked_trees::CheckedOperatorOccurrence;
@@ -72,9 +72,7 @@ impl Evaluator<'_> {
         } else {
             self.eval_expression_with_destination(dispatch.subject, destination, frame)?
         };
-        for (ordinal, arm) in self
-            .program
-            .expression_table
+        for (ordinal, arm) in expression_table(self.program)
             .match_arms(dispatch.arms)
             .iter()
             .enumerate()

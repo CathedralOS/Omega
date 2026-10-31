@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle,
     ExpressionNode, FixedArrayLength, Frame, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-    Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
+    Value, expression_table, integer_primitive_byte_width, primitive_is_unsigned64, trap,
 };
 impl<'program> Evaluator<'program> {
     /// Evaluate and capture one operand at its declared parameter type before
@@ -93,10 +93,7 @@ impl<'program> Evaluator<'program> {
                 self.projected_member_type(receiver, member.member.as_str())
             }
             ExpressionNode::Name(path) => {
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 let (_, rest) = members.split_first()?;
                 let mut current = frame.local_type(path.head_symbol)?;
                 for member in rest {
@@ -337,10 +334,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             ExpressionNode::Name(path) => {
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 if members.len() == 1 {
                     return frame.local_scalar(path.head_symbol);
                 }

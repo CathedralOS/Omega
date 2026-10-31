@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
-    Value, trap, unsupported,
+    Value, expression_table, trap, unsupported,
 };
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
@@ -149,9 +149,7 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         self.host_boundary_touched = true;
-        let arguments = self
-            .program
-            .expression_table
+        let arguments = expression_table(self.program)
             .expression_handles(call.arguments)
             .to_vec();
         self.serve_host_operation(operation, call.target_symbol, &arguments, frame)

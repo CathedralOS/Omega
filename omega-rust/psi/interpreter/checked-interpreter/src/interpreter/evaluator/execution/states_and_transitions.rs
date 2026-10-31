@@ -4,7 +4,7 @@ use crate::interpreter::evaluator::{
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
     FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
     PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
-    TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
+    TypedTrees, Value, ambient_step_budget, expression_table, trap, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new_build(
@@ -901,9 +901,7 @@ impl<'program> Evaluator<'program> {
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        if self
-                            .program
-                            .expression_table
+                        if expression_table(self.program)
                             .call_node(*expression)
                             .and_then(|call| call.native_code_layout.as_ref())
                             .is_some_and(|query| query.discards_result)

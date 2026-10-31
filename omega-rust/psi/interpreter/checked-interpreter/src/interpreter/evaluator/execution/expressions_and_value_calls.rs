@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, ExpressionNode,
-    Frame, Halt, HashSet, PrimitiveType, Reference, Value, trap, unsupported,
+    Frame, Halt, HashSet, PrimitiveType, Reference, Value, expression_table, trap, unsupported,
 };
 mod call_evaluation;
 mod layout_target_facts;
@@ -109,10 +109,8 @@ impl<'program> Evaluator<'program> {
                                 let states = self.program.machine_states(machine);
                                 states.len() == 1 && states[0].symbol == call.target_symbol
                             });
-                    let [left, right] = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
+                    let [left, right] =
+                        expression_table(self.program).expression_handles(call.arguments)
                     else {
                         return trap("selected binary requirement lost its exact arity");
                     };
