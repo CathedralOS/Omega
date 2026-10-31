@@ -4,6 +4,7 @@
 //! but it can change what the expression would observe on its next evaluation.
 
 use super::FlowBuildContext;
+use super::reference_spans::appended_span_since;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use validation::CanonicalPlace;
@@ -78,10 +79,7 @@ pub(super) fn case_observation(
     expression: ExpressionHandle,
     subject: ExpressionHandle,
 ) -> Option<CaseObservation> {
-    let statements = super::reference_spans::appended_span_since(
-        &build.control.statements,
-        build.state_statements_start,
-    );
+    let statements = appended_span_since(&build.control.statements, build.state_statements_start);
     let mut matching = build
         .control
         .statements

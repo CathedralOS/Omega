@@ -1,5 +1,6 @@
 //! Capture a selected initializer or assignment while its operand facts are live.
 
+use super::super::call_phases::call_storage_writes;
 use validation::CanonicalPlace;
 
 use crate::flow::FlowBuildContext;
@@ -519,17 +520,10 @@ fn retains_values_across_unit_call<Value>(
     {
         return None;
     }
-    super::super::call_phases::call_storage_writes(
-        program,
-        borrow,
-        context,
-        machine,
-        state,
-        borrowed_call,
-    )?
-    .observation_places
-    .is_empty()
-    .then_some(())
+    call_storage_writes(program, borrow, context, machine, state, borrowed_call)?
+        .observation_places
+        .is_empty()
+        .then_some(())
 }
 
 /// Whether the computation plan retained `argument` as the selected scalar

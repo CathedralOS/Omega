@@ -4,6 +4,9 @@
 //! Later storage mutation cannot replace that value. Reference descendants
 //! still have ordinary live referent epochs, not frozen referee contents.
 
+use super::super::canonical_place_segments_equal;
+use super::super::operand_binds_live_view;
+use super::super::project_captured_view_place;
 use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{FlowOperandFact, FlowPermissionEvaluation};
@@ -52,9 +55,7 @@ pub(crate) fn copied_payload_at<'facts>(
                     .segments
                     .iter()
                     .zip(&place.segments)
-                    .all(|(left, right)| {
-                        super::super::canonical_place_segments_equal(program, *left, *right)
-                    })
+                    .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
             {
                 return None;
             }
@@ -111,9 +112,7 @@ pub(in crate::flow) fn completed_copy_read_place(
                 .segments
                 .iter()
                 .zip(&place.segments)
-                .all(|(left, right)| {
-                    super::super::canonical_place_segments_equal(program, *left, *right)
-                })
+                .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
         {
             continue;
         }
@@ -142,11 +141,11 @@ pub(in crate::flow) fn completed_copy_read_place(
                     .span_or_empty(referent.segments)
                     .to_vec(),
             };
-            super::super::project_captured_view_place(place, &path[leaf.path.count() as usize..])?
+            project_captured_view_place(place, &path[leaf.path.count() as usize..])?
         } else {
             let projected =
                 validation::owned_projection_type_reference(program, copy.type_reference, path)?;
-            if super::super::operand_binds_live_view(program, projected) {
+            if operand_binds_live_view(program, projected) {
                 return None;
             }
             validation::CanonicalPlace {

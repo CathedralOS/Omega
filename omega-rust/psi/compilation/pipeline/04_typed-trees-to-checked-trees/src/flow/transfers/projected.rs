@@ -8,6 +8,7 @@
 //! `propagate_statement_transfers`, which transports the same payloads at the
 //! source place itself. Runtime-indexed segments still stop the transport -- a
 //! copy cannot promise which element supplied the evidence.
+use super::super::operand_contexts::operand_binds_stable_copy;
 use super::PlaceHandle;
 use crate::flow;
 use crate::flow::FlowBuildContext;
@@ -245,10 +246,7 @@ fn append_value_predicates(
             };
             if validation::reference_shell(program, projected_type).is_some()
                 || (!matches!(payload, FactPayload::CaseValue { .. })
-                    && !super::super::operand_contexts::operand_binds_stable_copy(
-                        program,
-                        projected_type,
-                    ))
+                    && !operand_binds_stable_copy(program, projected_type))
             {
                 continue;
             }

@@ -29,6 +29,15 @@ fn retain_semantic_context(
     );
 }
 
+use super::super::case_tag_segments_may_overlap;
+use super::super::observations::case_observation;
+use super::super::observations::predicate_case_dependencies;
+use super::super::operand_contexts::ContentObservationPoint;
+use super::super::operand_contexts::SourceWriteRelation;
+use super::super::operand_contexts::contents_observation_survives;
+use super::super::operand_contexts::contents_overlap;
+use super::super::reference_spans::appended_span_since;
+use super::super::stable_case_subject;
 use crate::authored_selections::typed_operator_has_no_authored_selection;
 use crate::facts::boolean_predicates;
 use crate::flow::append_constraint_ref;
@@ -646,7 +655,7 @@ pub(in crate::flow) fn append_predicate_context(
             active_constraints,
         );
     }
-    let predicate_dependencies = super::super::observations::predicate_case_dependencies(
+    let predicate_dependencies = predicate_case_dependencies(
         program,
         build,
         state_symbol,
@@ -688,7 +697,7 @@ pub(in crate::flow) fn append_predicate_context(
                 if !expression_is_stable_predicate(program, observation) {
                     continue;
                 }
-                let Some(dependencies) = super::super::observations::predicate_case_dependencies(
+                let Some(dependencies) = predicate_case_dependencies(
                     program,
                     build,
                     state_symbol,
@@ -716,19 +725,14 @@ pub(in crate::flow) fn append_predicate_context(
                     .any(|place| {
                         // The shared selected-place law authenticates index
                         // coordinates independently of current contents.
-                        !super::super::stable_case_subject(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            place,
-                        ) || !super::super::entry_origin_is_stable(
-                            program,
-                            &build.control,
-                            entry_writes,
-                            entry_unknown_write,
-                            place,
-                        )
+                        !stable_case_subject(program, machine, state, statement_index, place)
+                            || !super::super::entry_origin_is_stable(
+                                program,
+                                &build.control,
+                                entry_writes,
+                                entry_unknown_write,
+                                place,
+                            )
                     })
                 {
                     continue;
@@ -757,7 +761,7 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
-            let Some(observed) = super::super::observations::case_observation(
+            let Some(observed) = case_observation(
                 program,
                 build,
                 state_symbol,
@@ -767,36 +771,31 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
-            let statements = super::super::reference_spans::appended_span_since(
-                &build.control.statements,
-                build.state_statements_start,
-            );
-            let first = super::super::operand_contexts::ContentObservationPoint {
+            let statements =
+                appended_span_since(&build.control.statements, build.state_statements_start);
+            let first = ContentObservationPoint {
                 state: state_symbol,
                 statement: observation_statement_index,
                 writes: observed.origin_writes,
                 unknown_write: observed.origin_unknown_write,
             };
-            let second = super::super::operand_contexts::ContentObservationPoint {
+            let second = ContentObservationPoint {
                 state: state_symbol,
                 statement: statement_index,
                 writes: entry_writes,
                 unknown_write: entry_unknown_write,
             };
-            let write_changes: super::super::operand_contexts::SourceWriteRelation = if observed
-                .descriptor
-                .is_valid()
-            {
-                super::super::operand_contexts::contents_overlap
+            let write_changes: SourceWriteRelation = if observed.descriptor.is_valid() {
+                contents_overlap
             } else {
                 |program, place, written| {
-                    super::super::case_tag_segments_may_overlap(program, &place.segments, written)
+                    case_tag_segments_may_overlap(program, &place.segments, written)
                 }
             };
             if std::iter::once(&observed.subject)
                 .chain(&observed.dependencies)
                 .any(|subject| {
-                    !super::super::operand_contexts::contents_observation_survives(
+                    !contents_observation_survives(
                         program,
                         &build.control,
                         statements,

@@ -4,6 +4,18 @@
 //! independently of later writes to their backing contents.
 
 use super::super::CapturedReferencePlace;
+use super::super::observations::completed_copy_read_place;
+use super::super::observations::descriptor_observation_namespace;
+use super::super::operand_values::captured_operand_reference_places_with_formation;
+use super::super::operand_values::finite_projection_paths;
+use super::super::project_captured_view_place;
+use super::super::reference_places::ReferenceResultSourceKind;
+use super::super::reference_places::call_result_captured_sources;
+use super::super::reference_places::call_result_leaf_sources;
+use super::super::stored_values::StoredOperand;
+use super::super::stored_views::capture_at_snapshot;
+use super::super::stored_views::reference_places_at_snapshot;
+use super::reference_projection::ReferenceProjection;
 use crate::places::place_at;
 /// Ephemeral results of the shared immutable completed-storage query.
 /// This is neither a second store inventory nor permission to load a pointer.
@@ -57,7 +69,7 @@ impl Execution<'_, '_, '_> {
                 .iter()
                 .map(|place| {
                     let place = place.clone().projected(&path)?;
-                    let stored = super::super::stored_views::capture_at_snapshot(
+                    let stored = capture_at_snapshot(
                         self.program,
                         &self.context.control,
                         self.state,
@@ -269,12 +281,9 @@ impl Execution<'_, '_, '_> {
         ) else {
             return Some(HandleSpan::empty());
         };
-        let Some(sources) = super::super::reference_places::call_result_captured_sources(
-            self.program,
-            call,
-            self.context.call_frames,
-            &indices,
-        ) else {
+        let Some(sources) =
+            call_result_captured_sources(self.program, call, self.context.call_frames, &indices)
+        else {
             return Some(HandleSpan::empty());
         };
         let mut leaves = Vec::new();
@@ -300,15 +309,13 @@ impl Execution<'_, '_, '_> {
                     return Some(HandleSpan::empty());
                 };
                 let suffix = match source.kind {
-                    super::super::reference_places::ReferenceResultSourceKind::Reference => {
+                    ReferenceResultSourceKind::Reference => {
                         if output != path {
                             continue;
                         }
                         Vec::new()
                     }
-                    super::super::reference_places::ReferenceResultSourceKind::Value {
-                        type_reference,
-                    } => {
+                    ReferenceResultSourceKind::Value { type_reference } => {
                         let Some(suffix) = path.strip_prefix(output.as_slice()) else {
                             continue;
                         };
@@ -366,7 +373,7 @@ impl Execution<'_, '_, '_> {
                 let Some(projected) = self.capture_reference_projection(
                     actual,
                     &selected,
-                    super::reference_projection::ReferenceProjection::Value,
+                    ReferenceProjection::Value,
                 ) else {
                     complete = false;
                     break;
@@ -530,13 +537,13 @@ impl Execution<'_, '_, '_> {
             .contexts
             .semantic_constraint_contexts(constraints)
             .collect::<Vec<_>>();
-        let case_places = super::super::observations::descriptor_observation_namespace(
+        let case_places = descriptor_observation_namespace(
             self.program,
             &self.context.control,
             receiver,
             &contexts,
         )
-        .and_then(|namespace| super::super::project_captured_view_place(namespace, &path))
+        .and_then(|namespace| project_captured_view_place(namespace, &path))
         .map(|namespace| self.append_referent_places(&[namespace]))
         .unwrap_or(source_places);
         *case_access = self.record_case_access_places(expression, constraints, case_places);
@@ -545,7 +552,7 @@ impl Execution<'_, '_, '_> {
                 return captured;
             }
             let value = self.context.control.operands.insert(*receiver);
-            if let Some(selected) = super::super::stored_views::reference_places_at_snapshot(
+            if let Some(selected) = reference_places_at_snapshot(
                 self.program,
                 &self.context.control,
                 value,
@@ -577,15 +584,14 @@ impl Execution<'_, '_, '_> {
         {
             return None;
         }
-        let places =
-            super::super::operand_values::captured_operand_reference_places_with_formation(
-                self.program,
-                &self.context.control,
-                receiver,
-                receiver.type_reference,
-                path,
-            )
-            .unwrap_or_default();
+        let places = captured_operand_reference_places_with_formation(
+            self.program,
+            &self.context.control,
+            receiver,
+            receiver.type_reference,
+            path,
+        )
+        .unwrap_or_default();
         Some(self.append_captured_references(&places))
     }
 
@@ -656,12 +662,9 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let Some(sources) = super::super::reference_places::call_result_leaf_sources(
-            self.program,
-            call,
-            self.context.call_frames,
-            &indices,
-        ) else {
+        let Some(sources) =
+            call_result_leaf_sources(self.program, call, self.context.call_frames, &indices)
+        else {
             return;
         };
         let mut origins = Vec::new();
@@ -677,7 +680,7 @@ impl Execution<'_, '_, '_> {
             let Some(projected) = self.capture_reference_projection(
                 actual,
                 &source.segments,
-                super::reference_projection::ReferenceProjection::Value,
+                ReferenceProjection::Value,
             ) else {
                 return;
             };
@@ -830,11 +833,7 @@ impl Execution<'_, '_, '_> {
                 self.statement_index,
                 &root,
             )?;
-            let paths = super::super::operand_values::finite_projection_paths(
-                self.program,
-                reference,
-                &source.segments,
-            )?;
+            let paths = finite_projection_paths(self.program, reference, &source.segments)?;
             let mut alternatives = Vec::new();
             for segments in paths {
                 alternatives.extend(self.stored_reference_contents_at_place(&CanonicalPlace {
@@ -844,7 +843,7 @@ impl Execution<'_, '_, '_> {
             }
             return (!alternatives.is_empty()).then_some(alternatives);
         }
-        let Some(stored) = super::super::stored_views::capture_at_snapshot(
+        let Some(stored) = capture_at_snapshot(
             self.program,
             &self.context.control,
             self.state,
@@ -859,24 +858,24 @@ impl Execution<'_, '_, '_> {
         let mut alternatives = Vec::new();
         while let Some(stored) = pending.pop() {
             match stored {
-                super::super::stored_values::StoredOperand::Unavailable => {
+                StoredOperand::Unavailable => {
                     return Some(vec![StoredReferenceContents::Unknown]);
                 }
-                super::super::stored_values::StoredOperand::Incoming(place) => {
+                StoredOperand::Incoming(place) => {
                     if place != *source || !self.is_incoming_descriptor_place(&place) {
                         return Some(vec![StoredReferenceContents::Unknown]);
                     }
                     alternatives.push(StoredReferenceContents::Incoming);
                 }
-                super::super::stored_values::StoredOperand::Alternatives(values) => {
+                StoredOperand::Alternatives(values) => {
                     pending.extend(values.into_iter().rev());
                 }
-                super::super::stored_values::StoredOperand::Value {
+                StoredOperand::Value {
                     capture,
                     projection,
                     ..
                 } => {
-                    let places = super::super::stored_views::reference_places_at_snapshot(
+                    let places = reference_places_at_snapshot(
                         self.program,
                         &self.context.control,
                         capture,
@@ -1080,7 +1079,7 @@ impl Execution<'_, '_, '_> {
                 {
                     return None;
                 }
-                let place = super::super::observations::completed_copy_read_place(
+                let place = completed_copy_read_place(
                     self.program,
                     &self.context.control,
                     self.context.active_completed_copies,

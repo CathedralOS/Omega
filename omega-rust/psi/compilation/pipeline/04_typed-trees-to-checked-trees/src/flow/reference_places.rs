@@ -1,5 +1,7 @@
 //! Rebase a live reference before tracing the value currently in its referent.
 
+use super::operand_contexts::binding_origin_is_stable;
+use super::operand_contexts::entry_origin_is_stable;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
@@ -277,12 +279,8 @@ fn preserve_call_prefix_storage(
         };
         for place in places {
             let preserved = match observation {
-                super::ValueObservation::Contents => {
-                    super::operand_contexts::entry_origin_is_stable
-                }
-                super::ValueObservation::Binding => {
-                    super::operand_contexts::binding_origin_is_stable
-                }
+                super::ValueObservation::Contents => entry_origin_is_stable,
+                super::ValueObservation::Binding => binding_origin_is_stable,
             };
             preserved(
                 program,

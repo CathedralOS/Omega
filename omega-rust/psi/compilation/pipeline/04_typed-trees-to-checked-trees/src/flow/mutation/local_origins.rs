@@ -9,6 +9,7 @@
 //! leaves on every write, without assigning them a referent. An exact-origin
 //! query must not discard unknown alternatives.
 
+use super::summary::WriteDestination;
 use crate::collections::push_unique;
 use crate::flow;
 use validation::CanonicalPlace;
@@ -392,13 +393,10 @@ pub(super) fn rebase_captured_storage_region(
     statement_index: usize,
     region: StorageRegion,
     references: Option<&[validation::LocalWriteOrigin]>,
-    destination: super::summary::WriteDestination,
+    destination: WriteDestination,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
-    let descriptor_slot = matches!(
-        destination,
-        super::summary::WriteDestination::DescriptorSlot
-    );
+    let descriptor_slot = matches!(destination, WriteDestination::DescriptorSlot);
     rebase_region_owner(region, |place| {
         if descriptor_slot
             && descriptor_slot_is_inline(program, state_symbol, statement_index, &place)?

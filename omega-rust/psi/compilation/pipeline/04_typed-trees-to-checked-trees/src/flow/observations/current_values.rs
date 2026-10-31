@@ -4,6 +4,9 @@
 //! nor an equal-looking source path can replace that observation.
 
 use super::super::FlowBuildContext;
+use super::super::operand_contexts::observation_prefixes_agree;
+use super::super::reference_spans::appended_span_since;
+use super::super::stable_case_subject;
 use arena::HandleSpan;
 use checked_trees::{CheckedScalarExpression, FlowOperandReferent};
 use symbols::SymbolHandle;
@@ -34,10 +37,8 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
             if !program.expression_table.expression_is_valid(*observation) {
                 return None;
             }
-            let statements = super::super::reference_spans::appended_span_since(
-                &build.control.statements,
-                build.state_statements_start,
-            );
+            let statements =
+                appended_span_since(&build.control.statements, build.state_statements_start);
             let mut matching = build
                 .control
                 .statements
@@ -118,21 +119,17 @@ pub(in crate::flow) fn current_scalar_observation(
         // Captured fixed coordinates and immutable selector identities denote
         // exact storage. An unresolved mutable coordinate cannot establish a
         // current value by being rendered the same way at two evaluations.
-        if !super::super::stable_case_subject(
-            program,
-            machine,
-            state_definition,
-            statement_index,
-            &place,
-        ) || !super::super::operand_contexts::observation_prefixes_agree(
-            program,
-            &build.control,
-            read.origin_writes,
-            read.origin_unknown_write,
-            writes,
-            unknown_write,
-            &place,
-        ) {
+        if !stable_case_subject(program, machine, state_definition, statement_index, &place)
+            || !observation_prefixes_agree(
+                program,
+                &build.control,
+                read.origin_writes,
+                read.origin_unknown_write,
+                writes,
+                unknown_write,
+                &place,
+            )
+        {
             return None;
         }
     }

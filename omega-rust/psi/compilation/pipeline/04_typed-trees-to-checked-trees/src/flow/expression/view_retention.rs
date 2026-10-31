@@ -5,6 +5,15 @@
 //! An unchanged state input already owns its admitted reference frontier.
 //! Retain those leaves against the input owner even when no local store has
 //! produced a capture; selecting a case payload cannot erase that dependency.
+use super::super::canonical_place_segments_equal;
+use super::super::canonical_place_segments_may_overlap;
+use super::super::operand_values::captured_lifetime_roots;
+use super::super::operand_values::captured_retention_profiles_at_path;
+use super::super::operand_values::reference_captures_at_path;
+use super::super::stored_values::StoredObservation;
+use super::super::stored_values::StoredOperand;
+use super::super::stored_values::at_snapshot;
+use super::super::stored_views::capture_at_snapshot;
 use super::Execution;
 use crate::places::place_at;
 use arena::{Handle, HandleSpan};
@@ -84,16 +93,16 @@ impl Execution<'_, '_, '_> {
 
     fn retention_from_stored_operand(
         &mut self,
-        stored: super::super::stored_values::StoredOperand,
+        stored: StoredOperand,
     ) -> Handle<FlowOperandRetention> {
         let mut pending = vec![stored];
         let mut profiles = Vec::new();
         while let Some(stored) = pending.pop() {
             let profile = match stored {
-                super::super::stored_values::StoredOperand::Unavailable => {
+                StoredOperand::Unavailable => {
                     return Handle::invalid();
                 }
-                super::super::stored_values::StoredOperand::Incoming(place) => {
+                StoredOperand::Incoming(place) => {
                     if !self.is_incoming_descriptor_place(&place)
                         || !place.root.as_symbol().is_some_and(|symbol| {
                             self.program
@@ -109,11 +118,11 @@ impl Execution<'_, '_, '_> {
                     // state input, without an address or old pointee facts.
                     self.append_retention(&[place.root])
                 }
-                super::super::stored_values::StoredOperand::Alternatives(values) => {
+                StoredOperand::Alternatives(values) => {
                     pending.extend(values.into_iter().rev());
                     continue;
                 }
-                super::super::stored_values::StoredOperand::Value {
+                StoredOperand::Value {
                     capture,
                     projection,
                     ..
@@ -135,7 +144,7 @@ impl Execution<'_, '_, '_> {
         capture: FlowOperandFact,
         path: &[PlaceSegment],
     ) -> Handle<FlowOperandRetention> {
-        let Some(profiles) = super::super::operand_values::captured_retention_profiles_at_path(
+        let Some(profiles) = captured_retention_profiles_at_path(
             self.program,
             &self.context.control,
             &capture,
@@ -368,7 +377,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         source: &CanonicalPlace,
     ) -> Option<Handle<FlowOperandRetention>> {
-        let capture = super::super::stored_views::capture_at_snapshot(
+        let capture = capture_at_snapshot(
             self.program,
             &self.context.control,
             self.state,
@@ -376,12 +385,10 @@ impl Execution<'_, '_, '_> {
             source,
         )?;
         Some(match capture {
-            stored @ (super::super::stored_values::StoredOperand::Unavailable
-            | super::super::stored_values::StoredOperand::Incoming(_)
-            | super::super::stored_values::StoredOperand::Alternatives(_)) => {
-                self.retention_from_stored_operand(stored)
-            }
-            super::super::stored_values::StoredOperand::Value {
+            stored @ (StoredOperand::Unavailable
+            | StoredOperand::Incoming(_)
+            | StoredOperand::Alternatives(_)) => self.retention_from_stored_operand(stored),
+            StoredOperand::Value {
                 capture,
                 projection,
                 ..
@@ -434,7 +441,7 @@ impl Execution<'_, '_, '_> {
             let path = crate::borrow::owner_place_segments(&path);
             if path.len() < source.segments.len()
                 || !source.segments.iter().zip(&path).all(|(left, right)| {
-                    super::super::canonical_place_segments_equal(self.program, *left, *right)
+                    canonical_place_segments_equal(self.program, *left, *right)
                 })
             {
                 continue;
@@ -443,14 +450,14 @@ impl Execution<'_, '_, '_> {
                 root: source.root,
                 segments: path.clone(),
             };
-            let retention = match super::super::stored_views::capture_at_snapshot(
+            let retention = match capture_at_snapshot(
                 self.program,
                 &self.context.control,
                 self.state,
                 snapshot,
                 &leaf,
             ) {
-                Some(super::super::stored_values::StoredOperand::Value {
+                Some(StoredOperand::Value {
                     capture,
                     projection,
                     ..
@@ -459,9 +466,9 @@ impl Execution<'_, '_, '_> {
                     self.captured_retention_at_path(capture, &projection)
                 }
                 Some(
-                    stored @ (super::super::stored_values::StoredOperand::Unavailable
-                    | super::super::stored_values::StoredOperand::Incoming(_)
-                    | super::super::stored_values::StoredOperand::Alternatives(_)),
+                    stored @ (StoredOperand::Unavailable
+                    | StoredOperand::Incoming(_)
+                    | StoredOperand::Alternatives(_)),
                 ) => self.retention_from_stored_operand(stored),
                 None => self.append_retention(&[source.root]),
             };
@@ -540,13 +547,9 @@ impl Execution<'_, '_, '_> {
             && let Some(fact) = backing_fact
             && self.is_view_type(fact.type_reference)
         {
-            let mut roots = super::super::operand_values::captured_lifetime_roots(
-                self.program,
-                &self.context.control,
-                &fact,
-            )
-            .filter(|roots| !roots.is_empty())
-            .unwrap_or_default();
+            let mut roots = captured_lifetime_roots(self.program, &self.context.control, &fact)
+                .filter(|roots| !roots.is_empty())
+                .unwrap_or_default();
             if roots.is_empty() {
                 for place in self.captured_referent_places(fact.referents) {
                     if place.root.is_valid() && !roots.contains(&place.root) {
@@ -601,14 +604,14 @@ impl Execution<'_, '_, '_> {
                 capture.expression,
             )
         {
-            match super::super::stored_views::capture_at_snapshot(
+            match capture_at_snapshot(
                 self.program,
                 &self.context.control,
                 self.state,
                 self.storage_snapshot,
                 &source,
             ) {
-                Some(super::super::stored_values::StoredOperand::Value {
+                Some(StoredOperand::Value {
                     capture,
                     projection,
                     ..
@@ -657,14 +660,14 @@ impl Execution<'_, '_, '_> {
             ) else {
                 return Handle::invalid();
             };
-            match super::super::stored_values::at_snapshot(
+            match at_snapshot(
                 self.program,
                 &self.context.control,
                 capture.storage_snapshot,
                 &source,
-                super::super::stored_values::StoredObservation::Contents,
+                StoredObservation::Contents,
             ) {
-                Some(super::super::stored_values::StoredOperand::Value {
+                Some(StoredOperand::Value {
                     capture,
                     projection,
                     ..
@@ -684,7 +687,7 @@ impl Execution<'_, '_, '_> {
                     };
                     value.retention = retention;
                 }
-                Some(stored @ super::super::stored_values::StoredOperand::Alternatives(_)) => {
+                Some(stored @ StoredOperand::Alternatives(_)) => {
                     let Some(captures) = stored.captures() else {
                         return Handle::invalid();
                     };
@@ -700,10 +703,7 @@ impl Execution<'_, '_, '_> {
                     value.retention =
                         self.capture_retention_join(value.type_reference, &selections);
                 }
-                Some(
-                    super::super::stored_values::StoredOperand::Unavailable
-                    | super::super::stored_values::StoredOperand::Incoming(_),
-                ) => {
+                Some(StoredOperand::Unavailable | StoredOperand::Incoming(_)) => {
                     // A partial write changes the aggregate contents while
                     // leaving each untouched descriptor independently stable.
                     // Read every declared reference leaf at this value's cut;
@@ -712,11 +712,8 @@ impl Execution<'_, '_, '_> {
                 }
             }
         }
-        let Some(roots) = super::super::operand_values::captured_lifetime_roots(
-            self.program,
-            &self.context.control,
-            &value,
-        ) else {
+        let Some(roots) = captured_lifetime_roots(self.program, &self.context.control, &value)
+        else {
             return Handle::invalid();
         };
         let stored_value = self.context.control.operands.insert(value);
@@ -734,12 +731,12 @@ impl Execution<'_, '_, '_> {
             let path = crate::borrow::owner_place_segments(path);
             let mut place = source.clone();
             place.segments.extend_from_slice(&path);
-            let retention = match super::super::stored_values::at_snapshot(
+            let retention = match at_snapshot(
                 self.program,
                 &self.context.control,
                 capture.storage_snapshot,
                 &place,
-                super::super::stored_values::StoredObservation::Binding,
+                StoredObservation::Binding,
             ) {
                 Some(stored) => self.retention_from_stored_operand(stored),
                 None => match self.incoming_value_retention(&place, capture.storage_snapshot) {
@@ -841,7 +838,7 @@ impl Execution<'_, '_, '_> {
             .is_some_and(|reference| self.is_view_type(reference))
         {
             let value = self.context.control.operands.insert(*receiver);
-            if let Some(selected) = super::super::operand_values::reference_captures_at_path(
+            if let Some(selected) = reference_captures_at_path(
                 self.program,
                 &self.context.control,
                 value,
@@ -979,7 +976,7 @@ impl Execution<'_, '_, '_> {
             writes.iter().any(|write| {
                 places.iter().any(|place| {
                     place.root == write.root
-                        && super::super::canonical_place_segments_may_overlap(
+                        && canonical_place_segments_may_overlap(
                             self.program,
                             &place.segments,
                             &write.segments,

@@ -13,6 +13,8 @@
 //! across calls instead of turning every caller-visible write into a mutable
 //! loan requirement. Ordinary replacement of an atomic cell remains exclusive.
 
+use super::local_origins;
+use super::operand_coordinates::call_operands_have_builtin_coordinates;
 use validation::CanonicalPlace;
 use validation::call_site_argument_expressions;
 use validation::canonical_place_from_expression;
@@ -367,7 +369,7 @@ fn propagate_state_mutation_summaries(
                         });
                         let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
                             (Some((_, machine_symbol)), Some(site)) => {
-                                super::operand_coordinates::call_operands_have_builtin_coordinates(
+                                call_operands_have_builtin_coordinates(
                                     program,
                                     machine_symbol,
                                     state.state_symbol,
@@ -820,7 +822,7 @@ fn collect_state_mutation_summary_places(
                     Some(state),
                     assignment.target,
                 ));
-        let regions = super::local_origins::assignment_storage_regions(
+        let regions = local_origins::assignment_storage_regions(
             program,
             machine_symbol,
             state.symbol,
@@ -931,7 +933,7 @@ fn prepare_call_relative_inputs<'program>(
         borrow_call.call_ordinal,
     )?;
     let has_builtin_coordinates = !matches!(namespace, WritePlaceNamespace::Storage)
-        || super::operand_coordinates::call_operands_have_builtin_coordinates(
+        || call_operands_have_builtin_coordinates(
             program,
             caller_machine_symbol,
             caller_state_symbol,
@@ -1209,7 +1211,7 @@ pub(super) fn captured_argument_write_regions(
                         )?
                         .iter()
                         .map(|source| {
-                            super::local_origins::write_source_region(
+                            local_origins::write_source_region(
                                 program,
                                 state,
                                 statement_index,
@@ -1249,13 +1251,8 @@ pub(super) fn captured_argument_write_regions(
     let origins = captured.as_ref()?;
     let mut places = Vec::new();
     for source in origins.arguments.get(position)?.as_ref()? {
-        let projected = super::local_origins::write_source_region(
-            program,
-            state,
-            statement_index,
-            source,
-            relative,
-        )?;
+        let projected =
+            local_origins::write_source_region(program, state, statement_index, source, relative)?;
         if matches!(projected, StorageRegion::Declared(_))
             && !storage_place_has_declared_identity(projected.anchor())
         {
@@ -1293,7 +1290,7 @@ fn rebase_projected_call_region(
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     if destination == WriteDestination::Referent {
-        return super::local_origins::rebase_captured_storage_region(
+        return local_origins::rebase_captured_storage_region(
             program,
             state,
             statement,
@@ -1315,7 +1312,7 @@ fn rebase_projected_call_region(
     if !validation::storage_origin_types_match(program, expected, actual) {
         return None;
     }
-    super::local_origins::rebase_captured_storage_region(
+    local_origins::rebase_captured_storage_region(
         program,
         state,
         statement,

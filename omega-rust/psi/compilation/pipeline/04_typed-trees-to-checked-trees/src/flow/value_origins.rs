@@ -4,6 +4,9 @@
 //! value. Its pre-RHS address must still name the demanded storage after RHS
 //! effects; a write footprint alone does not establish that correspondence.
 
+use super::operand_contexts::binding_origin_is_stable;
+use super::operand_contexts::binding_overwrite;
+use super::operand_contexts::entry_origin_is_stable;
 use validation::CanonicalPlace;
 
 use crate::flow::expressions;
@@ -82,9 +85,7 @@ impl ValueObservation {
         place.root == write.root
             && match self {
                 Self::Contents => overlaps(program, place, write),
-                Self::Binding => {
-                    super::operand_contexts::binding_overwrite(program, place, &write.segments)
-                }
+                Self::Binding => binding_overwrite(program, place, &write.segments),
             }
     }
 }
@@ -700,20 +701,12 @@ fn preserve_statement_effects(
             OriginFrontier::CompletedStatement => observation.statement_writes(stored),
         };
         let stable = match observation {
-            ValueObservation::Contents => super::operand_contexts::entry_origin_is_stable(
-                program,
-                &flow.control,
-                writes,
-                unknown,
-                place,
-            ),
-            ValueObservation::Binding => super::operand_contexts::binding_origin_is_stable(
-                program,
-                &flow.control,
-                writes,
-                unknown,
-                place,
-            ),
+            ValueObservation::Contents => {
+                entry_origin_is_stable(program, &flow.control, writes, unknown, place)
+            }
+            ValueObservation::Binding => {
+                binding_origin_is_stable(program, &flow.control, writes, unknown, place)
+            }
         };
         return stable.then_some(());
     }

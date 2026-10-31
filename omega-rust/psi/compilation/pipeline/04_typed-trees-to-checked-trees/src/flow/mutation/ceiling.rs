@@ -11,6 +11,11 @@
 //! declared-storage replacement. Exact loan origins remain necessary to
 //! restore a caller's replaced ownership homes at normal completion.
 
+use super::local_origins::rebase_local_write_regions;
+use super::local_origins::rebase_storage_region;
+use super::local_origins::write_source_region;
+use super::summary::WriteDestination;
+use super::summary::captured_argument_write_regions;
 use crate::flow::expressions;
 use crate::places::place_at;
 use validation::CanonicalPlace;
@@ -114,7 +119,7 @@ pub(crate) fn signature_ceiling_regions(
                         )
                     })?;
                     for referent in referents {
-                        for region in super::local_origins::rebase_storage_region(
+                        for region in rebase_storage_region(
                             program,
                             state.symbol,
                             borrow_call.statement_index,
@@ -149,7 +154,7 @@ pub(crate) fn signature_ceiling_regions(
             }
             argument
         };
-        let captured = super::summary::captured_argument_write_regions(
+        let captured = captured_argument_write_regions(
             program,
             machine.symbol,
             state.symbol,
@@ -159,12 +164,12 @@ pub(crate) fn signature_ceiling_regions(
             argument_index - 1,
             parameter.type_reference,
             &[],
-            super::summary::WriteDestination::Referent,
+            WriteDestination::Referent,
             resolver,
         );
         let storage = captured.or_else(|| {
             let actual = place_at(program, state.symbol, borrow_call.statement_index, actual)?;
-            super::local_origins::rebase_local_write_regions(
+            rebase_local_write_regions(
                 program,
                 state.symbol,
                 borrow_call.statement_index,
@@ -220,7 +225,7 @@ fn resident_parameter_regions(
         regions.push(StorageRegion::UnresolvedContent { carrier });
     }
     for (path, owner) in inventory.owners {
-        let captured = super::summary::captured_argument_write_regions(
+        let captured = captured_argument_write_regions(
             program,
             machine.symbol,
             state.symbol,
@@ -230,7 +235,7 @@ fn resident_parameter_regions(
             position,
             reference,
             &path,
-            super::summary::WriteDestination::Referent,
+            WriteDestination::Referent,
             frames,
         )
         .or_else(|| {
@@ -238,13 +243,7 @@ fn resident_parameter_regions(
                 *validation::call_site_argument_expressions(program, site).get(position)?;
             let mut place = place_at(program, state.symbol, call.statement_index, actual)?;
             place.segments.extend_from_slice(&path);
-            super::local_origins::rebase_local_write_regions(
-                program,
-                state.symbol,
-                call.statement_index,
-                place,
-                frames,
-            )
+            rebase_local_write_regions(program, state.symbol, call.statement_index, place, frames)
         });
         let Some(captured) = captured else {
             if validation::reference_shell(program, reference).is_some() {
@@ -407,7 +406,7 @@ fn carried_exclusive_referents(
                 projected,
             )? {
                 referents.push(CarriedStorage {
-                    region: super::local_origins::write_source_region(
+                    region: write_source_region(
                         program,
                         state,
                         statement_index,

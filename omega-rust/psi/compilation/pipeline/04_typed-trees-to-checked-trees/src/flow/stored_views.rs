@@ -1,6 +1,9 @@
 //! Exact view addresses come from completed stores. The same query serves
 //! operand evaluation and later effect proofs; neither may replay an initializer
 //! or replace an unresolved newer descriptor with a historical source address.
+use super::operand_contexts::operand_binds_live_view;
+use super::operand_values::captured_operand_reference_places_with_formation;
+use super::stored_values::at_snapshot;
 use super::stored_values::{StoredObservation, StoredOperand};
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowControlFacts, FlowStatementFact, FlowStorageSnapshot};
@@ -98,15 +101,13 @@ pub(crate) fn reference_places_at_snapshot(
                     return Some(Vec::new());
                 }
                 let value = control.operands.get(capture);
-                let Some(selected) =
-                    super::operand_values::captured_operand_reference_places_with_formation(
-                        program,
-                        control,
-                        value,
-                        reference,
-                        &projection,
-                    )
-                else {
+                let Some(selected) = captured_operand_reference_places_with_formation(
+                    program,
+                    control,
+                    value,
+                    reference,
+                    &projection,
+                ) else {
                     return Some(Vec::new());
                 };
                 if selected.is_empty() {
@@ -145,7 +146,7 @@ pub(crate) fn capture_at_snapshot(
     {
         return None;
     }
-    if let Some(stored) = super::stored_values::at_snapshot(
+    if let Some(stored) = at_snapshot(
         program,
         control,
         snapshot,
@@ -158,9 +159,7 @@ pub(crate) fn capture_at_snapshot(
         .root
         .as_symbol()
         .and_then(|root| program.state_local_declaration(state, root))
-        .filter(|(_, local)| {
-            super::operand_contexts::operand_binds_live_view(program, local.type_reference)
-        })
+        .filter(|(_, local)| operand_binds_live_view(program, local.type_reference))
         .map(|_| StoredOperand::Unavailable)
 }
 
@@ -206,7 +205,7 @@ pub(crate) fn address_before_statement(
             };
             let reference =
                 validation::canonical_place_type_reference(program, state.symbol, before, &prefix)?;
-            if !super::operand_contexts::operand_binds_live_view(program, reference) {
+            if !operand_binds_live_view(program, reference) {
                 continue;
             }
             let Some(places) = before_snapshot(program, control, state, snapshot, &prefix) else {
