@@ -16,6 +16,10 @@ use super::{
     Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceNode,
     structural_values::canonical_place_is_borrowable,
 };
+use crate::execution::terminal_unit::calls::projected_argument_path;
+use crate::execution::terminal_unit::calls::projected_observed_path;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::element_view_shell;
 use checked_trees::{CheckedStructuralAccess, CheckedStructuralValueKind};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -56,20 +60,14 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let view =
-            crate::execution::terminal_unit::types::element_view_shell(self.program, expected, &[])
-                .or_else(|| {
-                    matches!(
-                        crate::execution::terminal_unit::types::byte_sequence_carrier(
-                            self.program,
-                            expected,
-                            &[],
-                        ),
-                        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
-                    )
-                    .then(|| validation::slice_view_shell(self.program, expected, &[]))
-                    .flatten()
-                })?;
+        let view = element_view_shell(self.program, expected, &[]).or_else(|| {
+            matches!(
+                byte_sequence_carrier(self.program, expected, &[],),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+            )
+            .then(|| validation::slice_view_shell(self.program, expected, &[]))
+            .flatten()
+        })?;
         let state = self.program.state_by_symbol(self.state)?;
         let (mut place, access) = self.view_formation(expression, expected, view.access)?;
 
@@ -173,7 +171,7 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
             }
         };
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        let (projected, path) = projected_argument_path(
             self.program,
             self.state,
             self.statement_index,
@@ -189,7 +187,7 @@ impl Builder<'_, '_> {
             if validation::slice_view_shell(self.program, projected, &[]).is_some() {
                 (projected, path)
             } else {
-                crate::execution::terminal_unit::calls::projected_observed_path(
+                projected_observed_path(
                     self.program,
                     self.machine,
                     self.state,

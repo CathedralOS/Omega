@@ -4,6 +4,11 @@
 //! closes every actual holder and transport before attaching that disposition.
 
 use super::{Results, Retirement};
+use crate::collections::push_unique;
+use crate::execution::terminal_unit::calls::resolve_call_target;
+use crate::execution::terminal_unit::cleanup::retained_owners::dependency_dispositions;
+use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
     CheckFacts, CheckedReferenceOwnerCleanup, CheckedUnitEffectOperationPlan,
     CheckedUnitLocalBindingPlan, CheckedUnitStructuralArgumentPlan,
@@ -50,14 +55,7 @@ impl OwnerCandidates {
             .collect::<Vec<_>>();
         let mut owners: Vec<OwnerCandidate> = Vec::new();
         for value_root in roots.into_iter().rev() {
-            for handle in
-                crate::execution::terminal_unit::cleanup::retained_owners::dependency_dispositions(
-                    facts,
-                    machine,
-                    state,
-                    value_root.root,
-                )?
-            {
+            for handle in dependency_dispositions(facts, machine, state, value_root.root)? {
                 let row = facts.contextual_cleanup.dispositions.get(handle);
                 let language_semantics::PermissionEventSource::Call {
                     statement_index,
@@ -112,16 +110,12 @@ impl OwnerCandidates {
                     let existing = facts.contextual_cleanup.dispositions.get(owner.disposition);
                     existing.root == row.root && existing.source == row.source
                 }) {
-                    crate::collections::push_unique(&mut owner.values, value_root.root);
+                    push_unique(&mut owner.values, value_root.root);
                 } else {
                     owners.push(OwnerCandidate {
                         disposition: handle,
                         source_call,
-                        target_identity:
-                            crate::execution::terminal_unit::calls::resolve_call_target(
-                                program,
-                                source.target_symbol,
-                            )?
+                        target_identity: resolve_call_target(program, source.target_symbol)?
                             .identity(),
                         values: vec![value_root.root],
                     });
@@ -143,8 +137,8 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
     candidates: &OwnerCandidates,
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    prepared_calls: &PreparedCalls,
+    shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,

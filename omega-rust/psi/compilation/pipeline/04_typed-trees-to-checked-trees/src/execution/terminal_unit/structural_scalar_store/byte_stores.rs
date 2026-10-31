@@ -8,10 +8,13 @@ use super::super::{
 };
 use super::destination::Root;
 use super::value::{self, AssignmentSource};
+use crate::checks::current_scalar_values::byte_length_bound;
+use crate::checks::reference_access;
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
 use crate::places::place_at;
+use crate::values::operator_is_builtin;
 
 /// `view[index] = byte` through a whole mutable borrowed view or owned home.
 /// Replacing a byte observes the current length, so a borrowed root needs an
@@ -345,7 +348,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
         }
         ExpressionNode::Binary(binary)
             if binary.operator == typed_trees::expression::BinaryOperator::Add
-                && crate::values::operator_is_builtin(operators, expression) =>
+                && operator_is_builtin(operators, expression) =>
         {
             if !domains.iter().all(|domain| {
                 validation::field_domains::domain_is_concat_preserving(program, *domain)
@@ -401,12 +404,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     capacity
                 }
                 checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. } => {
-                    crate::checks::current_scalar_values::byte_length_bound(
-                        program,
-                        state,
-                        statement_index as usize,
-                        expression,
-                    )?
+                    byte_length_bound(program, state, statement_index as usize, expression)?
                 }
             };
             let source_domains =
@@ -530,7 +528,7 @@ pub(super) fn field_view_is_mutable(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    crate::checks::reference_access(program, type_reference)
+    reference_access(program, type_reference)
         .is_some_and(|access| access == language_semantics::ReferenceAccess::Mutable)
 }
 

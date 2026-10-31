@@ -5,9 +5,15 @@
 
 use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{boundary_calls, integers, normal_return};
+use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::facts::domain_is_vacuous;
+use crate::flow::call_flows;
+use crate::values::evaluate_checked_scalar;
+use crate::values::mutable_scalar_parameter_type;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
@@ -41,7 +47,7 @@ pub(super) struct DeclarationScope<'program> {
 
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
-    pub(super) shapes: crate::execution::terminal_unit::types::ShapeCollector<'program>,
+    pub(super) shapes: ShapeCollector<'program>,
     pub(super) operators: &'program CheckedOperatorFacts,
     pub(super) semantic: &'program facts::FactPlan,
     pub(super) flow: &'program FlowFacts,
@@ -215,12 +221,8 @@ impl Builder<'_, '_> {
             // expression. Preserve its exact landing and source occurrence;
             // the qualification remains an authored cast with its own proof.
             let target = self.program.primitive_type_reference(cast.target_type)?;
-            let value = crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression(
-                self.program,
-                self.operators,
-                cast.value,
-                target,
-            )?;
+            let value =
+                land_anonymous_scalar_expression(self.program, self.operators, cast.value, target)?;
             let operand = self.insert(target, CheckedScalarComputationKind::Value(value));
             self.plans.nodes.get_mut(operand).value_source = cast.value;
             operand
@@ -650,11 +652,7 @@ impl Builder<'_, '_> {
                 )
                 || cast.domain != ArithmeticDomain::Exact
                 || !cast.semantic_domain_id.is_valid()
-                || !crate::facts::domain_is_vacuous(
-                    self.program,
-                    cast.semantic_domain_symbol,
-                    &mut Vec::new(),
-                )
+                || !domain_is_vacuous(self.program, cast.semantic_domain_symbol, &mut Vec::new())
                 || self.program.primitive_type_reference(cast.target_type) != Some(expected_type)
                 || self.program.primitive_type_reference(cast.result_type) != Some(expected_type)
             {
@@ -862,11 +860,7 @@ impl Builder<'_, '_> {
                                 .program
                                 .primitive_type_reference(parameter.type_reference)
                                 .is_some()
-                            && crate::values::mutable_scalar_parameter_type(
-                                self.program,
-                                parameter,
-                            )
-                            .is_none())
+                            && mutable_scalar_parameter_type(self.program, parameter).is_none())
                 }) {
                     return None;
                 }
@@ -941,7 +935,7 @@ impl Builder<'_, '_> {
                 if let CheckedScalarComputationKind::Value(value) =
                     &self.plans.nodes.get(condition).kind
                     && let Some(facts::ScalarValue::Boolean(value)) =
-                        crate::values::evaluate_checked_scalar(value, &mut |_| None)
+                        evaluate_checked_scalar(value, &mut |_| None)
                 {
                     return if value == evaluate_when {
                         self.expression(binary.right, PrimitiveType::Bool)
@@ -1121,7 +1115,7 @@ impl Builder<'_, '_> {
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
         let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
-        let mut matching = crate::flow::call_flows(&self.flow.control, state.calls)
+        let mut matching = call_flows(&self.flow.control, state.calls)
             .iter()
             .filter(|call| {
                 call.statement_index == self.statement_index

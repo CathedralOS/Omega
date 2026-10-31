@@ -7,10 +7,19 @@
 //! folding an enclosing guard does not change their operand custody.
 //! One builder owns both plan arenas: structural members may compute scalar
 //! operands, and scalar observations may first establish a structural value.
+use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::flow::call_flows;
 use crate::flow::expressions;
 use crate::values::operator_is_builtin;
+use crate::values::scalar::array_constructions::call_array_constructions_in;
+use crate::values::scalar::array_constructions::unique_state_flow;
+use crate::values::scalar::call_arguments::nested_call_sites;
 use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::expression_plans::assignment_target_primitive_type;
+use crate::values::scalar::occupies_scalar_position;
 use crate::values::scalar::semantic_casts;
+use crate::values::scalar::subslice_endpoints::sites;
+use crate::values::scalar::subslice_endpoints::subslice_endpoints;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedScalarExpression;
@@ -76,9 +85,7 @@ pub(crate) fn build_checked_value_computation_plans(
             let scalar_parameters = program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| {
-                    crate::values::scalar::occupies_scalar_position(program, parameter)
-                })
+                .filter(|parameter| occupies_scalar_position(program, parameter))
                 .cloned()
                 .collect::<Vec<_>>();
             let parameters = scalar_parameters.as_slice();
@@ -90,8 +97,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 continue;
             };
             let mut locals = Vec::new();
-            let captured =
-                crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
+            let captured = unique_state_flow(flow, machine, state);
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
@@ -100,7 +106,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
-                    shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
+                    shapes: ShapeCollector::new(program),
                     operators,
                     semantic,
                     flow,
@@ -129,24 +135,12 @@ pub(crate) fn build_checked_value_computation_plans(
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
-                for (expression, site) in crate::values::scalar::subslice_endpoints::sites(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    statement,
-                )
-                .into_iter()
-                .rev()
+                for (expression, site) in sites(program, machine, state, statement_index, statement)
+                    .into_iter()
+                    .rev()
                 {
                     for (endpoint, role, ()) in
-                        crate::values::scalar::subslice_endpoints::subslice_endpoints(
-                            program,
-                            operators,
-                            expression,
-                            site,
-                            |_| Some(()),
-                        )
+                        subslice_endpoints(program, operators, expression, site, |_| Some(()))
                     {
                         builder.record_root(
                             pure,
@@ -306,7 +300,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 }
                 for construction in captured
                     .map(|captured| {
-                        crate::values::scalar::array_constructions::call_array_constructions_in(
+                        call_array_constructions_in(
                             program,
                             flow,
                             captured,
@@ -324,13 +318,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 }
                 for (call_ordinal, site) in captured
                     .map(|captured| {
-                        crate::values::scalar::call_arguments::nested_call_sites(
-                            program,
-                            flow,
-                            captured,
-                            statement,
-                            statement_index,
-                        )
+                        nested_call_sites(program, flow, captured, statement, statement_index)
                     })
                     .unwrap_or_default()
                 {
@@ -495,11 +483,8 @@ pub(crate) fn build_checked_value_computation_plans(
                         program, machine, state, assignment,
                     )
                     .filter(|installed| validation::reference_shell(program, *installed).is_none())
-                    .and_then(|installed| {
-                        crate::values::scalar::expression_plans::assignment_target_primitive_type(
-                            program, installed,
-                        )
-                    }) {
+                    .and_then(|installed| assignment_target_primitive_type(program, installed))
+                    {
                         // An atomic assignment's model is not evaluated. Its
                         // authored inputs own ordinary computation roots, so
                         // calls, selections and pure values share one event
@@ -573,7 +558,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // independent of guard/operand evaluation order; internal
                 // state transfers keep the transition roles below instead.
                 if let Some(captured) = captured {
-                    for call in crate::flow::call_flows(&flow.control, captured.calls)
+                    for call in call_flows(&flow.control, captured.calls)
                         .iter()
                         .filter(|call| call.statement_index == statement_index)
                     {

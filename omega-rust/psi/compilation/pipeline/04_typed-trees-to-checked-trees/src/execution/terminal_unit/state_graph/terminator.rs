@@ -18,6 +18,8 @@ use super::{
     TransitionExit, TransitionGuardNode, TransitionTargetNode, closed_sum, control,
     guard_is_boolean, retained_guard, returns, successor, terminal_calls,
 };
+use crate::execution::guard_complement::complementary;
+use crate::execution::selected_transitions::selected_transition;
 
 /// The terminator one state's authored tail plans, after its operations.
 /// `fused` carries the whole roster this graph spans: a successor naming a
@@ -169,11 +171,8 @@ pub(super) fn build(
     if statements.get(terminator_index).is_some_and(|statement| {
         matches!(statement, StatementNode::Transition(transition)
             if matches!(transition.guard, TransitionGuardNode::When(_)))
-    }) && let Some(selected) = crate::execution::selected_transitions::selected_transition(
-        program,
-        statements,
-        terminator_index,
-    ) {
+    }) && let Some(selected) = selected_transition(program, statements, terminator_index)
+    {
         trace.phase("state graph: terminator: selected static destination");
         let transition = selected.transition;
         let selected_ordinal = selected.statement_ordinal;
@@ -388,7 +387,7 @@ pub(super) fn build(
                 StatementNode::Transition(when_false),
             ] if matches!(when_true.guard, TransitionGuardNode::When(_))
                 && (when_false.guard == TransitionGuardNode::Always
-                    || crate::execution::guard_complement::complementary(
+                    || complementary(
                         program,
                         &facts.values.scalar_expressions,
                         state,

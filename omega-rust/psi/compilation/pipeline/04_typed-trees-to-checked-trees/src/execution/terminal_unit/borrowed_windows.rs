@@ -25,6 +25,10 @@
 //! pre-RHS assignment captures. Mutable selector spelling alone cannot prove
 //! agreement with an earlier captured selection.
 
+use crate::checks;
+use crate::execution::terminal_unit::initialized_locals::initialized_local;
+use crate::flow::reference_route_source;
+use crate::flow::reference_source_place;
 use validation::CanonicalPlace;
 
 use super::{
@@ -52,9 +56,9 @@ fn same_storage_place(
     right: &CanonicalPlace,
 ) -> bool {
     left.root == right.root
-        && crate::checks::storage_path_compatibility(
+        && checks::storage_path_compatibility(
             program,
-            crate::checks::StorageSelectorFacts {
+            checks::StorageSelectorFacts {
                 flow: &facts.flow,
                 semantic: &facts.semantic,
             },
@@ -226,7 +230,7 @@ pub(super) fn owned_assignment_source(
     let symbol = place.root.as_symbol()?;
     if let Some((ordinal, local)) = program.state_local_declaration(state, symbol) {
         return (ordinal < statement_index
-            && (!crate::checks::type_reference_is_reference(program, local.type_reference)
+            && (!checks::type_reference_is_reference(program, local.type_reference)
                 || (place.segments.is_empty()
                     && replacement_type
                         == Some(validation::stored_structural_type_identity(
@@ -485,7 +489,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
         .state_local_declaration(state, root_symbol)
         .filter(|(ordinal, _)| *ordinal < statement_index);
     let (source, path, restoration_required) = if let Some((_, local)) = local {
-        let borrowed = crate::checks::type_reference_is_reference(program, local.type_reference);
+        let borrowed = checks::type_reference_is_reference(program, local.type_reference);
         if borrowed
             && !matches!(
                 (
@@ -590,17 +594,12 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         let Some(symbol) = root.as_symbol() else {
             break;
         };
-        let Some(source) = crate::flow::reference_route_source(
-            program,
-            state,
-            statements,
-            statement_index,
-            symbol,
-        ) else {
+        let Some(source) =
+            reference_route_source(program, state, statements, statement_index, symbol)
+        else {
             break;
         };
-        let Some(source) =
-            crate::flow::reference_source_place(program, state.symbol, statement_index, source)
+        let Some(source) = reference_source_place(program, state.symbol, statement_index, source)
         else {
             break;
         };
@@ -650,7 +649,7 @@ pub(in crate::execution::terminal_unit) fn move_out_candidate(
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<validation::CanonicalPlace> {
     if local.is_mutable
-        || crate::checks::type_reference_is_reference(program, local.type_reference)
+        || checks::type_reference_is_reference(program, local.type_reference)
         || program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
     {
         return None;
@@ -709,9 +708,7 @@ impl OpenWindows {
             binding_ordinal,
             type_identity: type_identity.clone(),
             multiplicity,
-            local: crate::execution::terminal_unit::initialized_locals::initialized_local(
-                program, machine, state, local,
-            ),
+            local: initialized_local(program, machine, state, local),
         };
         self.bind_extraction(program, facts, place, result, local.initial_value)
     }
@@ -902,7 +899,7 @@ impl OpenWindows {
                 element.type_identity = element_type_identity;
                 let produced_element = CheckedUnitStructuralResultBindingPlan {
                     type_identity: element_type_identity,
-                    multiplicity: crate::checks::type_multiplicity(program, shape.element_type),
+                    multiplicity: checks::type_multiplicity(program, shape.element_type),
                     ..produced.clone()
                 };
                 let replacement = self.replace_place(

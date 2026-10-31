@@ -6,6 +6,8 @@
 //! a completed nested operand can mutate a place before a later shared argument
 //! without supplying mutable access to the enclosing invocation.
 
+use crate::execution::terminal_unit::ExpressionNode::Indexed;
+use crate::execution::terminal_unit::ExpressionNode::Range;
 use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
@@ -14,6 +16,13 @@ use crate::execution::terminal_unit::calls::parameter_argument_paths::{
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::receiver_aliases::ReceiverAlias;
+use crate::execution::terminal_unit::reference_results::is_reference_record;
+use crate::execution::terminal_unit::reference_results::local_record_loans;
+use crate::execution::terminal_unit::reference_results::result_loans;
+use crate::execution::terminal_unit::structural_scalar_store::primitive_local_before;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::types::{
     base_type_identity, is_unit, structural_access_for_type_reference,
 };
@@ -25,12 +34,14 @@ use crate::execution::terminal_unit::{
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, SymbolHandle,
     strips_erased_parameter,
 };
+use crate::flow::state_statements;
 use crate::places::place_at;
 use crate::semantic::calls::shared_argument_referent;
+use crate::values::authored_projection_selectors;
 
 pub(crate) fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
     facts: &CheckFacts,
     call: &checked_trees::FlowCallFact,
     caller_machine: &typed_trees::machine::Machine,
@@ -42,7 +53,7 @@ pub(crate) fn structural_call_arguments(
     statement_index: usize,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
-    trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
+    trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = callee.parameters;
@@ -172,9 +183,9 @@ pub(crate) fn structural_call_arguments(
                 // operation. Canonical storage identity alone does not authorize
                 // replacing an authored range operator with a byte-window loan.
                 if matches!(program.expression_table.expression(expression),
-                crate::execution::terminal_unit::ExpressionNode::Indexed(indexed)
+                Indexed(indexed)
                     if matches!(program.expression_table.expression(indexed.index),
-                        crate::execution::terminal_unit::ExpressionNode::Range(_)))
+                        Range(_)))
                     && !validation::has_builtin_subslice_meaning(
                         program,
                         caller_machine,
@@ -351,14 +362,7 @@ pub(crate) fn structural_call_arguments(
             });
             continue;
         };
-        if crate::execution::terminal_unit::structural_scalar_store::primitive_local_before(
-            program,
-            caller_state,
-            statement_index,
-            source_symbol,
-        )
-        .is_some()
-        {
+        if primitive_local_before(program, caller_state, statement_index, source_symbol).is_some() {
             if restored_alias.is_some() {
                 return None;
             }
@@ -590,7 +594,7 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         arm("call operation: structural arguments: authored projection selectors");
-        if crate::values::authored_projection_selectors(program, expression)?.is_empty() {
+        if authored_projection_selectors(program, expression)?.is_empty() {
             continue;
         }
         arm("call operation: structural arguments: retained projection selectors");
@@ -647,7 +651,7 @@ pub(crate) fn structural_call_arguments(
 /// terminal use at this statement, and the loan kind matching the target
 /// access exactly.
 fn alias_forwarded_access(
-    aliases: &[crate::execution::terminal_unit::receiver_aliases::ReceiverAlias],
+    aliases: &[ReceiverAlias],
     authored_place: &validation::CanonicalPlace,
     authored_access: CheckedStructuralAccess,
     target_access: CheckedStructuralAccess,
@@ -754,9 +758,9 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     // The cohort's observation is an empty checked body; a callee without an
     // inspectable declaration cannot be shown to be one.
     if callee.supply_mode != MachineSupplyMode::CheckedBody
-        || callee.declaration.is_none_or(|(_, state)| {
-            !crate::flow::state_statements(program, state.statement_nodes).is_empty()
-        })
+        || callee
+            .declaration
+            .is_none_or(|(_, state)| !state_statements(program, state.statement_nodes).is_empty())
         || !is_unit(program, callee.return_type)
         || !matches!(target_parameters.len(), 2 | 3)
         || target_parameters.iter().any(|parameter| {
@@ -896,14 +900,11 @@ pub(crate) fn exact_structural_argument_access(
                 .statement_table
                 .statement_at(source_state, call.statement_index)?
                 .as_local_data()?;
-            if crate::execution::terminal_unit::reference_results::is_reference_record(
-                program,
-                local.type_reference,
-            ) {
+            if is_reference_record(program, local.type_reference) {
                 if call.authored_expression != local.initial_value {
                     return None;
                 }
-                return crate::execution::terminal_unit::reference_results::local_record_loans(
+                return local_record_loans(
                     program,
                     facts,
                     machine,
@@ -925,15 +926,7 @@ pub(crate) fn exact_structural_argument_access(
                 multiplicity: Multiplicity::Affine,
                 local: Default::default(),
             };
-            crate::execution::terminal_unit::reference_results::result_loans(
-                program,
-                facts,
-                machine,
-                source_state,
-                call,
-                &result,
-            )
-            .and_then(|loans| {
+            result_loans(program, facts, machine, source_state, call, &result).and_then(|loans| {
                 facts
                     .borrow
                     .loan_group(loans)

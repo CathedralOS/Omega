@@ -1,6 +1,8 @@
 //! Which boundary scalar targets, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
+use crate::checks::type_multiplicity;
+use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
 };
@@ -300,7 +302,7 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
             program.type_reference_table.type_reference(element),
             TypeReferenceNode::Named { .. }
         ) && program.primitive_type_reference(element) == Some(PrimitiveType::U8)
-    }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
+    }) && type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 
 /// Peels one reference layer off `source` and destructures it as a literal
@@ -444,10 +446,7 @@ fn field_type_carries_requirement(
 ) -> bool {
     typed_trees::service::service_requirement_declaration(program, type_reference)
         == Some(provider_symbol)
-        || crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
-            program,
-            type_reference,
-        ) == Some(provider_symbol)
+        || mutable_boundary_trait_symbol(program, type_reference) == Some(provider_symbol)
 }
 
 /// The ergonomic service-record spelling: `self.fs` is a `data` record that

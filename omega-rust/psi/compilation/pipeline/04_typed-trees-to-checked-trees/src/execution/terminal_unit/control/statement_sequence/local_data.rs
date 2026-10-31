@@ -26,7 +26,16 @@ use super::{
     ExpressionNode, Multiplicity, ShapeCollector, SymbolHandle, checked_structural_result_type,
     scalar_computation_local_at, structural_operands,
 };
+use crate::execution::terminal_unit::borrowed_windows::OpenWindows;
+use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
+use crate::execution::terminal_unit::calls::projected_evaluated_path;
+use crate::execution::terminal_unit::calls::value_index_segment;
+use crate::execution::terminal_unit::calls::view_subslice::admit;
+use crate::execution::terminal_unit::calls::view_subslice::view_kind;
+use crate::execution::terminal_unit::calls::view_subslice::whole_extent;
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
+use crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field;
+use crate::execution::terminal_unit::types::borrowed_slice_view_element;
 use crate::execution::terminal_unit::types::{
     parameter_qualifications, supports_primitive_storage,
 };
@@ -43,7 +52,7 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) scalar_count: &'a mut usize,
     pub(super) structural_count: &'a mut usize,
     pub(super) structural_local_symbols: &'a mut Vec<SymbolHandle>,
-    pub(super) windows: &'a mut crate::execution::terminal_unit::borrowed_windows::OpenWindows,
+    pub(super) windows: &'a mut OpenWindows,
     pub(super) array_bindings: &'a mut Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) atomic_result: &'a mut Option<CheckedUnitScalarResultBindingPlan>,
     pub(super) structural_results:
@@ -176,11 +185,7 @@ fn plan_inner(
     }
     if !local.is_mutable
         && let Some(argument) =
-            crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
-                program,
-                local.type_reference,
-                local.initial_value,
-            )
+            byte_sequence_literal_argument(program, local.type_reference, local.initial_value)
     {
         local_phase("statement sequence: local data: byte literal");
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
@@ -316,17 +321,8 @@ fn plan_inner(
     // its element (`let v: u8 = main.bytes[0..2]`): the binding's target
     // is the subslice's own result type in both spellings, and the
     // element spelling must agree with the view's element below.
-    let declared_is_view = crate::execution::terminal_unit::calls::view_subslice::view_kind(
-        program,
-        local.type_reference,
-    )
-    .is_some()
-        || crate::execution::terminal_unit::types::borrowed_slice_view_element(
-            program,
-            local.type_reference,
-            &[],
-        )
-        .is_some();
+    let declared_is_view = view_kind(program, local.type_reference).is_some()
+        || borrowed_slice_view_element(program, local.type_reference, &[]).is_some();
     let subslice_target = if declared_is_view {
         local.type_reference
     } else {
@@ -340,7 +336,7 @@ fn plan_inner(
     let subslice = structural_root
         .is_none()
         .then(|| {
-            crate::execution::terminal_unit::calls::view_subslice::admit(
+            admit(
                 program,
                 facts,
                 machine,
@@ -358,7 +354,7 @@ fn plan_inner(
             // binding at all, so only a view-declared local qualifies here.
             .or_else(|| {
                 declared_is_view.then(|| {
-                    crate::execution::terminal_unit::calls::view_subslice::whole_extent(
+                    whole_extent(
                         program,
                         machine,
                         state,
@@ -878,20 +874,14 @@ fn place_loan(
     };
     // The declaration owns this evaluation. Consume the same checked scalar
     // source used by ordinary value operands, including established storage.
-    let projected = crate::execution::terminal_unit::calls::projected_evaluated_path(
+    let projected = projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
         statement,
         &place,
         Some(&|expression| {
-            crate::execution::terminal_unit::calls::value_index_segment(
-                program,
-                &facts.operators,
-                state,
-                statement,
-                expression,
-            )
+            value_index_segment(program, &facts.operators, state, statement, expression)
         }),
     );
     let path = match projected {
@@ -977,15 +967,11 @@ fn establish_declared_home(
     *structural_count = structural_count.checked_add(1)?;
     // A descriptor home declares the local's byte domains; every store into
     // it then proves them. Other homes keep their members' own invariants.
-    let qualifications =
-        if crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field(
-            program,
-            local.type_reference,
-        ) {
-            parameter_qualifications(program, shapes, local.type_reference, binders)?
-        } else {
-            Vec::new()
-        };
+    let qualifications = if is_shared_view_field(program, local.type_reference) {
+        parameter_qualifications(program, shapes, local.type_reference, binders)?
+    } else {
+        Vec::new()
+    };
     operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::Structural {
             statement_index,

@@ -6,6 +6,7 @@
 //! retained for emission rather than rediscovered from runtime source shapes.
 
 use super::{BorrowLoanFact, CheckedUnitEffectOperationPlan, Retirement};
+use crate::borrow::owner_place_segments;
 use arena::{Handle, HandleSpan};
 use checked_trees::CheckedUnitSelectedReferenceRetirementPlan;
 
@@ -143,9 +144,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
             // supplier's nominal receiver dies. That receiver still owns its
             // complete descriptor fields; leaf expiry cannot dismantle it.
             let retains_receiver = retirement.facts.borrow.loan_group(loans)?.any(|(_, loan)| {
-                let path = crate::borrow::owner_place_segments(
-                    retirement.facts.borrow.loan_owner_path(loan),
-                );
+                let path = owner_place_segments(retirement.facts.borrow.loan_owner_path(loan));
                 retirement
                     .facts
                     .flow

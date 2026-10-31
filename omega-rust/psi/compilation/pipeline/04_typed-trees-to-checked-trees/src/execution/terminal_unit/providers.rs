@@ -1,4 +1,6 @@
 //! Exact provider-attachment requirements shared by Unit plan families.
+use crate::execution::terminal_unit::calls::provider_attachment_receiver_field;
+use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use std::collections::BTreeSet;
 
 use super::{
@@ -86,12 +88,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 program,
                 source_field.type_reference,
             )
-            .or_else(|| {
-                crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
-                    program,
-                    source_field.type_reference,
-                )
-            })
+            .or_else(|| mutable_boundary_trait_symbol(program, source_field.type_reference))
         })?;
         let provider = program
             .traits()
@@ -170,10 +167,7 @@ pub(super) fn checked_provider_attachment_requirements(
         // The `self.<field>` receiver names the provider a call answers to:
         // a call claims exactly the field it routes through, not a
         // same-boundary sibling.
-        let receiver_field =
-            crate::execution::terminal_unit::calls::provider_attachment_receiver_field(
-                program, &call_site,
-            );
+        let receiver_field = provider_attachment_receiver_field(program, &call_site);
         let parameter_sources = parameter_binding_receiver_sources(
             program,
             state,

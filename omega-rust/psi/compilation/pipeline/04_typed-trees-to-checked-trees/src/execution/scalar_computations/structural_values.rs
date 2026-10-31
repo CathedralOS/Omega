@@ -15,9 +15,18 @@ use super::{
     Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
     SymbolHandle, TypeReferenceNode,
 };
+use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
+use crate::execution::terminal_unit::calls::projected_argument_path;
+use crate::execution::terminal_unit::control::checked_structural_result_type;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
 use crate::places::place_at;
+use crate::semantic::calls::shared_argument_referent;
+use crate::values::authored_projection_selectors;
 use crate::values::operator_is_builtin;
+use crate::values::reference_sources::capture_source;
+use crate::values::reference_sources::formed_reference_type;
+use crate::values::reference_sources::transported_value_type;
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
     CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -43,7 +52,7 @@ impl Builder<'_, '_> {
         owner: ExpressionHandle,
         source: ExpressionHandle,
     ) -> Option<Vec<ProjectionSelector>> {
-        let selectors = crate::values::authored_projection_selectors(self.program, source)?;
+        let selectors = authored_projection_selectors(self.program, source)?;
         self.retain_projection_selector_evaluations(owner, selectors)
     }
 
@@ -79,7 +88,7 @@ impl Builder<'_, '_> {
         TypeReferenceHandle,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     )> {
-        crate::execution::terminal_unit::calls::projected_argument_path(
+        projected_argument_path(
             self.program,
             self.state,
             self.statement_index,
@@ -335,95 +344,86 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
-        let (expression, expected) = match self
-            .program
-            .type_reference_table
-            .type_reference(expected)
-        {
-            _ if self.uses_captured_dispatch_value(expression) => {
-                let producer = if validation::reference_shell(self.program, expected).is_some() {
-                    validation::expression_result_type_reference(
+        let (expression, expected) =
+            match self.program.type_reference_table.type_reference(expected) {
+                _ if self.uses_captured_dispatch_value(expression) => {
+                    let producer = if validation::reference_shell(self.program, expected).is_some()
+                    {
+                        validation::expression_result_type_reference(
+                            self.program,
+                            self.program.machine_by_symbol(self.machine)?,
+                            self.program.state_by_symbol(self.state)?,
+                            expression,
+                        )?
+                    } else {
+                        expected
+                    };
+                    (expression, producer)
+                }
+                TypeReferenceNode::Reference { .. }
+                    if validation::reference_result_custody::stored_loan_parts(
+                        self.program,
+                        expected,
+                    )
+                    .is_some()
+                        && validation::reference_formation_source(self.program, expression)
+                            .is_some() =>
+                {
+                    let machine = self.program.machine_by_symbol(self.machine)?;
+                    let state = self.program.state_by_symbol(self.state)?;
+                    let actual = formed_reference_type(self.program, machine, state, expression)?;
+                    (expression, actual)
+                }
+                // A view carries a descriptor value, not an owned slice
+                // referent. Preserve its checked reference shell and loan.
+                TypeReferenceNode::Reference { .. }
+                    if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
+                {
+                    // A view is a descriptor value even when it has a named or
+                    // projected home. Complete that value at this operand's own
+                    // position; a later argument may replace the old slot. The
+                    // same value producer forms array-to-view descriptors, and
+                    // retained loan facts independently preserve backing custody.
+                    (expression, expected)
+                }
+                TypeReferenceNode::Reference { .. }
+                    if let Some(actual) = transported_value_type(
                         self.program,
                         self.program.machine_by_symbol(self.machine)?,
                         self.program.state_by_symbol(self.state)?,
+                        self.statement_index,
                         expression,
-                    )?
-                } else {
-                    expected
-                };
-                (expression, producer)
-            }
-            TypeReferenceNode::Reference { .. }
-                if validation::reference_result_custody::stored_loan_parts(
-                    self.program,
-                    expected,
-                )
-                .is_some()
-                    && validation::reference_formation_source(self.program, expression)
-                        .is_some() =>
-            {
-                let machine = self.program.machine_by_symbol(self.machine)?;
-                let state = self.program.state_by_symbol(self.state)?;
-                let actual = crate::values::reference_sources::formed_reference_type(
-                    self.program,
-                    machine,
-                    state,
-                    expression,
-                )?;
-                (expression, actual)
-            }
-            // A view carries a descriptor value, not an owned slice
-            // referent. Preserve its checked reference shell and loan.
-            TypeReferenceNode::Reference { .. }
-                if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
-            {
-                // A view is a descriptor value even when it has a named or
-                // projected home. Complete that value at this operand's own
-                // position; a later argument may replace the old slot. The
-                // same value producer forms array-to-view descriptors, and
-                // retained loan facts independently preserve backing custody.
-                (expression, expected)
-            }
-            TypeReferenceNode::Reference { .. }
-                if let Some(actual) = crate::values::reference_sources::transported_value_type(
-                    self.program,
-                    self.program.machine_by_symbol(self.machine)?,
-                    self.program.state_by_symbol(self.state)?,
-                    self.statement_index,
-                    expression,
-                ) =>
-            {
-                // Source admission already checked this actual against its
-                // formal in the caller's telescope. Retain the produced
-                // carrier; replaying correspondence here loses that scope.
-                (expression, actual)
-            }
-            TypeReferenceNode::Reference { .. }
-                if validation::reference_formation_source(self.program, expression).is_some() =>
-            {
-                // An explicit loan is a completed value even when its backing
-                // already exists. Its fresh borrowed arrival carries facts at
-                // this occurrence without relabeling the backing's old value.
-                (expression, expected)
-            }
-            TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared,
-                ..
-            } => {
-                let (expression, expected) = crate::semantic::calls::shared_argument_referent(
-                    self.program,
-                    expression,
-                    expected,
-                )?;
-                let place = self.canonical_place(expression)?;
-                if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
-                    return None;
+                    ) =>
+                {
+                    // Source admission already checked this actual against its
+                    // formal in the caller's telescope. Retain the produced
+                    // carrier; replaying correspondence here loses that scope.
+                    (expression, actual)
                 }
-                (expression, expected)
-            }
-            TypeReferenceNode::Reference { .. } => return None,
-            _ => (expression, expected),
-        };
+                TypeReferenceNode::Reference { .. }
+                    if validation::reference_formation_source(self.program, expression)
+                        .is_some() =>
+                {
+                    // An explicit loan is a completed value even when its backing
+                    // already exists. Its fresh borrowed arrival carries facts at
+                    // this occurrence without relabeling the backing's old value.
+                    (expression, expected)
+                }
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                } => {
+                    let (expression, expected) =
+                        shared_argument_referent(self.program, expression, expected)?;
+                    let place = self.canonical_place(expression)?;
+                    if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
+                        return None;
+                    }
+                    (expression, expected)
+                }
+                TypeReferenceNode::Reference { .. } => return None,
+                _ => (expression, expected),
+            };
         let statement = u32::try_from(self.statement_index).ok()?;
         let retained = self
             .structural_values
@@ -674,11 +674,7 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression),
             ExpressionNode::String(_)
         ) {
-            let argument = crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
-                self.program,
-                expected,
-                expression,
-            )?;
+            let argument = byte_sequence_literal_argument(self.program, expected, expression)?;
             match argument.access {
                 checked_trees::CheckedStructuralAccess::Owned => {
                     CheckedStructuralValueKind::Place(argument)
@@ -775,7 +771,7 @@ impl Builder<'_, '_> {
                     )
                 })
             };
-            let capture = crate::values::reference_sources::capture_source(
+            let capture = capture_source(
                 self.program,
                 self.program.machine_by_symbol(self.machine)?,
                 state,
@@ -840,9 +836,9 @@ impl Builder<'_, '_> {
             // supply. The ordinary call planner retains the exact boundary,
             // body or dynamic route and its independent completion custody.
             if !value_predicates::structural_carriers_match(self.program, returned, expected)
-                || crate::execution::terminal_unit::control::checked_structural_result_type(
+                || checked_structural_result_type(
                     self.program,
-                    &mut crate::execution::terminal_unit::types::ShapeCollector::new(self.program),
+                    &mut ShapeCollector::new(self.program),
                     returned,
                     &[],
                 )

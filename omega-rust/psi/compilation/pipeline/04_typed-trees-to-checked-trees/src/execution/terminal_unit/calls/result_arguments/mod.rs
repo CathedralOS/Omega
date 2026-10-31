@@ -13,11 +13,17 @@ use crate::execution::terminal_unit::CheckedUnitStructuralResultBindingPlan;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::execution::terminal_unit::types::borrowed_named_view;
+use crate::execution::terminal_unit::types::slice_view_carrier;
+use crate::execution::terminal_unit::types::stored_type_presents_borrowed;
 use crate::execution::terminal_unit::types::{
     base_type_identity, structural_access_for_type_reference,
 };
 use crate::flow::expressions;
+use crate::flow::state_statements;
 use crate::places::place_at;
+use crate::semantic::calls::shared_argument_referent;
 
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
@@ -39,7 +45,7 @@ pub(crate) use reference::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &dyn ::validation::CheckingInput,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -94,7 +100,7 @@ pub(super) fn argument(
 #[allow(clippy::too_many_arguments)]
 fn argument_contract(
     program: &dyn ::validation::CheckingInput,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -172,7 +178,7 @@ fn argument_contract(
     ) {
         return Some(argument);
     }
-    if let Some(StatementNode::LocalData(local)) = crate::flow::state_statements(program, source_state.statement_nodes)
+    if let Some(StatementNode::LocalData(local)) = state_statements(program, source_state.statement_nodes)
         .get(result.statement_index as usize)
         && reference::is_carrier(program, local.type_reference)
         // Anonymous operand results carry their consuming statement's index,
@@ -377,12 +383,7 @@ fn argument_contract(
                 .into_iter()
                 .flatten()
                 .any(|source| {
-                    crate::execution::terminal_unit::types::stored_type_presents_borrowed(
-                        program,
-                        source,
-                        result.type_identity,
-                        identity,
-                    )
+                    stored_type_presents_borrowed(program, source, result.type_identity, identity)
                 })
     };
     let result_presents_formal = result_presents(target_identity);
@@ -459,21 +460,16 @@ fn argument_contract(
         && ((matches!(
             access,
             checked_trees::checked_borrowed_access_pair_pattern!()
-        ) && crate::execution::terminal_unit::types::slice_view_carrier(
-            program,
-            parameter.type_reference,
-        ) && result_presents_formal)
+        ) && slice_view_carrier(program, parameter.type_reference)
+            && result_presents_formal)
             || (access == CheckedStructuralAccess::SharedBorrow
-                && crate::execution::terminal_unit::types::borrowed_named_view(
-                    program,
-                    parameter.type_reference,
-                )
+                && borrowed_named_view(program, parameter.type_reference)
                 && result.type_identity
                     == program.normalized_type_identity(parameter.type_reference)))
         && let Some(view_symbol) = place.root.as_symbol()
     {
         let Some(StatementNode::LocalData(local)) =
-            crate::flow::state_statements(program, source_state.statement_nodes)
+            state_statements(program, source_state.statement_nodes)
                 .get(result.statement_index as usize)
         else {
             return None;
@@ -488,10 +484,7 @@ fn argument_contract(
         // differ from an element-only local annotation; result admission and
         // receiving view replay authenticate that descriptor and its backing.
         // Lending it does not cross a stored Reference shell.
-        if crate::execution::terminal_unit::types::slice_view_carrier(
-            program,
-            parameter.type_reference,
-        ) {
+        if slice_view_carrier(program, parameter.type_reference) {
             if exact_structural_argument_access(
                 program, facts, machine, state, call, place, access,
             )? != access
@@ -538,14 +531,9 @@ fn argument_contract(
         && ((matches!(
             access,
             checked_trees::checked_borrowed_access_pair_pattern!()
-        ) && crate::execution::terminal_unit::types::slice_view_carrier(
-            program,
-            parameter.type_reference,
-        )) || (access == CheckedStructuralAccess::SharedBorrow
-            && crate::execution::terminal_unit::types::borrowed_named_view(
-                program,
-                parameter.type_reference,
-            )))
+        ) && slice_view_carrier(program, parameter.type_reference))
+            || (access == CheckedStructuralAccess::SharedBorrow
+                && borrowed_named_view(program, parameter.type_reference)))
         && result_presents_formal
         && let Some(source) = place.root.as_expression()
         && source == expression
@@ -579,11 +567,8 @@ fn argument_contract(
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
             trace.phase("call operation: result argument: shared referent");
-            let (referent_expression, referee) = crate::semantic::calls::shared_argument_referent(
-                program,
-                expression,
-                parameter.type_reference,
-            )?;
+            let (referent_expression, referee) =
+                shared_argument_referent(program, expression, parameter.type_reference)?;
             let referee = if array_view { storage_type? } else { referee };
             match place.root {
                 facts::PlaceRoot::Symbol(_) => {
@@ -775,7 +760,7 @@ fn argument_contract(
             }
             trace.phase("call operation: result argument: local binding custody");
             let source_state = program.state_by_symbol(state)?;
-            let local = crate::flow::state_statements(program, source_state.statement_nodes)
+            let local = state_statements(program, source_state.statement_nodes)
                 .get(usize::try_from(result.statement_index).ok()?)?
                 .as_local_data()?;
             // Authenticate the containing local independently of the selected
@@ -913,7 +898,7 @@ fn whole_local_storage_type(
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let symbol = place.root.as_symbol()?;
-    let local = crate::flow::state_statements(program, source_state.statement_nodes)
+    let local = state_statements(program, source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
         .as_local_data()?;
     (place.segments.is_empty() && local.symbol == symbol).then_some(local.type_reference)

@@ -2,6 +2,16 @@
 //! to produce.
 
 use crate::execution::terminal_unit::ScalarCalleeClosure;
+use crate::execution::terminal_unit::is_reference;
+use crate::execution::terminal_unit::reference_results::has_borrowed_parts;
+use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::execution::terminal_unit::types::base_type_identity;
+use crate::execution::terminal_unit::types::borrowed_named_view;
+use crate::execution::terminal_unit::types::borrowed_slice_result;
+use crate::execution::terminal_unit::types::erased_proof_parameter_plans;
+use crate::execution::terminal_unit::types::erased_scalar_parameter_plans;
+use crate::execution::terminal_unit::types::substituted_formal_type;
+use crate::values::mutable_scalar_parameter_type;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     checked_call_erased_proof_arguments, checked_call_erased_scalar_arguments,
@@ -42,32 +52,20 @@ pub(crate) fn call_value_result_matches(
     expected: &ExpectedCallValueResult<'_>,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> bool {
-    let return_type = crate::execution::terminal_unit::types::substituted_formal_type(
-        program,
-        return_type,
-        substitutions,
-    );
+    let return_type = substituted_formal_type(program, return_type, substitutions);
     match expected {
         ExpectedCallValueResult::Scalar(expected) => {
             program.primitive_type_reference(return_type) == Some(*expected)
         }
         ExpectedCallValueResult::Structural(expected)
-            if crate::execution::terminal_unit::types::borrowed_slice_result(
-                program,
-                return_type,
-            ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                program,
-                return_type,
-            ) =>
+            if borrowed_slice_result(program, return_type)
+                || borrowed_named_view(program, return_type) =>
         {
             // A slice result transports descriptor custody: unrestricted
             // for shared access and affine for mutable access. Named
             // references retain their separate affine permission carrier.
             // Neither carrier owns or extends the lifetime of its backing.
-            let multiplicity = if crate::execution::terminal_unit::types::borrowed_slice_result(
-                program,
-                return_type,
-            ) {
+            let multiplicity = if borrowed_slice_result(program, return_type) {
                 validation::reference_result_custody::binding_multiplicity(program, return_type)
             } else {
                 Multiplicity::Affine
@@ -82,10 +80,7 @@ pub(crate) fn call_value_result_matches(
                 && (peeled == expected.type_identity || shelled == expected.type_identity)
         }
         ExpectedCallValueResult::Structural(expected)
-            if crate::execution::terminal_unit::reference_results::has_borrowed_parts(
-                program,
-                return_type,
-            ) =>
+            if has_borrowed_parts(program, return_type) =>
         {
             expected.multiplicity == Multiplicity::Affine
                 && program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
@@ -96,15 +91,11 @@ pub(crate) fn call_value_result_matches(
         ExpectedCallValueResult::Structural(expected) => {
             program.primitive_type_reference(return_type).is_none()
                 && !is_unit(program, return_type)
-                && !crate::execution::terminal_unit::is_reference(program, return_type)
+                && !is_reference(program, return_type)
                 && validation::reference_result_custody::result_multiplicity(program, return_type)
                     == expected.multiplicity
-                && crate::execution::terminal_unit::types::base_type_identity(
-                    program,
-                    return_type,
-                    &[],
-                    substitutions,
-                ) == Some(expected.type_identity)
+                && base_type_identity(program, return_type, &[], substitutions)
+                    == Some(expected.type_identity)
         }
     }
 }
@@ -130,7 +121,7 @@ pub(super) struct PlannedCall<'p> {
 /// `None` supplies no registered scalar targets; it never consults published catalogs.
 pub(in crate::execution) fn build_call_operation(
     program: &dyn ::validation::CheckingInput,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleeClosure>,
     machine: &typed_trees::machine::Machine,
@@ -349,8 +340,7 @@ pub(in crate::execution) fn build_call_operation(
             continue;
         };
         if (parameter.is_const)
-            || (parameter.is_mutable
-                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+            || (parameter.is_mutable && mutable_scalar_parameter_type(program, parameter).is_none())
         {
             return None;
         }
@@ -366,11 +356,7 @@ pub(in crate::execution) fn build_call_operation(
         checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, false)?
     };
     phase("call operation: erased scalar arguments");
-    let erased_scalar_parameters =
-        crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
-            program,
-            target_state,
-        )?;
+    let erased_scalar_parameters = erased_scalar_parameter_plans(program, target_state)?;
     // Boundary calls and bodyless targets own no erased proof lane; retained
     // erased formals belong to in-module Unit callees only.
     let erased_scalar_arguments = if boundary {
@@ -387,11 +373,7 @@ pub(in crate::execution) fn build_call_operation(
         )?
     };
     phase("call operation: erased proof arguments");
-    let erased_proof_parameters =
-        crate::execution::terminal_unit::types::erased_proof_parameter_plans(
-            program,
-            target_state,
-        )?;
+    let erased_proof_parameters = erased_proof_parameter_plans(program, target_state)?;
     let erased_proof_arguments = if boundary {
         if !erased_proof_parameters.is_empty() {
             return None;

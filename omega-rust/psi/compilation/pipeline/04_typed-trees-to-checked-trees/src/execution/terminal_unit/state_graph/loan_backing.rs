@@ -7,6 +7,8 @@
 //! operand resources and their stored dependencies, not producer spellings or
 //! lexical last-use indices. Unresolved coverage retains the stable-home route.
 
+use crate::collections::push_unique;
+use crate::flow::literal_value_path_is_inactive;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, CheckFacts, CheckedCallBorrowLoanSource, CheckedUnitEffectOperationPlan,
@@ -496,7 +498,7 @@ fn retained_parents(
         let retained = shared_leaf_lifetime_roots(program, facts, capture, path)
             .ok_or("state loan parents: captured reference leaves have no resources")?;
         for root in retained {
-            crate::collections::push_unique(&mut shared_backings, root);
+            push_unique(&mut shared_backings, root);
         }
     }
     if roots.is_empty() && shared_backings.is_empty() && address_source.is_none() {
@@ -644,7 +646,7 @@ fn retained_parents(
             continue;
         };
         let relation = (dependent, parent);
-        crate::collections::push_unique(&mut parents, relation);
+        push_unique(&mut parents, relation);
     }
     Ok((parents, operand_parents))
 }
@@ -748,12 +750,7 @@ fn ingress_covers_capture_path_body(
 ) -> bool {
     let control = &facts.flow.control;
     let capture = control.operands.get(operand);
-    if crate::flow::literal_value_path_is_inactive(
-        program,
-        capture.expression,
-        capture.type_reference,
-        path,
-    ) {
+    if literal_value_path_is_inactive(program, capture.expression, capture.type_reference, path) {
         return true;
     }
     if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {

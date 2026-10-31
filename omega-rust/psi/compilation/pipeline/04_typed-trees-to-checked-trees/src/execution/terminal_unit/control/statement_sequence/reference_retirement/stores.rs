@@ -6,6 +6,10 @@ use super::{
     BorrowLoanFact, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, Retirement, SymbolHandle, transfers,
 };
+use crate::borrow::owner_path_from_place_segments;
+use crate::borrow::place_path_covers_owner;
+use crate::execution::terminal_unit::types::dense_structural_parameter_index;
+use crate::execution::terminal_unit::types::structural_parameter_candidate;
 
 fn storage_source(
     program: &dyn validation::CheckingInput,
@@ -18,10 +22,7 @@ fn storage_source(
         .position(|parameter| parameter.symbol == owner)
     {
         return Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index:
-                crate::execution::terminal_unit::types::dense_structural_parameter_index(
-                    program, parameters, position,
-                )?,
+            parameter_index: dense_structural_parameter_index(program, parameters, position)?,
         });
     }
     Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner })
@@ -43,11 +44,7 @@ pub(super) fn source_owner(
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| {
-                crate::execution::terminal_unit::types::structural_parameter_candidate(
-                    program, parameter,
-                )
-            })
+            .filter(|parameter| structural_parameter_candidate(program, parameter))
             .nth(*parameter_index as usize)
             .map(|parameter| parameter.symbol),
         _ => None,
@@ -103,7 +100,7 @@ pub(super) fn destination(
     let destination =
         captured_destination(program, facts, machine, state, statement_index, selection)?;
     let owner = destination.root.as_symbol()?;
-    let path = crate::borrow::owner_path_from_place_segments(program, &destination.segments);
+    let path = owner_path_from_place_segments(program, &destination.segments);
     let reference = validation::reference_result_custody::storage_owner_type_reference(
         program,
         state,
@@ -212,7 +209,7 @@ pub(super) fn replaces(
         )?;
         Some(
             destination.root == loan.storage_owner
-                && crate::borrow::place_path_covers_owner(
+                && place_path_covers_owner(
                     retirement.program,
                     &destination.segments,
                     retirement.facts.borrow.loan_owner_path(loan),

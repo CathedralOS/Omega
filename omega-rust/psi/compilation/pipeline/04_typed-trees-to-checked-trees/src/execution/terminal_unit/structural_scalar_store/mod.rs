@@ -42,8 +42,11 @@ use super::{
     DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::types::retain_scalar_field;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
 use crate::places::place_at;
+use crate::values::occupies_scalar_position;
+use crate::values::resolve_structural_parameter_path;
 use destination::{Destination, Root, StoreRoots, plain_record};
 use symbols::SymbolHandle;
 pub(in crate::execution::terminal_unit) use value::AssignmentSource;
@@ -367,7 +370,7 @@ fn runtime_index_expression(
             let parameter = program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+                .filter(|parameter| occupies_scalar_position(program, parameter))
                 .nth(position)?;
             Some(checked_trees::CheckedScalarExpression::Parameter {
                 position,
@@ -396,7 +399,7 @@ fn runtime_index_expression(
             None
         }
         checked_trees::CheckedRuntimeIndex::StructuralField(selector) => {
-            let (_, _, leaf, _) = crate::values::resolve_structural_parameter_path(
+            let (_, _, leaf, _) = resolve_structural_parameter_path(
                 program,
                 program.state_parameters(state),
                 selector.parameter_position,
@@ -658,13 +661,7 @@ fn scalar_leaf(
     field: &typed_trees::data::DataField,
 ) -> Option<PrimitiveType> {
     let primitive = program.primitive_type_reference(field.type_reference)?;
-    let retained = crate::execution::terminal_unit::types::retain_scalar_field(
-        program,
-        field.type_reference,
-        &[],
-        primitive,
-        None,
-    )?;
+    let retained = retain_scalar_field(program, field.type_reference, &[], primitive, None)?;
     matches!(
         retained,
         checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
