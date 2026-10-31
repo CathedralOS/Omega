@@ -2,6 +2,8 @@
 //! write byte roots, and process-exit settlement at native boundaries.
 
 use crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes;
+use crate::object_artifact::replay::instruction_loads::aarch64_replay_stack_load;
+use crate::object_artifact::replay::instruction_loads::x86_replay_rsp_load;
 use calling_conventions::{MachineRegister, ValueLocation, ValueShape};
 use machine_code::{
     BoundaryExecutionRecord, BoundarySettlementRecord, InternalUnitScalarArgumentSourceRecord,
@@ -393,14 +395,7 @@ fn structural_payload_source_is_exact(
     let mut expected = Vec::new();
     match target.architecture {
         Architecture::X86_64 => {
-            if crate::object_artifact::replay::instruction_loads::x86_replay_rsp_load(
-                &mut expected,
-                0,
-                tag_offset,
-                4,
-            )
-            .is_none()
-            {
+            if x86_replay_rsp_load(&mut expected, 0, tag_offset, 4).is_none() {
                 return false;
             }
             expected.push(0x3d);
@@ -419,11 +414,7 @@ fn structural_payload_source_is_exact(
             crate::codec_bytes::push_encoded(&mut expected, displacement.to_le_bytes());
         }
         Architecture::Aarch64 => {
-            let Some(load) =
-                crate::object_artifact::replay::instruction_loads::aarch64_replay_stack_load(
-                    9, tag_offset, 4,
-                )
-            else {
+            let Some(load) = aarch64_replay_stack_load(9, tag_offset, 4) else {
                 return false;
             };
             crate::codec_bytes::push_encoded(&mut expected, load.to_le_bytes());
