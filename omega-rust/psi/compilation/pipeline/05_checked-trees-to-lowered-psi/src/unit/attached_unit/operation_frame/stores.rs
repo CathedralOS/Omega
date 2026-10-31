@@ -31,9 +31,11 @@ use super::{
     structural_type_declaration, window_place,
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
+use crate::emission::expression_validation::direct_expression_contains_short_circuit;
 use crate::emission::indexed_write::IndexedWriteTarget;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::emission::store_destination::descriptor_home;
 use crate::emission::structural_byte_sequence_store::prepare_types;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
@@ -367,11 +369,7 @@ impl OperationFrame<'_, '_> {
                 if descriptor && store.destination.path.is_empty() =>
             {
                 let (place, structural_type, qualified) =
-                    crate::emission::store_destination::descriptor_home(
-                        symbol,
-                        &self.evaluation.structural_locals,
-                        self.operations,
-                    )?;
+                    descriptor_home(symbol, &self.evaluation.structural_locals, self.operations)?;
                 StoreRoot::DescriptorHome {
                     place,
                     structural_type,
@@ -1654,9 +1652,7 @@ impl OperationFrame<'_, '_> {
                 },
             )?;
             if target.field_type.scalar_type() != Some(expression.scalar_type())
-                || crate::emission::expression_validation::direct_expression_contains_short_circuit(
-                    &expression,
-                )
+                || direct_expression_contains_short_circuit(&expression)
             {
                 return unsupported(
                     "case literal operand needs an exact branch-free scalar operand",

@@ -29,6 +29,7 @@ use crate::expression_preparation::byte_literals;
 use crate::expression_preparation::computation_graph::fields;
 use crate::reference_custody::binding_multiplicity;
 use crate::scalar_lowering::computations::cases::declarations;
+use crate::terminal_identities::lookup_machine_id;
 use crate::terminal_identities::stored_structural_identity;
 use arena::HandleSpan;
 use checked_trees::{
@@ -1878,10 +1879,7 @@ impl Emission<'_, '_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "native layout query lost its exact selected executable entry",
                         ))?;
-                let machine = crate::terminal_identities::lookup_machine_id(
-                    self.calls.machine_ids,
-                    selected.symbol,
-                )?;
+                let machine = lookup_machine_id(self.calls.machine_ids, selected.symbol)?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let operation = self.operations.allocate();
                 self.operations.push(terminal_psi::Operation::unsuspended(

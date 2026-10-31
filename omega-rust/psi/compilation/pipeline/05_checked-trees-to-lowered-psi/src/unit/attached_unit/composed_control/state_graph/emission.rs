@@ -22,15 +22,21 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
 use crate::checked_facts::{flow_facts, value_facts};
+use crate::emission::claim_bindings::CompletedValueClaim;
+use crate::emission::claim_bindings::UnreceivedResultClaim;
 use crate::emission::operation_emission::place_declarations::retain_block_parameters;
 use crate::expression_preparation::bindings::structural_paths::structural_access_can_supply;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::computation_graph::value_call_operations;
 use crate::scalar_lowering::computations::produced_values::prepare;
+use crate::scalar_lowering::contracts::erased_formal_declarations;
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::terminal_identities::value_id;
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
 use crate::unit::attached_unit::operation_frame::claim_established_here;
+use crate::unit::attached_unit::parameters::lower_unit_scalar_parameter_declarations;
+use crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places;
 use crate::unit::attached_unit::signatures::find;
 use crate::unit::claim_id;
 use checked_trees::CheckedErasedProofParameterPlan;
@@ -309,14 +315,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                         continue;
                     }
                     let claim = claim_id(allocate_dense(&mut next_claim)?);
-                    claims.unreceived_results.push(
-                        crate::emission::claim_bindings::UnreceivedResultClaim {
-                            state: state.state,
-                            coordinate: call.coordinate,
-                            path: received.path.clone(),
-                            claim,
-                        },
-                    );
+                    claims.unreceived_results.push(UnreceivedResultClaim {
+                        state: state.state,
+                        coordinate: call.coordinate,
+                        path: received.path.clone(),
+                        claim,
+                    });
                 } else if !invocation_alias(received.claim)
                     && !claims
                         .source_claims
@@ -355,13 +359,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             continue;
         }
         for path in crate::emission::claim_bindings::completed_value_paths(checked, value)? {
-            claims
-                .completed_values
-                .push(crate::emission::claim_bindings::CompletedValueClaim {
-                    value,
-                    path,
-                    claim: claim_id(allocate_dense(&mut next_claim)?),
-                });
+            claims.completed_values.push(CompletedValueClaim {
+                value,
+                path,
+                claim: claim_id(allocate_dense(&mut next_claim)?),
+            });
         }
     }
     // Proven invocation storage aliases have no block argument or new name.
@@ -493,25 +495,21 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     .collect(),
             );
             state_views.push(block_parameters);
-            state_values.push(
-                crate::unit::attached_unit::parameters::lower_unit_scalar_parameter_declarations(
-                    checked,
-                    state.state,
-                    &state.scalar_parameters,
-                    catalogs
-                        .prepared_scalar_qualifications
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph state formals have no qualification namespace",
-                        ))?,
-                    &mut catalogs.next_value,
-                )?,
-            );
-            state_erased.push(
-                crate::scalar_lowering::contracts::erased_formal_declarations(
-                    &state.erased_scalar_parameters,
-                    &mut catalogs.next_value,
-                )?,
-            );
+            state_values.push(lower_unit_scalar_parameter_declarations(
+                checked,
+                state.state,
+                &state.scalar_parameters,
+                catalogs
+                    .prepared_scalar_qualifications
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph state formals have no qualification namespace",
+                    ))?,
+                &mut catalogs.next_value,
+            )?);
+            state_erased.push(erased_formal_declarations(
+                &state.erased_scalar_parameters,
+                &mut catalogs.next_value,
+            )?);
             state_erased_proof.push(state.erased_proof_parameters.clone());
         } else {
             state_contract_rosters.push(
@@ -539,9 +537,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .enumerate()
         .map(|(position, state)| {
             if admitted.live[position] && ranking::observation(checked, plan, state)?.is_some() {
-                Ok(Some(crate::terminal_identities::value_id(allocate_dense(
-                    &mut catalogs.next_value,
-                )?)))
+                Ok(Some(value_id(allocate_dense(&mut catalogs.next_value)?)))
             } else {
                 Ok(None)
             }
@@ -1004,18 +1000,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             .iter()
             .map(|boundary| (boundary.source, boundary.id))
             .collect::<Vec<_>>();
-        structural_places.extend(
-            crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(
-                identities,
-                checked,
-                attachment,
-                declaration,
-                &catalogs.structural_types,
-                &plan.provider_attachment_requirements,
-                &boundaries,
-                &mut catalogs.next_place,
-            )?,
-        );
+        structural_places.extend(lower_provider_attachment_places(
+            identities,
+            checked,
+            attachment,
+            declaration,
+            &catalogs.structural_types,
+            &plan.provider_attachment_requirements,
+            &boundaries,
+            &mut catalogs.next_place,
+        )?);
     }
     crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {

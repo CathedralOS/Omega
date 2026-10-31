@@ -19,13 +19,17 @@ use super::{
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
 use crate::checked_facts::{flow_facts, value_facts};
+use crate::declarations::state_declaration;
 use crate::emission::call_qualifications::declaration_represents;
 use crate::emission::call_qualifications::for_call;
 use crate::emission::structural_byte_sequence_store::literal_view_type;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
+use crate::expression_preparation::computation_graph::reachable_structural_values;
 use crate::expression_preparation::computation_graph::value_call_operations;
 use crate::expression_preparation::structural_value_requirements::collect_operation_requirements;
 use crate::expression_preparation::structural_value_requirements::collect_value_requirements;
 use crate::machine_lowering::declarations::semantic_identity;
+use crate::scalar_lowering::computations::operand_types::type_requirements;
 use crate::structural_types::lower_field_type;
 use crate::terminal_identities::stored_structural_identity;
 use crate::terminal_identities::{
@@ -356,9 +360,7 @@ pub(super) fn lower_unit_structural_types(
     // Fused dispatch identities do not replace the declaration owners of
     // retained computations. Publish every producer's complete requirements.
     for symbol in &sources {
-        let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
-            checked, *symbol,
-        )?;
+        let operands = type_requirements(checked, *symbol)?;
         roots.extend(operands.identities);
         literal_view |= operands.literal_view;
     }
@@ -394,7 +396,7 @@ pub(super) fn lower_unit_structural_types(
         {
             // Result plans may retain only shape/multiplicity. Use the exact
             // authored/default-domain roster that result emission publishes.
-            let (_, state) = crate::declarations::state_declaration(checked, body.entry()?.state)?;
+            let (_, state) = state_declaration(checked, body.entry()?.state)?;
             let qualifications = super::parameters::result_projected_qualifications(
                 checked,
                 *symbol,
@@ -551,9 +553,7 @@ pub(super) fn lower_unit_structural_types(
                     crate::scalar_lowering::computations::fields::prepare_place_observations(
                         identities,
                         checked,
-                        crate::declarations::state_declaration(checked, state)?
-                            .0
-                            .symbol,
+                        state_declaration(checked, state)?.0.symbol,
                         state,
                         &declarations,
                     );
@@ -837,9 +837,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 access,
             } => StructuralTypeShape::ElementView {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
-                access: access.map(
-                    crate::expression_preparation::bindings::structural_paths::terminal_access,
-                ),
+                access: access.map(terminal_access),
             },
             CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                 let mut field_identities = BTreeSet::new();
@@ -1043,7 +1041,7 @@ pub(super) fn lower_unit_structural_domains(
             let Some(call) = operation.call() else {
                 continue;
             };
-            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            let (machine, _) = state_declaration(checked, state)?;
             let coordinate = crate::emission::operation_emission::buffer::SourceCallCoordinate {
                 state,
                 statement_index: call.coordinate.statement_index as usize,
@@ -1067,7 +1065,7 @@ pub(super) fn lower_unit_structural_domains(
         // observes a field immediately. Register that signature's domains here,
         // not incidentally through a receiving local or another parameter.
         if !body.entry()?.returns_unit && body.scalar_result_type().is_none() {
-            let (_, state) = crate::declarations::state_declaration(checked, body.entry()?.state)?;
+            let (_, state) = state_declaration(checked, body.entry()?.state)?;
             let mut result_domains =
                 validation::view_result_carrier_qualifications(&checked.typed, state.return_type)
                     .map_err(LoweringError::Unsupported)?;
@@ -1087,7 +1085,7 @@ pub(super) fn lower_unit_structural_domains(
             }
         }
         for (state, operation) in body.operations_with_states() {
-            let (owner, _) = crate::declarations::state_declaration(checked, state)?;
+            let (owner, _) = state_declaration(checked, state)?;
             collect_operation_requirements(checked, owner.symbol, operation, &mut selected)?;
         }
         for domain in body
@@ -1150,9 +1148,7 @@ pub(super) fn lower_unit_structural_domains(
     // Computed producers keep their original machine namespace after fusion,
     // including the complete membership roster checked on each produced value.
     for source in sources {
-        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
-            checked, source,
-        )? {
+        for value in reachable_structural_values(checked, source)? {
             collect_value_requirements(checked, source, value, &mut selected)?;
         }
     }

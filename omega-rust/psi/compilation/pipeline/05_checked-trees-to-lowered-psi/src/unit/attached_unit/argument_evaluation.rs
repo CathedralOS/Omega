@@ -17,19 +17,25 @@ use super::{
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::checked_facts::value_facts;
+use crate::emission::affine_cleanup::structural_operands;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::ComputedValueBinding;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::emission::value_successor;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
+use crate::expression_preparation::bindings::place_observations::PlaceObservation;
 use crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding;
 use crate::expression_preparation::bindings::structural_local_by_root;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::view_locals::ViewCarrier;
 use crate::expression_preparation::bindings::view_locals::ViewLocalBinding;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
@@ -76,8 +82,7 @@ pub(crate) struct Evaluation {
     /// result publishes the callee's qualified result in it, so argument
     /// evaluation resolves operand memberships against the same catalog the
     /// emitted machine declares — never a machine-private interning.
-    pub(crate) shared_qualifications:
-        crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    pub(crate) shared_qualifications: PreparedScalarQualifications,
     /// The emitted machine's terminal identity, stamped on qualification
     /// coercions this evaluation's expansions mint. Emission frames that
     /// cannot mint qualification edges carry none.
@@ -121,9 +126,7 @@ pub(crate) struct Evaluation {
     pub(crate) literals: Vec<crate::scalar_lowering::computations::literals::Slot>,
     pub(crate) cases: Vec<crate::scalar_lowering::computations::cases::Slot>,
     pub(crate) record_fields: Vec<crate::scalar_lowering::computations::fields::Binding>,
-    pub(crate) place_observations: std::sync::Arc<
-        [crate::expression_preparation::bindings::place_observations::PlaceObservation],
-    >,
+    pub(crate) place_observations: std::sync::Arc<[PlaceObservation]>,
     /// Checked computation roots indexed once per authored state, then borrowed
     /// by local statement coordinate when original backing is demanded.
     pub(crate) computation_address_roots: Vec<(
@@ -384,7 +387,7 @@ impl Evaluation {
         &'a self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &'a CheckedTrees,
-        qualifications: &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
+        qualifications: &'a PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
         operations: &OperationBuffer,
         next_place: &'a mut u64,
@@ -601,10 +604,7 @@ impl Evaluation {
     ) {
         self.structural_types = structural_types.into();
         self.structural_fields =
-            crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-                &parameters,
-                structural_types,
-            );
+            StructuralScalarFieldBinding::collect(&parameters, structural_types);
         self.structural_cases = StructuralCaseBinding::collect(&parameters, structural_types);
         self.element_views =
             crate::expression_preparation::bindings::element_views(&parameters, structural_types);
@@ -780,9 +780,7 @@ impl Evaluation {
             // Unrestricted. A materialized Reference carrier instead owns its
             // descriptor: borrow access belongs to the explicit Referent
             // crossing, not that home.
-            let access = crate::expression_preparation::bindings::structural_paths::terminal_access(
-                local.access,
-            );
+            let access = terminal_access(local.access);
             let reference_carrier =
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. });
             self.structural_fields
@@ -925,10 +923,7 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "structural source transfer lost its emitted operation",
             ))?;
-        self.retire_consumed_structural_arguments(
-            crate::emission::affine_cleanup::structural_operands(&operation.kind),
-            operations,
-        )
+        self.retire_consumed_structural_arguments(structural_operands(&operation.kind), operations)
     }
 
     /// Remove a retired physical occurrence from current source and transport
@@ -1088,8 +1083,7 @@ impl Evaluation {
         Ok(Self {
             scalar_applications,
             current_claims: Default::default(),
-            shared_qualifications:
-                crate::expression_preparation::qualifications::PreparedScalarQualifications::empty(),
+            shared_qualifications: PreparedScalarQualifications::empty(),
             machine: None,
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
@@ -2149,23 +2143,21 @@ fn emit_tuple_test(
             "dynamic family actual has no integer carrier",
         ))?;
     let value = family_tuple_integer(&tuples[tuple_index][binder], carrier.sign())?;
-    let constant = crate::emission::operation_emission::expressions::emit_scalar_leaf(
+    let constant = emit_scalar_leaf(
         OperationKind::IntegerConstant { value },
         family_actual_types[binder],
         next_value,
         operations,
     );
-    Ok(
-        crate::emission::operation_emission::expressions::emit_scalar_leaf(
-            OperationKind::IntegerEqual {
-                left: family_actuals[binder],
-                right: constant,
-            },
-            ScalarType::Boolean,
-            next_value,
-            operations,
-        ),
-    )
+    Ok(emit_scalar_leaf(
+        OperationKind::IntegerEqual {
+            left: family_actuals[binder],
+            right: constant,
+        },
+        ScalarType::Boolean,
+        next_value,
+        operations,
+    ))
 }
 
 /// Decode one canonical family tuple member (`named(integer-const(v))`) into

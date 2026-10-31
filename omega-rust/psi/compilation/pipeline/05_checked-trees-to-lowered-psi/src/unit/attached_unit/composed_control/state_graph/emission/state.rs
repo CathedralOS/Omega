@@ -29,6 +29,7 @@ use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
 use crate::scalar_lowering::computations::observations::prepare;
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::terminal_identities::lookup_type_id;
 use crate::unit::attached_unit::composed_control::emission::OperationSequence;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use crate::unit::attached_unit::signatures::find;
@@ -1161,10 +1162,7 @@ impl StateGraphEmission<'_, '_> {
                     &operations,
                     &evaluation.current_claims,
                     &self.claims.source_claims,
-                    crate::terminal_identities::lookup_type_id(
-                        &self.catalogs.type_ids,
-                        &result.type_identity,
-                    )?,
+                    lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
                     &self.catalogs.structural_types,
                 )?;
                 if self.content_entry_claims.iter().any(|entry| {

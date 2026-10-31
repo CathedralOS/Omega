@@ -13,6 +13,7 @@ use super::{
     checked_unit_provider_candidates, unsupported,
 };
 use crate::checked_facts::value_facts;
+use crate::expression_preparation::computation_graph::boundary_targets;
 use crate::expression_preparation::computation_graph::call_targets;
 use crate::expression_preparation::computation_graph::structural_call_targets;
 use crate::expression_preparation::computation_graph::value_call_operations;
@@ -157,9 +158,7 @@ pub(super) fn discover(
         };
         let source_machines = plans.source_machines(checked, &closure)?;
         for source in &source_machines {
-            for boundary in crate::expression_preparation::computation_graph::boundary_targets(
-                checked, *source,
-            )? {
+            for boundary in boundary_targets(checked, *source)? {
                 if !retained_boundary_roots.contains(&boundary) {
                     retained_boundary_roots.push(boundary);
                 }
