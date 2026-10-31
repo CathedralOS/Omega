@@ -441,15 +441,22 @@ pub(crate) fn stored_integer_field_type(
     let geometry = plan
         .geometry_for_target(program.typed_program(), program.layout_target())
         .ok_or(())?;
-    if !geometry
+    let Some(integer) = geometry
         .integer_fields
         .iter()
-        .any(|integer| integer.field_index == index)
-    {
+        .find(|integer| integer.field_index == index)
+    else {
         return Ok(None);
-    }
-    let projection = crate::recast_scalar_projection(program, carrier, &[], field).ok_or(())?;
-    projection.stored_integer.map(Some).ok_or(())
+    };
+    // This exact validated field row owns its encoding. Fitting a store does
+    // not require a mutable recast of every sibling in the containing record.
+    let sign = match integer.interpretation {
+        layout_plans::IntegerInterpretation::Signed => IntegerSign::Signed,
+        layout_plans::IntegerInterpretation::Unsigned => IntegerSign::Unsigned,
+    };
+    IntegerType::new(sign, integer.stored_width_bits)
+        .map(Some)
+        .map_err(|_| ())
 }
 
 pub(crate) fn stored_integer_value_fits(
