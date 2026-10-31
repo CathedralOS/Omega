@@ -153,11 +153,11 @@ retired-syntax deletions to completion.
   [single machine declaration model](wiki/spec/language/machines.md#nested-machines-and-identity)
   and [invocation contracts](wiki/spec/language/state_contracts.md), replacing
   source `state` with arbitrarily nested named machines.
-  - Resolve recursive lexical scopes and forward references, enforce enclosing-scope-only
-    visibility for nested helpers, permit value/Unit completion before trailing
-    declarations, elaborate static declaration context to flat machine identities
-    with explicit arguments, and reject runtime capture, enclosing-local use,
-    hidden context parameters, and executable code after trailing declarations.
+  - Resolve recursive lexical scopes and forward references, permit value/Unit
+    completion before trailing declarations, elaborate static declaration context
+    to flat machine identities with explicit arguments, and reject runtime
+    capture, enclosing-local use, hidden context parameters, and executable code
+    after trailing declarations.
   - Complete cyclic private arrivals and the remaining normal-return
     obligations, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
@@ -176,11 +176,11 @@ retired-syntax deletions to completion.
   sibling/ancestor terminal cycles, generic enclosing declaration context and
   explicit borrowed/local data, across the applicable nine-place row
   (`other_state/` becomes the nested-machine place) and fact-sensitive reject
-  twins. Reject inaccessible descendants, accidental capture, stale parent
-  facts, mismatched results, missing exact call markers, unclosed restoration,
-  invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Finish the full affected sample/corpus migration and both
-  compiler implementations before closure.
+  twins. Reject accidental capture, stale parent facts, mismatched results,
+  missing exact call markers, unclosed restoration, invalid loan escape, lost
+  linear custody, unjustified recursion and retired `state` syntax. Finish the
+  full affected sample/corpus migration and both compiler implementations before
+  closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
