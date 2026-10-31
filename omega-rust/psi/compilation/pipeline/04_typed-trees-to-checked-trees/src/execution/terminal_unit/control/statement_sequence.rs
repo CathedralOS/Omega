@@ -172,14 +172,6 @@ fn erased_alias_locals(
     erased
 }
 
-/// A record pattern's marker (`let __destructure#x#y = self.pair;`) carries
-/// only the spelled field set validation checks for exhaustiveness. The
-/// pattern's bindings are its per-field locals, each an ordinary re-read of
-/// the same place, so the marker declares no storage and plans no operation.
-fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
-    local.role == language_core::LocalBindingRole::RecordPattern
-}
-
 /// A case arm's payload marker (`let __arm_destructure#V=..`) precedes that
 /// arm's transition; the arm, not the sequence, binds its fields.
 fn is_arm_destructure_marker(statement: &StatementNode) -> bool {
