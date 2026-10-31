@@ -14,6 +14,7 @@ use std::sync::Mutex;
 
 use crate::{signature, statement};
 use arena::{Handle, OwnedIndex};
+use compiler_storage::{RecordError, RecordWriter};
 use symbols::{SymbolHandle, SymbolKeyMap};
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output
@@ -253,10 +254,7 @@ impl super::SymbolResolvedTrees {
 // These pointer-keyed maps describe only this in-memory arena owner. Persisting
 // them would give restored allocations another process's addresses and verdicts.
 impl compiler_storage::Record for ResolvedIndexes {
-    fn write(
-        &self,
-        _: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
+    fn write(&self, _: &mut RecordWriter) -> Result<(), RecordError> {
         Ok(())
     }
     fn read<Context>(
