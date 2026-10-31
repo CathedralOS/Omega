@@ -189,11 +189,7 @@ fn validate_boundary_requirements(
                         membership.domain,
                     ) {
                         if !expression_table(program).names_reserved_result(membership.value)
-                            && !expression_is_mutable_parameter(
-                                program,
-                                signature,
-                                membership.value,
-                            )
+                            && mutable_parameter(program, signature, membership.value).is_none()
                         {
                             diagnostics.push(Diagnostic::error(format!(
                                 "boundary requirement `{}::{}` may admit carry permission `{permission}` only for its exact `result` or an exact mutable parameter",
@@ -353,14 +349,6 @@ fn validate_external_machine_claims(
 /// provider mints the membership into caller storage it borrows mutably, the
 /// out-parameter direction of `ensures result in D`. Immutable parameters
 /// stay caller premises — nothing may establish into them.
-fn expression_is_mutable_parameter(
-    program: &dyn crate::CheckingInput,
-    signature: &typed_trees::signature::StateSignature,
-    expression: ExpressionHandle,
-) -> bool {
-    mutable_parameter(program, signature, expression).is_some()
-}
-
 fn mutable_parameter<'a>(
     program: &'a dyn crate::CheckingInput,
     signature: &'a typed_trees::signature::StateSignature,
