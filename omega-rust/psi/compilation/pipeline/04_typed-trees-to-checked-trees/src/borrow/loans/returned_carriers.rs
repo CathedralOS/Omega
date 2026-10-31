@@ -8,8 +8,13 @@
 //! They contain no reference view whose declared access could attenuate that
 //! debt: treating an opaque Pending as a shared view would release exclusive
 //! suspension while the provider still retains its mutable original pointer.
+use super::aggregate_loans::borrow_carrying_data_loans;
+use super::aggregate_loans::result_source_loans;
+use super::call_views::CallViewReturnContract;
 use super::is_reference_type;
+use super::owner_paths::owner_path_from_place_segments;
 use super::owner_paths::owner_place_segments as place_segments;
+use super::owner_paths::owner_segment_matches_place_segment;
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::loans::StatementBorrowLoan;
 use crate::borrow::loans::borrowed_initializer_loans;
@@ -357,7 +362,7 @@ fn incoming_reborrow_matches_input_lifetime(
         ) else {
             return false;
         };
-        let owner_path = super::owner_paths::owner_path_from_place_segments(program, &segments);
+        let owner_path = owner_path_from_place_segments(program, &segments);
         source_path_covers(program, &owner_path, source_path)
     })
 }
@@ -413,7 +418,7 @@ fn judge_completed_field_sources(
     for source in sources {
         let owner_path = structural_owner_path(
             program,
-            &super::owner_paths::owner_path_from_place_segments(program, &source.result_path),
+            &owner_path_from_place_segments(program, &source.result_path),
         )?;
         let result_leaf = validation::project_type_reference_from_segments(
             program,
@@ -423,10 +428,7 @@ fn judge_completed_field_sources(
         let kind = reference_borrow_access_kind(program, result_leaf)?;
         if source.source.is_image_storage {
             output.push(CompletedReturnSource::ImmutableImage {
-                owner_path: super::owner_paths::owner_path_from_place_segments(
-                    program,
-                    &source.result_path,
-                ),
+                owner_path: owner_path_from_place_segments(program, &source.result_path),
                 kind,
             });
             continue;
@@ -438,10 +440,7 @@ fn judge_completed_field_sources(
         }
         if source.source.invocation_output.is_some() {
             output.push(CompletedReturnSource::UnresolvedDescriptor {
-                owner_path: super::owner_paths::owner_path_from_place_segments(
-                    program,
-                    &source.result_path,
-                ),
+                owner_path: owner_path_from_place_segments(program, &source.result_path),
                 kind,
             });
             continue;
@@ -629,7 +628,7 @@ pub(super) fn relative_result_loans(
                 };
                 let state = program.state_by_symbol(state_symbol)?;
                 return Some(limit_access(
-                    super::aggregate_loans::borrow_carrying_data_loans(
+                    borrow_carrying_data_loans(
                         program,
                         state,
                         statement_index,
@@ -690,7 +689,7 @@ pub(super) fn relative_result_loans(
                 // identity still retains the conservative frontier below.
                 let field = validation::effective_member_symbol(program, member.receiver, member);
                 let selects_field = |candidate| {
-                    super::owner_paths::owner_segment_matches_place_segment(
+                    owner_segment_matches_place_segment(
                         program,
                         &BorrowOwnerSegment::Field(candidate),
                         &facts::PlaceSegment::Field { symbol: field },
@@ -745,7 +744,7 @@ pub(super) fn relative_result_loans(
         };
         let contract = call_view_return_contract(program, state_symbol, call)?;
         let fields = contract.reference_sources(program)?;
-        let mut loans = super::aggregate_loans::result_source_loans(
+        let mut loans = result_source_loans(
             program,
             state_symbol,
             statement_index,
@@ -833,7 +832,7 @@ pub(super) fn argument_loans(
             // Using an outer Envelope here would erase a Held argument's
             // target leaf before an owned forwarding call could transport it.
             let argument_owner = checked_trees::statement::TableLocalData {
-                type_reference: super::call_views::CallViewReturnContract::carrier_reference(
+                type_reference: CallViewReturnContract::carrier_reference(
                     program,
                     field.source_type,
                     substitutions,
