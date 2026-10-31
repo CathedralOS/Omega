@@ -26,12 +26,16 @@ machine consume(packet: string) -> u64 crashes Trap {
     machine done(delta: u64) -> u64 { delta }
     machine bad() -> u64 crashes Trap { crash Trap; }
 }
-linux_x86_64 machine produce_and_consume() -> u64 crashes Trap { consume(string { before: 11, value: 9, after: 13 }) }
-linux_arm64 machine produce_and_consume() -> u64 crashes Trap { consume(string { before: 11, value: 9, after: 13 }) }
-macos_arm64 machine produce_and_consume() -> u64 crashes Trap { consume(string { before: 11, value: 9, after: 13 }) }
-windows_x86_64 machine produce_and_consume() -> u64 crashes Trap { consume(string { before: 11, value: 9, after: 13 }) }
-machine main() crashes Trap {
-    let result: u64 = produce_and_consume();
+boundary trait RecordOperation {
+    machine produce_and_consume() -> u64 reaches crashes Trap;
+}
+SelectedRecordOperation satisfies RecordOperation {
+    machine produce_and_consume() -> u64 crashes Trap {
+        consume(string { before: 11, value: 9, after: 13 })
+    }
+}
+machine main() reaches RecordOperation crashes Trap {
+    let result: u64 = RecordOperation::produce_and_consume();
     transition result == 2 && size_of<string>() == 24 && size_of<&string>() == 8 { true -> done() false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }

@@ -11,7 +11,9 @@ record beside a second argument, returns two independently observed values,
 and checks both neighboring fields. On the four hosted 64-bit targets its
 record occupies 24 bytes and a reference occupies 8 bytes. Every place consumes
 the same `value >= 7` declaration fact with exact subtraction `value - 7`.
-The match join exercises both arms with distinct results, 2 and 4.
+The match join exercises both arms with distinct results, 2 and 4. The target
+place uses `SelectedRecordOperation`, an ordinary named implementation selected
+by `Build::select_provider` for each hosted target.
 
 Each twin changes only the constructed nominal type to `Other`, whose fields,
 values and default-domain predicate are identical. The required `string`
