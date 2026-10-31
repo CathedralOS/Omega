@@ -1,5 +1,7 @@
 use crate::parser::parse_syntax_trees;
+use language_core::BindingRelevance;
 use language_core::atomic::AtomicExpressionResultCustody;
+use source::Span;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::PropositionBody;
@@ -26,10 +28,7 @@ fn name_expression_source_custody_retains_complete_authored_paths() {
         let start = source.find(expression).expect("authored name expression");
         assert_eq!(
             parsed.expressions.source_span(local.initial_value),
-            source::SourceSpan::new(
-                source_id,
-                source::Span::new(start, start + expression.len())
-            )
+            source::SourceSpan::new(source_id, Span::new(start, start + expression.len()))
         );
     }
 }
@@ -57,7 +56,7 @@ fn name_expression_source_custody_survives_nested_constant_leaves() {
         let name = occurrence.split_once(' ').expect("name after prefix").1;
         let start = source.find(occurrence).expect("authored constant leaf") + occurrence.len()
             - name.len();
-        source::SourceSpan::new(source_id, source::Span::new(start, start + name.len()))
+        source::SourceSpan::new(source_id, Span::new(start, start + name.len()))
     });
     assert_eq!(names, expected);
 }
@@ -96,13 +95,9 @@ fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
         "compare_exchange(0, operand(), NoOrdering, NoOrdering)",
     ] {
         for (binding, mutable, relevance) in [
-            ("prior", false, language_core::BindingRelevance::Relevant),
-            ("mut prior", true, language_core::BindingRelevance::Relevant),
-            (
-                "prior [erased]",
-                false,
-                language_core::BindingRelevance::Erased,
-            ),
+            ("prior", false, BindingRelevance::Relevant),
+            ("mut prior", true, BindingRelevance::Relevant),
+            ("prior [erased]", false, BindingRelevance::Erased),
         ] {
             let source =
                 format!("machine update(cell: u64) {{ let {binding}: u64 = cell.{operation}; }}");
@@ -907,10 +902,7 @@ fn array_literal_retains_its_complete_authored_source_span() {
         let start = source.find(initializer).unwrap();
         assert_eq!(
             parsed.expressions.source_span(declaration.value),
-            source::SourceSpan::new(
-                source_id,
-                source::Span::new(start, start + initializer.len())
-            ),
+            source::SourceSpan::new(source_id, Span::new(start, start + initializer.len())),
             "{initializer}"
         );
     }

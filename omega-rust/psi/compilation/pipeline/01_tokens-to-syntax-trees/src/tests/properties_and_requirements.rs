@@ -1,4 +1,7 @@
 use crate::parser::parse_syntax_trees;
+use language_core::DataSupplyMode;
+use language_core::Multiplicity;
+use language_core::OperatorSpelling;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::CapabilityContractKind;
@@ -165,19 +168,10 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
         .collect();
 
     assert_eq!(data.len(), 2);
-    assert_eq!(
-        data[0].properties.multiplicity,
-        language_core::Multiplicity::Linear
-    );
-    assert_eq!(
-        data[1].properties.multiplicity,
-        language_core::Multiplicity::Linear
-    );
+    assert_eq!(data[0].properties.multiplicity, Multiplicity::Linear);
+    assert_eq!(data[1].properties.multiplicity, Multiplicity::Linear);
     let parameter = &parsed.items.type_parameters(data[1].type_parameters)[0];
-    assert_eq!(
-        parameter.bounds.multiplicity,
-        language_core::Multiplicity::Linear
-    );
+    assert_eq!(parameter.bounds.multiplicity, Multiplicity::Linear);
 }
 
 #[test]
@@ -194,10 +188,7 @@ fn multiplicity_property_lists_accept_trailing_commas() {
 
     assert_eq!(
         multiplicities,
-        vec![
-            language_core::Multiplicity::Unrestricted,
-            language_core::Multiplicity::Linear,
-        ]
+        vec![Multiplicity::Unrestricted, Multiplicity::Linear,]
     );
 }
 
@@ -265,15 +256,9 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
     let parsed = parse_syntax_trees(&tokens).expect("opaque boundary data should parse");
     let data = super::root_data(&parsed, "data item");
 
-    assert_eq!(
-        data.supply_mode,
-        language_core::DataSupplyMode::BoundaryOpaque
-    );
+    assert_eq!(data.supply_mode, DataSupplyMode::BoundaryOpaque);
     assert!(data.members.is_empty());
-    assert_eq!(
-        data.properties.multiplicity,
-        language_core::Multiplicity::Linear
-    );
+    assert_eq!(data.properties.multiplicity, Multiplicity::Linear);
 }
 
 #[test]
@@ -330,7 +315,7 @@ fn parses_trait_owned_fixed_operator_requirements() {
     assert_eq!(requirements.len(), 2);
     assert_eq!(
         parsed.items.state_signature(requirements[0]).spelling,
-        Some(language_core::OperatorSpelling::Less)
+        Some(OperatorSpelling::Less)
     );
     assert_eq!(parsed.items.state_signature(requirements[1]).spelling, None);
 }
@@ -678,18 +663,9 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
     assert_eq!(operators.len(), 4);
     assert!(operators[0].is_public);
     assert!(operators[1..].iter().all(|operator| !operator.is_public));
-    assert_eq!(
-        operators[0].spelling,
-        Some(language_core::OperatorSpelling::Add)
-    );
-    assert_eq!(
-        operators[1].spelling,
-        Some(language_core::OperatorSpelling::Index)
-    );
-    assert_eq!(
-        operators[2].spelling,
-        Some(language_core::OperatorSpelling::Range)
-    );
+    assert_eq!(operators[0].spelling, Some(OperatorSpelling::Add));
+    assert_eq!(operators[1].spelling, Some(OperatorSpelling::Index));
+    assert_eq!(operators[2].spelling, Some(OperatorSpelling::Range));
     assert_eq!(operators[3].spelling, None);
 }
 
@@ -727,30 +703,15 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
     let machines = super::root_machines(&parsed);
 
     assert_eq!(machines.len(), 6);
-    assert_eq!(
-        machines[0].spelling,
-        Some(language_core::OperatorSpelling::Add)
-    );
+    assert_eq!(machines[0].spelling, Some(OperatorSpelling::Add));
     assert!(machines[0].is_public);
     assert!(!machines[0].bodyless);
     assert_eq!(machines[0].name.as_str(&parsed), "Vec2::add");
-    assert_eq!(
-        machines[1].spelling,
-        Some(language_core::OperatorSpelling::Index)
-    );
-    assert_eq!(
-        machines[2].spelling,
-        Some(language_core::OperatorSpelling::Range)
-    );
-    assert_eq!(
-        machines[3].spelling,
-        Some(language_core::OperatorSpelling::Equal)
-    );
+    assert_eq!(machines[1].spelling, Some(OperatorSpelling::Index));
+    assert_eq!(machines[2].spelling, Some(OperatorSpelling::Range));
+    assert_eq!(machines[3].spelling, Some(OperatorSpelling::Equal));
     assert!(machines[3].boundary && machines[3].bodyless);
-    assert_eq!(
-        machines[4].spelling,
-        Some(language_core::OperatorSpelling::Subtract)
-    );
+    assert_eq!(machines[4].spelling, Some(OperatorSpelling::Subtract));
     assert_eq!(
         machines[4]
             .target

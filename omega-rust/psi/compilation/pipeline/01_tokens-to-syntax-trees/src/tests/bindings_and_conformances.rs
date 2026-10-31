@@ -1,4 +1,5 @@
 use crate::parser::parse_syntax_trees;
+use language_core::BindingRelevance;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
@@ -265,9 +266,9 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
         panic!("one payload field");
     };
 
-    assert_eq!(value.relevance, language_core::BindingRelevance::Relevant);
-    assert_eq!(proof.relevance, language_core::BindingRelevance::Erased);
-    assert_eq!(witness.relevance, language_core::BindingRelevance::Erased);
+    assert_eq!(value.relevance, BindingRelevance::Relevant);
+    assert_eq!(proof.relevance, BindingRelevance::Erased);
+    assert_eq!(witness.relevance, BindingRelevance::Erased);
     let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
     assert!(snapshot.contains("\"relevance\":\"relevant\""));
     assert!(snapshot.contains("\"relevance\":\"erased\""));
@@ -317,12 +318,9 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let [receiver, n, bound] = parameters.as_slice() else {
         panic!("three parameters");
     };
-    assert_eq!(
-        receiver.relevance,
-        language_core::BindingRelevance::Relevant
-    );
-    assert_eq!(n.relevance, language_core::BindingRelevance::Relevant);
-    assert_eq!(bound.relevance, language_core::BindingRelevance::Erased);
+    assert_eq!(receiver.relevance, BindingRelevance::Relevant);
+    assert_eq!(n.relevance, BindingRelevance::Relevant);
+    assert_eq!(bound.relevance, BindingRelevance::Erased);
 
     let locals = parsed
         .items
@@ -336,9 +334,9 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let [x, y] = locals.as_slice() else {
         panic!("two locals");
     };
-    assert_eq!(x.relevance, language_core::BindingRelevance::Erased);
+    assert_eq!(x.relevance, BindingRelevance::Erased);
     assert!(!x.is_mutable);
-    assert_eq!(y.relevance, language_core::BindingRelevance::Relevant);
+    assert_eq!(y.relevance, BindingRelevance::Relevant);
     assert!(y.is_mutable);
 
     for (source, expected) in [

@@ -1,5 +1,6 @@
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::Input;
+use source::SourceId;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::{ExpressionNode, MatchPattern};
 
@@ -9,7 +10,7 @@ fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
         let source = format!(
             "match read() {{ 0 -> first(){separator}0 -> second(){separator}_ -> last() }}"
         );
-        let source_id = source::SourceId::default();
+        let source_id = SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source_id);
         let retained_source = Input::retain_source(&tokens);
@@ -116,14 +117,9 @@ fn value_match_rejects_empty_dispatch_and_duplicate_bindings() {
         "match value { Record { first as same, second as same } -> same, _ -> 0 }",
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let mut trees = syntax_trees::SyntaxTrees::new(source::SourceId::default());
+        let mut trees = syntax_trees::SyntaxTrees::new(SourceId::default());
         let retained_source = Input::retain_source(&tokens);
-        let input = Input::new(
-            source::SourceId::default(),
-            &tokens,
-            &retained_source,
-            &mut trees,
-        );
+        let input = Input::new(SourceId::default(), &tokens, &retained_source, &mut trees);
         let error = parse_expression_handle(&mut trees, input)
             .err()
             .expect("empty dispatch or duplicate bindings reject");

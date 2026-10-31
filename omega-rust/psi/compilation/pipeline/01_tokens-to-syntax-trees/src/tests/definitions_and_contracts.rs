@@ -1,4 +1,5 @@
 use crate::parser::parse_syntax_trees;
+use language_core::DomainPredicatePresence;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
 use std::sync::Arc;
@@ -55,7 +56,7 @@ fn parses_domain_definition_surface() {
     assert!(domains[0].target_type.is_valid());
     assert_eq!(
         domains[0].predicate_presence,
-        language_core::DomainPredicatePresence::Present
+        DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
     assert!(domains[0].semantic_clause_token_count > 3);
@@ -91,10 +92,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
     let parsed = super::parse_source(source, "parse should succeed");
     let domain = super::root_domain(&parsed, "domain");
 
-    assert_eq!(
-        domain.predicate_presence,
-        language_core::DomainPredicatePresence::Present
-    );
+    assert_eq!(domain.predicate_presence, DomainPredicatePresence::Present);
     assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
     assert_eq!(
         domain
@@ -285,16 +283,13 @@ fn parses_domain_predicate_absence_distinct_from_true_predicate() {
 
     assert_eq!(domains.len(), 3);
     for domain in &domains[..2] {
-        assert_eq!(
-            domain.predicate_presence,
-            language_core::DomainPredicatePresence::Absent
-        );
+        assert_eq!(domain.predicate_presence, DomainPredicatePresence::Absent);
         assert!(domain.facts.is_empty());
         assert_eq!(domain.semantic_clause_token_count, 0);
     }
     assert_eq!(
         domains[2].predicate_presence,
-        language_core::DomainPredicatePresence::Present
+        DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
     assert!(domains[2].semantic_clause_token_count > 0);
@@ -326,10 +321,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
         })
         .collect::<Vec<_>>();
     assert_eq!(paths, ["Socket::Connected", "Socket::Authenticated"]);
-    assert_eq!(
-        domain.predicate_presence,
-        language_core::DomainPredicatePresence::Absent
-    );
+    assert_eq!(domain.predicate_presence, DomainPredicatePresence::Absent);
     assert!(domain.facts.is_empty());
     assert!(domain.operators.is_empty());
 }
