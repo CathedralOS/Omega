@@ -483,7 +483,7 @@ impl TypedReferences for TypeOccurrences {
         }
         for handle in [call.application(), call.selection_application()] {
             if handle.is_valid() {
-                let source = program.expression_table.static_machine_application(handle);
+                let source = program.static_machine_application(handle);
                 if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
                     self.applications.insert(handle);
                 }
@@ -1239,6 +1239,14 @@ fn visit_static_machine_bindings_inner(
     }
     retained.static_application(application);
     let source = program.static_machine_application(application);
+    if !program
+        .static_machine_application_lifetimes(application)
+        .is_empty()
+    {
+        // Region scopes are descriptive custody, never executable call edges.
+        retained.declaration_description_dependency(source.lifetime_binding_declaration);
+        retained.declaration_description_dependency(source.lexical_owner);
+    }
     for selection in program
         .product_input_selections
         .span_or_empty(source.input_selections)

@@ -84,8 +84,11 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 argument: typed_trees::name::Identifier::generated(argument),
             })
             .collect::<Vec<_>>();
-        expressions_of_mut(program)
-            .set_static_machine_application_lifetimes(invocation, &lifetimes);
+        expressions_of_mut(program).set_static_machine_application_lifetimes(
+            invocation,
+            declaration.symbol,
+            &lifetimes,
+        );
         let mut selected = Vec::new();
         for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
             let TypeParameterKind::Machine { contract } = &parameter.kind else {

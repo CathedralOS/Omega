@@ -215,6 +215,12 @@ enum AppliedCallableOwner {
         caller_operands: arena::HandleSpan<CallableSubstitution>,
         caller_lifetimes:
             arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
+        caller_lifetime_declaration: SymbolHandle,
+        caller_lifetime_owner: SymbolHandle,
+        provider_lifetime_declaration: SymbolHandle,
+        provider_lifetime_owner: SymbolHandle,
+        provider_lifetimes:
+            arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
     },
 }
 
@@ -226,6 +232,9 @@ pub struct CallableSubstitution {
 
 /// A symbolic application is a checking view, not an executable instance.
 pub struct AppliedMachineCallable<'a> {
+    /// Exact receiving call; its declaration owns the caller-lifetime formals
+    /// and its lexical owner supplies their actuals. Provider custody is separate.
+    pub invocation: crate::static_applications::StaticMachineApplicationHandle,
     pub lexical_owner: SymbolHandle,
     pub provider: crate::static_applications::StaticMachineApplicationHandle,
     /// Executable entry selected by this occurrence. The substituted source
@@ -285,8 +294,52 @@ impl CallableApplication {
         &self,
         program: &TypedTrees,
         reference: types::TypeReferenceHandle,
+        slot: usize,
         original: &crate::name::Identifier,
     ) -> Result<ScopedCallableLifetime, &'static str> {
+        if let Some(region) = program
+            .type_reference_table
+            .operand_lifetimes(reference)
+            .get(slot)
+            .copied()
+            .filter(|region| region.declaration.is_valid())
+        {
+            // Only this exact local binder can be replaced by the invocation.
+            // A local mask with the same spelling cannot rewrite an outer slot.
+            if let Some(binding) = self.lifetimes.iter().rev().find(|binding| {
+                crate::type_identity::lifetime_parameter_identity(
+                    program,
+                    self.region_scope,
+                    binding.parameter.as_str(),
+                ) == Some(region)
+            }) {
+                return Ok(ScopedCallableLifetime {
+                    name: binding.argument.clone(),
+                    region: binding.region,
+                    origin: binding.origin,
+                });
+            }
+            let (region, substituted) =
+                if let Some((environment, preceding_frames)) = &self.trait_region_application {
+                    environment
+                        .resolved_lifetime_identity(program, region, *preceding_frames)
+                        .ok_or("resolved callable region lost its exact supplying frame")?
+                } else {
+                    (region, false)
+                };
+            let name = crate::type_identity::lifetime_parameter_name(program, region)
+                .ok_or("resolved callable region lost its declaration ordinal")?
+                .clone();
+            return Ok(ScopedCallableLifetime {
+                name,
+                region,
+                origin: if substituted {
+                    CallableLifetimeOrigin::Captured
+                } else {
+                    CallableLifetimeOrigin::Lexical
+                },
+            });
+        }
         if let Some(binding) = self
             .lifetimes
             .iter()
@@ -454,6 +507,44 @@ impl TypedTrees {
                     origin: CallableLifetimeOrigin::Lexical,
                 })
                 .collect(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// Apply one retained call's region operands in their original supplying
+    /// scope, projecting receiving formals only through their exact declaration
+    /// correspondence. The copied carrier retains resolved region coordinates.
+    pub fn apply_static_application_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let source = self
+            .expression_table
+            .static_machine_application(application);
+        let lifetimes = self
+            .static_application_lifetimes_for_declaration(application, declaration)?
+            .iter()
+            .map(|binding| {
+                let region = crate::type_identity::lifetime_parameter_identity(
+                    self,
+                    source.lexical_owner,
+                    binding.argument.as_str(),
+                )
+                .ok_or("static callable result region lost its supplying declaration")?;
+                Ok(CallableLifetimeBinding {
+                    parameter: binding.parameter.clone(),
+                    argument: binding.argument.clone(),
+                    region,
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        CallableApplication {
+            region_scope: declaration,
+            lifetimes,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

@@ -224,6 +224,7 @@ pub fn prepare_product_requirement_operand(
         .map_err(|reason| refuse(&reason))?;
         let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
             lower.program,
+            author,
             &parameters,
             &supplied.arguments,
         )?;
@@ -247,8 +248,11 @@ pub fn prepare_product_requirement_operand(
         source.binding_declaration = requirement;
         expressions_of_mut(lower.program)
             .set_static_machine_application_bindings(application, &bindings);
-        expressions_of_mut(lower.program)
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+        expressions_of_mut(lower.program).set_static_machine_application_lifetimes(
+            application,
+            requirement,
+            &lifetimes,
+        );
         let instance = lower
             .program
             .instantiate_requirement_application(

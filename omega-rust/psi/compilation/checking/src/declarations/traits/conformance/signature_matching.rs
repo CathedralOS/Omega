@@ -346,6 +346,8 @@ pub(crate) fn validate_applied_trait_signature(
             "provider machine `{}` for trait requirement `{}::{}`",
             machine.name, trait_definition.name, requirement.name
         ),
+        requirement.symbol,
+        callable_machine.symbol,
         applied_type_parameters,
         &actual_type_parameters[..requirement_type_parameters.len()],
         &applied_generic_types,
@@ -365,6 +367,8 @@ pub(crate) fn validate_applied_trait_signature(
                 trait_definition.name,
                 requirement.name
             ),
+            requirement.symbol,
+            callable_machine.symbol,
             carrier_telescope,
             actual_group,
             &carrier_generic_parameters,

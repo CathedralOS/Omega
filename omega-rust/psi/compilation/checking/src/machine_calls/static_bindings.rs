@@ -438,6 +438,18 @@ pub fn validate_static_machine_bindings(
         } else {
             application.binding_declaration
         };
+        let lifetimes = match program
+            .static_application_lifetimes_for_declaration(handle, declaration_symbol)
+        {
+            Ok(lifetimes) => lifetimes,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "static lifetime tuple lost its declaration-owned region correspondence: {reason}; receiving `{}` from `{}`",
+                    program.symbols.name(declaration_symbol), program.symbols.name(application.lexical_owner),
+                )));
+                continue;
+            }
+        };
         if !lifetimes.is_empty() {
             let declared = StaticDeclaration::find(program, declaration_symbol);
             let owner = StaticDeclaration::find(program, application.lexical_owner);
@@ -485,6 +497,10 @@ pub fn validate_static_machine_bindings(
                 && *owner == scope
                 && expression_table(program).static_machine_application_bindings(*previous)
                     == bindings
+                && expression_table(program)
+                    .static_machine_application(*previous)
+                    .lifetime_binding_declaration
+                    == application.lifetime_binding_declaration
                 && expression_table(program).static_machine_application_lifetimes(*previous)
                     == expression_table(program).static_machine_application_lifetimes(handle)
         }) {
@@ -606,7 +622,7 @@ pub fn validate_static_machine_bindings(
             &machine,
             application,
             bindings,
-            expression_table(program).static_machine_application_lifetimes(handle),
+            &lifetimes,
             &mut diagnostics,
         );
         if complete {
@@ -615,7 +631,7 @@ pub fn validate_static_machine_bindings(
                 &machine,
                 application,
                 bindings,
-                expression_table(program).static_machine_application_lifetimes(handle),
+                &lifetimes,
                 &mut diagnostics,
             );
         }

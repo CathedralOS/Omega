@@ -639,7 +639,10 @@ fn requirement_binding_correspondence(
                 || expression_table(program)
                     .static_machine_application_lifetimes(closed.application)
                     != lifetimes
-                || (!lifetimes.is_empty() && supplied.lexical_owner != application.lexical_owner)
+                || (!lifetimes.is_empty()
+                    && (supplied.lexical_owner != application.lexical_owner
+                        || supplied.lifetime_binding_declaration
+                            != application.lifetime_binding_declaration))
                 || header.iter().zip(arguments).any(|(parameter, argument)| {
                     let mut bindings = retained
                         .iter()

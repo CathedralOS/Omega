@@ -518,8 +518,11 @@ fn realize_capture(
                     }
                 })
                 .collect::<Vec<_>>();
-            expressions_of_mut(program)
-                .set_static_machine_application_lifetimes(binding, &lifetimes);
+            expressions_of_mut(program).set_static_machine_application_lifetimes(
+                binding,
+                conformance.symbol,
+                &lifetimes,
+            );
             expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);
             candidate.binding_application = binding;
