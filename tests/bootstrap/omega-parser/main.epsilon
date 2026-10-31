@@ -294,8 +294,8 @@ machine Main::check_header_rows(&mut self, termination: i32, reached: i32, termi
         OmegaMachineClauseKind::Terminates -> service(reached)
         _ -> self.console.exit_process(1)
     }
-    state service(reached: i32) {
-        transition self.parser.machine_clauses[reached].kind {
+    state service(service_index: i32) {
+        transition self.parser.machine_clauses[service_index].kind {
             OmegaMachineClauseKind::Reaches -> return
             _ -> self.console.exit_process(1)
         }

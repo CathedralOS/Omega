@@ -202,10 +202,10 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 12,762 bytes, SHA-256
-`a87644b6264ae90ea6adca2f46ea1c9faa53b4484da79a9fbfa1f219a26ca823`, and packs
-on top of the bound member closure to 584,628 bytes, SHA-256
-`d58391eac0c7acb3226e562385d6038806422b5e61b5ee0f00a4d58f98d39107`.
+The [customer](main.epsilon) entry is bound at 12,774 bytes, SHA-256
+`211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56`, and packs
+on top of the bound member closure to 584,640 bytes, SHA-256
+`acd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

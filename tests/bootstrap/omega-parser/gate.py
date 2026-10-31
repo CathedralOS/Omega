@@ -60,8 +60,8 @@ def main():
     require_identity("D", compiler, 571866,
                      "ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29")
     entry = (gate / "main.epsilon").read_bytes()
-    require_identity("parser customer entry", entry, 12762,
-                     "a87644b6264ae90ea6adca2f46ea1c9faa53b4484da79a9fbfa1f219a26ca823")
+    require_identity("parser customer entry", entry, 12774,
+                     "211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56")
     customer = compiler + entry
     expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
     print(f"Complete D customer: {len(customer)} bytes, "

@@ -40,7 +40,7 @@ echo "materialize: packed compiler is exactly the bound member bytes"
 # entry is the customer byte sequence its gate consumes; each is bound at
 # its recorded identity.
 for OMEGA_PACKED_CUSTOMER in \
-  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 584628 d58391eac0c7acb3226e562385d6038806422b5e61b5ee0f00a4d58f98d39107" \
+  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 584640 acd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c" \
   "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 591498 e92e06045e1a092ba2f131344e3ba1add54699616639a0e43db1910200fc430b" \
   "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 575978 193ee78f2da4c90b1f71001564aa95a4deb5d51055290bdd2d31c91029104d50" \
   "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 573623 faa3447737e103451f5d9197c38aa8386f15f48bc37360446ad3d53721732cea" \
