@@ -10,18 +10,47 @@ use crate::facts::crash_calls::summary_predicates::{
 };
 use crate::facts::crash_plan_facts::declared_parameter_names;
 use crate::flow::expressions;
-use symbols::SymbolHandle;
+use arena::Handle;
+use checked_trees::CheckedNamedOperatorUseFact;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedValueOrigin;
+use checked_trees::CrashCause;
+use checked_trees::CrashContractCapsule;
+use checked_trees::CrashPredicateIdentity;
+use checked_trees::CrashRouteBucket;
+use checked_trees::CrashRouteGuard;
+use checked_trees::CrashSiteLocation;
+use checked_trees::FlowFacts;
+use checked_trees::MachineContractPlan;
+use checked_trees::contract_plan_by_machine;
+use diagnostics::Diagnostic;
+use facts::FactPlan;
+use language_semantics::MachineSupplyMode;
+use symbols::{SymbolHandle, SymbolKeyMap};
+use typed_trees::byte_predicates::byte_predicate_call;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::machine::MachineBodyStatus;
+use typed_trees::operator::declaration_by_symbol;
+use typed_trees::signature::SignatureContract;
+use typed_trees::signature::SignatureContractKind;
+use typed_trees::signature::StateParameter;
+use typed_trees::signature::StateSignature;
+use validation::CallSite;
+use validation::ContentConservationSourcePlan;
+use validation::ExactIntegerCastFact;
+use validation::call_site_argument_expressions;
+use validation::checking_thread_pool;
 use validation::contract_structure::is_true_crash_route;
+use validation::find_call_site;
 
 pub(crate) struct PreparedCrashSummaryGraph {
     nodes: Vec<SummaryNode>,
-    family_potential_causes: Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)>,
+    family_potential_causes: Vec<(SymbolHandle, Vec<CrashCause>)>,
 }
 
 impl PreparedCrashSummaryGraph {
-    pub(crate) fn family_potential_crash_causes(
-        &self,
-    ) -> &[(SymbolHandle, Vec<checked_trees::CrashCause>)] {
+    pub(crate) fn family_potential_crash_causes(&self) -> &[(SymbolHandle, Vec<CrashCause>)] {
         &self.family_potential_causes
     }
 }
@@ -30,11 +59,11 @@ impl PreparedCrashSummaryGraph {
 /// invocation refinement. Public causes never consume call-site proof pruning.
 pub(crate) fn prepare_crash_summary_graph(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    flow: &checked_trees::FlowFacts,
-    crash_capsules: &[checked_trees::CrashContractCapsule],
-    plans: &[checked_trees::MachineContractPlan],
-) -> Result<PreparedCrashSummaryGraph, Vec<diagnostics::Diagnostic>> {
+    operators: &CheckedOperatorFacts,
+    flow: &FlowFacts,
+    crash_capsules: &[CrashContractCapsule],
+    plans: &[MachineContractPlan],
+) -> Result<PreparedCrashSummaryGraph, Vec<Diagnostic>> {
     let nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
     let incomplete = program
         .machines()
@@ -59,7 +88,7 @@ pub(crate) fn prepare_crash_summary_graph(
                     "incomplete or unresolved member invocation dependencies".to_owned()
                 }),
             };
-            diagnostics::Diagnostic::error(format!(
+            Diagnostic::error(format!(
                 "cannot publish target-family crash envelope for `{}`: {reason}",
                 machine.name,
             ))
@@ -76,17 +105,15 @@ pub(crate) fn prepare_crash_summary_graph(
     })
 }
 
-type NamedOperatorUseMap<'a> = symbols::SymbolKeyMap<
-    typed_trees::expression::ExpressionHandle,
+type NamedOperatorUseMap<'a> = SymbolKeyMap<
+    ExpressionHandle,
     Vec<(
-        arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
-        &'a checked_trees::CheckedNamedOperatorUseFact,
+        Handle<CheckedNamedOperatorUseFact>,
+        &'a CheckedNamedOperatorUseFact,
     )>,
 >;
 
-fn build_named_operator_use_map(
-    operators: &checked_trees::CheckedOperatorFacts,
-) -> NamedOperatorUseMap<'_> {
+fn build_named_operator_use_map(operators: &CheckedOperatorFacts) -> NamedOperatorUseMap<'_> {
     let mut by_expression = NamedOperatorUseMap::default();
     for (handle, named) in operators.named_uses.iter() {
         by_expression
@@ -101,17 +128,17 @@ fn build_named_operator_use_map(
 /// summary graph, so the refusal points at the authored call that caused it.
 fn unviable_member_dependency(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    flow: &checked_trees::FlowFacts,
-    crash_capsules: &[checked_trees::CrashContractCapsule],
-    plans: &[checked_trees::MachineContractPlan],
+    operators: &CheckedOperatorFacts,
+    flow: &FlowFacts,
+    crash_capsules: &[CrashContractCapsule],
+    plans: &[MachineContractPlan],
     nodes: &[SummaryNode],
     members: &[SymbolHandle],
 ) -> Option<String> {
     let named_uses_by_expression = build_named_operator_use_map(operators);
     let viable = |machine: SymbolHandle| nodes.iter().any(|node| node.machine == machine);
     members.iter().find_map(|member| {
-        let plan = checked_trees::contract_plan_by_machine(plans, *member)?;
+        let plan = contract_plan_by_machine(plans, *member)?;
         let machine = program.machine_by_symbol(*member)?;
         if !needs_inferred_summary(machine, plan) || viable(*member) {
             return None;
@@ -124,7 +151,7 @@ fn unviable_member_dependency(
         sites.iter().find_map(|site| {
             let target = program.symbols.display_path(site.target_machine, "::");
             let Some(target_plan) =
-                checked_trees::contract_plan_by_machine(plans, site.target_machine)
+                contract_plan_by_machine(plans, site.target_machine)
             else {
                 let pinned = crash_capsules.iter().any(|capsule| {
                     capsule.target_machine() == site.target_machine
@@ -149,13 +176,13 @@ fn unviable_member_dependency(
 
 fn prepare_summary_nodes(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    flow: &checked_trees::FlowFacts,
-    crash_capsules: &[checked_trees::CrashContractCapsule],
-    plans: &[checked_trees::MachineContractPlan],
+    operators: &CheckedOperatorFacts,
+    flow: &FlowFacts,
+    crash_capsules: &[CrashContractCapsule],
+    plans: &[MachineContractPlan],
 ) -> Vec<SummaryNode> {
     let named_uses_by_expression = build_named_operator_use_map(operators);
-    let mut nodes = validation::checking_thread_pool().install(|| {
+    let mut nodes = checking_thread_pool().install(|| {
         use rayon::prelude::*;
         plans
             .par_iter()
@@ -191,7 +218,7 @@ fn prepare_summary_nodes(
             .collect::<Vec<_>>()
     });
 
-    let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    let mut plan_indices = SymbolKeyMap::<SymbolHandle, usize>::default();
     for (index, plan) in plans.iter().enumerate() {
         plan_indices.entry(plan.machine).or_insert(index);
     }
@@ -200,7 +227,7 @@ fn prepare_summary_nodes(
             .get(&machine)
             .and_then(|&index| plans.get(index))
     };
-    let mut capsule_targets = symbols::SymbolKeyMap::<(SymbolHandle, SymbolHandle), ()>::default();
+    let mut capsule_targets = SymbolKeyMap::<(SymbolHandle, SymbolHandle), ()>::default();
     for capsule in crash_capsules {
         capsule_targets.insert((capsule.target_machine(), capsule.target_state()), ());
     }
@@ -210,7 +237,7 @@ fn prepare_summary_nodes(
     // requirement capsules. Any unresolved dependency removes its caller and
     // then every private caller that depended on it.
     loop {
-        let viable_machines: symbols::SymbolKeyMap<SymbolHandle, ()> =
+        let viable_machines: SymbolKeyMap<SymbolHandle, ()> =
             nodes.iter().map(|node| (node.machine, ())).collect();
         let before = nodes.len();
         nodes.retain(|node| {
@@ -244,13 +271,13 @@ fn prepare_summary_nodes(
 
 pub(crate) fn infer_private_body_summaries(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-    semantic: &facts::FactPlan,
-    flow: &checked_trees::FlowFacts,
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    crash_capsules: &[checked_trees::CrashContractCapsule],
-    plans: &[checked_trees::MachineContractPlan],
+    operators: &CheckedOperatorFacts,
+    exact_integer_casts: &[ExactIntegerCastFact],
+    semantic: &FactPlan,
+    flow: &FlowFacts,
+    content_conservation: &[ContentConservationSourcePlan],
+    crash_capsules: &[CrashContractCapsule],
+    plans: &[MachineContractPlan],
     prepared: Option<&PreparedCrashSummaryGraph>,
 ) -> Vec<(SymbolHandle, Vec<SummaryCrashBucket>)> {
     let owned_nodes;
@@ -260,7 +287,7 @@ pub(crate) fn infer_private_body_summaries(
         owned_nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
         &owned_nodes
     };
-    let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    let mut plan_indices = SymbolKeyMap::<SymbolHandle, usize>::default();
     for (index, plan) in plans.iter().enumerate() {
         plan_indices.entry(plan.machine).or_insert(index);
     }
@@ -269,21 +296,19 @@ pub(crate) fn infer_private_body_summaries(
             .get(&machine)
             .and_then(|&index| plans.get(index))
     };
-    let mut node_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    let mut node_indices = SymbolKeyMap::<SymbolHandle, usize>::default();
     for (index, node) in nodes.iter().enumerate() {
         node_indices.entry(node.machine).or_insert(index);
     }
-    let mut capsule_by_target = symbols::SymbolKeyMap::<
-        (SymbolHandle, SymbolHandle),
-        &checked_trees::CrashContractCapsule,
-    >::default();
+    let mut capsule_by_target =
+        SymbolKeyMap::<(SymbolHandle, SymbolHandle), &CrashContractCapsule>::default();
     for capsule in crash_capsules {
         capsule_by_target
             .entry((capsule.target_machine(), capsule.target_state()))
             .or_insert(capsule);
     }
 
-    let equations = validation::checking_thread_pool().install(|| {
+    let equations = checking_thread_pool().install(|| {
         use rayon::prelude::*;
         nodes
             .par_iter()
@@ -330,7 +355,7 @@ pub(crate) fn infer_private_body_summaries(
                                 && call.call_ordinal == invocation.call_ordinal
                         })
                         .expect("a retained summary invocation has its flow call");
-                    let call_site = validation::find_call_site(
+                    let call_site = find_call_site(
                         program,
                         node.machine,
                         invocation.caller_state,
@@ -338,7 +363,7 @@ pub(crate) fn infer_private_body_summaries(
                         invocation.call_ordinal,
                     )
                     .expect("a retained summary invocation has its typed call site");
-                    let arguments = validation::call_site_argument_expressions(program, &call_site);
+                    let arguments = call_site_argument_expressions(program, &call_site);
                     let path_guard = source_paths.at_call(call_flow);
 
                     if let Some(target_plan) = plan_by_machine(invocation.target_machine) {
@@ -498,7 +523,7 @@ pub(crate) struct PrivateSummaryDependency<'program> {
 pub(crate) fn solve_private_summary_fixed_point(
     equations: &[PrivateSummaryEquation<'_>],
 ) -> Vec<(SymbolHandle, Vec<SummaryCrashBucket>)> {
-    let mut equation_index_by_machine = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    let mut equation_index_by_machine = SymbolKeyMap::<SymbolHandle, usize>::default();
     let mut resolved = Vec::with_capacity(equations.len());
     for (index, equation) in equations.iter().enumerate() {
         equation_index_by_machine
@@ -570,13 +595,13 @@ pub(crate) fn solve_private_summary_fixed_point(
 fn machine_invocation_sites(
     program: &dyn ::validation::CheckingInput,
     named_uses_by_expression: &NamedOperatorUseMap<'_>,
-    flow: &checked_trees::FlowFacts,
-    plan: &checked_trees::MachineContractPlan,
+    flow: &FlowFacts,
+    plan: &MachineContractPlan,
 ) -> Result<Vec<SummaryInvocationSite>, String> {
     let mut sites = Vec::new();
     for state in flow.control.machine_states(plan.machine) {
         for call in flow.control.calls.span_or_empty(state.calls) {
-            let site = validation::find_call_site(
+            let site = find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -613,12 +638,8 @@ fn machine_invocation_sites(
             // Reserved byte observations are total primitive operations, not
             // machine dependencies. Their operand calls still have independent
             // flow rows and must retain their own crash summaries.
-            if let validation::CallSite::Expression { expression, .. } = site
-                && typed_trees::byte_predicates::byte_predicate_call(
-                    program.typed_program(),
-                    expression,
-                )
-                .is_some()
+            if let CallSite::Expression { expression, .. } = site
+                && byte_predicate_call(program.typed_program(), expression).is_some()
             {
                 continue;
             }
@@ -633,14 +654,14 @@ fn machine_invocation_sites(
             // Their failure routes are already included by direct-body buckets.
             // Join the exact checked occurrence, and require that crash-bearing
             // declarations retained their site before excluding this call row.
-            if let validation::CallSite::Expression { expression, .. } = site
+            if let CallSite::Expression { expression, .. } = site
                 && let Some(&(named_handle, named)) = named_uses_by_expression
                     .get(&expression)
                     .and_then(|candidates| {
                         candidates.iter().find(|(_, named)| {
                             named.selected_operator_symbol == call.target_symbol
                                 && matches!(named.origin,
-                                checked_trees::CheckedValueOrigin::StateStatement {
+                                CheckedValueOrigin::StateStatement {
                                     machine_symbol, state_symbol, statement_index, ..
                                 } if machine_symbol == plan.machine
                                     && state_symbol == state.state_symbol
@@ -648,18 +669,12 @@ fn machine_invocation_sites(
                         })
                     })
             {
-                let operator = typed_trees::operator::declaration_by_symbol(
-                    program,
-                    named.selected_operator_symbol,
-                )
-                .ok_or_else(|| "selects an operator with no typed declaration".to_owned())?;
-                let declares_crashes =
-                    program.operator_contracts(operator).iter().any(|contract| {
-                        matches!(
-                            contract.kind,
-                            typed_trees::signature::SignatureContractKind::Crashes { .. }
-                        )
-                    });
+                let operator = declaration_by_symbol(program, named.selected_operator_symbol)
+                    .ok_or_else(|| "selects an operator with no typed declaration".to_owned())?;
+                let declares_crashes = program
+                    .operator_contracts(operator)
+                    .iter()
+                    .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }));
                 if declares_crashes
                     && !plan.crash.checked_operators().iter().any(|site| {
                         site.named_use == named_handle
@@ -691,16 +706,11 @@ fn machine_invocation_sites(
     Ok(sites)
 }
 
-fn spelled_callee(
-    program: &dyn ::validation::CheckingInput,
-    site: validation::CallSite<'_>,
-) -> String {
+fn spelled_callee(program: &dyn ::validation::CheckingInput, site: CallSite<'_>) -> String {
     match site {
-        validation::CallSite::Statement(call) => call.target.as_str().to_owned(),
-        validation::CallSite::Expression { call, .. } => call.target.as_str().to_owned(),
-        validation::CallSite::TransitionNamed { path, .. } => {
-            program.symbols.display_path(path.symbol, "::")
-        }
+        CallSite::Statement(call) => call.target.as_str().to_owned(),
+        CallSite::Expression { call, .. } => call.target.as_str().to_owned(),
+        CallSite::TransitionNamed { path, .. } => program.symbols.display_path(path.symbol, "::"),
     }
 }
 
@@ -709,19 +719,19 @@ fn spelled_callee(
 /// targets remain unresolved dependencies and invalidate their summary.
 fn is_selected_build_operation(
     program: &dyn ::validation::CheckingInput,
-    site: validation::CallSite<'_>,
+    site: CallSite<'_>,
 ) -> bool {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, BuildOperation,
     };
 
     let selected = match site {
-        validation::CallSite::Statement(call) if !call.target_symbol.is_valid() => call
+        CallSite::Statement(call) if !call.target_symbol.is_valid() => call
             .authored_call_selection
             .and_then(|occurrence| program.authored_declaration_selections().get(occurrence))
             .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
             .map(|selection| selection.target()),
-        validation::CallSite::Expression { expression, call } if !call.target_symbol.is_valid() => {
+        CallSite::Expression { expression, call } if !call.target_symbol.is_valid() => {
             let mut selections = expressions(program)
                 .authored_selection_occurrences(expression)
                 .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
@@ -745,8 +755,8 @@ fn is_selected_build_operation(
 /// Each physical site has its own source frontier. A guard on one
 /// statement cannot narrow another operation or a guard's own evaluation.
 fn inferred_direct_body_crash_buckets(
-    target: &checked_trees::MachineContractPlan,
-    operators: &checked_trees::CheckedOperatorFacts,
+    target: &MachineContractPlan,
+    operators: &CheckedOperatorFacts,
     source: Option<&super::entry_paths::MachineEntryConditions<'_>>,
 ) -> Vec<SummaryCrashBucket> {
     // Public potential-cause publication has no path refinement. The same
@@ -772,8 +782,7 @@ fn inferred_direct_body_crash_buckets(
         .filter(|site| site.may_trap)
     {
         buckets.push(
-            SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap)
-                .on_path(&at_site(site.location)),
+            SummaryCrashBucket::unconditional(CrashCause::Trap).on_path(&at_site(site.location)),
         );
     }
     // Operators keep their exact selected-use origin; no machine-call ordinal
@@ -786,11 +795,11 @@ fn inferred_direct_body_crash_buckets(
             operators.uses.get(operator.operator_use).origin
         };
         let path = match origin {
-            checked_trees::CheckedValueOrigin::StateStatement {
+            CheckedValueOrigin::StateStatement {
                 state_symbol,
                 statement_index,
                 ..
-            } => at_site(checked_trees::CrashSiteLocation::new(
+            } => at_site(CrashSiteLocation::new(
                 state_symbol,
                 u32::try_from(statement_index).expect("statement ordinal fits u32"),
             )),
@@ -808,9 +817,9 @@ fn inferred_direct_body_crash_buckets(
 fn private_dependency_reaches(
     program: &dyn ::validation::CheckingInput,
     nodes: &[SummaryNode],
-    node_indices: &symbols::SymbolKeyMap<SymbolHandle, usize>,
-    plan_indices: &symbols::SymbolKeyMap<SymbolHandle, usize>,
-    plans: &[checked_trees::MachineContractPlan],
+    node_indices: &SymbolKeyMap<SymbolHandle, usize>,
+    plan_indices: &SymbolKeyMap<SymbolHandle, usize>,
+    plans: &[MachineContractPlan],
     start: SymbolHandle,
     goal: SymbolHandle,
 ) -> bool {
@@ -858,12 +867,9 @@ fn private_dependency_reaches(
     false
 }
 
-pub(super) fn needs_inferred_summary(
-    machine: &typed_trees::machine::Machine,
-    plan: &checked_trees::MachineContractPlan,
-) -> bool {
+pub(super) fn needs_inferred_summary(machine: &Machine, plan: &MachineContractPlan) -> bool {
     machine.target_family_interface
-        || (machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        || (machine.supply_mode == MachineSupplyMode::CheckedBody
             && plan.crash.published().is_empty())
 }
 
@@ -871,8 +877,8 @@ pub(super) fn needs_inferred_summary(
 /// an empty crash envelope. The family itself has no executable body.
 fn complete_family_members(
     program: &dyn ::validation::CheckingInput,
-    interface: &typed_trees::machine::Machine,
-    plans: &[checked_trees::MachineContractPlan],
+    interface: &Machine,
+    plans: &[MachineContractPlan],
 ) -> Result<Vec<SymbolHandle>, String> {
     let mut families = program
         .target_machine_families
@@ -913,15 +919,14 @@ fn complete_family_members(
         }
         let failure = if machine.target_family_interface {
             Some("is itself a generated interface")
-        } else if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            && !machine.body_is_present
+        } else if machine.supply_mode == MachineSupplyMode::CheckedBody && !machine.body_is_present
         {
             Some("claims checked supply without a present body")
         } else if !machine.supplies_checked_body()
             && !program.machine_publishes_crash_ceiling(machine)
         {
             Some("has opaque supply without a published crash ceiling")
-        } else if machine.body_status != typed_trees::machine::MachineBodyStatus::Complete {
+        } else if machine.body_status != MachineBodyStatus::Complete {
             Some("has an incomplete declaration/body status")
         } else if machine.structural_type_equations_pending {
             Some("has pending structural type equations")
@@ -940,9 +945,7 @@ fn complete_family_members(
     Ok(members)
 }
 
-fn summary_published_crash_buckets(
-    buckets: &[checked_trees::CrashRouteBucket],
-) -> Vec<SummaryCrashBucket> {
+fn summary_published_crash_buckets(buckets: &[CrashRouteBucket]) -> Vec<SummaryCrashBucket> {
     normalize_summary_buckets(
         buckets
             .iter()
@@ -952,10 +955,10 @@ fn summary_published_crash_buckets(
                     .alternative_guards()
                     .iter()
                     .map(|guard| match guard {
-                        checked_trees::CrashRouteGuard::Truth => SummaryCrashRouteGuard::Truth,
-                        checked_trees::CrashRouteGuard::Predicate(predicate) => predicate
-                            .expression()
-                            .map_or(SummaryCrashRouteGuard::Truth, |identity| {
+                        CrashRouteGuard::Truth => SummaryCrashRouteGuard::Truth,
+                        CrashRouteGuard::Predicate(predicate) => predicate.expression().map_or(
+                            SummaryCrashRouteGuard::Truth,
+                            |identity| {
                                 SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
                                     identity: identity.clone(),
                                     // The checked scalar annotation owns
@@ -968,7 +971,8 @@ fn summary_published_crash_buckets(
                                     ),
                                     scalar: predicate.scalar_expression().cloned(),
                                 })
-                            }),
+                            },
+                        ),
                     })
                     .collect(),
             })
@@ -980,7 +984,7 @@ pub(crate) fn requirement_signature(
     program: &dyn ::validation::CheckingInput,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
-) -> Option<&typed_trees::signature::StateSignature> {
+) -> Option<&StateSignature> {
     if target_machine == target_state {
         return program
             .machine_parameter_signature(target_state)
@@ -993,20 +997,14 @@ pub(crate) fn requirement_signature(
 
 pub(crate) fn crash_route_expressions_by_identity(
     program: &dyn ::validation::CheckingInput,
-    contracts: &[typed_trees::signature::SignatureContract],
-    parameters: &[typed_trees::signature::StateParameter],
+    contracts: &[SignatureContract],
+    parameters: &[StateParameter],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-) -> std::collections::BTreeMap<
-    checked_trees::CrashPredicateIdentity,
-    typed_trees::expression::ExpressionHandle,
-> {
+    content_conservation: &[ContentConservationSourcePlan],
+) -> std::collections::BTreeMap<CrashPredicateIdentity, ExpressionHandle> {
     let mut expressions = std::collections::BTreeMap::new();
     for contract in contracts {
-        if !matches!(
-            contract.kind,
-            typed_trees::signature::SignatureContractKind::Crashes { .. }
-        ) {
+        if !matches!(contract.kind, SignatureContractKind::Crashes { .. }) {
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -1024,7 +1022,7 @@ pub(crate) fn crash_route_expressions_by_identity(
                 Some(content_conservation),
             );
             expressions.insert(
-                checked_trees::CrashPredicateIdentity::from_expression(structured),
+                CrashPredicateIdentity::from_expression(structured),
                 *expression,
             );
         }
@@ -1037,11 +1035,11 @@ pub(crate) fn crash_route_expressions_by_identity(
 /// admission: an unknown or crashing representative must never disappear.
 pub(crate) fn selected_invocation_target(
     program: &dyn ::validation::CheckingInput,
-    site: validation::CallSite<'_>,
+    site: CallSite<'_>,
     ordinary_target: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     let selected = match site {
-        validation::CallSite::Expression { call, .. } => call
+        CallSite::Expression { call, .. } => call
             .quotient_operation
             .as_ref()
             .map(|request| request.representative_operation.symbol),
