@@ -6,6 +6,7 @@ use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
     UnitBody, unsupported,
 };
+use crate::checked_facts::flow_facts;
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 use typed_trees::type_identity::CallableIdentityId;
 
@@ -113,9 +114,7 @@ pub(crate) fn checked_unit_call_closure_including(
                 );
             for cleanup in rows
                 .flat_map(|rows| {
-                    checked
-                        .facts
-                        .flow
+                    flow_facts(checked)
                         .terminal_unit_effects
                         .cleanup_control
                         .normal_actions(rows)
@@ -181,9 +180,7 @@ fn unique_terminal_selection(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Result<&checked_trees::CheckedTerminalMachineSelection, LoweringError> {
-    let mut matches = checked
-        .facts
-        .flow
+    let mut matches = flow_facts(checked)
         .terminal_machines
         .machines
         .iter()
@@ -199,9 +196,7 @@ fn unique_terminal_selection(
             machine: checked.symbols.name(symbol).to_owned(),
             reason: "is called by this closure but the selected target selects no \
                  terminal machine for it",
-            gap: checked
-                .facts
-                .flow
+            gap: flow_facts(checked)
                 .terminal_unit_effects
                 .gap_diagnostic(symbol, &checked.symbols),
         })?;

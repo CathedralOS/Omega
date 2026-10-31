@@ -12,6 +12,7 @@
 //! expression would lose that identity and could repeat a call's effects. Both
 //! schedules then narrow the same half-open descriptor with exact arithmetic.
 use super::{CheckedTrees, LoweringError, allocate_dense, place_id, unsupported};
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
@@ -150,9 +151,7 @@ pub(crate) fn element_type(
         terminal_psi::StructuralTypeShape::ElementView { element, .. } => Ok(element),
         terminal_psi::StructuralTypeShape::ByteSequence(_) => {
             let identity = crate::terminal_identities::byte_view_element_identity(
-                checked
-                    .facts
-                    .flow
+                flow_facts(checked)
                     .terminal_unit_effects
                     .structural_types
                     .iter(),

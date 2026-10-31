@@ -15,6 +15,7 @@ use super::{
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
     validate_direct_parameter_types,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -299,9 +300,7 @@ fn constructions<'a>(
         CheckedScalarComputationKind::Call {
             structural_arguments,
             ..
-        } => Ok(checked
-            .facts
-            .values
+        } => Ok(value_facts(checked)
             .scalar_computations
             .structural_arguments
             .span(*structural_arguments)

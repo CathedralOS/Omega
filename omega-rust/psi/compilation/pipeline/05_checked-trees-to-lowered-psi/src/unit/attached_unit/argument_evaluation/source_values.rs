@@ -10,6 +10,7 @@ use super::{
     emit_direct_expression, scalar_carriers, scalar_source_types, terminal_scalar_type,
     unsupported, validate_direct_parameter_types,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -172,9 +173,7 @@ impl Evaluation {
         successor_reads_payloads: bool,
     ) -> Result<Option<LoweredBooleanReturnExpression>, LoweringError> {
         let role = CheckedScalarExpressionRole::Guard;
-        if checked
-            .facts
-            .values
+        if value_facts(checked)
             .scalar_computations
             .roots
             .iter()
@@ -184,9 +183,7 @@ impl Evaluation {
         {
             return Ok(None);
         }
-        let (_, value) = checked
-            .facts
-            .values
+        let (_, value) = value_facts(checked)
             .scalar_expressions
             .bound_expression_at(state, statement, role)
             .ok_or(LoweringError::Unsupported(
@@ -235,9 +232,7 @@ impl Evaluation {
         environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let role = CheckedScalarExpressionRole::Guard;
-        let mut computations = checked
-            .facts
-            .values
+        let mut computations = value_facts(checked)
             .scalar_computations
             .roots
             .iter()
@@ -251,9 +246,7 @@ impl Evaluation {
             }
             CheckedCallScalarArgument::Computation(root.root)
         } else {
-            let (_, value) = checked
-                .facts
-                .values
+            let (_, value) = value_facts(checked)
                 .scalar_expressions
                 .bound_expression_at(state, statement, role)
                 .ok_or(LoweringError::Unsupported(
@@ -323,9 +316,7 @@ impl Evaluation {
         let scalar_type = terminal_scalar_type(primitive_type)?;
         match value {
             CheckedCallScalarArgument::Pure(_) => {
-                if checked
-                    .facts
-                    .values
+                if value_facts(checked)
                     .scalar_expressions
                     .bound_expression_at(state, statement, role)
                     .is_none()
@@ -334,9 +325,7 @@ impl Evaluation {
                 }
             }
             CheckedCallScalarArgument::Computation(_) => {
-                if !checked
-                    .facts
-                    .values
+                if !value_facts(checked)
                     .scalar_computations
                     .roots
                     .iter()

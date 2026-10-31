@@ -18,6 +18,7 @@ use super::{
     content_conservation, dense_identity, lookup_domain_id, lookup_service_id, lookup_type_id,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::terminal_identities::stored_structural_identity;
 use crate::terminal_identities::{
     BYTE_VIEW_ELEMENT_TYPE_IDENTITY, StructuralDomainBinding, lookup_domain_id_for_carrier,
@@ -60,9 +61,7 @@ pub(crate) fn collect_value_roots(
             if source_value.is_valid() {
                 roots.push(validation::stored_structural_type_identity(
                     &checked.typed,
-                    checked
-                        .facts
-                        .values
+                    value_facts(checked)
                         .structural_values
                         .nodes
                         .get(*source_value)
@@ -112,9 +111,7 @@ pub(crate) fn collect_value_roots(
         }
         checked_trees::CheckedStructuralValueKind::Record { fields, .. }
         | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
-            for field in checked
-                .facts
-                .values
+            for field in value_facts(checked)
                 .structural_values
                 .record_fields
                 .span_or_empty(*fields)
@@ -139,9 +136,7 @@ pub(crate) fn collect_value_roots(
                     // own carrier; a scalar field (a zeroed `bool`, say) has no
                     // structural plan to root.
                     if matches!(
-                        checked
-                            .facts
-                            .values
+                        value_facts(checked)
                             .structural_values
                             .nodes
                             .get(nested)
@@ -167,9 +162,7 @@ pub(crate) fn collect_value_roots(
                 roots.push(stored_structural_identity(checked, source.type_reference));
                 collect_value_roots(checked, captured, roots)?;
             }
-            for arm in checked
-                .facts
-                .values
+            for arm in value_facts(checked)
                 .structural_values
                 .dispatch_arms
                 .span_or_empty(*arms)
@@ -273,9 +266,7 @@ pub(super) fn lower_program_local_root_introductions(
             ))?
             .structural_type;
         let qualification = lookup_domain_id_for_carrier(domain_ids, requirement.domain, carrier)?;
-        let qualification_identity = checked
-            .facts
-            .flow
+        let qualification_identity = flow_facts(checked)
             .terminal_unit_effects
             .structural_domains
             .iter()
@@ -1694,9 +1685,7 @@ pub(super) fn call_result_qualification_establishments(
     };
     let mut establishments = Vec::new();
     for domain in result_domains {
-        let Some(plan) = checked
-            .facts
-            .flow
+        let Some(plan) = flow_facts(checked)
             .terminal_unit_effects
             .structural_domains
             .iter()

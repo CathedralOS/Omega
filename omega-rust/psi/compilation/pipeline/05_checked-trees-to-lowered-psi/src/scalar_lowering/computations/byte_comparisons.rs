@@ -8,6 +8,7 @@
 //! result with the selectors that leaf depends on. `byte_sequence_observation`
 //! is that route; each entrypoint below constructs only its own leaf.
 use super::{Expansion, LoweringError, QualifiedScalarType, Site, unsupported};
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
@@ -272,10 +273,7 @@ impl Expansion<'_> {
         let Some(expression) = super::call_views::expression(subject) else {
             return Ok(entry);
         };
-        let root = self
-            .checked
-            .facts
-            .values
+        let root = value_facts(&self.checked)
             .structural_values
             .root_for_expression(site.state, site.statement, expression)
             .ok_or(LoweringError::Unsupported(

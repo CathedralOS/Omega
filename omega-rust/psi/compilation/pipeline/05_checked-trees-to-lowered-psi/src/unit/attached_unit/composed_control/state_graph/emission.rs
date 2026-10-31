@@ -21,6 +21,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
 use crate::unit::claim_id;
@@ -191,9 +192,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     let mut permission_handles = Vec::new();
     for &state in &unique_states {
-        checked
-            .facts
-            .flow
+        flow_facts(checked)
             .ownership
             .with_state_permissions(state, |handles| {
                 permission_handles.extend_from_slice(handles);
@@ -235,9 +234,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     let mut selection_binding_handles = Vec::new();
     for &state in &unique_states {
-        checked
-            .facts
-            .flow
+        flow_facts(checked)
             .ownership
             .with_state_selection_place_bindings(state, |handles| {
                 selection_binding_handles.extend_from_slice(handles);
@@ -248,9 +245,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         selection_binding_handles.dedup();
     }
     for handle in selection_binding_handles {
-        let binding = checked
-            .facts
-            .flow
+        let binding = flow_facts(checked)
             .ownership
             .selection_place_bindings
             .get(handle);
@@ -335,9 +330,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // Reserving a typed path is not establishment; arrivals transport actual IDs.
     let mut structural_node_handles = Vec::new();
     for &state in &unique_states {
-        checked
-            .facts
-            .values
+        value_facts(checked)
             .structural_values
             .with_state_nodes(state, |handles| {
                 structural_node_handles.extend_from_slice(handles);

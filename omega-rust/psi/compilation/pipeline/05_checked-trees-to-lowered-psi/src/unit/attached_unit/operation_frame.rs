@@ -71,6 +71,7 @@ use super::primitive_locals::PrimitiveLocal;
 use super::signatures::MachineSignature;
 use super::view_ranges::ViewRangeSite;
 use super::{parameters, reference_results};
+use crate::checked_facts::flow_facts;
 use crate::emission::borrowed_window::BorrowedWindowLedger;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -913,10 +914,7 @@ impl OperationFrame<'_, '_> {
         let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
             identities,
             self.checked,
-            &self
-                .checked
-                .facts
-                .flow
+            &flow_facts(&self.checked)
                 .terminal_unit_effects
                 .cleanup_control,
             *case_conditions,
