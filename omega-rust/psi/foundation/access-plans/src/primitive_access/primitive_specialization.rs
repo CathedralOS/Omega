@@ -77,6 +77,23 @@ macro_rules! specialization_boundary {
     };
 }
 
+/// The lowering replay every operation-carrying specialization performs: run
+/// its own validator and require the replayed operation to equal the one the
+/// carrier retained. Rejection only borrows the carrier, so the sealed request
+/// survives for corrected retry.
+macro_rules! replayed_operation_lowering {
+    ($validator:ident, $message:literal, $doc:literal) => {
+        #[doc = $doc]
+        pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
+            let operation = $validator(&self.request)?;
+            if operation != self.operation {
+                return Err(AccessPlanDiagnostic($message.into()));
+            }
+            Ok(())
+        }
+    };
+}
+
 /// Operation subset accepted by ordinary Stable primitive lowering.
 ///
 /// Compound mutation needs its distinct bounded read-patch-write realization;
@@ -147,21 +164,11 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
     }
 
     primitive_request_read_surface!();
-    /// Independently replay the complete placed authority and Stable
-    /// operation specialization before an outward lowering consumer accepts
-    /// this request. Rejection only borrows the carrier, so its exact loan,
-    /// resident content, and authorization remain available for corrected
-    /// retry.
-    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
-        let operation = validate_stable_primitive_request(&self.request)?;
-        if operation != self.operation {
-            return Err(AccessPlanDiagnostic(
-                "Stable primitive lowering operation differs from its retained specialization"
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+    replayed_operation_lowering!(
+        validate_stable_primitive_request,
+        "Stable primitive lowering operation differs from its retained specialization",
+        "Independently replay the complete placed authority and Stable operation specialization before an outward lowering consumer accepts this request. Rejection only borrows the carrier, so its exact loan, resident content, and authorization remain available for corrected retry."
+    );
 
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
@@ -306,21 +313,11 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
     }
 
     primitive_request_read_surface!();
-    /// Independently replay the complete placed authority, admitted supply
-    /// substitution, and exact External operation before an outward lowering
-    /// consumer accepts this request. Rejection only borrows the carrier, so
-    /// no external event occurs and the same request remains available for
-    /// corrected retry.
-    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
-        let operation = validate_external_primitive_request(&self.request)?;
-        if operation != self.operation {
-            return Err(AccessPlanDiagnostic(
-                "External primitive lowering operation differs from its retained specialization"
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+    replayed_operation_lowering!(
+        validate_external_primitive_request,
+        "External primitive lowering operation differs from its retained specialization",
+        "Independently replay the complete placed authority, admitted supply substitution, and exact External operation before an outward lowering consumer accepts this request. Rejection only borrows the carrier, so no external event occurs and the same request remains available for corrected retry."
+    );
 
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
@@ -398,20 +395,11 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
     }
 
     primitive_request_read_surface!();
-    /// Independently replay the complete placed authority, admitted Atomic
-    /// supply, operation family, and ordering law before an outward lowering
-    /// consumer accepts this request. Rejection only borrows the carrier; it
-    /// performs no atomic attempt and preserves the same request for retry.
-    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
-        let operation = validate_atomic_primitive_request(&self.request)?;
-        if operation != self.operation {
-            return Err(AccessPlanDiagnostic(
-                "Atomic primitive lowering operation differs from its retained specialization"
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+    replayed_operation_lowering!(
+        validate_atomic_primitive_request,
+        "Atomic primitive lowering operation differs from its retained specialization",
+        "Independently replay the complete placed authority, admitted Atomic supply, operation family, and ordering law before an outward lowering consumer accepts this request. Rejection only borrows the carrier; it performs no atomic attempt and preserves the same request for retry."
+    );
 
     /// Replay this request's complete retained placement authority against an
     /// independently checked placement plan.
