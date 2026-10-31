@@ -3,31 +3,29 @@
 // Expected exit: 0
 
 boundary trait SelectedComputation {
-    machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64;
+    machine compute_target(dividend: i64, divisor: i64) -> u8 reaches
+        requires dividend >= 0i64 && divisor == 5i64;
 }
 
 X86Computation satisfies SelectedComputation {
     machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64 {
-    let rem: i64 = dividend % divisor;
-    let idx: u64 = rem as u64;
-    let arr: [u8; 4] = [10, 20, 30, 40];
-    arr[idx]
-}
+        requires dividend >= 0i64 && divisor == 5i64 {
+        let rem: i64 = dividend % divisor;
+        let idx: u64 = rem as u64;
+        let arr: [u8; 4] = [10, 20, 30, 40];
+        arr[idx]
+    }
 }
 
 ArmComputation satisfies SelectedComputation {
     machine compute_target(dividend: i64, divisor: i64) -> u8
-requires dividend >= 0i64 && divisor == 5i64 {
-    let rem: i64 = dividend % divisor;
-    let idx: u64 = rem as u64;
-    let arr: [u8; 4] = [10, 20, 30, 40];
-    arr[idx]
+        requires dividend >= 0i64 && divisor == 5i64 {
+        let rem: i64 = dividend % divisor;
+        let idx: u64 = rem as u64;
+        let arr: [u8; 4] = [10, 20, 30, 40];
+        arr[idx]
+    }
 }
-}
-
-
 
 machine probe() -> u8 reaches SelectedComputation {
     SelectedComputation::compute_target(14i64, 5i64)
