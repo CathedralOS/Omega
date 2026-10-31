@@ -709,10 +709,10 @@ fn parses_nominal_machine_parameter_requirement() {
 }
 
 #[test]
-fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
+fn parses_bodyless_nominal_parameter_with_one_terminator_per_declaration() {
     let source = r#"
         boundary machine register<machine Selected>()
-        requires machine Selected satisfies WindowProcedure::call;
+        requires machine Selected satisfies WindowProcedure::call;;
         "#;
 
     let parsed = super::parse_source(source, "bodyless nominal binder should parse");

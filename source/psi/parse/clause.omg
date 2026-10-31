@@ -421,8 +421,8 @@ crashes Trap
         }
     }
 
-    // The clause spans through its `;`, which it keeps only while the
-    // declaration continues.
+    // Optional range syntax remains inside this clause. Its final span ends
+    // at the last consumed clause token, before declaration punctuation.
     machine termination_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
         let ranged: bool = Parser::at_word(parser, input, "in");
         transition ranged {
@@ -488,9 +488,10 @@ crashes Trap
 
     machine termination_close(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
         let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        let ended: Clause = Parser::with_clause_end(parser, clause, parser.token_end);
         transition owner == ClauseOwner::Refinement {
-            true -> refinement_termination_end(parser, input, owner, clause, semicolon)
-            _ -> store(parser, input, owner, clause)
+            true -> refinement_termination_end(parser, input, owner, ended, semicolon)
+            _ -> store(parser, input, owner, ended)
         }
     }
 

@@ -923,9 +923,9 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
 
 #[test]
 fn rejects_duplicate_operational_clauses() {
-    let source = "machine run() suspends; suspends; {}";
+    let source = "machine run() suspends suspends {}";
     let error = super::parse_tokenized_error(source, "duplicate clause must fail");
-    super::expect_error(&error, "duplicate `suspends;`");
+    super::expect_error(&error, "duplicate `suspends`");
 }
 
 #[test]
@@ -1055,7 +1055,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
 fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     let source = r#"
         public boundary requirement Task::finish<T>(task: Task<T>) -> T
-        suspends; blocks;
+        suspends blocks;
 
         boundary trait TaskRuntime {}
     "#;
@@ -1162,9 +1162,9 @@ fn rejects_empty_or_mixed_installation_bound_reach_rows() {
 #[test]
 fn rejects_operational_members_in_service_reach_rows() {
     for (retired, replacement) in [
-        ("Suspend", "suspends;"),
-        ("Block", "blocks;"),
-        ("thread_block", "blocks;"),
+        ("Suspend", "suspends"),
+        ("Block", "blocks"),
+        ("thread_block", "blocks"),
     ] {
         let source = format!("machine run() reaches Console, {retired} {{}}");
         let error = super::parse_tokenized_error(&source, "retired effect member must fail");
@@ -1297,7 +1297,7 @@ fn rejects_ambiguous_and_duplicate_outcome_specific_ensures_surfaces() {
             "duplicate outcome-specific ensures group",
         ),
         (
-            "machine choose() -> Outcome ensures selected: true; ensures Outcome::Success -> { selected: true; } {}",
+            "machine choose() -> Outcome ensures selected: true ensures Outcome::Success -> { selected: true; } {}",
             "duplicate machine-wide public ensures selector",
         ),
     ] {
@@ -1315,7 +1315,7 @@ fn rejects_named_contract_with_multiple_propositions() {
     let source = r#"
         proposition carries(value: i32);
         machine invalid(value: i32)
-        requires proof: carries(value); carries(value)
+        requires proof: carries(value), carries(value)
         {
         }
     "#;
