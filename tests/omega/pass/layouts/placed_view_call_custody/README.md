@@ -1,5 +1,5 @@
 These source machines qualify ordinary call custody through the public Terminal
-embedding API in `compiler::placed_view_calls`. The host explicitly lends each
+embedding API in `compiler::access_view_calls`. The host explicitly lends each
 original backing and binds only the exact generated read/write imports.
 
 Frozen results are status `41` for shared, mutable, nested, Unit-returning and later-state calls;
