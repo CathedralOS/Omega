@@ -4,6 +4,7 @@
 //! text offsets.
 
 use super::function_validation::FunctionValidation;
+use super::text_offset_of;
 use crate::object_artifact::private_functions::ValidatedPrivateFunction;
 use crate::object_artifact::{
     ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectError,
@@ -73,27 +74,21 @@ pub(super) fn emit_functions(
             semantic_code_attribution.push(ObjectCodeAttribution {
                 machine: function.machine,
                 attribution: *attribution,
-                text_offset: text_offset
-                    .checked_add(attribution.code_offset)
-                    .ok_or(ObjectError::TextSizeOverflow)?,
+                text_offset: text_offset_of(text_offset, attribution.code_offset)?,
             });
         }
         for effect in &function.port_effects {
             port_effects.push(ObjectPortEffect {
                 machine: function.machine,
                 effect: effect.clone(),
-                text_offset: text_offset
-                    .checked_add(effect.code_offset)
-                    .ok_or(ObjectError::TextSizeOverflow)?,
+                text_offset: text_offset_of(text_offset, effect.code_offset)?,
             });
         }
         for settlement in &function.boundary_settlements {
             boundary_settlements.push(ObjectBoundarySettlement {
                 machine: function.machine,
                 settlement: settlement.clone(),
-                text_offset: text_offset
-                    .checked_add(settlement.code_offset)
-                    .ok_or(ObjectError::TextSizeOverflow)?,
+                text_offset: text_offset_of(text_offset, settlement.code_offset)?,
             });
         }
         for call in &function.foreign_calls {
@@ -104,9 +99,7 @@ pub(super) fn emit_functions(
                 .scalar_result
                 .clone()
                 .map(|mut result| {
-                    result.code_offset = text_offset
-                        .checked_add(result.code_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    result.code_offset = text_offset_of(text_offset, result.code_offset)?;
                     Ok(result)
                 })
                 .transpose()?;
@@ -115,33 +108,23 @@ pub(super) fn emit_functions(
                 .iter()
                 .cloned()
                 .map(|mut argument| {
-                    argument.code_offset = text_offset
-                        .checked_add(argument.code_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    argument.code_offset = text_offset_of(text_offset, argument.code_offset)?;
                     Ok(argument)
                 })
                 .collect::<Result<Vec<_>, ObjectError>>()?;
             let x86_floating_control = call
                 .x86_floating_control
                 .map(|mut control| {
-                    control.save_offset = text_offset
-                        .checked_add(control.save_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
-                    control.restore_offset = text_offset
-                        .checked_add(control.restore_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    control.save_offset = text_offset_of(text_offset, control.save_offset)?;
+                    control.restore_offset = text_offset_of(text_offset, control.restore_offset)?;
                     Ok(control)
                 })
                 .transpose()?;
             let aarch64_floating_control = call
                 .aarch64_floating_control
                 .map(|mut control| {
-                    control.save_offset = text_offset
-                        .checked_add(control.save_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
-                    control.restore_offset = text_offset
-                        .checked_add(control.restore_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    control.save_offset = text_offset_of(text_offset, control.save_offset)?;
+                    control.restore_offset = text_offset_of(text_offset, control.restore_offset)?;
                     Ok(control)
                 })
                 .transpose()?;
@@ -150,27 +133,21 @@ pub(super) fn emit_functions(
                 .iter()
                 .cloned()
                 .map(|mut callback| {
-                    callback.code_offset = text_offset
-                        .checked_add(callback.code_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    callback.code_offset = text_offset_of(text_offset, callback.code_offset)?;
                     match &mut callback.encoding {
                         machine_code::CallbackAddressEncoding::X86_64Relative32 {
                             relocation_offset,
                         } => {
-                            *relocation_offset = text_offset
-                                .checked_add(*relocation_offset)
-                                .ok_or(ObjectError::TextSizeOverflow)?;
+                            *relocation_offset = text_offset_of(text_offset, *relocation_offset)?;
                         }
                         machine_code::CallbackAddressEncoding::Aarch64PageAddress {
                             page_relocation_offset,
                             page_offset_relocation_offset,
                         } => {
-                            *page_relocation_offset = text_offset
-                                .checked_add(*page_relocation_offset)
-                                .ok_or(ObjectError::TextSizeOverflow)?;
-                            *page_offset_relocation_offset = text_offset
-                                .checked_add(*page_offset_relocation_offset)
-                                .ok_or(ObjectError::TextSizeOverflow)?;
+                            *page_relocation_offset =
+                                text_offset_of(text_offset, *page_relocation_offset)?;
+                            *page_offset_relocation_offset =
+                                text_offset_of(text_offset, *page_offset_relocation_offset)?;
                         }
                     }
                     Ok(callback)
@@ -194,26 +171,20 @@ pub(super) fn emit_functions(
                 scalar_result,
                 x86_floating_control,
                 aarch64_floating_control,
-                text_offset: text_offset
-                    .checked_add(call.offset)
-                    .ok_or(ObjectError::TextSizeOverflow)?,
+                text_offset: text_offset_of(text_offset, call.offset)?,
             });
         }
         let (unit_stack, mut unit_call_stacks) = validated_unit_stacks
             .remove(&function.machine)
             .map_or((None, Vec::new()), |(stack, calls)| (Some(stack), calls));
         for call in &mut unit_call_stacks {
-            call.text_offset = text_offset
-                .checked_add(call.text_offset)
-                .ok_or(ObjectError::TextSizeOverflow)?;
+            call.text_offset = text_offset_of(text_offset, call.text_offset)?;
         }
         let (scalar_stack, mut scalar_call_stacks) = validated_scalar_stacks
             .remove(&function.machine)
             .map_or((None, Vec::new()), |(stack, calls)| (Some(stack), calls));
         for call in &mut scalar_call_stacks {
-            call.text_offset = text_offset
-                .checked_add(call.text_offset)
-                .ok_or(ObjectError::TextSizeOverflow)?;
+            call.text_offset = text_offset_of(text_offset, call.text_offset)?;
         }
         functions.push(ObjectFunction {
             machine: function.machine,

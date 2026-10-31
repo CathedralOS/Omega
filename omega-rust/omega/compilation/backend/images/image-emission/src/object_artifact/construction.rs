@@ -12,6 +12,13 @@ mod layout;
 mod relocations;
 pub(crate) mod text_emission;
 
+/// One function-relative offset rebased into the emitted text section.
+fn text_offset_of(text_offset: usize, offset: usize) -> Result<usize, ObjectError> {
+    text_offset
+        .checked_add(offset)
+        .ok_or(ObjectError::TextSizeOverflow)
+}
+
 /// Construct a self-contained object plan and exact text carrier.
 ///
 /// Function order is semantic-artifact order and must already be canonical by
