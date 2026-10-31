@@ -1673,7 +1673,11 @@ impl<'a, 's> Solver<'a, 's> {
         for mention in mentions {
             match &self.bindings[mention] {
                 Some(Binding::Integer(value)) => {
-                    let Some(value) = integer_to_i128(value) else {
+                    let Some(value) = value
+                        .to_i64()
+                        .map(i128::from)
+                        .or_else(|| value.to_u64().map(i128::from))
+                    else {
                         return Err(self.reject(format!(
                             "where equation on `{binder_name}` cannot be decided: `{}` exceeds the endpoint evaluator's 64-bit envelope",
                             self.binder_name(mention)
@@ -2060,13 +2064,6 @@ impl<'a, 's> Solver<'a, 's> {
             }
         }
     }
-}
-
-fn integer_to_i128(value: &BigInt) -> Option<i128> {
-    value
-        .to_i64()
-        .map(i128::from)
-        .or_else(|| value.to_u64().map(i128::from))
 }
 
 /// Only already closed Boolean spelling or the shared canonical value atom.
