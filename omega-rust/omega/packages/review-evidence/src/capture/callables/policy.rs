@@ -47,6 +47,7 @@ pub(crate) fn project_checked_callable_policy<'a>(
         compilation.checking_input,
         &compilation.facts,
     );
+    let capability_projection = behavior::CapabilityFlowProjection::new(compilation);
     for machine in compilation.machines() {
         if Some(machine.symbol) != build
             && !is_checked_source_instance(compilation, machine.symbol)?
@@ -98,7 +99,7 @@ pub(crate) fn project_checked_callable_policy<'a>(
         let projected = surface::project(compilation, machine, review_role, identity)?;
         let capability_flows = behavior::capability_flows(compilation, projected.realized)?;
         let reachable_capability_flows =
-            behavior::reachable_capability_flows(compilation, projected.realized)?;
+            capability_projection.reachable_capability_flows(projected.realized)?;
         let mutation = behavior::mutation(
             compilation,
             source,
