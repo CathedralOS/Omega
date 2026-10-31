@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::error::{SourceResolveError, git_tree_invalid};
+use crate::error::{SourceResolveError, git_tree_invalid, too_many_bytes, too_many_files};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::{LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT};
@@ -131,9 +131,7 @@ impl GitTreeProjectionPlan {
             })
             .collect::<Vec<_>>();
         if selected_payload_rows.len() > limits.max_entries {
-            return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_entries,
-            });
+            return Err(too_many_files(limits.max_entries));
         }
 
         Ok(Self {
@@ -206,9 +204,7 @@ pub(super) fn select_regular_files(
     validate_request_paths(&request)?;
     let paths = select_declarations(graph, &request)?;
     if paths.len() > limits.max_entries {
-        return Err(SourceResolveError::TooManyFiles {
-            limit: limits.max_entries,
-        });
+        return Err(too_many_files(limits.max_entries));
     }
     let mut total_bytes = 0_u64;
     paths
@@ -217,16 +213,11 @@ pub(super) fn select_regular_files(
             let entry = graph
                 .entry(&path)
                 .expect("selected declaration path came from authenticated graph");
-            total_bytes =
-                total_bytes
-                    .checked_add(entry.size)
-                    .ok_or(SourceResolveError::TooManyBytes {
-                        limit: limits.max_bytes,
-                    })?;
+            total_bytes = total_bytes
+                .checked_add(entry.size)
+                .ok_or(too_many_bytes(limits.max_bytes))?;
             if total_bytes > limits.max_bytes {
-                return Err(SourceResolveError::TooManyBytes {
-                    limit: limits.max_bytes,
-                });
+                return Err(too_many_bytes(limits.max_bytes));
             }
             Ok(entry.clone())
         })
@@ -328,16 +319,12 @@ fn project_member(
                 limit: limits.max_depth,
             });
         }
-        let projected_count =
-            rows.len()
-                .checked_add(1)
-                .ok_or(SourceResolveError::TooManyFiles {
-                    limit: limits.max_entries,
-                })?;
+        let projected_count = rows
+            .len()
+            .checked_add(1)
+            .ok_or(too_many_files(limits.max_entries))?;
         if projected_count > limits.max_entries {
-            return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_entries,
-            });
+            return Err(too_many_files(limits.max_entries));
         }
         let mut projected = entry.clone();
         projected.relative_bytes = projected_path.to_vec();

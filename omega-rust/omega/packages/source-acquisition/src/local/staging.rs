@@ -7,6 +7,7 @@ use super::snapshot::{
     publish_local_tree_in_lane, verify_live_source_unchanged, verify_requested_local_root,
 };
 use crate::SourceResolveError;
+use crate::error::too_many_bytes;
 use crate::identity::SourceRelativePath;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
 use crate::storage::RetainedStorageLane;
@@ -136,9 +137,7 @@ fn replace_file(
         .checked_sub(bytes.len() as u64)
         .and_then(|remaining| remaining.checked_add(replacement.len() as u64))
         .filter(|total| *total <= limits.max_bytes)
-        .ok_or(SourceResolveError::TooManyBytes {
-            limit: limits.max_bytes,
-        })?;
+        .ok_or(too_many_bytes(limits.max_bytes))?;
     let mut proposed = Vec::new();
     proposed.try_reserve_exact(replacement.len()).map_err(|_| {
         SourceResolveError::LocalSourceReplacementInvalid {
