@@ -7,6 +7,8 @@
 mod constant_entries;
 mod data_applications;
 mod product_operands;
+use data_applications::elaborate;
+use diagnostics::Diagnostic;
 pub use product_operands::{
     PreparedProductRequirement, prepare_product_operand_application,
     prepare_product_requirement_operand, prepare_retained_product_application,
@@ -24,6 +26,8 @@ pub(crate) use data_applications::elaborate_projected_receivers;
 
 use representation_selections::OpaqueRepresentationSelection;
 use typed_trees::TypedTrees;
+use typed_trees::references::DeclarationSelection;
+use validation::AsmAuthorityAdmission;
 
 /// Invocation-owned admission inputs for typed elaboration. Package declaration
 /// authority is checked by the following stage, not accepted here.
@@ -31,7 +35,7 @@ use typed_trees::TypedTrees;
 pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
     deferred_layout_applications: &'request [typed_trees::types::TypeReferenceHandle],
-    asm_authority: Option<validation::AsmAuthorityAdmission>,
+    asm_authority: Option<AsmAuthorityAdmission>,
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
     opaque_representation_selections: &'request [OpaqueRepresentationSelection],
     wire_compatibility_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
@@ -59,10 +63,7 @@ impl<'request> PreparationRequest<'request> {
     }
 
     /// Admit privileged instructions against this invocation's evaluated Build.
-    pub const fn with_asm_authority(
-        mut self,
-        authority: validation::AsmAuthorityAdmission,
-    ) -> Self {
+    pub const fn with_asm_authority(mut self, authority: AsmAuthorityAdmission) -> Self {
         self.asm_authority = Some(authority);
         self
     }
@@ -104,7 +105,7 @@ impl<'request> PreparationRequest<'request> {
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
-    asm_authority: Option<validation::AsmAuthorityAdmission>,
+    asm_authority: Option<AsmAuthorityAdmission>,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     wire_compatibility_demands: Vec<language_semantics::wire::WireCompatibilityDemand>,
@@ -171,14 +172,14 @@ impl TypedPreparation {
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
-) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<diagnostics::Diagnostic>> {
+) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
     let pre_loop_guard = phase_profile::guard("05.c.1.pre_specialization");
     crate::assembly_control::validate_primitive_meanings(&program)?;
     // Declaration descriptions may retain pending implementations, but the
     // executable roster must be complete before any proof or memo lookup.
     for machine in program.machines() {
         if machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred {
-            return Err(vec![diagnostics::Diagnostic::error(format!(
+            return Err(vec![Diagnostic::error(format!(
                 "machine `{}` requires implementation completion before checking",
                 machine.name.as_str(),
             ))]);
@@ -238,10 +239,7 @@ pub fn prepare_typed_trees(
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
     runtime_value_applications::materialize(&mut program)?;
-    crate::operators::bind_selected_operator_calls(
-        &mut program,
-        &typed_trees::references::DeclarationSelection::all(),
-    )?;
+    crate::operators::bind_selected_operator_calls(&mut program, &DeclarationSelection::all())?;
     let provider_candidates =
         crate::monomorphization::OperatorCandidateTemplates::candidate_requests(&program);
     let provider_templates = crate::monomorphization::OperatorCandidateTemplates::prepare(
@@ -314,9 +312,7 @@ pub fn prepare_typed_trees(
     phase_profile::scope("05.c.3.d.constructed_result_types", || {
         crate::constructed_results::retain_constructed_result_types(&mut program)
     })?;
-    phase_profile::scope("05.c.3.e.data_applications", || {
-        data_applications::elaborate(&mut program)
-    })?;
+    phase_profile::scope("05.c.3.e.data_applications", || elaborate(&mut program))?;
     phase_profile::scope("05.c.3.f.runtime_index_fields", || {
         runtime_index_fields::materialize(&mut program)
     })?;
@@ -380,7 +376,7 @@ pub fn prepare_typed_trees(
 /// Calls establish destinations before anonymous values can round. Full source
 /// preparation and private constant execution share this ordering; coordinators
 /// must not stamp the canonical program to compensate for an unprepared clone.
-fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
+fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts
@@ -411,13 +407,11 @@ fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnos
 /// This is the only whole-program finalization: later specialization rounds
 /// never rescan unchanged declaration graphs. Immutable checking owns template
 /// commitments.
-fn normalize_open_index_identities(
-    program: &mut typed_trees::TypedTrees,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+fn normalize_open_index_identities(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     ::validation::normalize_open_index_expressions(program)?;
     crate::monomorphization::finalize_domain_instance_identities(
         program,
-        &typed_trees::references::DeclarationSelection::all(),
+        &DeclarationSelection::all(),
     )
     .map_err(|diagnostic| vec![diagnostic])
 }
@@ -432,9 +426,7 @@ fn normalize_open_index_identities(
 /// preparation runs while const endpoint folds are still outstanding, so an
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
-pub fn prepare_execution_applications(
-    program: &mut typed_trees::TypedTrees,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     selections::retain_static_argument_contexts(program);
     loop {
         let signatures = program.closed_requirement_applications().count();
@@ -468,10 +460,8 @@ pub fn prepare_execution_applications(
 /// numeric destinations. Pending tuples remain pending as in static derivation;
 /// this is not full source checking or permission to execute them. The semantic
 /// evaluation owner still admits each demanded invocation before execution.
-pub fn prepare_constant_execution(
-    mut program: TypedTrees,
-) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
-    data_applications::elaborate(&mut program)?;
+pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
+    elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     selections::retain_static_argument_contexts(&mut program);
     selections::bind_pre_specialization_authored_selections(&mut program)
@@ -485,9 +475,9 @@ pub fn prepare_constant_execution(
 }
 
 fn specialize_machine_calls(
-    program: &mut typed_trees::TypedTrees,
+    program: &mut TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<typed_trees::references::DeclarationSelection, Vec<diagnostics::Diagnostic>> {
+) -> Result<DeclarationSelection, Vec<Diagnostic>> {
     data_applications::retain_declared_field_scopes(program)?;
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,

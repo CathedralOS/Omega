@@ -1,6 +1,7 @@
 //! Rejoin original static-input coordinates at their real receiving operands.
 //! Paths describe an argument's position, never a declaration chosen by text.
 use super::*;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use typed_trees::product_operand::{
     ProductArgumentStep, ProductInputSelection, ProductInputSelectionTarget,
     ProductTypeSelectionSlot,
@@ -22,10 +23,7 @@ impl Lower<'_> {
     fn input_occurrence(
         &self,
         coordinate: Handle<ProductOperandSelection>,
-    ) -> Result<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, Vec<Diagnostic>> {
         if !self.graph.selections.is_valid(coordinate) {
             return Err(self.error("static input has a foreign source-selection coordinate"));
         }
