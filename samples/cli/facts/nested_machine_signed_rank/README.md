@@ -178,6 +178,9 @@ The optimized executable for these observations was built from compiler source
 `a1a8cdda6c2d383b5031e352533deb94a3953ec0f619e0ef32b63e40856fcac9`.
 The immutable producer and raw results are retained in
 `build/advance-negated/formation-samples.{json,log}` in the owning worktree.
+The focused source corpus records 36 checked and 36 intended rejections; its
+Linux combined corpus records 36 agreements at exit 0. Existing declared-call
+and signed-rank controls retain seven refusals and two executable successes.
 All 72 sources are pinned under
 `tests/omega/{pass,fail}/facts/nested_machine_signed_rank_negated_requirement_*`.
 The broader parent acceptance, other-host execution and independent proof-kernel
