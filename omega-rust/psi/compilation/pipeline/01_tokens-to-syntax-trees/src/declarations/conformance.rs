@@ -1,6 +1,8 @@
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use arena::HandleSpan;
@@ -27,16 +29,9 @@ pub(super) fn parse_conformance<'tokens, 'source>(
     let rest = rest.take_contextual("satisfies")?;
     let ((trait_name, trait_lifetime_arguments, trait_arguments), rest) =
         parse_conformance_trait_application(syntax_trees, rest)?;
-    let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        generic_parameters.type_parameters,
-        rest,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        generic_parameters.type_parameters,
-        rest,
-    )?;
+    let ((), rest) =
+        parse_machine_parameter_contracts(syntax_trees, generic_parameters.type_parameters, rest)?;
+    validate_machine_parameter_contracts(syntax_trees, generic_parameters.type_parameters, rest)?;
     if !rest.at_punctuation(PunctuationKind::LeftBrace) {
         return Err(rest.error_here(
             "a named implementation owns one complete closed map; add `{ ... }` binding every requirement after the selected trait application",
