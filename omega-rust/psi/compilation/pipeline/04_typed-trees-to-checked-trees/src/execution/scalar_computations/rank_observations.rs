@@ -221,6 +221,7 @@ fn observation(
 ) -> Option<CheckedScalarComputationHandle> {
     let observed = match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
+            formation,
             measure,
             bindings: application_inputs,
             primitive_type,
@@ -262,6 +263,25 @@ fn observation(
                     subject_type,
                     admitted.entry_indexes.span(input.entry_indexes)?,
                 )?;
+                // A logical declaration can form differently at different
+                // applications. Only this exact retained state/body/input
+                // telescope supplies its partial conversion decisions.
+                let scoped_casts = if formation.is_valid() {
+                    let proof = admitted.application_formations.get(formation);
+                    let (owner, _) = validation::find_state(builder.program, builder.state)?;
+                    if proof.machine != builder.machine
+                        || proof.machine_body != owner.states
+                        || proof.state != builder.state
+                        || proof.application.measure != measure
+                        || proof.application.definition_body != *body
+                        || proof.bindings != application_inputs
+                    {
+                        return None;
+                    }
+                    admitted.application_casts.span(proof.application.casts)?
+                } else {
+                    &[]
+                };
                 let expression = crate::values::scalar::scalar_lowering::lower_return_expression(
                     builder.program,
                     builder.operators,
@@ -271,7 +291,7 @@ fn observation(
                     &[subject_type],
                     &[],
                     primitive_type,
-                    builder.exact_integer_casts,
+                    scoped_casts,
                 )?;
                 let operands = builder.plans.operands.insert_many([operand]);
                 Some(builder.insert(

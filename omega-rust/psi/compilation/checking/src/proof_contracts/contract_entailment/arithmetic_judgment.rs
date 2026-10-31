@@ -4,7 +4,9 @@ use super::{
 };
 use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
+use typed_trees::expression::UnaryOperator;
 mod application_formation;
+pub use application_formation::IntegerApplicationFormation;
 #[cfg(test)]
 mod denotation_tests;
 mod denotations;
@@ -1310,8 +1312,15 @@ impl<'program> Engine<'program> {
                 }
                 Some(Polynomial::atom(name))
             }
-            // The typed-tree unary operator is logical-not only (negative
-            // literals fold into Integer), so unary nodes are never terms.
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
+                // Complement is a closed builtin operation. Its selected
+                // fixed carrier supplies the width; this candidate value
+                // establishes neither operand nor application formation.
+                let reference = self.source_result_type(expression)?;
+                let primitive = self.program.primitive_type_reference(reference)?;
+                let operand = self.normalize(unary.operand)?;
+                Self::integer_complement_value(primitive, &operand)
+            }
             ExpressionNode::Unary(_) => None,
             ExpressionNode::Binary(binary)
                 if matches!(

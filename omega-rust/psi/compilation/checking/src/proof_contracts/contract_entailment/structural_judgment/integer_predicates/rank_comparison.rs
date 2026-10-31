@@ -20,6 +20,8 @@ pub(in crate::proof_contracts::contract_entailment) struct CapturedIntegerRank {
 /// and its exact observed atoms travel together with independently proved
 /// natural/carrier bounds; a raw desired interval cannot construct one.
 pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerRank {
+    pub(in crate::proof_contracts::contract_entailment) application:
+        Option<crate::IntegerApplicationFormation>,
     value: IntegerDenotation,
     atoms: Vec<(String, StructuralTerm, PrimitiveType)>,
     maximum: BigInt,
@@ -40,7 +42,7 @@ impl StructuralJudge<'_> {
             return Err("the entry rank input has unformed arithmetic");
         }
         let engine = &mut observations.engine;
-        let (value, primitive) = if rank.measure.is_valid() {
+        let (value, primitive, application) = if rank.measure.is_valid() {
             let declaration = self
                 .program
                 .measures()
@@ -59,9 +61,9 @@ impl StructuralJudge<'_> {
                     }
                     "the entry rank application has no independent formation"
                 })?;
-            (value, primitive)
+            (value.value, primitive, value.formation)
         } else {
-            (input, rank.primitive)
+            (input, rank.primitive, None)
         };
         let value = engine.substituted(&value);
         if !engine.integer_value_lands(primitive, &value) {
@@ -99,6 +101,7 @@ impl StructuralJudge<'_> {
             return Err("the formed rank denotation has an uncaptured integer leaf");
         }
         Ok(FormedIntegerRank {
+            application,
             value,
             atoms,
             maximum: BigInt::from_i128(maximum),
@@ -156,6 +159,7 @@ impl StructuralJudge<'_> {
             engine
                 .form_declared_integer_application(destination.measure, &destination_input)
                 .ok_or("the arriving rank application has no independent formation")?
+                .value
         } else {
             destination_input
         };

@@ -51,7 +51,8 @@ pub use facts::{
     CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
 };
 pub use facts::{
-    CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedMachineRankCorrespondence, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
+    CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
     CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,

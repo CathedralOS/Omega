@@ -485,11 +485,13 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport,
     RankLocalCapture, RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation,
     RankProtectedPath, RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate,
-    RankValueDerivation, RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises,
-    RankingRangeState, StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
-    discover_rank_arrival_correspondence, frame_preserves_rank_premises, protect_rank_premise,
-    prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
-    prove_captured_ranking_range_entry, prove_ranking_range_edge, prove_ranking_range_entry,
+    RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof, RankingRangeMeasure,
+    RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
+    arithmetic_entry_requirement_is_covered, discover_rank_arrival_correspondence,
+    frame_preserves_rank_premises, protect_rank_premise, prove_arithmetic_call_requirement,
+    prove_captured_arithmetic_call_requirement, prove_captured_ranking_range_entry,
+    prove_captured_ranking_range_entry_with_formation, prove_ranking_range_edge,
+    prove_ranking_range_entry, prove_ranking_range_entry_with_formation,
     prove_ranking_range_transition, rank_protected_path, ranking_coordinate_type,
     ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
     ranking_range_required_coordinates, ranking_range_state_premise_coordinates,
@@ -507,7 +509,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     ScopedCallCompletion, ScopedCallResultObservation, scoped_arithmetic_comparisons_unsatisfiable,
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_call_result_observations,
-    scoped_completed_call_guarantees, scoped_declared_integer_application_is_formed,
+    scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
@@ -679,3 +681,5 @@ pub use proof_contracts::bound_expression_meaning::static_type_boolean_equalitie
 pub mod native_locators;
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;
+
+pub use proof_contracts::contract_entailment::IntegerApplicationFormation;

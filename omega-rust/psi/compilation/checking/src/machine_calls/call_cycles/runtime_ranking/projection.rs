@@ -36,12 +36,10 @@ pub(super) enum RankOrder {
         measure: SymbolHandle,
         primitive: PrimitiveType,
     },
-    /// A declared measure whose `+`/`*` body validation's `declared_scalar_view`
-    /// admitted as strictly increasing on the naturals with builtin meaning --
-    /// the only reason the subject's descent stands for the produced rank's
-    /// descent. The rank is the body over the subject, judged by the scalar
-    /// range call judgment, which also proves its formation in the carrier.
-    /// Members share this order only through the same measure and carrier.
+    /// A declared scalar application compared by its produced value. Each
+    /// occurrence independently forms the body and carrier; subject descent
+    /// alone says nothing about this order. Members share the selected
+    /// measure and carrier, never an inferred global monotonicity property.
     DeclaredComputation {
         measure: SymbolHandle,
         primitive: PrimitiveType,
@@ -620,6 +618,7 @@ pub(super) fn natural_component(
                 return None;
             }
             states.push(super::ValidatedRuntimeNaturalState {
+                application: None,
                 measure: SymbolHandle::invalid(),
                 state: state.symbol,
                 parameter: parameter.symbol,

@@ -6,7 +6,9 @@ mod coordinates;
 mod entry;
 use crate::checks::current_scalar_values::CurrentScalarValues;
 pub(super) use coordinates::Coordinate;
-pub(super) use entry::prove as prove_integer_entry;
+pub(super) use entry::{
+    prove as prove_integer_entry, prove_with_formation as prove_integer_entry_with_formation,
+};
 use typed_trees::{machine::Machine, state::State};
 
 pub(super) struct EntryInputs<'program> {
