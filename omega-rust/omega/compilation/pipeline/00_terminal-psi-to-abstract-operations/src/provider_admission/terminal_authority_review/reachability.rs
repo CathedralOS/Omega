@@ -12,6 +12,7 @@ use effects::{
     TerminalMechanismIdentity,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use terminal_psi::RegisterTargetApplicability;
 
 use super::operations::{PhysicalAuthorityUse, physical_authority_use};
 
@@ -160,10 +161,10 @@ impl<'a> AuthorityGraph<'a> {
                                 self.target_profile.native_target().architecture
                             ),
                             (
-                                terminal_psi::RegisterTargetApplicability::Aarch64,
+                                RegisterTargetApplicability::Aarch64,
                                 target::Architecture::Aarch64
                             ) | (
-                                terminal_psi::RegisterTargetApplicability::X86_64,
+                                RegisterTargetApplicability::X86_64,
                                 target::Architecture::X86_64
                             )
                         ) {
@@ -212,13 +213,11 @@ impl<'a> AuthorityGraph<'a> {
 }
 
 /// The catalog architecture a retained assembly demand names.
-fn assembly_catalog_architecture(
-    requirement: terminal_psi::RegisterTargetApplicability,
-) -> &'static str {
+fn assembly_catalog_architecture(requirement: RegisterTargetApplicability) -> &'static str {
     match requirement {
-        terminal_psi::RegisterTargetApplicability::X86_64 => "x86_64",
-        terminal_psi::RegisterTargetApplicability::Aarch64 => "aarch64",
-        terminal_psi::RegisterTargetApplicability::Any => "any",
+        RegisterTargetApplicability::X86_64 => "x86_64",
+        RegisterTargetApplicability::Aarch64 => "aarch64",
+        RegisterTargetApplicability::Any => "any",
     }
 }
 
