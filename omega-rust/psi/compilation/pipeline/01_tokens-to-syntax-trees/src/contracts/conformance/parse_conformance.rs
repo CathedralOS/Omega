@@ -86,14 +86,10 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
         });
         clauses.push(handle);
         input = rest;
-
         let Some(next) = input.take_comma()? else {
             break;
         };
-
         input = next;
-
-        continue;
     }
 
     Ok((clauses.finish(), input))

@@ -5,7 +5,7 @@
 //! and returns. It does not infer stack evidence, select ABI policy, or emit
 //! instructions.
 
-use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::object_artifact::replay::{x86_region_decoder, x86_register_info_writes_stack_pointer};
 use crate::order::strictly_increasing;
 
 use machine_code::{
@@ -150,8 +150,7 @@ pub(crate) fn validate_scalar_stack(
     let mut peak = 0_u32;
     match architecture {
         Architecture::X86_64 => {
-            let mut decoder =
-                iced_x86::Decoder::with_ip(64, bytes, 0, iced_x86::DecoderOptions::NONE);
+            let mut decoder = x86_region_decoder(bytes, 0, bytes.len());
             let mut info_factory = iced_x86::InstructionInfoFactory::new();
             let mut saw_return = false;
             while decoder.can_decode() {
