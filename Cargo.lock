@@ -1079,11 +1079,13 @@ dependencies = [
  "numerics",
  "representation-selections",
  "runtime-abi",
+ "semantic-vocabulary",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
+ "terminal-psi",
  "tokens-to-syntax-trees",
  "typed-trees",
 ]
@@ -1818,6 +1820,9 @@ dependencies = [
  "symbols",
  "target",
  "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-interpreter",
  "terminal-psi",
 ]
 

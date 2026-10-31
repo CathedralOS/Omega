@@ -508,10 +508,22 @@ pub(super) fn validate_call_structural(
         let preserved = terminal_semantics::ReferenceResultMemberships::new(module)
             .for_operation(machine, operation)
             .map_err(CodecError::MalformedStructuralFoundation)?;
-        if actual_result.projected_qualifications.iter().any(|row| {
-            !expected_result.projected_qualifications.contains(row) && !preserved.contains(row)
-        }) {
-            return malformed("structural call adds an unpreserved caller membership");
+        let unpreserved = actual_result
+            .projected_qualifications
+            .iter()
+            .filter(|row| {
+                !expected_result.projected_qualifications.contains(row) && !preserved.contains(row)
+            })
+            .collect::<Vec<_>>();
+        if !unpreserved.is_empty() {
+            return Err(CodecError::MalformedStructuralOperation {
+                machine: format!("{:?}", machine.id),
+                operation: operation.id,
+                reason: format!(
+                    "structural call adds an unpreserved caller membership: callee {:?}, extra {unpreserved:?}, declared {:?}, preserved {preserved:?}",
+                    callee.id, expected_result.projected_qualifications,
+                ),
+            });
         }
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
