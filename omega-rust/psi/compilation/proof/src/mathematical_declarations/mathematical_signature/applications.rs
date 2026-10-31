@@ -7,7 +7,7 @@ use super::{
     LevelArgument, Signature, SymbolHandle, Term, TermHandle, TypeParameter, TypeParameterKind,
     TypeReferenceNode, infer_sort,
 };
-use crate::typed_expressions::expression_table;
+use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -381,10 +381,8 @@ impl Elaborator<'_> {
             return self.elaborate_type_reference(argument.type_reference);
         }
         if argument.symbol.is_valid() {
-            if let Some(reference) = self
-                .program
-                .type_reference_table
-                .find_named_type_reference(argument.symbol)
+            if let Some(reference) =
+                type_reference_table(self.program).find_named_type_reference(argument.symbol)
             {
                 return self.elaborate_type_reference(reference);
             }

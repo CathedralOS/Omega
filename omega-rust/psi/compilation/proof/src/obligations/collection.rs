@@ -23,7 +23,7 @@ use crate::obligations::{
 };
 use crate::typed_expressions::{
     dehoisted_operand, expression_contains_call_node, expression_table, expression_type_reference,
-    statement_table,
+    statement_table, type_reference_table,
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -292,10 +292,7 @@ fn walk_bounded_type<Context: Clone>(
             walk_bounded_type(program, *element_type, context, on_constrained);
         }
         TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in type_reference_table(program).type_reference_handles(*arguments) {
                 walk_bounded_type(program, *argument, context.clone(), on_constrained);
             }
         }
@@ -1034,9 +1031,7 @@ fn collect_bounded_local_initializer_obligation(
 ) {
     if local.ordinary_value_initializer().is_none()
         || matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
+            type_reference_table(program).type_reference(local.type_reference),
             TypeReferenceNode::Reference { .. }
         )
     {

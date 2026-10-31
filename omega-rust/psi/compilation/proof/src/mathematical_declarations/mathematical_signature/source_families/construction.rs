@@ -2,7 +2,7 @@
 //! children. A receiving application is not evidence that a value inhabits it.
 
 use super::super::Elaborator;
-use crate::typed_expressions::expression_table;
+use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle};
 use symbols::SymbolHandle;
@@ -73,10 +73,8 @@ impl Elaborator<'_> {
             .cloned()
             .collect::<Vec<_>>();
         for parameter in typed_values {
-            let TypeReferenceNode::Named { symbol, .. } = self
-                .program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
+            let TypeReferenceNode::Named { symbol, .. } =
+                type_reference_table(self.program).type_reference(parameter.type_reference)
             else {
                 unreachable!("selected exact Type-formal domain")
             };
@@ -423,9 +421,7 @@ impl Elaborator<'_> {
                 self.refuse("source indexed constructor lost its exact family application".into())
             );
         };
-        let arguments = self
-            .program
-            .type_reference_table
+        let arguments = type_reference_table(self.program)
             .type_reference_handles(*arguments)
             .to_vec();
         let family = self.source_family(*base_symbol)?;
@@ -505,11 +501,7 @@ impl Elaborator<'_> {
             let mut application = actual;
             let mut actual_family = None;
             for _ in 0..128 {
-                match self
-                    .program
-                    .type_reference_table
-                    .type_reference(application)
-                {
+                match type_reference_table(self.program).type_reference(application) {
                     TypeReferenceNode::Generic { base_symbol, .. } => {
                         actual_family = Some(*base_symbol);
                         break;

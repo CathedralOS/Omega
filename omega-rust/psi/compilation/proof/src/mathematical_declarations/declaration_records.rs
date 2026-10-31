@@ -28,7 +28,7 @@
 //! references. Kernel-term elaboration and checking a definition body
 //! against its declared result remain later legs.
 
-use crate::typed_expressions::expression_table;
+use crate::typed_expressions::{expression_table, type_reference_table};
 use checked_trees::{
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter,
@@ -165,10 +165,7 @@ fn classify_subject_carrier(
     binder: &TypeParameter,
     carrier: TypeReferenceHandle,
 ) -> Result<CheckedMathematicalBinderKind, Vec<diagnostics::Diagnostic>> {
-    if !program
-        .type_reference_table
-        .contains_type_reference(carrier)
-    {
+    if !type_reference_table(program).contains_type_reference(carrier) {
         return Err(refuse(
             program,
             definition,
@@ -190,9 +187,7 @@ fn classify_subject_carrier(
             ..
         } => match vocabulary.classify(*base_symbol, base_name) {
             Some(FixedCore::Type) => {
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(*arguments);
+                let arguments = type_reference_table(program).type_reference_handles(*arguments);
                 match arguments {
                     [universe] => Ok(CheckedMathematicalBinderKind::Type {
                         universe: Some(program.normalized_type_identity_text(*universe)),
@@ -288,10 +283,7 @@ fn ordinary_type_identity(
     definition: &MathematicalDefinition,
     reference: TypeReferenceHandle,
 ) -> Result<typed_trees::type_identity::TypeIdentityId, Vec<diagnostics::Diagnostic>> {
-    if !program
-        .type_reference_table
-        .contains_type_reference(reference)
-    {
+    if !type_reference_table(program).contains_type_reference(reference) {
         return Err(refuse(
             program,
             definition,

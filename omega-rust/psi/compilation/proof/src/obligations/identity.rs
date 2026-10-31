@@ -28,7 +28,7 @@ use crate::obligations::plan::{
     BinaryValueOperands, IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner,
     ProofPlan,
 };
-use crate::typed_expressions::{expression_table, statement_table};
+use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
 use arena::HandleSpan;
 use std::fmt;
 use symbols::JoinedPath;
@@ -677,8 +677,7 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
                 atom!("domain-symbol" => symbol_identity(program, node.semantic_domain_symbol)),
                 compound(
                     "domain-arguments",
-                    program
-                        .type_reference_table
+                    type_reference_table(program)
                         .type_reference_handles(node.semantic_domain_arguments)
                         .iter()
                         .map(|type_reference| {

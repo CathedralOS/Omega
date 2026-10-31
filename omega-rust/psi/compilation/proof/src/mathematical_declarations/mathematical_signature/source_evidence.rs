@@ -6,7 +6,7 @@ use super::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Elaborator, TermHandle, TypeParameterKind,
     TypeReferenceNode,
 };
-use crate::typed_expressions::{expression_table, statement_table};
+use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -353,9 +353,7 @@ impl Elaborator<'_> {
                 continue;
             };
             let symbol = *base_symbol;
-            let arguments = self
-                .program
-                .type_reference_table
+            let arguments = type_reference_table(self.program)
                 .type_reference_handles(*arguments)
                 .to_vec();
             let family = self.source_family(symbol)?;

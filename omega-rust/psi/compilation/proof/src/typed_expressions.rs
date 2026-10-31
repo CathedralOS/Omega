@@ -11,7 +11,7 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementTable;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceTable};
 
 /// Read view of a program's expression table: a chain that starts with this
 /// call formats on the receiver's line instead of re-spelling the field path.
@@ -24,6 +24,11 @@ pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
 /// Read view of a program's statement table; see [`expression_table`].
 pub(crate) fn statement_table(tables: &TypedTreeTables) -> &StatementTable {
     &tables.statement_table
+}
+
+/// Read view of a program's type-reference table; see [`expression_table`].
+pub(crate) fn type_reference_table(tables: &TypedTreeTables) -> &TypeReferenceTable {
+    &tables.type_reference_table
 }
 
 pub(crate) fn expression_type_reference(
