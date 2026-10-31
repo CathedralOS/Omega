@@ -7,7 +7,7 @@ use super::{
     satisfies_plan_name,
 };
 use crate::ProviderPlanningContext;
-use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
 use build_time_evaluation::provider_declarations::{
     prepared_named_provider_applications, prepared_named_provider_member,
 };
@@ -44,11 +44,7 @@ pub(super) fn derive(
                 .symbol_package_identity(rows.first()?.realization_machine);
             let target = selected_target.unwrap_or_default().to_owned();
             let mut plan = ProviderPlan {
-                name: satisfies_plan_name(
-                    &target,
-                    schema.identity_text(schema.declaration.trait_name),
-                    &provider_type,
-                ),
+                name: satisfies_plan_name(&target, trait_name_text(&schema), &provider_type),
                 provider_type,
                 provider_type_package_identity: package,
                 provider_application: Default::default(),

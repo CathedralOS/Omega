@@ -93,3 +93,10 @@ pub fn select_derived_provider_plans(
 }
 
 pub use provenance_replay::ProviderRowRealization;
+
+/// The text of the trait name a schema declares, which that schema's identity
+/// table interns under `declaration.trait_name`. A reader that would otherwise
+/// name the schema twice in one expression names it here once.
+pub(crate) fn trait_name_text(schema: &ServiceSchema) -> &str {
+    schema.identity_text(schema.declaration.trait_name)
+}
