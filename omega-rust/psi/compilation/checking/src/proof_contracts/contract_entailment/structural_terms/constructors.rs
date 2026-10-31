@@ -6,6 +6,7 @@
 //! elaboration; this layer never invents proof inhabitants. Case classifiers
 //! used by arm guards remain separate from this value-construction route.
 
+use crate::frozen_program::expression_table;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
@@ -69,9 +70,8 @@ pub(in super::super) fn is_case_observation(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    matches!(program.expression_table.expression(expression), typed_trees::expression::ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership)
-        || program
-            .expression_table
+    matches!(expression_table(program).expression(expression), typed_trees::expression::ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership)
+        || expression_table(program)
             .authored_selection_occurrences(expression)
             .any(|occurrence| {
                 program
@@ -91,7 +91,7 @@ pub(in super::super) fn case_guard_classifier<'program>(
     expression: ExpressionHandle,
 ) -> Option<(&'program DataDefinition, &'program DataVariant)> {
     use typed_trees::expression::BinaryOperator;
-    let Some(comparison) = program.expression_table.binary_node(expression) else {
+    let Some(comparison) = expression_table(program).binary_node(expression) else {
         return None;
     };
     let (definition, variant) = case_classifier(program, comparison.right)?;
@@ -117,7 +117,7 @@ pub(in super::super) fn case_classifier(
         program, expression,
     )?;
     let typed_trees::expression::ExpressionNode::Name(path) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         return None;
     };
@@ -185,7 +185,7 @@ pub(in super::super) fn constructor_literal_term(
         }
     };
     let declared = constructor_fields(program, definition, variant);
-    let supplied = program.expression_table.struct_fields(literal.fields);
+    let supplied = expression_table(program).struct_fields(literal.fields);
     let selected_fields = supplied
         .iter()
         .map(|field| {
@@ -384,6 +384,23 @@ fn zero_term(
             }
             _ => None,
         };
+    }
+    if let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        // Admission above independently established the zero representation.
+        // Retain one element term, never allocate one term per array cell.
+        let element = if *length == 0 {
+            None
+        } else {
+            Some(Box::new(zero_term(program, *element_type, active)?))
+        };
+        return Some(StructuralTerm::RepeatedArray {
+            length: u64::try_from(*length).ok()?,
+            element,
+        });
     }
     // A generic first case may be independent of its arguments (None). An
     // actually stored open parameter still fails below: no declaration or

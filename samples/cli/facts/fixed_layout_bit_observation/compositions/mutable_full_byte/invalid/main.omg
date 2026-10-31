@@ -1,0 +1,30 @@
+// Invalid control: arbitrary bytes cannot establish the source predicate.
+// A split full-width scalar byte is written through a forwarded mutable view.
+// The semantic payload and its untouched neighbor independently expose the write.
+use omega::language::core::layout;
+public domain u8::Nonzero requires self >= 1u8;
+public data Pair [copy] { payload: u8 in Nonzero; neighbor: u8; }
+Swapped satisfies FixedLayout<Pair> {
+ machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
+  let mut entries: [FieldEntry; 64];
+  entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 4, source_lsb: 0, width: 4 } };
+  entries[1] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 0, source_lsb: 4, width: 4 } };
+  entries[2] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 1 } };
+  Plan { entries: entries, entry_count: 3, size_fixed: 2, size_is_dynamic: false, align: 1 }
+ }
+}
+machine change(bytes: &mut [u8; 2]) { bytes[0] = 165u8; }
+machine main() crashes Trap {
+ let mut value: LayoutStorage<Pair, Swapped>;
+ value.payload = 18u8;
+ value.neighbor = 195u8;
+ let bytes: &mut [u8; 2] = &mut value as &mut [u8; 2];
+ change(bytes);
+ let observed: &[u8; 2] = &value as &[u8; 2];
+ transition value.payload == 90u8 && value.neighbor == 195u8 && observed[0] == 165u8 && observed[1] == 195u8 {
+  true -> done()
+  _ -> bad()
+ }
+ machine done() {}
+ machine bad() { crash Trap; }
+}

@@ -14,9 +14,10 @@
 //! results must follow subsequent specialization. Pattern place markers carry
 //! proof bookkeeping, not owned snapshots, and retain their sentinel.
 
+use crate::tables::expressions_of;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -26,6 +27,19 @@ mod reference_observations;
 pub(super) use dispatch_subjects::materialize as materialize_dispatch_subjects;
 pub(crate) use dispatch_subjects::require_complete as require_complete_dispatch_subjects;
 pub(super) use reference_observations::materialize as materialize_reference_observations;
+
+/// Walk one state body's locals in statement order. Derived result rows only
+/// ever visit local declarations; any other statement carries no inferred
+/// result and needs no row.
+fn local_bindings<'a>(
+    program: &'a TypedTrees,
+    statements: arena::HandleSpan<StatementNode>,
+) -> impl Iterator<Item = (usize, &'a TableLocalData)> {
+    program
+        .statement_table
+        .indexed_statements(statements)
+        .filter_map(|(offset, statement)| Some((offset, statement.as_local_data()?)))
+}
 
 #[derive(Clone, Copy)]
 struct InferredUpdate {
@@ -82,15 +96,8 @@ pub(super) fn refresh_generic_call_results(
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (offset, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(local) = statement.as_local_data() else {
-                    continue;
-                };
-                if program
-                    .expression_table
+            for (offset, local) in local_bindings(program, state.statement_nodes) {
+                if expressions_of(program)
                     .call_node(local.initial_value)
                     .is_some_and(|call| call.native_code_layout.is_some())
                 {
@@ -187,9 +194,8 @@ pub(super) fn refresh_generic_call_results(
         // the last pre-existing node; using the backing arena count keeps retained source
         // predicates out of the sweep even when iteration roots were projected.
         let type_start = program.type_reference_table.type_reference_count() + 1;
-        let expression_start = program.expression_table.expression_count() + 1;
-        let lifetimes = program
-            .expression_table
+        let expression_start = expressions_of(program).expression_count() + 1;
+        let lifetimes = expressions_of(program)
             .static_machine_application_lifetimes(candidate.binding_application)
             .iter()
             .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
@@ -213,8 +219,7 @@ pub(super) fn refresh_generic_call_results(
             super::body_rewriting::evidence_argument_rewrites(program, &candidate);
         let static_rewrites =
             super::body_rewriting::forwarded_static_argument_rewrites(program, &candidate);
-        let expressions = program
-            .expression_table
+        let expressions = expressions_of(program)
             .iter_expressions_from(expression_start)
             .map(|(expression, _)| expression)
             .collect::<Vec<_>>();
@@ -268,18 +273,11 @@ pub(crate) fn refresh(
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (offset, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(local) = statement.as_local_data() else {
-                    continue;
-                };
+            for (offset, local) in local_bindings(program, state.statement_nodes) {
                 if !local.type_is_inferred || !local.role.has_ordinary_initializer() {
                     continue;
                 }
-                let is_call = program
-                    .expression_table
+                let is_call = expressions_of(program)
                     .call_node(local.initial_value)
                     .is_some();
                 let needs_inference = matches!(
@@ -302,8 +300,7 @@ pub(crate) fn refresh(
                     {
                         return Err(unavailable.diagnostics.clone());
                     }
-                    let retained = program
-                        .expression_table
+                    let retained = expressions_of(program)
                         .constructed_value_type_reference(local.initial_value);
                     retained.is_valid().then_some(retained)
                 } else {

@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 machine forward_eval(d: i64) -> i32
-    requires d >= 40i64 && d <= 100i64;
+    requires d >= 40i64 && d <= 100i64
 {
     let headroom: i64 = 100i64 - d;
     let margin: i64 = d - 40i64;
@@ -18,8 +18,8 @@ machine forward_eval(d: i64) -> i32
 }
 
 machine subtract_other_machine(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 120i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 120i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;

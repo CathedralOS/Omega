@@ -231,6 +231,7 @@ pub enum ClosedConformanceApplicationSite {
     Occurrence(crate::static_applications::StaticMachineApplicationHandle),
     TraitArgument(arena::Handle<TraitImplementationApplication>),
     ProductOperand(arena::Handle<crate::product_operand::ProductOperandApplication>),
+    DataArgument(arena::Handle<DataImplementationApplication>),
 }
 
 /// A named implementation selected by a source trait argument, independently
@@ -239,6 +240,17 @@ pub enum ClosedConformanceApplicationSite {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitImplementationApplication {
     pub source_scope: crate::trait_definition::RetainedTraitScope,
+    pub parameter: symbols::SymbolHandle,
+    pub argument: types::TypeReferenceHandle,
+    pub supplying_application: crate::static_applications::StaticMachineApplicationHandle,
+    pub application: ClosedConformanceApplication,
+}
+
+/// A data constructor's exact code operand and its original lexical occurrence.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct DataImplementationApplication {
+    pub source_application: types::TypeReferenceHandle,
+    pub lexical_owner: symbols::SymbolHandle,
     pub parameter: symbols::SymbolHandle,
     pub argument: types::TypeReferenceHandle,
     pub supplying_application: crate::static_applications::StaticMachineApplicationHandle,

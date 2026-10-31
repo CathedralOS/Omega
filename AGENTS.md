@@ -162,12 +162,12 @@ recasts/codecs, and `size_of`/`align_of` layout geometry
 [counts and addresses](wiki/spec/language/counts_and_addresses.md)); borrowed
 projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
 claim retirement, borrowed-storage restoration windows, content custody,
-placed/MMIO access, and atomic concurrency orderings
+policy-governed/MMIO access, and atomic concurrency orderings
 ([structural access](wiki/spec/terminal-psi/structural_access.md),
 [ownership](wiki/spec/terminal-psi/ownership.md),
 [loans](wiki/spec/terminal-psi/loans.md),
 [content custody](wiki/spec/resources/content_custody.md),
-[placed access](wiki/spec/resources/placed_access.md),
+[access policies](wiki/spec/resources/access.md),
 [concurrency](wiki/spec/language/concurrency.md)); and named-implementation/`dyn`
 dispatch, multi-argument calling plans across register and stack slots,
 live-across-call preservation, disjoint stack-frame homes, boundary/provider
@@ -488,9 +488,10 @@ profiles bound to the actual binary digests. See
   `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
   Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
   commands to leverage mbx caching automatically.
-- Keep each worktree's Cargo target directory separate, including baseline
-  comparisons. Share objects through `mbx`, never by pointing two worktrees at
-  one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
+- Keep each worktree's Cargo target directory independent. Share mbx's cache,
+  not `CARGO_TARGET_DIR` between checkouts: Cargo can treat another checkout's
+  artifacts as fresh. In particular, baseline comparisons must not write into
+  the candidate's target directory.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).

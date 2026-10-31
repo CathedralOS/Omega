@@ -116,12 +116,15 @@ fn accept(
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked
         .execution()
-        .selected_provider_plan_facts
+        .provider_source
+        .plans()
         .plans()
         .iter()
         .zip(checked.execution().selected_provider_provenance.as_slice())
         .filter(|(plan, provenance)| {
-            plan.schema.identity_text(plan.schema.trait_name) == trait_name
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name)
+                == trait_name
                 && plan.rows.iter().any(|row| row.method == "exit_process")
                 && owns(checked, provenance, owner)
         })
@@ -150,6 +153,7 @@ fn accept(
     let mut permission_identities = TerminalIdentityTableBuilder::default();
     let mut permissions = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| accepted_methods.contains(&method.name.as_str()))

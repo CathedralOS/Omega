@@ -194,23 +194,39 @@ impl DirectBoundaryInput {
         let requirement = original.identities.text(row.requirement_identity);
         let mut plan = original.clone();
         plan.rows = vec![row.clone()];
-        plan.schema.methods.retain(|method| {
-            original.schema.identity_text(method.requirement_identity) == requirement
+        std::sync::Arc::make_mut(&mut plan.schema.declaration)
+            .methods
+            .retain(|method| {
+                original.schema.identity_text(method.requirement_identity) == requirement
+            });
+        plan.schema.calling_applications.retain(|application| {
+            plan.schema
+                .declaration
+                .methods
+                .iter()
+                .any(|method| method.requirement_identity == application.requirement)
         });
         let satisfied_schema = plan.schema.clone();
-        plan.schema.receiver_applications.clear();
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        declaration.receiver_applications.clear();
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
         plan.provider_type = self.realization_owner.clone();
         plan.provider_type_package_identity = self.realization_package;
-        plan.schema.trait_name = plan.schema.identities.intern(&self.callable_identity);
-        plan.schema.trait_package_identity = self.realization_package;
+        declaration.trait_name = declaration.identities.intern(&self.callable_identity);
+        declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
-        let [method] = plan.schema.methods.as_mut_slice() else {
+        let [method] = declaration.methods.as_mut_slice() else {
             return Err(Diagnostic::error(
                 "boundary leaf does not bind one exact requirement contract",
             ));
         };
-        method.requirement_identity = plan.schema.identities.intern(&self.callable_identity);
+        let previous_requirement = method.requirement_identity;
+        method.requirement_identity = declaration.identities.intern(&self.callable_identity);
+        for application in &mut plan.schema.calling_applications {
+            if application.requirement == previous_requirement {
+                application.requirement = method.requirement_identity;
+            }
+        }
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
@@ -231,7 +247,7 @@ pub(crate) fn prepare(
     source: DerivedProviderPlan,
     context: &super::external_binding_rows::ExternalBindingContext<'_>,
 ) -> Result<ProviderPlanCandidate<UnpreparedProviderRows>, Vec<Diagnostic>> {
-    let typed = context.typed;
+    let typed = context.services.context().typed;
     let mut direct = vec![None; source.plan.rows.len()];
     for (row_index, row) in source.plan.rows.iter().enumerate() {
         if !matches!(
@@ -267,6 +283,7 @@ pub(crate) fn prepare(
         if source
             .plan
             .schema
+            .declaration
             .methods
             .iter()
             .filter(|method| {
@@ -287,7 +304,7 @@ pub(crate) fn prepare(
             DirectBoundaryMechanism::Intrinsic
         } else {
             let binding = context
-                .row(&source.plan, row_index, Some(&source.provenance))
+                .row(&source.plan, row_index, &source.provenance)
                 .and_then(|row| {
                     row.ok_or_else(|| {
                         vec![Diagnostic::error(

@@ -8,20 +8,20 @@ machine Receipt::drop(receipt: &mut Receipt) {}
 data Observation { value: Nat; other: Nat; }
 
 machine project<machine Read>(index: Nat) -> Nat
-where machine Read(index: Nat) -> Observation terminates;
+requires machine Read(index: Nat) -> Observation terminates;
 {
     let observation: Observation = Read(index);
     transition { _ -> observation.value }
 }
 
 machine result_projection<machine Read>(index: Nat)
-where machine Read(index: Nat) -> Observation terminates;
+requires machine Read(index: Nat) -> Observation terminates;
 ensures
     project<Read>(index) == (Read(index)).value
 {
 }
 
-machine literal(index: Nat) -> Observation terminates; {
+machine literal(index: Nat) -> Observation terminates {
     Observation { value: index, other: Nat::Zero }
 }
 

@@ -10,25 +10,25 @@ public trait StepContract<proposition Predicate, machine Requirement>
 where proposition Predicate(value: u64);
 {
     machine step(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 machine quiet(value: u64) -> u64
 satisfies StepContract<alternate, Anchor::anchor>::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine second(value: u64) -> u64
 satisfies StepContract<bounded, Anchor::anchor>::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine traverse<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract<bounded, Anchor::anchor>::step;
-terminates;
+requires machine Step satisfies StepContract<bounded, Anchor::anchor>::step;
+terminates
 requires value <= 37
 ensures result <= 37
 {

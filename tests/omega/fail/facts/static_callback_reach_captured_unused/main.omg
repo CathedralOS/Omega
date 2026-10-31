@@ -4,36 +4,36 @@ public boundary trait Console {}
 public boundary trait Extra {}
 public trait StepContract {
     machine step(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 machine quiet(value: u64) -> u64
 satisfies StepContract::step
-reaches Extra terminates;
+reaches Extra terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine second(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine console_step(value: u64) -> u64
 satisfies StepContract::step
-reaches Console terminates;
+reaches Console terminates
 requires value <= 37
 ensures result <= 37
 { value }
 trait Getter {
     machine get(value: u64) -> u64
-    reaches Console blocks; terminates;
+    reaches Console blocks terminates
     requires value <= 37
     ensures result <= 37;
 }
 Selected<machine Step> satisfies Getter
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 {
     machine get(value: u64) -> u64
     requires value <= 37
@@ -41,11 +41,11 @@ where machine Step satisfies StepContract::step;
     { value }
 }
 machine choose<Operations satisfies Getter>(value: u64) -> u64
-reaches Console blocks; terminates;
+reaches Console blocks terminates
 requires value <= 37
 ensures result <= 37
 { block Operations::get(value) }
-machine main() reaches Console blocks; crashes Trap {
+machine main() reaches Console blocks crashes Trap {
     let value: u64 = block choose<Selected<quiet>>(37);
     let margin: u64 = 37 - value;
     let declared: u64 = block choose<Selected<console_step>>(37);

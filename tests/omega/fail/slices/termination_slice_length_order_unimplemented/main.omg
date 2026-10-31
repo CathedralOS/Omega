@@ -17,9 +17,8 @@ machine Main::main(main: &mut Main) -> u64 {
     }
 }
 
-machine Main::walk(entries: &[Entry], index: u64)
-terminates by entries -> Slice::Length;
--> u64
+machine Main::walk(entries: &[Entry], index: u64) -> u64
+terminates by entries -> Slice::Length
 {
     transition index < entries.len {
         true -> walk(entries, index + 1)

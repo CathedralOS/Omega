@@ -1,8 +1,6 @@
 //! Scalar postconditions consume exact return and live place values. Entry
 //! parameter names are substituted only through the retained exit origin map.
 
-use validation::canonical_place_from_expression_in_state;
-
 use checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use typed_trees::{expression::ExpressionHandle, machine::Machine};
@@ -15,6 +13,8 @@ use super::super::{
     return_values::{exit_return_expression, is_result_reference},
 };
 use crate::flow::canonical_place_from_symbol;
+use crate::flow::expressions;
+use crate::places::place_at;
 
 mod admitted_domains;
 mod deferred_recipes;
@@ -414,8 +414,7 @@ impl ExitScalars<'_, '_> {
         {
             return literal.value_bignum().map(ScalarValue::Integer);
         }
-        let mut place =
-            canonical_place_from_expression_in_state(self.program, entry.symbol, 0, expression)?;
+        let mut place = place_at(self.program, entry.symbol, 0, expression)?;
         let root = place.root.as_symbol()?;
         if self
             .program
@@ -449,7 +448,7 @@ impl ExitScalars<'_, '_> {
                     self.program,
                     expression,
                     &mut |leaf| {
-                        let place = canonical_place_from_expression_in_state(
+                        let place = place_at(
                             self.program,
                             self.exit.state_symbol,
                             self.exit.statement_index,
@@ -476,9 +475,7 @@ impl ExitScalars<'_, '_> {
         );
         let state =
             validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol);
-        self.program
-            .expression_table
-            .expression_is_valid(expression)
+        expressions(self.program).expression_is_valid(expression)
             && nodes.iter().all(|node| {
                 !matches!(
                     self.program.expression_table.expression(*node),
@@ -584,10 +581,7 @@ impl ExitScalars<'_, '_> {
         // Dense positions describe the declaration roster at this occurrence,
         // not a caller-chosen substitution. Check it without reading values.
         let parameters = primitive_parameters(self.program, state);
-        let locals = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes)
+        let locals = crate::flow::state_statements(self.program, state.statement_nodes)
             .get(..statement_ordinal as usize)?
             .iter()
             .filter_map(|statement| {

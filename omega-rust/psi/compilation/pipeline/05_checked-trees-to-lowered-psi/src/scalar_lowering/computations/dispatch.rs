@@ -6,6 +6,7 @@ use super::{
     Argument, CheckedScalarComputationKind, Computation, Expansion, LoweringError,
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
@@ -58,10 +59,7 @@ impl Expansion<'_> {
                 subject,
                 self.structural_types,
             )?;
-        let arms = self
-            .checked
-            .facts
-            .values
+        let arms = value_facts(&self.checked)
             .scalar_computations
             .dispatch_arms
             .span(arms)
@@ -70,6 +68,16 @@ impl Expansion<'_> {
                 "structural dispatch has no live arms",
             ))?
             .to_vec();
+        // Predicates and the selected arm share this subject. Its private
+        // snapshot ends only after the arm has captured its scalar result,
+        // before the outer continuation can retire any borrowed backing.
+        let target = if self.has_established_value(subject) {
+            target
+        } else {
+            let mut completed_types = input_types.to_vec();
+            completed_types.push(result_type);
+            request.complete_snapshot(self.checked, &completed_types, target, self)?
+        };
         let prefix = self.established_values.len();
         // This is a dependency available on every selected path. Its producer
         // is scheduled below, before the first predicate, not replayed by an

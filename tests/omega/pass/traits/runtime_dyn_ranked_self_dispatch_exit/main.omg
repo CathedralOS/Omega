@@ -1,0 +1,28 @@
+// Expected exit: 0
+// The implementation re-enters through its own selector. The dispatch edge
+// carries the decreased rank in the data operand after the selector.
+trait Walk {
+    machine step(remaining: u64) -> u64;
+}
+
+Loop satisfies Walk {
+    machine step(remaining: u64) -> u64
+    terminates by remaining
+    {
+        let again: dyn Walk = Loop as dyn Walk;
+        transition remaining > 0u64 {
+            true -> Walk::step(again, remaining - 1u64)
+            false -> 0u64
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let observed: u64 = Loop::step(3u64);
+    transition observed == 0u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

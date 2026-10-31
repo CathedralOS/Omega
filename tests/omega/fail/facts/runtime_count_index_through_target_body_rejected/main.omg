@@ -2,25 +2,25 @@
 // Rejected: every body receives count == items.len, so `Index < items.len`
 // cannot be discharged at read_at.
 linux_x86_64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 linux_arm64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 macos_arm64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 windows_x86_64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }

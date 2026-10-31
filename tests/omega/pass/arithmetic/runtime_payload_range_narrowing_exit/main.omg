@@ -5,7 +5,9 @@
 // enforces the range (forged out-of-range values are rejected -- see
 // fail/arithmetic/construction_payload_out_of_range). Found{index:5} -> 5+65=70.
 use omega_language_std::console;
-data Slot { case Found(index: i32) where 0 <= index && index <= 15; case Full; }
+data Slot 
+    requires ((self in Slot::Found) && (0 <= self.index && self.index <= 15)) || (self in Slot::Full)
+{ case Found(index: i32); case Full; }
 data Main { }
 machine Main::run(context: &mut Main, s: Slot) reaches Console {
     transition s {

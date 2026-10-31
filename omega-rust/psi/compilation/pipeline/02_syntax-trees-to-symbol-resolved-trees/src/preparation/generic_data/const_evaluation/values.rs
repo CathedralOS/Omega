@@ -22,6 +22,8 @@ use super::super::{
     ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
     TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::declaration_selection::{
@@ -31,7 +33,7 @@ use crate::preparation::declaration_selection::{
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstFactValue;
 use crate::preparation::generic_data::arguments::{
-    closed_argument_identity, monomorphizable_argument_slugs,
+    closed_argument_identity, closed_parameter_argument_identity,
 };
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;
@@ -297,10 +299,8 @@ pub(in crate::preparation::generic_data) fn syntax_type_identity(
                 arguments,
                 ..
             } => {
-                let argument_handles = syntax
-                    .tables
-                    .type_references
-                    .type_reference_handles(*arguments);
+                let argument_handles =
+                    syntax_type_references(&syntax).type_reference_handles(*arguments);
                 if argument_handles.is_empty() {
                     // A synthesized instance's lookup spelling carries its full
                     // name in `base_name`.
@@ -542,55 +542,125 @@ fn generic_application_label(
     if let Some(instance) = synthesized_instance(syntax, selection, definition, argument_handles) {
         return Ok(instance.name.as_str(syntax).to_owned());
     }
+    let parameters = syntax.items.type_parameters(definition.type_parameters);
     let argument_names =
-        if let Some(names) = monomorphizable_argument_slugs(syntax, argument_handles, selection) {
-            names
-        } else {
-            // Declaration evaluation precedes instance synthesis. A nested closed
-            // application still has its authored Generic node here, so it has no
-            // synthesized slug yet. Require an exact closed identity before using
-            // the same recursive label that later instance publication will use.
-            let parameters = syntax.items.type_parameters(definition.type_parameters);
-            if parameters.len() != argument_handles.len() {
-                return Err(
-                    "generic const carrier is not a closed monomorphizable application".to_owned(),
-                );
-            }
-            parameters
-                .iter()
-                .zip(argument_handles)
-                .map(|(parameter, argument)| {
-                    if let Some(slug) = crate::preparation::generic_data::type_reference_slug(
-                        syntax, *argument, selection,
-                    ) {
-                        return Ok(slug);
-                    }
-                    closed_argument_identity(
-                        syntax,
-                        selection,
-                        *argument,
-                        parameter.kind.is_const_or_value(),
-                    )
-                    .ok_or("generic const carrier is not a closed monomorphizable application")?;
-                    let label = selected_type_label(syntax, *argument, selection)?;
-                    if let TypeReferenceNode::Generic { base_name, .. } =
-                        syntax.type_references.type_reference(*argument)
-                        && let Some(selection) = selection
-                        && let Some(path) = selection.data_lookup_path(syntax, base_name)
-                        && let Some((prefix, _)) = path.rsplit_once("::")
-                    {
-                        Ok(format!("{prefix}::{label}"))
-                    } else {
-                        Ok(label)
-                    }
-                })
-                .collect::<Result<Vec<_>, String>>()?
-        };
+        closed_application_argument_labels(syntax, parameters, argument_handles, selection)?;
     Ok(format!(
         "{}<{}>",
         definition.name.as_str(syntax),
         argument_names.join(", ")
     ))
+}
+
+/// Render only an independently closed tuple under its selected receiving
+/// telescope. Code and data select different namespaces; labels are metadata,
+/// while the exact declaration and recursive argument keys above own identity.
+fn closed_application_argument_labels(
+    syntax: &SyntaxTrees,
+    parameters: &[syntax_trees::item::TypeParameter],
+    arguments: &[TypeReferenceHandle],
+    selection: Option<&ConstantSelection>,
+) -> Result<Vec<String>, String> {
+    if parameters.len() != arguments.len() {
+        return Err("generic const carrier has an incomplete argument tuple".to_owned());
+    }
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            closed_parameter_argument_identity(syntax, selection, *argument, &parameter.kind)
+                .ok_or("generic const carrier is not a closed monomorphizable application")?;
+            if matches!(
+                parameter.kind,
+                syntax_trees::item::TypeParameterKind::Implementation
+            ) {
+                return selected_implementation_label(syntax, *argument, selection);
+            }
+            if let Some(slug) =
+                crate::preparation::generic_data::type_reference_slug(syntax, *argument, selection)
+            {
+                return Ok(slug);
+            }
+            let label = selected_type_label(syntax, *argument, selection)?;
+            qualify_application_label(
+                syntax,
+                *argument,
+                label,
+                symbols::SymbolKind::Data,
+                selection,
+            )
+        })
+        .collect()
+}
+
+fn selected_implementation_label(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<String, String> {
+    let origin = syntax.type_references.generic_application_origin(reference);
+    let reference = if origin.is_valid() { origin } else { reference };
+    let (name, arguments) = match syntax.type_references.type_reference(reference) {
+        TypeReferenceNode::Named(name) => (name, &[][..]),
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => (
+            base_name,
+            syntax.type_references.type_reference_handles(*arguments),
+        ),
+        _ => return Err("closed implementation argument lost its application".to_owned()),
+    };
+    let selection =
+        selection.ok_or("closed implementation argument has no declaration selection")?;
+    let declaration = selection.implementation_item(syntax, name)?;
+    let Item::Conformance(implementation) = syntax.root_item(declaration) else {
+        return Err("closed implementation argument lost its declaration".to_owned());
+    };
+    let alias = implementation
+        .alias
+        .as_ref()
+        .ok_or("closed implementation declaration has no name")?;
+    let parameters = syntax.items.type_parameters(implementation.type_parameters);
+    let arguments =
+        closed_application_argument_labels(syntax, parameters, arguments, Some(selection))?;
+    let label = if arguments.is_empty() {
+        alias.as_str(syntax).to_owned()
+    } else {
+        format!("{}<{}>", alias.as_str(syntax), arguments.join(", "))
+    };
+    qualify_application_label(
+        syntax,
+        reference,
+        label,
+        symbols::SymbolKind::Conformance,
+        Some(selection),
+    )
+}
+
+fn qualify_application_label(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    label: String,
+    kind: symbols::SymbolKind,
+    selection: Option<&ConstantSelection>,
+) -> Result<String, String> {
+    let name = match syntax.type_references.type_reference(reference) {
+        TypeReferenceNode::Named(name)
+        | TypeReferenceNode::Generic {
+            base_name: name, ..
+        } => name,
+        _ => return Ok(label),
+    };
+    if let Some(selection) = selection
+        && let Some(path) = selection.declaration_lookup_path(syntax, name, kind)
+        && let Some((prefix, _)) = path.rsplit_once("::")
+    {
+        Ok(format!("{prefix}::{label}"))
+    } else {
+        Ok(label)
+    }
 }
 
 /// The already-synthesized instance for one selected template and closed
@@ -610,12 +680,7 @@ fn synthesized_instance<'syntax>(
         .iter()
         .zip(argument_handles)
         .map(|(parameter, argument)| {
-            closed_argument_identity(
-                syntax,
-                selection,
-                *argument,
-                parameter.kind.is_const_or_value(),
-            )
+            closed_parameter_argument_identity(syntax, selection, *argument, &parameter.kind)
         })
         .collect::<Option<Vec<_>>>()?;
     let template_handle = syntax.root_item_handles().iter().copied().find(|handle| {
@@ -696,12 +761,10 @@ fn same_carrier(
     // spelling or the `Named` instance spelling synthesis rewrote it to —
     // identifies the carrier by its selected template and closed argument
     // tuple, never by which spelling reached this comparison.
-    if syntax
-        .type_references
+    if syntax_type_references(&syntax)
         .generic_application_origin(declared)
         .is_valid()
-        || syntax
-            .type_references
+        || syntax_type_references(&syntax)
             .generic_application_origin(required)
             .is_valid()
     {
@@ -795,6 +858,46 @@ enum ConstValuePurpose {
     Index,
 }
 
+/// Representation choice remains on the declaration and its canonical carrier
+/// label. Only value eligibility and payload replay inspect semantic data. The
+/// selected, sealed Core declaration supplies this relationship; user data,
+/// including same-spelled opaque data, retains ordinary nominal checking.
+fn representation_semantic_type(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<Option<TypeReferenceHandle>, String> {
+    let TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = syntax.type_references.type_reference(reference)
+    else {
+        return Ok(None);
+    };
+    // Rewritten instances with no authored operands rejoin their retained
+    // generic origin below; they are not declarations in the header namespace.
+    if arguments.is_empty() {
+        return Ok(None);
+    }
+    let Some(selection) = selection else {
+        return Ok(None);
+    };
+    let definition = selection.data(syntax, base_name)?;
+    if !selection.is_core_layout_storage(syntax, definition) {
+        return Ok(None);
+    }
+    let [semantic_type, _policy] = syntax.type_references.type_reference_handles(*arguments) else {
+        return Err(
+            "Core representation requires its semantic type and explicit policy".to_owned(),
+        );
+    };
+    if !lifetime_arguments.is_empty() {
+        return Err("Core representation has no lifetime parameters".to_owned());
+    }
+    Ok(Some(*semantic_type))
+}
+
 fn validate_selected_const_index_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
@@ -872,8 +975,7 @@ pub(crate) fn closed_fixed_array_length(
         FixedArrayLength::Literal(length) => Ok(*length),
         FixedArrayLength::ConstParameter(name) => {
             if let Some(argument) = substitution.get(name.as_str(syntax)) {
-                return syntax
-                    .type_references
+                return syntax_type_references(&syntax)
                     .type_reference(*argument)
                     .as_named()
                     .ok_or_else(|| {
@@ -930,8 +1032,7 @@ pub(crate) fn closed_fixed_array_length(
                 "array extent constant is not a nonnegative host-sized integer".to_owned()
             })
         }
-        FixedArrayLength::Expression(value) => syntax
-            .type_references
+        FixedArrayLength::Expression(value) => syntax_type_references(&syntax)
             .type_reference(*value)
             .as_named()
             .and_then(|value| value.as_str(syntax).parse::<usize>().ok())
@@ -954,9 +1055,7 @@ fn validate_selected_const_type(
 ) -> Result<(), String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let Some(name) = syntax
-        .tables
-        .type_references
+    if let Some(name) = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -972,13 +1071,24 @@ fn validate_selected_const_type(
     }
     // A rewritten `Named` instance spelling validates through its retained
     // authored application rather than the synthesized name.
-    let origin = syntax
-        .type_references
-        .generic_application_origin(type_reference);
+    let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
     if origin.is_valid() && origin != type_reference {
         return validate_selected_const_type(
             syntax,
             origin,
+            visiting,
+            selection,
+            substitution,
+            purpose,
+        );
+    }
+    if purpose == ConstValuePurpose::Declaration
+        && let Some(semantic_type) =
+            representation_semantic_type(syntax, type_reference, selection)?
+    {
+        return validate_selected_const_type(
+            syntax,
+            semantic_type,
             visiting,
             selection,
             substitution,
@@ -1049,10 +1159,7 @@ fn validate_selected_const_type(
             // A closed application is eligible exactly when its selected
             // template is: parameters bind to the authored argument handles
             // and each member validates under those bindings.
-            let argument_handles = syntax
-                .tables
-                .type_references
-                .type_reference_handles(*arguments);
+            let argument_handles = syntax_type_references(&syntax).type_reference_handles(*arguments);
             if argument_handles.is_empty() {
                 // A synthesized instance's spelling selects the substituted
                 // declaration; its members are already closed.
@@ -1186,9 +1293,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
 ) -> Result<CanonicalConstNode, String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let Some(name) = syntax
-        .tables
-        .type_references
+    if let Some(name) = syntax_type_references(&syntax)
         .type_reference(expected_type)
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -1204,13 +1309,21 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
     }
     // A rewritten `Named` instance spelling canonicalizes through its
     // retained authored application rather than the synthesized name.
-    let origin = syntax
-        .type_references
-        .generic_application_origin(expected_type);
+    let origin = syntax_type_references(&syntax).generic_application_origin(expected_type);
     if origin.is_valid() && origin != expected_type {
         return canonicalize_const_expression_with_admission(
             syntax,
             origin,
+            expression,
+            selection,
+            substitution,
+            admission,
+        );
+    }
+    if let Some(semantic_type) = representation_semantic_type(syntax, expected_type, selection)? {
+        return canonicalize_const_expression_with_admission(
+            syntax,
+            semantic_type,
             expression,
             selection,
             substitution,
@@ -1334,9 +1447,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
             lifetime_arguments,
             arguments,
         } => {
-            let argument_handles = syntax
-                .tables
-                .type_references
+            let argument_handles = syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if argument_handles.is_empty() {
@@ -1462,8 +1573,7 @@ fn substituted_type_label(
             selected_type_label(syntax, substitution[name.as_str(syntax)], selection)
         }
         TypeReferenceNode::Named(_)
-            if syntax
-                .type_references
+            if syntax_type_references(&syntax)
                 .generic_application_origin(reference)
                 .is_valid() =>
         {
@@ -1478,8 +1588,7 @@ fn substituted_type_label(
             arguments,
             ..
         } => {
-            let argument_handles = syntax
-                .type_references
+            let argument_handles = syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if argument_handles.is_empty() {
@@ -1565,9 +1674,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                 }
             }
             if let Some(case_name) = &case_name {
-                let variant = syntax
-                    .tables
-                    .items
+                let variant = syntax_items(&syntax)
                     .data_members(definition.members)
                     .iter()
                     .find_map(|member| match member {
@@ -1581,9 +1688,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     .ok_or_else(|| {
                         format!("`{type_name}` has no case `{}`", case_name.as_str(syntax))
                     })?;
-                let declared_fields = syntax
-                    .tables
-                    .items
+                let declared_fields = syntax_items(&syntax)
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect::<Vec<_>>();
@@ -1613,9 +1718,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     fields,
                 })
             } else {
-                if syntax
-                    .tables
-                    .items
+                if syntax_items(&syntax)
                     .data_members(definition.members)
                     .iter()
                     .any(|member| matches!(member, DataMember::Variant(_)))
@@ -1624,9 +1727,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                         "`{type_name}` is case data; its const value must name one case"
                     ));
                 }
-                let declared_fields = syntax
-                    .tables
-                    .items
+                let declared_fields = syntax_items(&syntax)
                     .data_members(definition.members)
                     .iter()
                     .filter_map(|member| match member {
@@ -1677,9 +1778,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     head.as_str(syntax)
                 ));
             }
-            let variant = syntax
-                .tables
-                .items
+            let variant = syntax_items(&syntax)
                 .data_members(definition.members)
                 .iter()
                 .find_map(|member| match member {

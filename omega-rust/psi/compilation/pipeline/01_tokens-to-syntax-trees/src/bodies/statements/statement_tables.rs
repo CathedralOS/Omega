@@ -2,6 +2,7 @@
 //! table.
 
 use crate::diagnostics::parse_error::ParseError;
+use crate::tables::{exprs, exprs_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -18,7 +19,7 @@ pub(crate) fn copy_expression_as_place(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let node = syntax_trees.expressions.expression(expression).clone();
+    let node = exprs_of(syntax_trees).expression(expression).clone();
     let copied = match node {
         ExpressionNode::Member(m) => {
             let recv = copy_expression_as_place(syntax_trees, m.receiver)?;
@@ -51,20 +52,20 @@ pub(crate) fn copy_expression_as_place(
         }
         _ => return None,
     };
-    Some(syntax_trees.expressions.insert(copied))
+    Some(exprs(syntax_trees).insert(copied))
 }
 
 pub(crate) fn root_binding_declaration(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Result<Option<syntax_trees::statement::RootBinding>, ParseError> {
-    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
+    let ExpressionNode::Call(call) = exprs_of(syntax_trees).expression(expression) else {
         return Ok(None);
     };
     if call.target.as_str(syntax_trees) == "bind"
         && !call.target_is_static
         && call.receiver.is_valid()
-        && matches!(syntax_trees.expressions.expression(call.receiver),
+        && matches!(exprs_of(syntax_trees).expression(call.receiver),
             ExpressionNode::Member(member) if member.member.as_str(syntax_trees) == "roots")
     {
         return Err(ParseError::new(
@@ -77,10 +78,10 @@ pub(crate) fn root_binding_declaration(
     {
         return Ok(None);
     }
-    let ExpressionNode::Name(owner) = syntax_trees.expressions.expression(call.receiver) else {
+    let ExpressionNode::Name(owner) = exprs_of(syntax_trees).expression(call.receiver) else {
         return Ok(None);
     };
-    let owner = syntax_trees.expressions.identifier_path_members(*owner);
+    let owner = exprs_of(syntax_trees).identifier_path_members(*owner);
     if !matches!(owner, [name] if name.as_str(syntax_trees) == "Build") {
         return Ok(None);
     }
@@ -95,8 +96,7 @@ pub(crate) fn root_binding_declaration(
             "root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
         )
     };
-    let [builder, slot, implementation] =
-        syntax_trees.expressions.expression_handles(call.arguments)
+    let [builder, slot, implementation] = exprs_of(syntax_trees).expression_handles(call.arguments)
     else {
         return Err(invalid());
     };
@@ -104,7 +104,7 @@ pub(crate) fn root_binding_declaration(
         return Err(invalid());
     }
     let operand = |handle| {
-        let ExpressionNode::Name(path) = syntax_trees.expressions.expression(handle) else {
+        let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(handle) else {
             return Err(invalid());
         };
         Ok(syntax_trees
@@ -119,10 +119,10 @@ pub(crate) fn root_binding_declaration(
     // they have no product declaration path to fall back to. Multi-member
     // declaration paths stay purely lexical.
     let described_operand = |handle: ExpressionHandle| {
-        let ExpressionNode::Name(path) = syntax_trees.expressions.expression(handle) else {
+        let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(handle) else {
             return handle;
         };
-        let members = syntax_trees.expressions.identifier_path_members(*path);
+        let members = exprs_of(syntax_trees).identifier_path_members(*path);
         if members.len() == 1 && !members[0].is_self_receiver(syntax_trees) {
             handle
         } else {
@@ -133,7 +133,7 @@ pub(crate) fn root_binding_declaration(
         receiver: *builder,
         slot: operand(*slot)?,
         implementation: if matches!(
-            syntax_trees.expressions.expression(*implementation),
+            exprs_of(syntax_trees).expression(*implementation),
             ExpressionNode::Name(_)
         ) {
             operand(*implementation)?
@@ -149,7 +149,7 @@ pub(crate) fn expression_handle_to_statement_call(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<TableCall> {
-    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone() else {
+    let ExpressionNode::Call(call) = exprs_of(syntax_trees).expression(expression).clone() else {
         return None;
     };
 

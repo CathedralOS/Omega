@@ -1,0 +1,77 @@
+// Fact: An ordinary FixedLayout<PackedFlags> application preserves Delivered on mode, so reading mode and subtracting 5u64 remains justified through every transport, and a shared byte observation sees the complete authored fragmented encoding 171u8.
+// Expected exit: 0
+use omega::language::core::layout;
+public domain u64::Delivered requires self >= 5u64 && self <= 7u64;
+public domain u64::Nibble requires self <= 15u64;
+public data PackedFlags [copy] { present: bool; mode: u64 in Delivered; code: u64 in Nibble; }
+CompactBits satisfies FixedLayout<PackedFlags> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 1,
+        },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 1,
+            source_lsb: 0,
+            width: 3,
+        },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 4,
+            source_lsb: 0,
+            width: 2,
+        },
+    };
+    entries[3] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 6,
+            source_lsb: 2,
+            width: 2,
+        },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 4,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+machine make() -> LayoutStorage<PackedFlags, CompactBits> {
+    let mut value: LayoutStorage<PackedFlags, CompactBits>;
+    value.present = true;
+    value.mode = 5u64;
+    value.code = 10u64;
+    value
+}
+machine consume(value: LayoutStorage<PackedFlags, CompactBits>) crashes Trap {
+    let difference: u64 = value.mode - 5u64;
+    let bytes: &[u8; 1] = &value as &[u8; 1];
+    transition difference == 0u64 && value.code == 10u64 && bytes[0] == 171u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap { consume(make()); }

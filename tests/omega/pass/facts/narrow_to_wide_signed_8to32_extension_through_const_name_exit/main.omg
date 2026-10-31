@@ -8,7 +8,7 @@ const WIDE_MIN: i32 = 30i32;
 const WIDE_MAX: i32 = 100i32;
 
 machine extend_const(narrow: i8) -> i32
-    requires narrow >= NARROW_MIN && narrow <= NARROW_MAX;
+    requires narrow >= NARROW_MIN && narrow <= NARROW_MAX
 {
     let wide: i32 = narrow as i32;
     let headroom: i32 = WIDE_MAX - wide;

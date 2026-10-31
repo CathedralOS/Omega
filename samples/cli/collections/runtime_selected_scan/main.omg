@@ -11,7 +11,7 @@ machine below(value: &i32, threshold: i32) -> bool { value < threshold }
 
 machine search<'input, machine Compare>(values: &'input [i32], threshold: i32)
     -> Optional<&'input i32>
-where machine Compare(value: &i32, threshold: i32) -> bool;
+requires machine Compare(value: &i32, threshold: i32) -> bool;
 {
     transition { _ -> next(values, threshold, 0) }
 

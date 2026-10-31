@@ -1,1 +1,1 @@
-machine `choose` omits `blocks;` from its published contract, but its body may block
+machine `choose` omits `blocks` from its published contract, but its body may block

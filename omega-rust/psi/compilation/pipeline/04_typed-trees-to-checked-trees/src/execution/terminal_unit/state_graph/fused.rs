@@ -124,17 +124,15 @@ fn completing_transition_targets<'a>(
     program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
 ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
             StatementNode::Transition(transition) => Some(transition),
             _ => None,
         })
         .flat_map(|transition| transition.targets())
-        .flat_map(|target| validation::completing_transition_invocations(program, target))
-        .map(|invocation| invocation.target)
+        .filter_map(|target| validation::completing_transition_transfer(program, target))
+        .map(|transfer| transfer.target)
 }
 
 /// The fused position of a named transition target: a state symbol resolves

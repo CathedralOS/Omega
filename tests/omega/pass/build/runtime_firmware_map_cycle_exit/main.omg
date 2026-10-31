@@ -116,7 +116,7 @@ reaches UefiBootServices
 
 machine check_case(table: &mut EfiBootServicesTable, scenario: u32) -> bool
 reaches UefiBootServices
-invokes UefiBootServices;
+invokes UefiBootServices
 {
     table.hdr_reserved = scenario;
     let mut cycle: UefiOsHandoffCycle = UefiOsHandoffCycle {
@@ -178,7 +178,7 @@ invokes UefiBootServices;
 
 data Main { table: EfiBootServicesTable; }
 machine Main::main(main: &mut Main) reaches UefiBootServices
-invokes UefiBootServices;
+invokes UefiBootServices
 crashes Trap
 {
     let first: bool = check_case(&mut main.table, 0);
@@ -207,7 +207,7 @@ crashes Trap
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches UefiBootServices
-invokes UefiBootServices;
+invokes UefiBootServices
 crashes Trap
 {
     let mut entry_storage: Main;

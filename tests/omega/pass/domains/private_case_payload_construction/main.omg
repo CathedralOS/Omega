@@ -1,0 +1,60 @@
+// Expected exit: 0
+// A constructor consumes the case-dependent bound carried by every private arrival.
+data Locator
+    requires ((self in Locator::Absolute) && self.length == 0)
+       || ((self in Locator::Module) && self.length <= 2)
+{
+    case Absolute(bytes: [u8; 2], length: u64);
+    case Module(bytes: [u8; 2], length: u64);
+}
+machine copy_bytes(out: &mut [u8; 2], source: &[u8; 2]) {
+    out[0] = source[0];
+    out[1] = source[1];
+}
+machine clone(locator: &Locator) -> Locator {
+    transition locator {
+        Locator::Absolute { bytes, length } -> absolute(&bytes, length)
+        Locator::Module { bytes, length } -> module(&bytes, length)
+    }
+    machine absolute(source: &[u8; 2], length: u64) -> Locator {
+        let mut bytes: [u8; 2];
+        copy_bytes(&mut bytes, source);
+        (Locator::Absolute { bytes: bytes, length: length })
+    }
+    machine module(source: &[u8; 2], length: u64) -> Locator {
+        let mut bytes: [u8; 2];
+        copy_bytes(&mut bytes, source);
+        (Locator::Module { bytes: bytes, length: length })
+    }
+}
+machine read(locator: &Locator) -> u64 crashes Trap {
+    transition locator {
+        Locator::Absolute { bytes, length } -> absolute(&bytes, length)
+        Locator::Module { bytes, length } -> module(&bytes, length)
+    }
+    machine absolute(bytes: &[u8; 2], length: u64) -> u64 {
+        transition bytes[0] == 3 && bytes[1] == 4 && length == 0 {
+            true -> (11)
+            false -> bad()
+        }
+    }
+    machine module(bytes: &[u8; 2], length: u64) -> u64 {
+        transition bytes[0] == 7 && bytes[1] == 8 && length == 2 {
+            true -> (23)
+            false -> bad()
+        }
+    }
+    machine bad() -> u64 { crash Trap; }
+}
+machine main() crashes Trap {
+    let absolute: Locator = Locator::Absolute { bytes: [3, 4], length: 0 };
+    let module: Locator = Locator::Module { bytes: [7, 8], length: 2 };
+    let absolute_copy: Locator = clone(&absolute);
+    let module_copy: Locator = clone(&module);
+    transition read(&absolute_copy) == 11 && read(&module_copy) == 23 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

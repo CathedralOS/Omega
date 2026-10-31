@@ -12,13 +12,14 @@ pub mod fact_plan;
 pub mod predicates;
 
 pub use predicates::{
-    BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole, CheckedBooleanExpression,
-    CheckedByteSequenceOperand, CheckedEntryIndexBound, CheckedEntryIndexSelector,
-    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedRuntimeIndex,
-    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
-    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment, u64_integer_literal,
+    BooleanPredicate, BooleanPredicateBinding, BooleanPredicateOperand, BooleanPredicateRole,
+    CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedEntryIndexBound,
+    CheckedEntryIndexSelector, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
+    CheckedRuntimeIndex, CheckedScalarExpression, CheckedScalarReadProjection,
+    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
+    CheckedStructuralCaseSubject, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment, u64_integer_literal,
 };
 
 pub use fact_plan::contexts::view::FactContextView;
@@ -44,5 +45,5 @@ pub use fact_plan::places::{
 };
 pub use fact_plan::{
     FactContextHandle, FactHandle, FactPlan, PlaceHandle, QualificationCorrespondenceHandle,
-    contexts, evidence, places,
+    contexts, declaration_page_fork_totals, evidence, note_declaration_page_fork, places,
 };

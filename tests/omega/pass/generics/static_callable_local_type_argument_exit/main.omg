@@ -1,7 +1,7 @@
 machine accept<Kind>(value: Kind) -> bool { true }
 
 machine invoke<machine Routine>() -> bool
-where machine Routine<Context>(value: Context) -> bool;
+requires machine Routine<Context>(value: Context) -> bool;
 { Routine<u64>(3u64) }
 
 machine main() crashes Trap {

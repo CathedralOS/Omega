@@ -24,7 +24,7 @@ machine ent_less(left: &u64, right: &u64) -> bool {
 }
 
 machine push_heap<T [copy], machine Less>(h: &mut Heap<T>, value: &T)
-where machine Less(left: &T, right: &T) -> bool;
+requires machine Less(left: &T, right: &T) -> bool;
 {
     transition h.len < 16 { true -> place(h, value, h.len) _ -> full(h) }
     machine place(h: &mut Heap<T>, value: &T, at: u64)
@@ -58,7 +58,7 @@ where machine Less(left: &T, right: &T) -> bool;
 }
 
 machine pop_heap<T [copy], machine Less>(h: &mut Heap<T>, root: &mut Popped<T>)
-where machine Less(left: &T, right: &T) -> bool;
+requires machine Less(left: &T, right: &T) -> bool;
     requires h.len >= 1
     requires h.len <= 16
 {

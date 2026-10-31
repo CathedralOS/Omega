@@ -194,9 +194,7 @@ impl TypedTrees {
             }
         }
         for (handle, selected) in self.trait_implementation_applications.iter() {
-            let source = self
-                .expression_table
-                .static_machine_application(selected.supplying_application);
+            let source = self.static_machine_application(selected.supplying_application);
             if !includes_owner(source.lexical_owner) {
                 continue;
             }
@@ -212,9 +210,7 @@ impl TypedTrees {
             let Some(application) = selected.implementation.as_ref() else {
                 continue;
             };
-            let source = self
-                .expression_table
-                .static_machine_application(selected.supplying_application);
+            let source = self.static_machine_application(selected.supplying_application);
             if !includes_owner(source.lexical_owner) {
                 continue;
             }
@@ -224,6 +220,16 @@ impl TypedTrees {
                 selected.supplying_application,
                 application,
             ));
+        }
+        for (handle, selected) in self.data_implementation_applications.iter() {
+            if includes_owner(selected.lexical_owner) {
+                sites.push((
+                    super::ClosedConformanceApplicationSite::DataArgument(handle),
+                    selected.lexical_owner,
+                    selected.supplying_application,
+                    &selected.application,
+                ));
+            }
         }
         sites
     }
@@ -238,6 +244,12 @@ impl TypedTrees {
                 .get_mut(handle)
                 .implementation
                 .as_mut(),
+            super::ClosedConformanceApplicationSite::DataArgument(handle) => Some(
+                &mut self
+                    .data_implementation_applications
+                    .get_mut(handle)
+                    .application,
+            ),
             super::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
                 &mut self
                     .trait_implementation_applications
@@ -278,6 +290,15 @@ impl TypedTrees {
             }
             false
         };
+        let selected = self
+            .data_implementation_applications
+            .iter()
+            .filter(|(_, selected)| !owner_removed(selected.lexical_owner))
+            .map(|(_, selected)| selected.clone())
+            .collect::<Vec<_>>();
+        let mut applications = arena::Arena::new();
+        applications.insert_many(selected);
+        self.data_implementation_applications = applications;
         // An unavailable scope can mean either malformed evidence or a source
         // declaration deliberately removed by this private projection. Only
         // the exact removed roster distinguishes them. Both source records
@@ -351,7 +372,6 @@ impl TypedTrees {
         parameter: symbols::SymbolHandle,
     ) -> Option<&crate::static_applications::StaticMachineBindingValue> {
         let mut bindings = self
-            .expression_table
             .static_machine_application_bindings(specialization.binding_application)
             .iter()
             .filter(|binding| binding.parameter == parameter);
@@ -374,9 +394,7 @@ impl TypedTrees {
             if evidence_parameter.is_valid() {
                 return Vec::new();
             }
-            let source = self
-                .expression_table
-                .static_machine_application(selection_application);
+            let source = self.static_machine_application(selection_application);
             if source.lexical_owner != owner || source.registration_operation != requirement {
                 return Vec::new();
             }
@@ -387,7 +405,6 @@ impl TypedTrees {
                 return Vec::new();
             };
             let Some(operand) = self
-                .expression_table
                 .static_machine_application_arguments(selection_application)
                 .get(selection.operand_ordinal as usize)
             else {
@@ -427,7 +444,6 @@ impl TypedTrees {
                 .filter(|specialization| specialization.instance == owner)
             {
                 let bindings = self
-                    .expression_table
                     .static_machine_application_bindings(specialization.binding_application)
                     .iter()
                     .filter(|binding| {
@@ -816,10 +832,7 @@ impl TypedTrees {
         &self,
         application: crate::types::TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
-        if !self
-            .type_reference_table
-            .contains_type_reference(application)
-        {
+        if !self.contains_type_reference(application) {
             return None;
         }
         let row = Handle::from_parts(application.arena_index(), application.generation());

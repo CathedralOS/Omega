@@ -221,7 +221,7 @@ impl CheckedCompilation {
                 .iter()
                 .map(provider_planning::ProviderPlanCandidate::plan)
                 .collect::<Vec<_>>(),
-            &self.execution().selected_provider_plan_facts,
+            self.execution().provider_source.plans(),
             &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
         )
@@ -282,6 +282,6 @@ impl std::ops::Deref for CheckedCompilation {
     type Target = CheckedTrees;
 
     fn deref(&self) -> &Self::Target {
-        &self.execution.settled.program
+        self.execution.settled.provider_source.program()
     }
 }

@@ -9,6 +9,7 @@
 //! process with the same authority. Consumers retain the manifest-bound bytes,
 //! rather than treating this mutable host directory as new source authority.
 
+use crate::build_execution::message;
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{
@@ -38,22 +39,11 @@ pub(super) fn verify_existing_set(
         let build =
             CapabilityDirectory::open_ambient_dir(build_directory, cap_std::ambient_authority())
                 .map_err(|error| error.to_string())?;
-        let sets = build
-            .open_dir_nofollow("completed")
-            .map_err(|error| error.to_string())?;
+        let sets = message(build.open_dir_nofollow("completed"))?;
         let sets_metadata = sets.dir_metadata().map_err(|error| error.to_string())?;
-        let directory = sets
-            .open_dir_nofollow(name)
-            .map_err(|error| error.to_string())?;
-        let initial = directory
-            .dir_metadata()
-            .map_err(|error| error.to_string())?;
-        require_same(
-            &initial,
-            &sets
-                .symlink_metadata(name)
-                .map_err(|error| error.to_string())?,
-        )?;
+        let directory = message(sets.open_dir_nofollow(name))?;
+        let initial = message(directory.dir_metadata())?;
+        require_same(&initial, &message(sets.symlink_metadata(name))?)?;
         let mut expected = BTreeMap::from([
             (b"files".to_vec(), ExpectedEntry::Directory),
             (
@@ -85,17 +75,10 @@ pub(super) fn verify_existing_set(
                 String::from_utf8_lossy(missing)
             ));
         }
-        require_same(
-            &initial,
-            &sets
-                .symlink_metadata(name)
-                .map_err(|error| error.to_string())?,
-        )?;
+        require_same(&initial, &message(sets.symlink_metadata(name))?)?;
         require_same(
             &sets_metadata,
-            &build
-                .symlink_metadata("completed")
-                .map_err(|error| error.to_string())?,
+            &message(build.symlink_metadata("completed"))?,
         )
     };
     check().map_err(|reason| format!(
@@ -109,9 +92,7 @@ fn verify_directory(
     prefix: &[u8],
     expected: &mut BTreeMap<Vec<u8>, ExpectedEntry<'_>>,
 ) -> Result<(), String> {
-    let initial = directory
-        .dir_metadata()
-        .map_err(|error| error.to_string())?;
+    let initial = message(directory.dir_metadata())?;
     for entry in directory.entries().map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
         let name = entry.file_name();
@@ -124,40 +105,26 @@ fn verify_directory(
         let kind = expected
             .remove(&path)
             .ok_or_else(|| format!("unexpected entry `{}`", String::from_utf8_lossy(&path)))?;
-        let metadata = directory
-            .symlink_metadata(&name)
-            .map_err(|error| error.to_string())?;
+        let metadata = message(directory.symlink_metadata(&name))?;
         match kind {
             ExpectedEntry::Directory => {
                 if metadata.file_type().is_symlink() || !metadata.is_dir() {
                     return Err(format!("entry `{spelling}` is not a concrete directory"));
                 }
-                let child = directory
-                    .open_dir_nofollow(&name)
-                    .map_err(|error| error.to_string())?;
+                let child = message(directory.open_dir_nofollow(&name))?;
                 require_same(
                     &metadata,
                     &child.dir_metadata().map_err(|error| error.to_string())?,
                 )?;
                 verify_directory(&child, &path, expected)?;
-                require_same(
-                    &metadata,
-                    &directory
-                        .symlink_metadata(&name)
-                        .map_err(|error| error.to_string())?,
-                )?;
+                require_same(&metadata, &message(directory.symlink_metadata(&name))?)?;
             }
             ExpectedEntry::File { bytes, executable } => {
                 verify_file(directory, &name, &metadata, bytes, executable)?;
             }
         }
     }
-    require_same(
-        &initial,
-        &directory
-            .dir_metadata()
-            .map_err(|error| error.to_string())?,
-    )
+    require_same(&initial, &message(directory.dir_metadata())?)
 }
 
 fn verify_file(
@@ -175,9 +142,7 @@ fn verify_file(
     }
     let mut options = CapabilityOpenOptions::new();
     options.read(true).follow(FollowSymlinks::No);
-    let mut file = directory
-        .open_with(name, &options)
-        .map_err(|error| error.to_string())?;
+    let mut file = message(directory.open_with(name, &options))?;
     let initial = file.metadata().map_err(|error| error.to_string())?;
     require_same(classified, &initial)?;
     if initial.len() != expected.len() as u64 || is_executable(&initial) != executable {
@@ -212,12 +177,7 @@ fn verify_file(
         &initial,
         &file.metadata().map_err(|error| error.to_string())?,
     )?;
-    require_same(
-        &initial,
-        &directory
-            .symlink_metadata(name)
-            .map_err(|error| error.to_string())?,
-    )
+    require_same(&initial, &message(directory.symlink_metadata(name))?)
 }
 
 fn require_same(initial: &CapabilityMetadata, observed: &CapabilityMetadata) -> Result<(), String> {

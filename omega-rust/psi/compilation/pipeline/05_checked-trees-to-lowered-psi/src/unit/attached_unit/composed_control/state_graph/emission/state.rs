@@ -572,23 +572,7 @@ impl StateGraphEmission<'_, '_> {
                             next_edge: &mut next_edge,
                             operations: &mut operations,
                         },
-                        |frame| {
-                            let (mut environment, emission) = frame.split();
-                            emission.evaluation.guard_value(
-                                identities,
-                                checked,
-                                owner,
-                                state.state,
-                                guard_ordinal,
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
-                                &mut environment,
-                            )
-                        },
+                        |mut frame| frame.guard_value(identities, guard_ordinal),
                     )?;
                 Some(condition.id)
             }

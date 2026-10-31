@@ -5,13 +5,13 @@
 //! and invocation admission retain their independent owners.
 
 use super::{
-    PreparedScalarQualifications, carries_scalar_qualifications, retain_domain,
+    PreparedScalarQualifications, carries_scalar_qualifications, qualification_set, retain_domain,
     retained_domain_predicate, terminal_scalar_type, type_atoms,
 };
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use language_semantics::SemanticDomainId;
-use semantic_vocabulary::{QualifiedScalarType, ScalarQualificationSetId, ScalarType};
+use semantic_vocabulary::{QualifiedScalarType, ScalarType};
 use symbols::SymbolHandle;
 use terminal_psi::ScalarQualificationCatalog;
 
@@ -191,7 +191,7 @@ pub(super) fn resolve(
     parameters
         .into_iter()
         .map(|parameter| {
-            let mut domains = parameter
+            let domains = parameter
                 .domains
                 .iter()
                 .map(|semantic| {
@@ -208,20 +208,7 @@ pub(super) fn resolve(
                         ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            domains.sort();
-            domains.dedup();
-            let qualifications = if domains.is_empty() {
-                ScalarQualificationSetId::ZERO
-            } else {
-                catalog
-                    .sets
-                    .iter()
-                    .find(|set| set.domains == domains)
-                    .map(|set| set.id)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar formal lost its complete qualification set",
-                    ))?
-            };
+            let qualifications = qualification_set(catalog, domains)?;
             Ok(ParameterQualification {
                 state: parameter.state,
                 position: parameter.position,

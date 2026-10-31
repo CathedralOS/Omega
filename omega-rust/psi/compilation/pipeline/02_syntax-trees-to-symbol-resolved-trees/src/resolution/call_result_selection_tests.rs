@@ -3,15 +3,13 @@
 //! of its product. Full resolution is the independent reference operation.
 
 use super::{ResolutionRequest, resolve_call_result_selection, resolve_numeric_probe};
+use crate::tables::body_expressions;
 use symbol_resolved_trees::{
     SymbolResolvedTrees, expression::ExpressionNode, machine::MachineBodyStatus,
 };
 
 fn call_identities(program: &SymbolResolvedTrees) -> Vec<String> {
-    program
-        .tables
-        .bodies
-        .expressions
+    body_expressions(&program)
         .iter_expressions()
         .filter_map(|(_, expression)| {
             let ExpressionNode::Call(call) = expression else {
@@ -89,12 +87,7 @@ fn call_results_keep_nested_calls_and_preceding_locals_without_runtime_body_rows
     "#,
     );
     assert!(
-        selected
-            .tables
-            .bodies
-            .expressions
-            .iter_expressions()
-            .count()
+        body_expressions(&selected).iter_expressions().count()
             < full.tables.bodies.expressions.iter_expressions().count()
     );
 }

@@ -3,6 +3,7 @@
 //! scalars can retain the same place only through the flow owner's complete
 //! write footprints in the admitted control order; no source expression or
 //! call initializer is replayed to recover a value.
+use crate::flow::expressions;
 use checked_trees::CheckFacts;
 use facts::{FactPayload, ProgramPoint};
 use symbols::SymbolHandle;
@@ -226,19 +227,12 @@ fn evidence_inner(
                 || event_state != state_symbol
                 || !(order.precedes(statement_index, statement)
                     || (statement
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
+                        == crate::flow::state_statements(program, state.statement_nodes).len()
                         && order.position(statement_index).is_some()))
             {
                 continue;
             }
-            let Some(call) = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(flow.calls)
+            let Some(call) = crate::flow::call_flows(&facts.flow.control, flow.calls)
                 .iter()
                 .find(|call| {
                     call.statement_index == statement_index && call.call_ordinal == call_ordinal
@@ -422,17 +416,14 @@ impl<'program> QueryArguments<'program> {
         let mut frames: Vec<QueryFrame<'program>> = Vec::new();
         for application in &contract.applications {
             let declaration = program.proposition_definition_by_symbol(application.proposition)?;
-            let actuals = program
-                .expression_table
-                .expression_handles(application.arguments);
+            let actuals = expressions(program).expression_handles(application.arguments);
             if actuals.len() != program.proposition_parameters(declaration).len() {
                 return None;
             }
             let mut arguments = Vec::with_capacity(actuals.len());
             for expression in actuals {
                 let argument = if let Some(previous) = frames.last() {
-                    let selected = program
-                        .expression_table
+                    let selected = expressions(program)
                         .name_path_node(*expression)
                         .and_then(|name| {
                             program

@@ -58,6 +58,7 @@ pub use placed_view_plans::{
 };
 pub mod content_transformations;
 mod domain_preservation;
+mod exactly_one;
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,
     reference_preserves_ancestor_qualifications, scalar_field_store_preserves_content,
@@ -86,9 +87,10 @@ pub use reference_origins::{
     validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{
-    ReferenceStorageGeometry, ReferenceStorageProjection, ReferenceStorageRegion,
-    StorageGeometryError, reference_storage_dependencies, reference_storage_layout,
-    reference_storage_projection, reference_storage_region, reference_storage_size,
+    ReferenceScalarStorage, ReferenceStorageGeometry, ReferenceStorageProjection,
+    ReferenceStorageRegion, StorageGeometryError, reference_scalar_storage,
+    reference_storage_dependencies, reference_storage_layout, reference_storage_projection,
+    reference_storage_region, reference_storage_size,
 };
 mod invocation_inputs;
 pub use invocation_inputs::validate_empty_erased_invocation_inputs;
@@ -101,7 +103,7 @@ pub mod scalar_ordering;
 mod scalar_representation_view;
 pub use membership_presentations::present_structural_memberships;
 mod selected_memberships;
-pub use selected_memberships::reference_source_memberships;
+pub use selected_memberships::{reference_carrier_memberships, reference_source_memberships};
 mod semantic_rows;
 mod service_binding;
 mod shared_mutation;

@@ -17,6 +17,7 @@
 //! remain separate because selecting an existing descriptor requires its exact
 //! owner identity, not a possible backing region.
 
+use crate::frozen_program::expression_table;
 use crate::type_applications::DeclarationScopes;
 use checked_trees::{
     CheckFacts, CheckedReferenceResultSourcePlan, CheckedStructuralAccess,
@@ -264,12 +265,12 @@ pub fn initializer_source(
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let (referent, access) = stored_loan_parts(program, reference)?;
     if !matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Name(_)
     ) {
         return borrowed_initializer_source(program, state, expression, reference);
     }
-    let Some((path, name)) = program.expression_table.single_name_member(expression) else {
+    let Some((path, name)) = expression_table(program).single_name_member(expression) else {
         return None;
     };
     if !path.symbol.is_valid()
@@ -373,7 +374,7 @@ pub fn borrowed_initializer_source(
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let (referent, access) = stored_loan_parts(program, reference)?;
-    let Some(borrow) = program.expression_table.borrow_expression(expression) else {
+    let Some(borrow) = expression_table(program).borrow_expression(expression) else {
         return None;
     };
     let authored_access = CheckedStructuralAccess::from(borrow.access);
@@ -385,8 +386,8 @@ pub fn borrowed_initializer_source(
         borrow.target,
         MAX_REFERENCE_ORIGIN_DEPTH,
     )?;
-    let path = program.expression_table.name_path_node(cursor)?;
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    let path = expression_table(program).name_path_node(cursor)?;
+    let [name] = expression_table(program).name_path_members(path.members) else {
         return None;
     };
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
@@ -465,7 +466,7 @@ pub fn borrowed_initializer_source(
     // field's (or indexed element's) type.
     let mut segments = Vec::with_capacity(projections.len() + 1);
     for projection in projections.iter().rev() {
-        match program.expression_table.expression(*projection) {
+        match expression_table(program).expression(*projection) {
             ExpressionNode::Member(member) => {
                 let data = nominal_member_owner_type(program, owner_type)?;
                 let field = crate::value_custody::places::exact_data_member_field(
@@ -487,7 +488,7 @@ pub fn borrowed_initializer_source(
                 owner_type = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
-                let index = program.expression_table.integer_node(indexed.index)?;
+                let index = expression_table(program).integer_node(indexed.index)?;
                 segments.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(index.value_i64()?).ok()?,
                 ));
@@ -564,7 +565,7 @@ fn aggregate_projection(
         if projections.len() >= MAX_REFERENCE_ORIGIN_DEPTH || projections.contains(&root) {
             return None;
         }
-        match program.expression_table.expression(root) {
+        match expression_table(program).expression(root) {
             ExpressionNode::Member(member) => {
                 projections.push(root);
                 root = member.receiver;
@@ -576,7 +577,7 @@ fn aggregate_projection(
             _ => break,
         }
     }
-    let root_type = match program.expression_table.expression(root) {
+    let root_type = match expression_table(program).expression(root) {
         ExpressionNode::Name(name) => crate::state_root_type(program, state, name.symbol)?,
         ExpressionNode::Call(call) => {
             let (_, destination) =
@@ -594,7 +595,7 @@ fn aggregate_projection(
     let mut path = Vec::with_capacity(projections.len());
     for projection in projections.into_iter().rev() {
         selected = crate::peel_declared_constraints(program, selected);
-        match program.expression_table.expression(projection) {
+        match expression_table(program).expression(projection) {
             ExpressionNode::Member(member) => {
                 // Value transport stays in owned storage; crossing a reference
                 // requires an authored borrow rather than moving its referent.
@@ -653,7 +654,7 @@ fn aggregate_projection(
                 ) {
                     return None;
                 }
-                let index = program.expression_table.integer_node(indexed.index)?;
+                let index = expression_table(program).integer_node(indexed.index)?;
                 let index = usize::try_from(index.value_i64()?).ok()?;
                 let TypeReferenceNode::FixedArray {
                     element_type,
@@ -1953,7 +1954,7 @@ fn call_result_field_argument(
     destination: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let projection = aggregate_projection(program, state, expression)?;
-    let ExpressionNode::Call(produced) = program.expression_table.expression(projection.root)
+    let ExpressionNode::Call(produced) = expression_table(program).expression(projection.root)
     else {
         return None;
     };
@@ -2043,10 +2044,10 @@ pub fn record_argument(
         return None;
     }
     let projection = aggregate_projection(program, state, expression)?;
-    let name = program.expression_table.name_path_node(projection.root)?;
+    let name = expression_table(program).name_path_node(projection.root)?;
     if name.symbol != local.symbol
         || name.head_symbol != local.symbol
-        || !matches!(program.expression_table.name_path_members(name.members), [name] if *name == local.name)
+        || !matches!(expression_table(program).name_path_members(name.members), [name] if *name == local.name)
     {
         return None;
     }
@@ -2487,9 +2488,7 @@ pub fn result_loans(
             program,
             crate::call_target_symbol(
                 program,
-                program
-                    .expression_table
-                    .call_node(call.authored_expression)?,
+                expression_table(program).call_node(call.authored_expression)?,
             ),
         ) != call.target_symbol
     {

@@ -10,6 +10,9 @@
 //! a persistent owner's loan through every outgoing transition.
 
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
+use crate::places::place_at;
 use diagnostics::Diagnostic;
 use language_core::place_label;
 use symbols::SymbolHandle;
@@ -148,11 +151,10 @@ fn check_stored_output_relations(
                 })
                 .flat_map(|(_, flow)| facts.flow.control.calls.span_or_empty(flow.calls));
             let calls = calls.collect::<Vec<_>>();
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+            for (statement_index, statement) in
+                crate::flow::state_statements(program, state.statement_nodes)
+                    .iter()
+                    .enumerate()
             {
                 // The normalized roster includes calls inside operands and
                 // selected patterns. A missing summary cannot erase their
@@ -295,9 +297,7 @@ fn state_transition_edges(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Vec<StateTransitionEdge> {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| statement.as_transition())
         .flat_map(|transition| transition.targets())
@@ -437,10 +437,7 @@ fn analyze_persistent_state(
     let mut static_persistent_places = Vec::new();
     let mut static_persistent_paths = entry_paths.to_vec();
     let mut diagnostics = Vec::new();
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         if retain_static_paths_across_call_frame(
             program,
             state,
@@ -472,12 +469,8 @@ fn analyze_persistent_state(
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        ) else {
+        let Some(place) = place_at(program, state.symbol, statement_index, assignment.target)
+        else {
             continue;
         };
         let target_field = persistent_field_and_tail(&place, persistent);
@@ -577,12 +570,7 @@ fn source_is_known_static_persistent_place(
     known_static_paths: &[StaticPersistentPath],
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> bool {
-    let Some(source) = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    ) else {
+    let Some(source) = place_at(program, state_symbol, statement_index, expression) else {
         return false;
     };
 
@@ -726,9 +714,7 @@ fn exact_name_symbol(
     if path.symbol.is_valid() {
         return Some(path.symbol);
     }
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .find_map(|statement| {
             let local = statement.as_local_data()?;
@@ -1008,12 +994,8 @@ fn place_segments_proven_equal(
             },
         ) => {
             if let (Some(left), Some(right)) = (
-                program
-                    .expression_table
-                    .constant_integer_value(left_expression),
-                program
-                    .expression_table
-                    .constant_integer_value(right_expression),
+                expressions(program).constant_integer_value(left_expression),
+                expressions(program).constant_integer_value(right_expression),
             ) {
                 return left == right;
             }
@@ -1045,9 +1027,7 @@ fn immutable_local_index_symbol(
         .is_valid()
         .then_some(path.head_symbol)
         .or_else(|| path.symbol.is_valid().then_some(path.symbol));
-    let mut matches = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let mut matches = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| {
             let local = statement.as_local_data()?;
@@ -1162,9 +1142,7 @@ fn state_returns_only_static_borrows(
         found_value_exit = true;
         is_state_independent_borrow_source(program, state, expression, visiting)
     });
-    let all_static = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let all_static = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| {
             let transition = statement.as_transition()?;

@@ -9,7 +9,7 @@ machine Main::main(root: &mut Main) reaches Console {
     Console::exit_process(0);
 }
 
-machine digits(value: i32) reaches Console invokes Console; {
+machine digits(value: i32) reaches Console invokes Console {
     let magnitude: i32 in Wrapping = value as i32 in Wrapping;
     Console::write_byte(((magnitude / 10000000) % 10 + 48) as i32);
     Console::write_byte(((magnitude / 1000000) % 10 + 48) as i32);

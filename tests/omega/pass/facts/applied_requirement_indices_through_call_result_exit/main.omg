@@ -21,7 +21,7 @@ Provider satisfies Identity<Word> {
     machine paired<Element>(value: Payload in Pair<Word, Element>) -> Payload in Pair<Word, Element> { value }
     machine stated(value: Payload in Tagged<Word>) -> Payload in Tagged<Word>
     requires value in Tagged<Word>
-    ensures result in Tagged<Word>;
+    ensures result in Tagged<Word>
     { value }
 }
 machine forward<Value>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>

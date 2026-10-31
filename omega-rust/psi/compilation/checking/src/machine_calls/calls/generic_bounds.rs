@@ -106,6 +106,13 @@ fn report_bodyless_boundary_symbol_call(
                 return;
             }
         };
+    let compiler_layout_snapshot = match program.layout_target_facts_result(callee_machine.symbol) {
+        Ok(result) => result.is_some(),
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(reason));
+            return;
+        }
+    };
     let activation_realization =
         crate::exact_toolchain_activation_storage_contract(program, callee_machine).is_some_and(
             |contract| {
@@ -127,6 +134,7 @@ fn report_bodyless_boundary_symbol_call(
         && !compiler_placed_factory
         && !compiler_placement_execution
         && !activation_realization
+        && !compiler_layout_snapshot
         && !callee_machine.body_is_present
         && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)
     {

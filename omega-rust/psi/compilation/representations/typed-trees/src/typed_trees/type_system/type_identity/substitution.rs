@@ -21,10 +21,7 @@ pub(super) fn index_argument(
 ) -> String {
     match argument {
         IndexIdentityArgument::TypeArgument(reference) => {
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
-            {
+            if !program.contains_type_reference(reference) {
                 return rejected(context);
             }
             normalize_type_reference(program, reference, context)
@@ -36,10 +33,7 @@ pub(super) fn index_argument(
             normalize_index_expression(program, expression, context)
         }
         IndexIdentityArgument::TypeReference(reference) => {
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
-            {
+            if !program.contains_type_reference(reference) {
                 return rejected(context);
             }
             index_reference(program, reference, context)
@@ -80,10 +74,7 @@ pub(super) fn index_argument(
                 return rejected(context);
             }
             if argument.type_reference.is_valid() {
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(argument.type_reference)
-                {
+                if !program.contains_type_reference(argument.type_reference) {
                     return rejected(context);
                 }
                 // A callable can travel through the same retained type payload
@@ -110,9 +101,7 @@ pub(super) fn index_argument(
                 // index grammar as its retained Const binding; ordinary type
                 // arguments continue to use the structural type grammar.
                 if matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(argument.type_reference),
+                    program.type_reference_node(argument.type_reference),
                     TypeReferenceNode::ConstExpression(_)
                 ) {
                     return index_reference(program, argument.type_reference, context);
@@ -375,6 +364,22 @@ fn index_reference(
     reference: TypeReferenceHandle,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    // A callable replacement must retain its selected overload and complete
+    // static application just as a directly supplied callable does.
+    if context.invalid_application.is_some()
+        && let Ok(selected) = program.static_operand_from_type_reference(reference)
+        && selected.symbol.is_valid()
+        && matches!(
+            program.symbols.get(selected.symbol).kind,
+            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+        )
+    {
+        return index_argument(
+            program,
+            IndexIdentityArgument::StaticArgument(&selected),
+            context,
+        );
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, name } => {
             index_name(program, *symbol, name.as_str(), context)
@@ -554,11 +559,7 @@ impl TypedTrees {
             let Some((_, reference)) = replacement else {
                 return usize::try_from(integer(self, symbol, spelling)?).ok();
             };
-            if active.contains(&symbol)
-                || !self
-                    .type_reference_table
-                    .contains_type_reference(*reference)
-            {
+            if active.contains(&symbol) || !self.contains_type_reference(*reference) {
                 return None;
             }
             active.push(symbol);

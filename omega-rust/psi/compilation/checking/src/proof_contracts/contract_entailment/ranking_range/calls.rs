@@ -12,6 +12,7 @@ use super::{
     meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
     validate_mapping,
 };
+use crate::frozen_program::expression_table;
 use crate::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use symbols::SymbolHandle;
 /// The exact transition site inside the caller's machine. `state` is the state
@@ -114,7 +115,7 @@ pub(crate) fn prove_ranking_range_call(
         ),
     ] {
         if range.is_valid()
-            && let ExpressionNode::Range(range) = program.expression_table.expression(range)
+            && let ExpressionNode::Range(range) = expression_table(program).expression(range)
         {
             for endpoint in [range.start, range.end] {
                 if !fields::endpoint_statically_formed(program, machine, state, endpoint) {
@@ -337,14 +338,22 @@ pub(crate) fn prove_ranking_range_call(
         }
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
-    let rank = match source_measure {
+    let rank_value = match source_measure {
         RankingRangeMeasure::SliceLength(subject) => match &slice_ranks {
-            Some(slice) => slice.value()?,
-            None => length_coordinate(program, entry, subject, &length_bindings)?,
+            Some(slice) => super::RankValue::scalar(slice.value()?),
+            None => super::RankValue::scalar(length_coordinate(
+                program,
+                entry,
+                subject,
+                &length_bindings,
+            )?),
         },
-        RankingRangeMeasure::Field { .. } => field_ranks.as_ref()?.value()?,
-        _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
+        RankingRangeMeasure::Field { .. } => {
+            super::RankValue::scalar(field_ranks.as_ref()?.value()?)
+        }
+        _ => rank_coordinate(program, &mut engine, source_measure)?,
     };
+    let rank = rank_value.value.clone();
     let view_bound = match source_measure {
         RankingRangeMeasure::IncreasingTo { limit, .. }
         | RankingRangeMeasure::Distance { upper: limit, .. } => Some(engine.normalize(limit)?),
@@ -383,7 +392,7 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.requires_unsatisfiable
         && let Some((floor, ceiling, _)) = &source_range
     {
-        let range = program.expression_table.range_node(caller.range)?;
+        let range = expression_table(program).range_node(caller.range)?;
         for endpoint in &caller_deferred_endpoints {
             let polynomial = if *endpoint == range.start {
                 floor
@@ -401,6 +410,12 @@ pub(crate) fn prove_ranking_range_call(
                 return None;
             }
         }
+    }
+    // Capture source meaning before recursive callee formals are rebound.
+    // Its arrival invariant is established by the member's independent entry
+    // and complete-arrival formation checks.
+    if !engine.requires_unsatisfiable && !rank_value.forms(&mut engine) {
+        return None;
     }
     let parameters = program.state_parameters(destination).iter();
     if parameters.clone().count() != arguments.len() {
@@ -479,7 +494,7 @@ pub(crate) fn prove_ranking_range_call(
         destination_expressions.push(limit);
     }
     if callee.range.is_valid()
-        && let ExpressionNode::Range(range) = program.expression_table.expression(callee.range)
+        && let ExpressionNode::Range(range) = expression_table(program).expression(callee.range)
     {
         destination_expressions.extend([range.start, range.end]);
     }
@@ -579,10 +594,11 @@ pub(crate) fn prove_ranking_range_call(
             return None;
         }
     }
-    let next_rank = match captured_destination_rank {
-        Some(rank) => rank,
-        None => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
+    let next_rank_value = match captured_destination_rank {
+        Some(rank) => super::RankValue::scalar(rank),
+        None => rank_coordinate(program, &mut engine, destination_measure)?,
     };
+    let next_rank = next_rank_value.value.clone();
     let pinned_view_bound = match (view_bound, destination_measure) {
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. })
         | (Some(bound), RankingRangeMeasure::Distance { upper: limit, .. }) => {
@@ -607,7 +623,7 @@ pub(crate) fn prove_ranking_range_call(
     // feeds must be a defined interval of the callee's carrier here, not only
     // inside the callee's own entry proof.
     if let Some((floor, ceiling, _)) = &destination_range {
-        let range = program.expression_table.range_node(callee.range)?;
+        let range = expression_table(program).range_node(callee.range)?;
         for endpoint in &callee_deferred_endpoints {
             let polynomial = if *endpoint == range.start {
                 floor
@@ -628,7 +644,8 @@ pub(crate) fn prove_ranking_range_call(
     }
     // A computed rank is a carrier value only while its body forms there,
     // on both sides of the call, from the caller's own hypotheses.
-    if !forms_in_carrier(&engine, source_measure, &rank)
+    if !next_rank_value.forms(&mut engine)
+        || !forms_in_carrier(&engine, source_measure, &rank)
         || !forms_in_carrier(&engine, destination_measure, &next_rank)
     {
         return None;
@@ -704,7 +721,7 @@ fn admit_member(
         meanings::admitted_carrier(program, member.machine, state, member.paired_subject, 0)?;
     }
     if member.range.is_valid() {
-        let range = program.expression_table.range_node(member.range)?;
+        let range = expression_table(program).range_node(member.range)?;
         for expression in [range.start, range.end] {
             meanings::admitted_carrier(program, member.machine, state, expression, 0)?;
         }
@@ -812,9 +829,7 @@ fn collect_destination_fields(
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
-        let node = program
-            .expression_table
-            .expression_at_depth(expression, depth)?;
+        let node = expression_table(program).expression_at_depth(expression, depth)?;
         match node {
             ExpressionNode::Member(member) => {
                 if let Some(coordinate) = fields::FieldCoordinate::resolve_field_projection(
@@ -868,9 +883,7 @@ fn collect_destination_lengths(
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
-        let node = program
-            .expression_table
-            .expression_at_depth(expression, depth)?;
+        let node = expression_table(program).expression_at_depth(expression, depth)?;
         match node {
             ExpressionNode::Member(member) => {
                 if member.case_variant.is_none()
@@ -989,26 +1002,27 @@ fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Po
 
 pub(super) fn rank_coordinate(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     engine: &mut Engine<'_>,
     measure: RankingRangeMeasure,
-) -> Option<Polynomial> {
+) -> Option<super::RankValue> {
     match measure {
-        RankingRangeMeasure::Single(subject) => engine.normalize(subject),
+        RankingRangeMeasure::Single(subject) => {
+            engine.normalize(subject).map(super::RankValue::scalar)
+        }
         RankingRangeMeasure::Computed {
             subject,
             parameter,
             body,
             ..
-        } => super::computed_rank(program, machine, engine, subject, parameter, body),
+        } => super::RankValue::computed(program, engine, subject, parameter, body),
         // Keep the raw coordinate polynomial; the call-owned membership and
         // comparison predicates interpret its max(0,d) normalization.
-        RankingRangeMeasure::IncreasingTo { subject, limit } => {
-            Some(engine.normalize(limit)?.sub(&engine.normalize(subject)?))
-        }
-        RankingRangeMeasure::Distance { lower, upper } => {
-            Some(engine.normalize(upper)?.sub(&engine.normalize(lower)?))
-        }
+        RankingRangeMeasure::IncreasingTo { subject, limit } => Some(super::RankValue::scalar(
+            engine.normalize(limit)?.sub(&engine.normalize(subject)?),
+        )),
+        RankingRangeMeasure::Distance { lower, upper } => Some(super::RankValue::scalar(
+            engine.normalize(upper)?.sub(&engine.normalize(lower)?),
+        )),
         _ => None,
     }
 }
@@ -1078,7 +1092,7 @@ fn installation_expressions(
     arguments: &[ExpressionHandle],
 ) -> Vec<ExpressionHandle> {
     if caller.range.is_valid()
-        && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+        && let ExpressionNode::Range(range) = expression_table(program).expression(caller.range)
     {
         expressions.extend([range.start, range.end]);
     }
@@ -1288,14 +1302,14 @@ fn entry_scalar_parameter(
 ) -> Option<()> {
     let mut subject = subject;
     let mut visited = Vec::new();
-    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(subject) {
+    while let ExpressionNode::Atomic(atomic) = expression_table(program).expression(subject) {
         if visited.contains(&subject) {
             return None;
         }
         visited.push(subject);
         subject = atomic.value;
     }
-    if let Some(_) = program.expression_table.member_node(subject) {
+    if let Some(_) = expression_table(program).member_node(subject) {
         // The projected leaf's declared type is the subject's carrier; every
         // step is an exact declared field of a non-self, non-const entry
         // formal's record.
@@ -1325,7 +1339,7 @@ fn member_call_range(
     if !member.range.is_valid() {
         return Some(None);
     }
-    let range = program.expression_table.range_node(member.range)?;
+    let range = expression_table(program).range_node(member.range)?;
     for endpoint in [range.start, range.end] {
         meanings::install_nonpolynomial_terms(program, member.machine, state, engine, endpoint, 0)?;
     }

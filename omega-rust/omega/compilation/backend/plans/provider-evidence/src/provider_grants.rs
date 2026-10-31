@@ -44,7 +44,7 @@ impl ResolvedSelectedProviderGrant {
                     "provider slot: {}",
                     self.selected_plan
                         .schema
-                        .identity_text(self.selected_plan.schema.trait_name)
+                        .identity_text(self.selected_plan.schema.declaration.trait_name)
                 )
             }
         }
@@ -73,9 +73,11 @@ pub fn resolve_selected_provider_grants(
             .iter()
             .filter(|plan| plan.name == *grant)
             .collect::<Vec<_>>();
-        let slot_is_known = candidates
-            .iter()
-            .any(|plan| plan.schema.identity_text(plan.schema.trait_name) == grant.as_str());
+        let slot_is_known = candidates.iter().any(|plan| {
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name)
+                == grant.as_str()
+        });
         if plan_name_candidates.is_empty() && !slot_is_known {
             continue;
         }
@@ -94,7 +96,11 @@ pub fn resolve_selected_provider_grants(
         let selected_by_slot = selected
             .plans()
             .iter()
-            .filter(|plan| plan.schema.identity_text(plan.schema.trait_name) == grant.as_str())
+            .filter(|plan| {
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name)
+                    == grant.as_str()
+            })
             .collect::<Vec<_>>();
         if selected_by_plan_name.len() > 1 || selected_by_slot.len() > 1 {
             return Err(Diagnostic::error(format!(

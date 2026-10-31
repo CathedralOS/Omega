@@ -11,9 +11,8 @@ machine Main::evaluate(main: &mut Main) -> u64 {
     }
 }
 
-machine Main::walk(main: &mut Main, limit: u64, index: u64)
-terminates by (index, limit) -> Nat::BoundedDistance;
--> u64
+machine Main::walk(main: &mut Main, limit: u64, index: u64) -> u64
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     transition index < limit {
         true -> walk(main, limit, index + 1)

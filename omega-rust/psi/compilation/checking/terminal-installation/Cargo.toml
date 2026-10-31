@@ -7,6 +7,7 @@ version.workspace = true
 [dependencies]
 arena = { path = "../../../foundation/arena" }
 numerics = { path = "../../../foundation/numerics" }
+layout-plans = { path = "../../../foundation/layout-plans" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../representations/terminal-psi" }

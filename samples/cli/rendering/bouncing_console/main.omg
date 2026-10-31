@@ -18,7 +18,12 @@ requires
 domain [u8; 1]::Utf8
 requires
     valid_utf8(self);
-data Main {
+data Main
+requires
+    0 <= self.p && self.p <= 40
+    && 0 <= self.frame && self.frame <= 50
+    && 0 <= self.x && self.x <= 40
+{
     line: [u8; 40] in Utf8;
     cr: [u8; 1] in Utf8;
     p: i32;              // ball column; each move is re-guarded so +1/-1 stays in [0, 40]
@@ -36,26 +41,26 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.p = 0;
     main.dir = 1;
     main.frame = 0;
-    transition { _ -> frame_loop(main) }
+    transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: &mut Main) {
-        transition main.frame < 50 { true -> clear_init(main) _ -> finish(main) }
+        transition main.frame < 50 { true -> block clear_init(main) _ -> block finish(main) }
     }
-    machine clear_init(main: &mut Main) { main.x = 0; transition { _ -> clear_loop(main) } }
+    machine clear_init(main: &mut Main) { main.x = 0; transition { _ -> block clear_loop(main) } }
     machine clear_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 40 { true -> clear_cell(main) _ -> place(main) }
+        transition main.x >= 0 && main.x < 40 { true -> block clear_cell(main) _ -> block place(main) }
     }
     machine clear_cell(main: &mut Main) {
         main.line[main.x] = 32;
         main.x = main.x + 1;
-        transition { _ -> clear_loop(main) }
+        transition { _ -> block clear_loop(main) }
     }
     machine place(main: &mut Main) {
-        transition main.p >= 0 && main.p < 40 { true -> set_ball(main) _ -> bad(main) }
+        transition main.p >= 0 && main.p < 40 { true -> block set_ball(main) _ -> block bad(main) }
     }
     machine set_ball(main: &mut Main) {
         main.line[main.p] = 79;
-        transition { _ -> emit(main) }
+        transition { _ -> block emit(main) }
     }
     // The host calls kill arithmetic facts, so the counter updates move behind
     // re-guards: `frame < 50` proves the frame increment, and the movement step
@@ -65,34 +70,34 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         Console::write(main.cr);
         Console::write(main.line);
         Clock::sleep(25);
-        transition main.frame < 50 { true -> frame_bump(main) _ -> finish(main) }
+        transition main.frame < 50 { true -> block frame_bump(main) _ -> block finish(main) }
     }
     machine frame_bump(main: &mut Main) {
         main.frame = main.frame + 1;
-        transition main.dir == 1 { true -> move_right_guard(main) _ -> move_left_guard(main) }
+        transition main.dir == 1 { true -> block move_right_guard(main) _ -> block move_left_guard(main) }
     }
     machine move_right_guard(main: &mut Main) {
-        transition main.p >= 0 && main.p < 40 { true -> move_right(main) _ -> bad(main) }
+        transition main.p >= 0 && main.p < 40 { true -> block move_right(main) _ -> block bad(main) }
     }
     machine move_right(main: &mut Main) {
         main.p = main.p + 1;
-        transition { _ -> bounce_hi(main) }
+        transition { _ -> block bounce_hi(main) }
     }
     machine move_left_guard(main: &mut Main) {
-        transition main.p >= 1 && main.p < 41 { true -> move_left(main) _ -> bad(main) }
+        transition main.p >= 1 && main.p < 41 { true -> block move_left(main) _ -> block bad(main) }
     }
     machine move_left(main: &mut Main) {
         main.p = main.p - 1;
-        transition { _ -> bounce_hi(main) }
+        transition { _ -> block bounce_hi(main) }
     }
     machine bounce_hi(main: &mut Main) {
-        transition main.p >= 39 { true -> flip_down(main) _ -> bounce_lo(main) }
+        transition main.p >= 39 { true -> block flip_down(main) _ -> block bounce_lo(main) }
     }
-    machine flip_down(main: &mut Main) { main.dir = 0 - 1; transition { _ -> frame_loop(main) } }
+    machine flip_down(main: &mut Main) { main.dir = 0 - 1; transition { _ -> block frame_loop(main) } }
     machine bounce_lo(main: &mut Main) {
-        transition main.p <= 0 { true -> flip_up(main) _ -> frame_loop(main) }
+        transition main.p <= 0 { true -> block flip_up(main) _ -> block frame_loop(main) }
     }
-    machine flip_up(main: &mut Main) { main.dir = 1; transition { _ -> frame_loop(main) } }
+    machine flip_up(main: &mut Main) { main.dir = 1; transition { _ -> block frame_loop(main) } }
 
     machine finish(main: &mut Main) {
         Console::write_line("done: 50 frames of line-bounce animation complete (exit 0)");

@@ -62,38 +62,23 @@ impl AffineTransformImport {
 import_signature_via_clone!(AffineTransformImport);
 
 impl TerminalEffectHandler for AffineTransformImport {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "affine construction requires result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("affine construction requires result-aware dispatch");
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "affine construction differs from its admitted six-double contract",
-            )
-        };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
-        if arguments.len() != 6
-            || !structural_arguments.is_empty()
-            || *result != self.signature.result
+        let invalid =
+            super::refusal("affine construction differs from its admitted six-double contract");
+        let call = super::call_operands(effect, &invalid)?;
+        if call.arguments.len() != 6
+            || !call.structural_arguments.is_empty()
+            || *call.result != self.signature.result
         {
             return Err(invalid());
         }
         let mut components = [0.0; 6];
-        for (component, argument) in components.iter_mut().zip(arguments) {
+        for (component, argument) in components.iter_mut().zip(call.arguments) {
             let TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits)) = argument else {
                 return Err(invalid());
             };

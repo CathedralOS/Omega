@@ -7,6 +7,8 @@
 //! proof-integer predecessor. Only structured values return to syntax; original
 //! bounds remain available to declaration checking and application custody.
 
+use crate::build_time_evaluation::type_references;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
@@ -43,11 +45,7 @@ pub(crate) fn evaluate(
     }
     let mut visited = Vec::new();
     let mut ranges = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
+    while let Some(reference) = crate::worklist::unvisited(&mut pending, &mut visited) {
         match syntax.type_references.type_reference(reference) {
             TypeReferenceNode::Generic { arguments, .. } => {
                 pending.extend(syntax.type_references.type_reference_handles(*arguments));
@@ -57,8 +55,7 @@ pub(crate) fn evaluate(
                 constraints,
             } => {
                 pending.push(*base_type);
-                if syntax
-                    .type_references
+                if type_references(&syntax)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
@@ -150,8 +147,7 @@ pub(crate) fn evaluate(
         };
         let mut bounds = Vec::new();
         let mut eligible = true;
-        for (ordinal, constraint) in syntax
-            .type_references
+        for (ordinal, constraint) in type_references(&syntax)
             .constraints(constraints)
             .iter()
             .enumerate()
@@ -239,8 +235,7 @@ pub(crate) fn evaluate(
     // A whole bound folds only after all authored calls pass static admission.
     // Selective execution may skip some of them; this records admission, not
     // execution. Origin custody continues to read every original occurrence.
-    let folded_roots: Vec<_> = typed
-        .expression_table
+    let folded_roots: Vec<_> = expression_table(&typed)
         .iter_expressions()
         .filter(|(handle, node)| {
             !matches!(node, typed_trees::expression::ExpressionNode::Integer(_))
@@ -255,11 +250,7 @@ pub(crate) fn evaluate(
     for root in &folded_roots {
         let mut pending = vec![*root];
         let mut visited = Vec::new();
-        while let Some(expression) = pending.pop() {
-            if visited.contains(&expression) {
-                continue;
-            }
-            visited.push(expression);
+        while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
             if matches!(
                 typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::Call(_)
@@ -323,8 +314,7 @@ pub(crate) fn evaluate(
         {
             let Some(typed_trees::types::TypeConstraintNode::Range {
                 minimum, maximum, ..
-            }) = typed
-                .type_reference_table
+            }) = type_reference_table(&typed)
                 .constraints(constraints)
                 .get(ordinal)
             else {

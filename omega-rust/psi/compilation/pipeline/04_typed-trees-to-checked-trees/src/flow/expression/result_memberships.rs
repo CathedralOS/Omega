@@ -5,9 +5,7 @@
 use super::Execution;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowCallFact, FlowConstraintRef, FlowOperandFact, FlowSemanticContextRef};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint, QualificationEvidence,
-};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
 
 impl Execution<'_, '_, '_> {
     pub(super) fn append_invocation_memberships(
@@ -87,10 +85,7 @@ impl Execution<'_, '_, '_> {
                     place: FactPlace::Place(place),
                     point,
                     origin: FactOrigin::CallEnsures,
-                    evidence: QualificationEvidence::from_origin(
-                        language_semantics::QualificationEvidenceOrigin::Propagated,
-                        target,
-                    ),
+                    evidence: crate::facts::propagated_evidence(target),
                     payload: FactPayload::DomainMembership {
                         value: value.expression,
                         domain: HandleSpan::empty(),

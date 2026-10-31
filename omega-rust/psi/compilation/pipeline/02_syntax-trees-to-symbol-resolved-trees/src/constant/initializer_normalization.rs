@@ -6,6 +6,8 @@
 //! declaration-source resolution; initializer implementation exposure never
 //! becomes public index exposure just because its constant is public.
 
+use crate::tables::body_expressions;
+use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure,
@@ -18,6 +20,8 @@ use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 use symbols::SymbolKind;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
+
+mod resolved_payload;
 
 /// The three existing initializer inventories: original value use, complete
 /// declaration preparation, and the materialized value's realized selections.
@@ -168,44 +172,34 @@ pub(crate) fn retain(
         return Ok(());
     };
     let reference = syntax.expressions.source_span(definition.value);
-    if !syntax
-        .expressions
-        .contains_expression(receipt.authored_expression)
+    if !syntax_expressions(&syntax).contains_expression(receipt.authored_expression)
         || receipt.authored_expression == definition.value
         || syntax.expressions.source_span(receipt.authored_expression) != reference
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = if lowerer.const_resolution_mode
-        == crate::resolution::lowerer::ConstResolutionMode::Complete
-    {
-        super::declaration_values::evaluated_declaration_value(
-            syntax,
-            definition,
-            lowerer.constant_selection.as_ref(),
-        )
-    } else {
-        crate::preparation::generic_data::canonicalize_pending_initializer_payload(
-            syntax,
-            definition,
-            lowerer.constant_selection.as_ref(),
-        )
-        .and_then(|payload| {
-            if payload.pending_destination != definition.pending_qualification {
-                return Err(
-                    "private initializer lost its exact pending destination obligation".to_owned(),
-                );
-            }
-            Ok(payload.value.encoding.into())
+    if definition
+        .pending_qualification
+        .as_ref()
+        .is_some_and(|obligation| {
+            obligation.declaration != definition.name.source_span()
+                || obligation.initializer != definition.value
         })
-    }
-    .map_err(|_| error(reference, "materialized value is not canonical"))?;
-    if value != receipt.result_value {
+        || definition
+            .qualification
+            .as_ref()
+            .is_some_and(|qualification| {
+                qualification.destination != definition.type_reference
+                    || qualification.initializer != definition.value
+            })
+    {
         return Err(error(
             reference,
-            "materialized value drifted from its canonical result",
+            "initializer lost its exact destination obligation",
         ));
     }
+    // Payload agreement is checked after symbol assignment, against current
+    // and retained declaration identities together, before any substitution.
     let mut references = Vec::new();
     let mut operators = Vec::new();
     let mut pending = vec![receipt.authored_expression];
@@ -270,8 +264,7 @@ pub(crate) fn retain(
             }
             ExpressionNode::ArrayLiteral(elements) => {
                 pending.extend(
-                    syntax
-                        .expressions
+                    syntax_expressions(&syntax)
                         .expression_handles(*elements)
                         .iter()
                         .rev()
@@ -498,20 +491,15 @@ fn append_retained_custody(
     purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<(), Diagnostic> {
     let owner_source = program.symbols.symbol_source_span(owner.symbol);
-    for occurrence in program
-        .tables
-        .bodies
-        .expressions
-        .authored_selection_occurrences(
-            if purpose == super::initializer_dependencies::DependencyPurpose::Authored
-                && owner.authored_initializer.is_valid()
-            {
-                owner.authored_initializer
-            } else {
-                owner.initializer
-            },
-        )
-    {
+    for occurrence in body_expressions(&program).authored_selection_occurrences(
+        if purpose == super::initializer_dependencies::DependencyPurpose::Authored
+            && owner.authored_initializer.is_valid()
+        {
+            owner.authored_initializer
+        } else {
+            owner.initializer
+        },
+    ) {
         let selection = program
             .authored_declaration_selections()
             .get(occurrence)
@@ -802,11 +790,7 @@ fn replace_initializer_lanes(
     program: &mut SymbolResolvedTrees,
     owner: &InitializerRootCustody,
 ) -> Result<(), Diagnostic> {
-    if !program
-        .tables
-        .bodies
-        .expressions
-        .expression_is_valid(owner.root)
+    if !body_expressions(&program).expression_is_valid(owner.root)
         || program.tables.bodies.expressions.source_span(owner.root) != owner.reference
     {
         return Err(error(
@@ -819,12 +803,7 @@ fn replace_initializer_lanes(
     // complete inventory for this boundary; retain unrelated type/case custody,
     // then replace only the initializer's call, constant and operator lanes.
     let mut retained = Vec::new();
-    for occurrence in program
-        .tables
-        .bodies
-        .expressions
-        .authored_selection_occurrences(owner.root)
-    {
+    for occurrence in body_expressions(&program).authored_selection_occurrences(owner.root) {
         let selection = program
             .authored_declaration_selections()
             .get(occurrence)
@@ -880,6 +859,34 @@ pub(crate) fn finalize(
     use syntax_trees::item::ConstInitializerCustody;
     let mut roots = Vec::new();
     for (ordinal, record) in records.iter().enumerate() {
+        let mut owners = program.const_declarations.iter().filter(|declaration| {
+            program.symbols.symbol_source_span(declaration.symbol) == Some(record.declaration)
+                && declaration.initializer == record.materialized
+        });
+        let owner = owners.next().ok_or_else(|| {
+            error(
+                record.declaration,
+                "normalization lost its exact declaration owner",
+            )
+        })?;
+        if owners.next().is_some() {
+            return Err(error(
+                record.declaration,
+                "normalization has ambiguous declaration custody",
+            ));
+        }
+        resolved_payload::validate(
+            program,
+            &owner.declared_type,
+            record.materialized,
+            &record.receipt.result_value,
+        )
+        .map_err(|reason| {
+            error(
+                record.declaration,
+                &format!("materialized value is not canonical: {reason}"),
+            )
+        })?;
         let (authored_origins, authored_operators) =
             reconstruct(program, records, ordinal, DependencyPurpose::Authored)?;
         let authored_calls = declaration_custody(program, record, DependencyPurpose::Authored)?;

@@ -26,6 +26,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<checked_trees::CheckedTrees>,
+    provider_inventory: &'a checked_trees::PreparedProviderInventory,
     external_declarations: &'a psi_compiler::PreparedExternalProviderDeclarations,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
@@ -50,7 +51,8 @@ impl<'a> TerminalProductionView<'a> {
         >,
     ) -> Self {
         Self {
-            program: &selection.execution.program,
+            program: selection.execution.provider_source.program(),
+            provider_inventory: selection.execution.provider_source.inventory(),
             external_declarations: &selection.execution.external_providers,
             sources: &selection.sources,
             build: &selection.build,
@@ -59,7 +61,7 @@ impl<'a> TerminalProductionView<'a> {
             selected_target_profile: selection.execution.selected_target_profile,
             entry: selection.execution.selected_program_entry.as_ref(),
             provenance: &selection.execution.selected_provider_provenance,
-            plan_facts: &selection.execution.selected_provider_plan_facts,
+            plan_facts: selection.execution.provider_source.plans(),
             native_sources: &selection.execution.native_provider_sources,
             callbacks: &selection.execution.callback_roots,
             timings: &mut selection.timings,
@@ -72,7 +74,8 @@ impl<'a> TerminalProductionView<'a> {
         timings: &'a mut CompileTimings,
     ) -> Self {
         Self {
-            program: &checked.execution().program,
+            program: checked.execution().provider_source.program(),
+            provider_inventory: checked.execution().provider_source.inventory(),
             external_declarations: &checked.execution().external_providers,
             sources: checked.sources(),
             build: checked.build(),
@@ -81,7 +84,7 @@ impl<'a> TerminalProductionView<'a> {
             selected_target_profile: checked.execution().selected_target_profile,
             entry: checked.execution().selected_program_entry.as_ref(),
             provenance: &checked.execution().selected_provider_provenance,
-            plan_facts: &checked.execution().selected_provider_plan_facts,
+            plan_facts: checked.execution().provider_source.plans(),
             native_sources: &checked.execution().native_provider_sources,
             callbacks: &checked.execution().callback_roots,
             timings,
@@ -176,7 +179,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
         if request.use_kind != TerminalProductUse::Application {
-            let provider_publication = prepare_target_provider_publication(view);
+            let provider_publication = prepare_target_provider_publication(view)?;
             return Ok(Self {
                 position,
                 request,
@@ -199,7 +202,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
         let physical_adapter = entry.physical_adapter().unwrap_or_default();
-        let provider_publication = prepare_target_provider_publication(view);
+        let provider_publication = prepare_target_provider_publication(view)?;
         Ok(Self {
             position,
             request,
@@ -527,7 +530,8 @@ fn admit_terminal_production<'a>(
 /// deferred refusal rows, never cohort failures.
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
-) -> provider_planning::target_machines::PreparedTargetProviderPublication {
+) -> Result<provider_planning::target_machines::PreparedTargetProviderPublication, Vec<Diagnostic>>
+{
     let mut targets = source
         .provider_defaults
         .iter()
@@ -576,10 +580,12 @@ fn prepare_target_provider_publication(
     targets.sort();
     targets.dedup();
     let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
-        context: provider_planning::ProviderPlanningContext::new(
-            &source.program.typed,
-            source::DependencyScope::Product,
-        ),
+        body_declarations: source.provider_inventory.direct_calls(),
+        origins: source.provider_inventory.origins(),
+        services: source
+            .provider_inventory
+            .services_for(source.program)
+            .map_err(|error| vec![error])?,
         defaults: source.provider_defaults,
         settlement: source.provider_settlement,
     };
@@ -590,18 +596,23 @@ fn prepare_target_provider_publication(
             (target, prepared)
         })
         .collect::<Vec<_>>();
-    provider_planning::target_machines::TargetProviderPreparationRequest {
-        context: provider_planning::ProviderPlanningContext::new(
-            &source.program.typed,
-            source::DependencyScope::Product,
-        ),
-        exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-        overrides: &source.build.config.provider_selections,
-        assumed_bindings: source.plan_facts.assumed_bindings(),
-        independent_components: &source.provider_settlement.verified_independent_components,
-        targets: &targets,
-    }
-    .prepare()
+    let deployment = source.build.config.provider_deployment()?;
+    Ok(
+        provider_planning::target_machines::TargetProviderPreparationRequest {
+            application_roots: deployment.roots.as_deref(),
+            application_scopes: &deployment.scopes,
+            context: provider_planning::ProviderPlanningContext::new(
+                &source.program.typed,
+                source::DependencyScope::Product,
+            ),
+            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
+            overrides: &source.build.config.provider_selections,
+            assumed_bindings: source.plan_facts.assumed_bindings(),
+            independent_components: &source.provider_settlement.verified_independent_components,
+            targets: &targets,
+        }
+        .prepare(),
+    )
 }
 
 /// Check declarations through the ordinary Terminal producer without inventing
@@ -611,7 +622,8 @@ pub(crate) fn check_terminal_conditions(
 ) -> Result<Option<ProducedTerminalProduct>, Vec<Diagnostic>> {
     if !selection
         .execution
-        .program
+        .provider_source
+        .program()
         .facts
         .proof_applications
         .has_obligations

@@ -26,6 +26,16 @@ macro_rules! r {
     };
 }
 
+/// The Convert rows share one shape: a source sign, a carrier and the
+/// assembled words. `Add`, `Divide` and the rest stay written out.
+const fn convert_words(
+    source: IntegerSign,
+    carrier: SaturatingCarrier,
+    words: &'static [u32],
+) -> (TrappingOperation, SaturatingCarrier, &'static [u32]) {
+    (TrappingOperation::Convert { source }, carrier, words)
+}
+
 const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72] = [
     r!(Add => I8 => &[0x8b02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
     r!(Add => I16 => &[0x8b02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),

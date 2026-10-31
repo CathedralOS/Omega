@@ -104,17 +104,17 @@ machine inspect_ready(ticket: Ticket in Owned & Ready) -> bool {
 
 machine prepare(ticket: Ticket in Owned) -> Ticket in Owned & Ready
 reaches MarkReady + ForwardOwned
-invokes MarkReady;
-invokes ForwardOwned;
+invokes MarkReady
+invokes ForwardOwned
 {
     MarkReady::transfer(ForwardOwned::transfer(ticket))
 }
 
 machine main()
 reaches MarkReady + ForwardOwned + ForwardBundle
-invokes MarkReady;
-invokes ForwardOwned;
-invokes ForwardBundle;
+invokes MarkReady
+invokes ForwardOwned
+invokes ForwardBundle
 crashes Trap {
     let first: bool = inspect(direct(issue()));
     let second: bool = inspect(local(issue()));

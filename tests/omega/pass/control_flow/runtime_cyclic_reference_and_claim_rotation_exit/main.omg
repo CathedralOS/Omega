@@ -47,7 +47,7 @@ satisfies Selection::select
 }
 
 machine rotate_references(first: &mut Cell, second: &mut Cell, remaining: u32)
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     transition remaining > 0 {
         true -> step(first, second, remaining)
@@ -64,7 +64,7 @@ terminates by remaining -> Nat::Descending;
 }
 
 machine rotate_claims(first: Token, second: Token, remaining: u32) -> u32
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     let returned: Token = relay(first);
     transition remaining > 0 {
@@ -83,7 +83,7 @@ machine relay_envelope(envelope: Envelope) -> Envelope { envelope }
 // This result also carries an affine residual and a reference to caller
 // backing. Ending its old result home must preserve all three at arrival.
 machine rotate_envelopes(first: Envelope, second: Envelope, remaining: u32) -> u32
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     let returned: Envelope = relay_envelope(first);
     transition remaining > 0 {

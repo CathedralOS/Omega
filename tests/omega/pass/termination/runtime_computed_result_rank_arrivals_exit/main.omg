@@ -1,21 +1,21 @@
 public boundary trait RankReader {
     machine step(value: i32) -> i32
     reaches
-    terminates;
+    terminates
     requires value > 0 && value <= 9
     ensures result == value - 1;
 }
 CheckedReader satisfies RankReader {
     machine step(value: i32) -> i32
-    requires value > 0 && value <= 9;
-    ensures result == value - 1;
+    requires value > 0 && value <= 9
+    ensures result == value - 1
     { value - 1 }
 }
-machine identity(value: i32) -> i32 ensures result == value; { value }
+machine identity(value: i32) -> i32 ensures result == value { value }
 
 machine direct(remaining: i32) -> i32
-requires remaining >= 0 && remaining <= 9;
-terminates by remaining -> Nat::Descending in 0..=9;
+requires remaining >= 0 && remaining <= 9
+terminates by remaining -> Nat::Descending in 0..=9
 reaches RankReader {
     transition remaining > 0 {
         true -> direct(RankReader::step(remaining))
@@ -23,8 +23,8 @@ reaches RankReader {
     }
 }
 machine nested(remaining: i32) -> i32
-requires remaining >= 0 && remaining <= 9;
-terminates by remaining -> Nat::Descending in 0..=9;
+requires remaining >= 0 && remaining <= 9
+terminates by remaining -> Nat::Descending in 0..=9
 reaches RankReader {
     transition remaining > 1 {
         true -> nested(identity(RankReader::step(RankReader::step(remaining))))
@@ -32,8 +32,8 @@ reaches RankReader {
     }
 }
 machine saved(remaining: i32) -> i32
-requires remaining > 0 && remaining <= 9;
-terminates by remaining -> Nat::Descending in 0..=9;
+requires remaining > 0 && remaining <= 9
+terminates by remaining -> Nat::Descending in 0..=9
 reaches RankReader {
     let next: i32 = RankReader::step(remaining);
     transition next > 0 {
@@ -43,12 +43,12 @@ reaches RankReader {
 }
 data Progress { remaining: i32; }
 machine step_record(value: i32) -> Progress
-requires value > 0 && value <= 9;
-ensures result.remaining == value - 1;
+requires value > 0 && value <= 9
+ensures result.remaining == value - 1
 { Progress { remaining: value - 1 } }
 machine projected(remaining: i32) -> i32
-requires remaining >= 0 && remaining <= 9;
-terminates by remaining -> Nat::Descending in 0..=9;
+requires remaining >= 0 && remaining <= 9
+terminates by remaining -> Nat::Descending in 0..=9
 {
     transition remaining > 0 {
         true -> projected(step_record(remaining).remaining)

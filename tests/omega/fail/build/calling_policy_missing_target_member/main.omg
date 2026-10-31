@@ -4,10 +4,14 @@ use omega_language_std::calling;
 
 data TargetPolicy {}
 TargetPolicyCalling satisfies CallingPolicy {
-    CallingPolicy::plan = TargetPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        TargetPolicy::plan(signature)
+    }
 }
 
-macos_arm64 machine TargetPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
+macos_arm64 machine TargetPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult 
+    satisfies CallingPolicy::plan
+{
     BoundaryPlanResult::Rejected {
         reason: CallingPolicyRejection { reason: "unselected member" },
     }

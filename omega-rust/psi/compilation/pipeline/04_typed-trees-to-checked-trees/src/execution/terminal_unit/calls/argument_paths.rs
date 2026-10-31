@@ -13,6 +13,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralPathSegment, Multiplicity, SignatureContractKind, StateParameter,
     StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 use typed_trees::expression::ExpressionHandle;
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -716,9 +718,7 @@ fn constant_local_index(
 ) -> Option<usize> {
     let name = program.expression_table.name_path_node(expression)?;
     let source_state = program.state_by_symbol(state_symbol)?;
-    let local = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    let local = crate::flow::state_statements(program, source_state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == name.symbol && !local.is_mutable => {
@@ -727,9 +727,7 @@ fn constant_local_index(
             _ => None,
         })?;
     usize::try_from(
-        program
-            .expression_table
-            .constant_integer_value(local.ordinary_value_initializer()?)?,
+        expressions(program).constant_integer_value(local.ordinary_value_initializer()?)?,
     )
     .ok()
 }
@@ -958,12 +956,7 @@ pub(crate) fn open_byte_range_path(
     };
     let range = program.expression_table.range_node(*expression)?;
     let start = if range.start.is_valid() {
-        usize::try_from(
-            program
-                .expression_table
-                .constant_integer_value(range.start)?,
-        )
-        .ok()?
+        usize::try_from(expressions(program).constant_integer_value(range.start)?).ok()?
     } else {
         0
     };
@@ -1133,13 +1126,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
             let Some(membership) = fact.as_membership() else {
                 return false;
             };
-            validation::canonical_place_from_expression_in_state(
-                program,
-                target_state.symbol,
-                0,
-                membership.value,
-            )
-            .is_some_and(|place| {
+            place_at(program, target_state.symbol, 0, membership.value).is_some_and(|place| {
                 (place.root == facts::PlaceRoot::Symbol(expected_root)
                     || place.root == facts::PlaceRoot::Symbol(parameter.symbol))
                     && !(requires

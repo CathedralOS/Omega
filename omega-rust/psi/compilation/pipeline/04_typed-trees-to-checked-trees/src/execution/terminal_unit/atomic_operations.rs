@@ -29,6 +29,7 @@ use super::{
     CheckedUnitStructuralPathSegment, PrimitiveType,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::places::place_at;
 use checked_trees::{
     CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite,
     CheckedCallScalarArgument, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
@@ -329,12 +330,7 @@ fn place(
         validation::declared_place_type_raw(program, machine, Some(state), expression)
             .and_then(|declared| program.primitive_type_reference(declared))?;
     let ordinal = usize::try_from(statement_index).ok()?;
-    let canonical = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        ordinal,
-        expression,
-    )?;
+    let canonical = place_at(program, state.symbol, ordinal, expression)?;
     let symbol = canonical.root.as_symbol()?;
     // An erased borrow carrier names its captured referent's storage.
     let (symbol, segments) = match super::receiver_aliases::aliases(program, facts, machine, state)

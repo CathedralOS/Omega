@@ -8,6 +8,430 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
+	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
+fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
+	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
+	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @89d5d2d7655c
+	cannot prove requires contract for specification call `only_nonzero` in data `Gated` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_const_name_rejected rejected 736ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_field_rejected rejected 628ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_local_rejected rejected 764ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_match_join_rejected rejected 572ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_other_machine_rejected rejected 693ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_other_state_rejected rejected 726ms expected @3caadfad789f+wt
+	machine `check` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_parameter_rejected rejected 607ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected rejected 609ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/array_element_default_domain/call_result rejected 2228ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/const_name rejected 2183ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/field rejected 4669ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/local rejected 3112ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/match_join rejected 2266ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/other_machine rejected 2366ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/other_state rejected 3399ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/parameter rejected 3155ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/predicate_index_formation rejected 1833ms expected @89d5d2d7655c
+	cannot form specification index in data `Tallies` default-domain predicate: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in data `Tallies` default-domain predicate: independent collection bounds are not established by preceding formed facts
+fail/facts/array_element_default_domain/saved_read rejected 3460ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 5: result >= 0 && result < 16
+fail/facts/array_element_default_domain/selected_index_operator rejected 1387ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/signed_floor rejected 1661ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/target_body rejected 2055ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d2d7655c
+	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
+	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_field_rejected rejected 1812ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_local_rejected rejected 1620ms expected @8515a99cf21b+wt
+	cannot prove initializer of `kept` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_match_join_rejected rejected 1651ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_other_machine_rejected rejected 1780ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_other_state_rejected rejected 1427ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in check is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_parameter_rejected rejected 1409ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/induction_call_guarantee_through_call_result_rejected rejected 808ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_const_name_rejected rejected 622ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_field_rejected rejected 784ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_local_rejected rejected 910ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_match_join_rejected rejected 731ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_other_machine_rejected rejected 736ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_other_state_rejected rejected 636ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/nested_machine_header_contracts_call_result_rejected rejected 225ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_const_name_rejected rejected 269ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_const_name_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_field_rejected rejected 244ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_field_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_local_rejected rejected 214ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_local_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_match_join_rejected rejected 240ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_match_join_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_other_machine_rejected rejected 203ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_other_machine_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_other_state_rejected rejected 246ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_other_state_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_parameter_rejected rejected 200ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_target_body_rejected rejected 202ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_rejected rejected 1651ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_rejected rejected 1224ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_field_rejected rejected 1166ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_local_rejected rejected 1521ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_rejected rejected 1139ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_rejected rejected 1280ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_rejected rejected 1352ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_rejected rejected 1190ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_rejected rejected 1387ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_hidden_intermediate_overflow rejected 1400ms expected @be61262f3842
+	cannot prove the `terminates by` ranking for machine count
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_missing_selector_bound rejected 477ms expected @be61262f3842
+	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
+fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease rejected 1177ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_wrong_field_write rejected 1210ms expected @be61262f3842
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_boolean_bound_rejected rejected 522ms expected @248d6dbf7291
+	machine `wrong` cannot prove ensures contract proof fact `result <= 1` on the transition arm guarded by `<always>`
+fail/facts/nested_machine_joint_rank_complement_call_result_rejected rejected 1092ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_const_name_rejected rejected 1102ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_field_rejected rejected 1106ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_hidden_overflow_rejected rejected 1100ms expected @248d6dbf7291
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_local_rejected rejected 1098ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_match_join_rejected rejected 1104ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_call_result_rejected rejected 1139ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_const_name_rejected rejected 1170ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_field_rejected rejected 1647ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_local_rejected rejected 1125ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_match_join_rejected rejected 1104ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_other_machine_rejected rejected 1121ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_other_state_rejected rejected 1123ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_parameter_rejected rejected 1140ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_target_body_rejected rejected 1079ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_other_machine_rejected rejected 1105ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_other_state_rejected rejected 1123ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_parameter_rejected rejected 1137ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_reverse_descent_rejected rejected 1125ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_target_body_rejected rejected 1108ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_wrong_contract_rejected rejected 438ms expected @248d6dbf7291
+	machine `wrong` cannot prove ensures contract proof fact `result == value` on the transition arm guarded by `<always>`
+fail/facts/nested_machine_joint_rank_computed_measure_call_result_rejected rejected 846ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_const_name_rejected rejected 796ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_field_rejected rejected 761ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_local_rejected rejected 768ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_match_join_rejected rejected 767ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_other_machine_rejected rejected 783ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_other_state_rejected rejected 775ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_parameter_rejected rejected 778ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_measure_target_body_rejected rejected 781ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_rank_ceiling_rejected rejected 773ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_rank_floor_rejected rejected 788ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_scalar_helper_non_decreasing_rejected rejected 790ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_call_result_rejected rejected 762ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_const_name_rejected rejected 811ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_field_rejected rejected 771ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_local_rejected rejected 763ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_match_join_rejected rejected 818ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_other_machine_rejected rejected 783ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_other_state_rejected rejected 787ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_parameter_rejected rejected 848ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_square_target_body_rejected rejected 850ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_unsafe_intermediate_rejected rejected 788ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- a computed natural rank application has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_computed_unsafe_result_rejected rejected 782ms expected @4518281b90b2+wt
+	machine call cycle: `count`, `forward` -- a computed natural rank application has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_field_rejected rejected 784ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_local_rejected rejected 781ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_match_join_rejected rejected 788ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_other_machine_rejected rejected 792ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_other_state_rejected rejected 790ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_parameter_rejected rejected 790ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_target_body_rejected rejected 779ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/borrows/nested_byte_field_capture_breaks_utf8 rejected 761ms expected @7b9a72614daf
+	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
+	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
+fail/borrows/nested_byte_field_capture_stale_carrier rejected 709ms expected @7b9a72614daf
+	cannot prove requires contract for call consume from write: main.line in [u8; N]::Utf8 (invalidated by prior mutation of main.line[1]; main.line is part of [u8; N]::Utf8) in state `entry`
+	cannot prove default-domain field requirement for return from write at statement 2: main.line requires [u8; N]::Utf8
+fail/calls/requires_machine_conflicting_const_kind rejected 7ms expected @45fb2a705c96
+	tests/omega/fail/calls/requires_machine_conflicting_const_kind/main.omg:2:26: `Selected` is not a machine parameter; its declared kind or property bounds conflict with `requires machine Selected`
+fail/calls/requires_machine_outer_cannot_read_nested_parameter rejected 1511ms expected @45fb2a705c96
+	machine `apply` state `entry` arrival contract value `input` is not in the state's explicit parameter scope or prior local declarations
+	cannot form specification operator `<=` in machine `apply` requires contract: no exact selected meaning
+fail/calls/retired_where_machine_requirement rejected 5ms expected @45fb2a705c96
+	tests/omega/fail/calls/retired_where_machine_requirement/main.omg:3:1: `where machine` is retired; write `requires machine` with its complete contract and terminating semicolon
+fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431042
+	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/facts/nested_machine_joint_rank_declared_identity_non_decreasing_rejected rejected 861ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_call_result_rejected rejected 774ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_const_name_rejected rejected 750ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_field_rejected rejected 788ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_local_rejected rejected 771ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_match_join_rejected rejected 768ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_other_machine_rejected rejected 762ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_other_state_rejected rejected 791ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_parameter_rejected rejected 810ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_target_body_rejected rejected 772ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_rank_floor_rejected rejected 760ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_scalar_helper_non_decreasing_rejected rejected 788ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_wrong_field_rejected rejected 711ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_call_result_rejected rejected 764ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_const_name_rejected rejected 767ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_field_rejected rejected 787ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_local_rejected rejected 832ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_match_join_rejected rejected 852ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_other_machine_rejected rejected 772ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_other_state_rejected rejected 810ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_parameter_rejected rejected 876ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_target_body_rejected rejected 747ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_call_result_rejected rejected 1159ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_const_name_rejected rejected 1210ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_different_measure rejected 1164ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- members do not share the same ranking order; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_field_rejected rejected 1162ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_hidden_overflow rejected 1154ms expected @30a668a64c1c+wt
+	terminating machine count: cannot prove rank range `0..=3` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_local_rejected rejected 1151ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_match_join_rejected rejected 1166ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_multiple_quotients_rejected rejected 454ms expected @30a668a64c1c+wt
+	machine `invalid` cannot prove ensures contract proof fact `result == value - 4` on the transition arm guarded by `<always>`
+fail/facts/nested_machine_joint_rank_remainder_other_machine_rejected rejected 1119ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_other_state_rejected rejected 1238ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_parameter_rejected rejected 1134ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_proof_acyclic_overflow rejected 1428ms expected @30a668a64c1c+wt
+	terminating machine erased: cannot prove rank range `0..=1` for the rank produced by the selected view
+fail/facts/nested_machine_joint_rank_remainder_proof_flat rejected 738ms expected @30a668a64c1c+wt
+	`erased(..)` cannot prove the measure `remaining` structurally decreases at this self-call: the call does not prove a strict predecessor of ranking subject `remaining`. Pass a case-payload subterm (`Nat::Succ { prev } -> .. erased(prev)`) or, for an integer measure, `n - 1` in the taken value of its dominating `n > 0` arm; a slice-length measure admits `items[1..]` under its own nonempty guard
+fail/facts/nested_machine_joint_rank_remainder_rollover rejected 1222ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_target_body_rejected rejected 1200ms expected @30a668a64c1c+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_remainder_zero_divisor rejected 1032ms expected @30a668a64c1c+wt
+	terminating machine count: cannot prove rank range `0..=3` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_field_rejected rejected 1658ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_local_rejected rejected 1539ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_match_join_rejected rejected 1570ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_other_machine_rejected rejected 2086ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_other_state_rejected rejected 1578ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in check is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_parameter_rejected rejected 1855ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/layouts/fixed_layout_closed_requirement_policy_rejected rejected 604ms expected @2ba727eefb59+wt
+	demanded premise closure checking failed: machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+fail/layouts/fixed_layout_computed_const_policy_rejected rejected 592ms expected @2ba727eefb59+wt
+	demanded premise closure checking failed: exact arithmetic in value argument `Marker` of `Policy` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/layouts/fixed_layout_dormant_invalid_policy_rejected rejected 464ms expected @2ba727eefb59+wt
+	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_finite_dynamic_policy_rejected rejected 462ms expected @2ba727eefb59+wt
+	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_overridden_invalid_policy_rejected rejected 462ms expected @2ba727eefb59+wt
+	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 818ms expected @2ba727eefb59+wt
+	recast has no complete exact layout alternative roster
+fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 566ms expected @2ba727eefb59+wt
+	policy `Policy::plan$specialized$d6370627ca0e1e1b$0` produced an invalid plan: alignment 0 is not a positive power of two
+fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
+	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
+	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
+	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
+	machine call cycle: `walk_flat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
+fail/traits/dyn_selector_leading_crash_uncovered rejected 2077ms expected @3caadfad789f+wt
+	call from `observe` to `pass` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/traits/dyn_slot_metadata_unqualified rejected 685ms expected @e7be0895dec5+wt
+	argument `packet` for state `view` expects `&[u8][in Utf8]`, got `named value`
+fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expected @60879b0bca31+wt
+	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -353,12 +777,8 @@ pass/borrows/constant_shared_boundary_exit checked 4205ms check-target:macos_arm
 pass/borrows/constructor_reference_access checked 2403ms @ccdb99ca2214
 pass/borrows/copied_borrowed_slot_restores_parent_exit checked 3618ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_dispatch_payload_before_mutating_argument_exit checked 3744ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/copied_empty_case_before_active_replacement_exit rejected 2367ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell`: captured source `value::Active.cell` has no live case evidence
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell.value`: captured source `value::Active.cell.value` has no live case evidence
-pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit rejected 3377ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell`: captured source `value::Active.cell` has no live case evidence
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell.value`: captured source `value::Active.cell.value` has no live case evidence
+pass/borrows/copied_empty_case_before_active_replacement_exit checked 1116ms check-target:macos_arm64 @e6f74b4c381f
+pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 1116ms check-target:macos_arm64 @e6f74b4c381f
 pass/borrows/copied_image_descriptor_unrelated_write checked 4402ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3410ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
@@ -580,6 +1000,7 @@ pass/borrows/runtime_nested_array_range_record_domains_exit rejected 3054ms chec
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[0][1].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][0].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.groups[1][1].room.label requires [u8; N]::Utf8
+pass/borrows/runtime_nested_byte_field_capture_exit checked 1105ms check-target:macos_arm64 @7b9a72614daf
 pass/borrows/runtime_nested_callable_field_regions_exit checked 3416ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 16323ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 10879ms check-target:macos_arm64 @ccdb99ca2214
@@ -633,10 +1054,8 @@ pass/borrows/runtime_reference_record_array_field_read_exit checked 17276ms chec
 pass/borrows/runtime_reference_record_call_completion_exit checked 16574ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 15873ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit checked 17437ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_reference_result_alias_case_payload_exit rejected 309ms @ccdb99ca2214
-	source adapter failed for product dependency row 0 of package `alias_transport`: cannot establish canonical external source path `/Users/zcanann/Documents/Projects/Omega/source/library/std`: No such file or directory (os error 2)
-pass/borrows/runtime_reference_result_case_payload_exit rejected 388ms @ccdb99ca2214
-	source adapter failed for product dependency row 0 of package `predicate_reference_result_case_payload`: cannot establish canonical external source path `/Users/zcanann/Documents/Projects/Omega/source/library/std`: No such file or directory (os error 2)
+pass/borrows/runtime_reference_result_alias_case_payload_exit checked 7024ms check-target:macos_arm64 @00e93f641615+wt
+pass/borrows/runtime_reference_result_case_payload_exit checked 7024ms check-target:macos_arm64 @00e93f641615+wt
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 17426ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_replaced_reference_record_return_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_result_element_call_selector_capture_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
@@ -1039,6 +1458,7 @@ pass/calls/recursive_unit_positive_requires_control_exit checked 17387ms check-t
 pass/calls/reference_loan_field_requires checked 2632ms @ccdb99ca2214
 pass/calls/requirement_declared_static_operands checked 2165ms @ccdb99ca2214
 pass/calls/requires_carrier_ceiling_vacuous checked 11756ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/requires_machine_explicit_operational_closers_exit checked 1220ms check-target:macos_arm64 @45fb2a705c96
 pass/calls/requires_operand_flip_discharge checked 16267ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/result_overload_terminal_arm_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/resultless_native_callback_compile checked 18398ms check-target:linux_x86_64 @ccdb99ca2214
@@ -1553,6 +1973,12 @@ pass/contracts/folded_actual_requires checked 3653ms @ccdb99ca2214
 pass/contracts/generic_effective_result_comparison_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 3923ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 16651ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/header_blocks_before_body checked 2158ms @2fc408782574
+pass/contracts/header_ranked_terminates_before_body checked 2133ms @2fc408782574
+pass/contracts/header_suspends_before_body checked 2531ms @2fc408782574
+pass/contracts/header_terminates_before_body checked 2444ms @2fc408782574
+pass/contracts/header_terminates_before_requires checked 2345ms @2fc408782574
+pass/contracts/header_termination_before_requires checked 2274ms @2fc408782574
 pass/contracts/indexed_crash_dense_scalar_namespace checked 3754ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/indexed_crash_entry_subfield_arrival checked 3683ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/invariant_identifier checked 3134ms @ccdb99ca2214
@@ -2016,6 +2442,7 @@ pass/dependent/data_where_u64_equality_fields_compile checked 2964ms @ccdb99ca22
 pass/dependent/data_where_u8_bound_compile checked 2231ms @ccdb99ca2214
 pass/dependent/data_where_u8_equality_compile checked 2031ms @ccdb99ca2214
 pass/dependent/data_where_zero_equality_compile checked 2374ms @ccdb99ca2214
+pass/dependent/declaration_predicate_requires_proved checked 4733ms @89d5d2d7655c
 pass/dependent/domain_member_with_where_compile checked 2714ms @ccdb99ca2214
 pass/dependent/generic_data_where_field_bound_compile checked 2478ms @ccdb99ca2214
 pass/dependent/invariant_field_store_compile checked 2612ms @ccdb99ca2214
@@ -2245,8 +2672,7 @@ pass/drops/result_cleanup_original_exit checked 4041ms check-target:macos_arm64 
 pass/drops/result_cleanup_replacement_exit checked 3371ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 3448ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_affine_record_conditional_result_exit checked 18050ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit rejected 4038ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit checked 1393ms check-target:linux_x86_64 @e5a7f19e3929
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 3045ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 9115ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_borrowed_temporary_deferred_child_cleanup_exit checked 3631ms check-target:macos_arm64 @ccdb99ca2214
@@ -2294,14 +2720,12 @@ pass/drops/runtime_nominal_array_replacement_exit checked 3253ms check-target:ma
 pass/drops/runtime_nominal_case_observation_exit incomplete 4804ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` calls `replace_after_observation`; `replace_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `replace_after_observation::entry`
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 3940ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_nominal_state_loan_alias_exit rejected 3428ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_nominal_state_loan_alias_exit checked 1299ms check-target:macos_arm64 @e5a7f19e3929
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit rejected 3727ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
 pass/drops/runtime_nominal_state_loan_crash_exit rejected 3702ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/drops/runtime_nominal_state_loan_nonlending_branch_exit rejected 3892ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_nominal_state_loan_nonlending_branch_exit checked 1285ms check-target:macos_arm64 @e5a7f19e3929
 pass/drops/runtime_nominal_successor_argument_order_exit checked 4249ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_nominal_temporary_helper_closure_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_owned_nominal_replacement_exit checked 3268ms check-target:macos_arm64 @ccdb99ca2214
@@ -2331,22 +2755,20 @@ pass/drops/runtime_selected_case_mutation_complement_exit incomplete 4051ms chec
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 4192ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `scenario::entry`, statement 1
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 4884ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_partial_owner_cleanup_exit checked 3382ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 4660ms check-target:macos_arm64 @ccdb99ca2214
+pass/drops/runtime_selected_partial_owner_cleanup_exit checked 1539ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 1611ms check-target:macos_arm64 @e5a7f19e3929
 pass/drops/runtime_selected_projected_state_cleanup_exit checked 4912ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 4003ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 4357ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_transfer_nested_construction_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_shared_nominal_state_loan_exit rejected 4949ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 1340ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 1376ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_selected_transfer_nested_construction_exit checked 1325ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_shared_nominal_state_loan_exit checked 1288ms check-target:linux_x86_64 @e5a7f19e3929
 pass/drops/runtime_sibling_constructor_source_frontier_exit checked 3475ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_sibling_exit_source_frontier_exit checked 4089ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_temporary_integer_capture_cleanup_exit checked 4011ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_temporary_nominal_integer_contract_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_temporary_nominal_prerequisite_exit checked 4227ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_three_field_projected_transition_cleanup_exit checked 13181ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit rejected 3607ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit checked 1306ms check-target:linux_x86_64 @e5a7f19e3929
 pass/drops/runtime_unit_temporary_nominal_continuation_exit checked 3932ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_unobserved_owned_state_transfer_exit checked 3349ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/skipped_claim_temporary checked 3723ms @ccdb99ca2214
@@ -2547,6 +2969,15 @@ pass/facts/abstract_signature_call_constant_initializer_through_parameter_exit c
 pass/facts/abstract_signature_call_constant_initializer_through_target_body_exit checked 3507ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_exit rejected 444ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	constant initializer: constant call lost its exact authored target selection: owner witness, call TableCallExpression { authored_call_selection: None, authored_call_binding: None, build_selection: Handle { arena_index: 0, generation: 0 }, authored_machine_application: Handle { arena_index: 0, generation: 0 }, exact_coercion_target: Handle { arena_index: 0, generation: 0 }, requirement_application: Handle { arena_index: 0, generation: 0 }, receiver: Handle { arena_index: 0, generation: 0 }, target_symbol: Handle { arena_index: 1638, generation: 1 }, static_machine_parameter: Handle { arena_index: 0, generation: 0 }, target: "unexecuted", static_requirement_dispatch: None, machine_arguments: [], quotient_operation: None, private_layout_operation: None, layout_query: None, native_code_layout: None, arguments: HandleSpan { start: Handle { arena_index: 383, generation: 1 }, count: 1 }, evidence_arguments: [], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }, retained [(AuthoredDeclarationSelectionOccurrenceId(1210), Some((Call, SourceSpan { source_id: SourceId(24), span: Span { start: 407, end: 417 } }, Resolved(ResolvedAuthoredDeclarationSelection { selected_symbol: Handle { arena_index: 1638, generation: 1 } }))))]
+pass/facts/abstract_signature_call_generic_actual_through_call_result_exit checked 2718ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_const_name_exit checked 2652ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_field_exit checked 2586ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_local_exit checked 2947ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_match_join_exit checked 2898ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit checked 2788ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_state_exit checked 2432ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_parameter_exit checked 2505ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_target_body_exit checked 2852ms check-target:macos_arm64 @3caadfad789f+wt
 pass/facts/abstract_signature_call_through_call_result_exit checked 3978ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_through_const_name_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_through_field_exit checked 3917ms check-target:macos_arm64 @ccdb99ca2214
@@ -2639,6 +3070,18 @@ pass/facts/applied_zero_establishment_through_other_machine_exit checked 3840ms 
 pass/facts/applied_zero_establishment_through_other_state_exit checked 3901ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/applied_zero_establishment_through_parameter_exit checked 4111ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/applied_zero_establishment_through_target_body_exit checked 4169ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/array_element_default_domain/call_result checked 3620ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/const_name checked 3155ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/field checked 5219ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/local checked 4137ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/match_join checked 5175ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/other_machine checked 7264ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/other_state checked 3588ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/parameter checked 7262ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/saved_read checked 5531ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/target_body checked 4046ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/writeback checked 2185ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/zero_owner checked 2855ms check-target:macos_arm64 @89d5d2d7655c
 pass/facts/as_slice_views_generic_offset_selector_exit checked 4244ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_root_exit checked 3662ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_shadowed_extent_exit checked 4306ms check-target:macos_arm64 @ccdb99ca2214
@@ -4063,6 +4506,15 @@ pass/facts/domain_pattern_match_bound_through_other_machine_exit checked 3846ms 
 pass/facts/domain_pattern_match_bound_through_other_state_exit checked 3496ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/domain_pattern_match_bound_through_parameter_exit checked 3480ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/domain_pattern_match_bound_through_target_body_exit checked 4091ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/domain_predicate_call_through_call_result_exit checked 2777ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_const_name_exit checked 2778ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_field_exit checked 2782ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_local_exit checked 2776ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_match_join_exit checked 2476ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_machine_exit checked 2855ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_state_exit checked 2859ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_parameter_exit checked 2936ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_target_body_exit checked 3084ms check-target:macos_arm64 @8515a99cf21b+wt
 pass/facts/domain_selected_cleanup_erased_predicates_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 3346ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
@@ -4512,6 +4964,24 @@ pass/facts/fixed_array_value_through_other_machine_exit checked 3352ms check-tar
 pass/facts/fixed_array_value_through_other_state_exit checked 3741ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_value_through_parameter_exit checked 3566ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_value_through_target_body_exit checked 3352ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/fixed_layout_bit_observation_through_call_result_exit checked 3003ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_const_name_exit checked 3103ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_field_exit checked 2902ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_local_exit checked 2904ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_match_join_exit checked 2943ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_other_machine_exit checked 2956ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_other_state_exit checked 2909ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_parameter_exit checked 2871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_target_body_exit checked 3026ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_call_result_exit checked 2891ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_const_name_exit checked 3053ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_field_exit checked 2977ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_local_exit checked 2949ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_match_join_exit checked 2997ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_other_machine_exit checked 2922ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_other_state_exit checked 2877ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_parameter_exit checked 2940ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_target_body_exit checked 3009ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/float_comparison_route_through_call_result_exit checked 6521ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_const_name_exit checked 7524ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_field_exit checked 5960ms check-target:macos_arm64 @ccdb99ca2214
@@ -4941,6 +5411,15 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit checked 3
 pass/facts/indexed_storage_address_identity_through_other_state_exit checked 3718ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/indexed_storage_address_identity_through_parameter_exit checked 3669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/indexed_storage_address_identity_through_target_body_exit checked 3515ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/induction_call_guarantee_through_call_result_exit checked 2784ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_const_name_exit checked 2712ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_field_exit checked 2980ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_local_exit checked 2888ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_match_join_exit checked 2818ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_machine_exit checked 2723ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_state_exit checked 2621ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_parameter_exit checked 2527ms check-target:macos_arm64 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_target_body_exit checked 2820ms check-target:macos_arm64 @961147032a93+wt
 pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit checked 3856ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit checked 3592ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit checked 3820ms check-target:macos_arm64 @ccdb99ca2214
@@ -6063,6 +6542,15 @@ pass/facts/nested_machine_effectful_completion_other_state_exit checked 3381ms c
 pass/facts/nested_machine_effectful_completion_parameter_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_effectful_completion_renamed_formals_exit checked 4411ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_effectful_completion_target_body_exit checked 3122ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_header_contracts_call_result_exit checked 3283ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_const_name_exit checked 2815ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_field_exit checked 3201ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_local_exit checked 3823ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_match_join_exit checked 3445ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_other_machine_exit checked 3238ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_other_state_exit checked 3792ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_parameter_exit checked 2923ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_target_body_exit checked 4424ms check-target:macos_arm64 @2fc408782574
 pass/facts/nested_machine_inferred_requirement_call_result_exit checked 3565ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_inferred_requirement_const_name_exit checked 3550ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_inferred_requirement_field_exit checked 3609ms check-target:macos_arm64 @ccdb99ca2214
@@ -6114,6 +6602,16 @@ pass/facts/nested_machine_invocation/terminal_reference_snapshot/parameter check
 pass/facts/nested_machine_invocation/terminal_reference_snapshot/target_body checked 4001ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/unit_completion checked 3910ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_arrival_decrease_exit checked 3555ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_exit checked 1840ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit checked 1840ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_field_exit checked 1677ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_local_exit checked 1677ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_exit checked 1521ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_exit checked 1521ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_exit checked 1691ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_exit checked 1691ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_exit checked 1759ms check-target:macos_arm64 @be61262f3842
+pass/facts/nested_machine_joint_rank_authored_indexed_natural_local_exit checked 1756ms check-target:macos_arm64 @be61262f3842
 pass/facts/nested_machine_joint_rank_borrowed_alias_move_exit checked 3183ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_borrowed_descriptor_field_exit checked 3028ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_borrowed_disjoint_write_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214
@@ -6155,7 +6653,69 @@ pass/facts/nested_machine_joint_rank_case_value_other_machine_exit checked 1020m
 pass/facts/nested_machine_joint_rank_case_value_other_state_exit checked 1020ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_case_value_parameter_exit checked 1042ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_case_value_target_body_exit checked 998ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_complement_call_result_exit checked 1716ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_const_name_exit checked 1716ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_direct_contracts_exit checked 1484ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_double_measure_exit checked 1487ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_field_exit checked 1735ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_local_exit checked 1436ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_match_join_exit checked 1406ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_narrowed_call_result_exit checked 1714ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_const_name_exit checked 1714ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_field_exit checked 1504ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_local_exit checked 1804ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_match_join_exit checked 1495ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_other_machine_exit checked 1534ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_other_state_exit checked 1462ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_parameter_exit checked 1470ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_target_body_exit checked 1470ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_other_machine_exit checked 1448ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_other_state_exit checked 1427ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_parameter_exit checked 1408ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_target_body_exit checked 1472ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_computed_affine_view_exit checked 1181ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_call_result_exit checked 1237ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_const_name_exit checked 1181ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_field_exit checked 1125ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_local_exit checked 1176ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_match_join_exit checked 1176ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_other_machine_exit checked 1204ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_other_state_exit checked 1204ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_parameter_exit checked 1270ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_measure_target_body_exit checked 1277ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_rank_range_exit checked 1237ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_scalar_helper_exit checked 1152ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_call_result_exit checked 1143ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_const_name_exit checked 1065ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_field_exit checked 1096ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_local_exit checked 1111ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_match_join_exit checked 1137ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_other_machine_exit checked 1045ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_other_state_exit checked 1047ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_parameter_exit checked 1158ms check-target:macos_arm64 @4518281b90b2+wt
+pass/facts/nested_machine_joint_rank_computed_square_target_body_exit checked 1202ms check-target:macos_arm64 @4518281b90b2+wt
 pass/facts/nested_machine_joint_rank_const_name_exit checked 2950ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_copied_payload_call_result_exit checked 1132ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_const_name_exit checked 1061ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_field_exit checked 1177ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_local_exit checked 1107ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_match_join_exit checked 1141ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_other_machine_exit checked 1069ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_other_state_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_parameter_exit checked 1050ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_target_body_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_declared_identity_view_exit checked 1208ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_call_result_exit checked 1228ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_const_name_exit checked 1060ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_field_exit checked 1041ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_local_exit checked 1081ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_match_join_exit checked 1013ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_other_machine_exit checked 1067ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_other_state_exit checked 998ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_parameter_exit checked 1076ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_target_body_exit checked 1013ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_rank_range_exit checked 1069ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_scalar_helper_exit checked 1006ms check-target:macos_arm64 @b22c0a34ea0d
 pass/facts/nested_machine_joint_rank_descriptor_field_call_result_exit checked 4229ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_descriptor_field_const_name_exit checked 3897ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_descriptor_field_element_write_exit checked 4257ms check-target:macos_arm64 @ccdb99ca2214
@@ -6181,6 +6741,15 @@ pass/facts/nested_machine_joint_rank_field_exit checked 3282ms check-target:maco
 pass/facts/nested_machine_joint_rank_increasing_to_overshoot_exit checked 949ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_indexed_copied_selector_exit checked 1657ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_equivalent_selector_exit checked 1639ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_payload_call_result_exit checked 1124ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_const_name_exit checked 1069ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_field_exit checked 1094ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_local_exit checked 1037ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_match_join_exit checked 1146ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_other_machine_exit checked 1070ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_other_state_exit checked 1125ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_parameter_exit checked 1051ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_target_body_exit checked 1060ms check-target:macos_arm64 @00e93f641615+wt
 pass/facts/nested_machine_joint_rank_indexed_selector_actual_result_exit checked 1112ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_value_call_result_exit checked 1145ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_value_const_name_exit checked 1105ms check-target:macos_arm64 @ed258e523481
@@ -6251,6 +6820,16 @@ pass/facts/nested_machine_joint_rank_reference_payload_other_machine checked 128
 pass/facts/nested_machine_joint_rank_reference_payload_other_state checked 1083ms check-target:macos_arm64 @e6e03afc61d6
 pass/facts/nested_machine_joint_rank_reference_payload_parameter checked 1070ms check-target:macos_arm64 @e6e03afc61d6
 pass/facts/nested_machine_joint_rank_reference_payload_target_body checked 1054ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_remainder_call_result_exit checked 1934ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_const_name_exit checked 1669ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_field_exit checked 1397ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_local_exit checked 1470ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_match_join_exit checked 1470ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_other_machine_exit checked 1459ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_other_state_exit checked 1450ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_parameter_exit checked 1469ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_signed_fixed_quotient_exit checked 1439ms check-target:macos_arm64 @30a668a64c1c+wt
+pass/facts/nested_machine_joint_rank_remainder_target_body_exit checked 1464ms check-target:macos_arm64 @30a668a64c1c+wt
 pass/facts/nested_machine_joint_rank_stored_case_call_result_exit checked 1234ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_joint_rank_stored_case_const_name_exit checked 1234ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_joint_rank_stored_case_field_exit checked 1105ms check-target:macos_arm64 @05d0ed3ff2df
@@ -6799,24 +7378,15 @@ pass/facts/nominal_declaration_owner_through_other_machine checked 4172ms check-
 pass/facts/nominal_declaration_owner_through_other_state checked 3495ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_declaration_owner_through_parameter checked 4220ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_declaration_owner_through_target_body checked 3880ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nominal_loan_backing_cleanup_through_call_result_exit rejected 4644ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_const_name_exit rejected 4391ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_field_exit rejected 3941ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_local_exit rejected 3461ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_match_join_exit rejected 3954ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit rejected 3632ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_other_state_exit rejected 8925ms check-target:macos_arm64 terminal-inspections:match regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_parameter_exit rejected 3454ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_target_body_exit rejected 3859ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 1321ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 1307ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 1340ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 1395ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_match_join_exit checked 1316ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 1381ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 2592ms check-target:macos_arm64 terminal-inspections:match @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_parameter_exit checked 1306ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_target_body_exit checked 1318ms check-target:macos_arm64 @e5a7f19e3929
 pass/facts/nominal_reference_cleanup_through_call_result_exit checked 3517ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_reference_cleanup_through_const_name_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_reference_cleanup_through_field_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
@@ -7065,6 +7635,15 @@ pass/facts/projection_call_premise_through_other_state_exit rejected 2797ms chec
 	cannot prove requires contract for call project from check: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/projection_call_premise_through_parameter_exit checked 3762ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/projection_call_premise_through_target_body_exit checked 4114ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/projection_receiver_call_through_call_result_exit checked 2662ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_const_name_exit checked 2593ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_field_exit checked 2922ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_local_exit checked 2600ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_match_join_exit checked 2762ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_machine_exit checked 2752ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_state_exit checked 2238ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_parameter_exit checked 2424ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_target_body_exit checked 2800ms check-target:macos_arm64 @73c70115c79e+wt
 pass/facts/provider_contract_endpoint_control_composed_endpoint checked 4993ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 4345ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 3972ms check-target:macos_arm64 @ccdb99ca2214
@@ -7222,9 +7801,9 @@ pass/facts/recoverable_replacement_window_through_target_body_exit rejected 3960
 	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::windows_x86_64` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
 	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::windows_x86_64` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit checked 3690ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 4803ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 4602ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 4517ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 1639ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 1652ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 1686ms check-target:macos_arm64 @e5a7f19e3929
 pass/facts/reference_arrival_handoff_through_call_result_exit checked 3531ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_through_const_name_exit checked 4195ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_through_field_exit checked 4159ms check-target:macos_arm64 @ccdb99ca2214
@@ -8530,18 +9109,21 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/call_result checked 3824ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/const_name checked 4645ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/distinct_capture checked 3493ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/field checked 3578ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/local checked 3817ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/match_join checked 4957ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/other_machine checked 3337ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/other_state checked 3565ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/parameter checked 4259ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/sibling_helper checked 3661ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/target_body checked 3690ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_callback_guarantee/target_values checked 3710ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_family_callback_guarantee/bare_interleaved checked 2806ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/call_result checked 3041ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/const_name checked 3887ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/distinct_capture checked 2659ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/evaluation_once checked 2591ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/field checked 3519ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/local checked 2997ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/match_join checked 3519ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/other_machine checked 2597ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/other_state checked 3357ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/parameter checked 4446ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/repeated_application checked 3268ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/sibling_helper checked 4062ms check-target:macos_arm64 @45fb2a705c96
+pass/facts/target_family_callback_guarantee/target_body checked 4071ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
+pass/facts/target_family_callback_guarantee/target_values checked 4627ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
 pass/facts/target_family_contract_operand/call_result checked 3674ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_family_contract_operand/const_name checked 4293ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_family_contract_operand/field checked 3412ms check-target:macos_arm64 @ccdb99ca2214
@@ -10865,6 +11447,13 @@ pass/layouts/extent_view_external_write rejected 2012ms terminal-inspections:fai
 	provider choice must supply the declaration's complete static application
 	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_write/build.omg", line: 3, column: 12 }) }]
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
+pass/layouts/fixed_layout_closed_requirement_policy_exit checked 2539ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_computed_const_policy_exit checked 2288ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_finite_dynamic_policy_exit checked 2087ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_overridden_valid_policy_exit checked 1871ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_semantic_only_policy_exit checked 2134ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 2277ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_unmentioned_valid_policy_exit checked 1937ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/float_member_layout_queries_compile checked 6914ms @ccdb99ca2214
 pass/layouts/generic_constant_layout_contract_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/guarded_policy_state_premise checked 6243ms @ccdb99ca2214
@@ -10906,8 +11495,9 @@ pass/layouts/placed_view_call_custody checked 8787ms terminal-inspections:match 
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/private_callback_slot_demand_compile checked 3632ms @ccdb99ca2214
-pass/layouts/private_callback_slot_untaken_compile checked 3280ms @ccdb99ca2214
+pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
+pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt
+pass/layouts/private_callback_slot_untaken_compile checked 1058ms @2ba727eefb59+wt
 pass/layouts/reference_layout_carrier_exit checked 4468ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/resident_aggregate_extraction rejected 1883ms terminal-inspections:failed regressed-from:checked @ccdb99ca2214
 	provider choice must supply the declaration's complete static application
@@ -10985,7 +11575,6 @@ pass/layouts/runtime_target_layout_forwarded_integer_exit checked 3265ms check-t
 pass/layouts/runtime_target_layout_queries_exit rejected 3897ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
 pass/layouts/runtime_transition_scalar_reference_codec_exit checked 3084ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/schema_identity_payload_within_predicate checked 2566ms @ccdb99ca2214
 pass/layouts/single_bool_array_layout_compile checked 2950ms @ccdb99ca2214
 pass/layouts/single_byte_member_layout_compile checked 2755ms @ccdb99ca2214
 pass/layouts/single_float_member_layout_compile checked 7395ms @ccdb99ca2214
@@ -11671,6 +12260,7 @@ pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-tar
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_binding_field_telescopes_exit rejected 731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	compiler-derived copies of one authored Call selection resolved inconsistently: `Main::main::done::entry` versus `Main<u64>::main::done::entry`
+pass/providers/applied_calling_surface_exit checked 8862ms check-target:macos_arm64 @d9073fc2214b
 pass/providers/applied_entry_nested_binding_context_exit checked 3583ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_header_dependent_const_carrier_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	const parameter `Count` of `Parent` requires an integer literal argument
@@ -11877,9 +12467,9 @@ pass/providers/service_fused_root checked 3420ms @ccdb99ca2214
 pass/providers/service_fused_root_establishment checked 3382ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/specialized_boundary_operator_physical_custody checked 13691ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/specialized_fixed_operator_physical_custody checked 11955ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked 4251ms @ccdb99ca2214
+pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked 11721ms check-target:macos_arm64 @71ac5d75fdc1
 pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 3945ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/specialized_structural_fixed_operator_hosted_native checked 3590ms @ccdb99ca2214
+pass/providers/specialized_structural_fixed_operator_hosted_native checked 11470ms check-target:macos_arm64 @71ac5d75fdc1
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 3570ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/staggered_installation_reach_exit checked 3868ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_membership_boundary_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
@@ -11893,7 +12483,7 @@ pass/providers/unused_named_provider_candidates checked 3791ms check-target:maco
 pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.i` is within length 2 in add::entry
 pass/range/runtime_funnel_guard_agreement_exit checked 11294ms check-target:macos_arm64 @ccdb99ca2214
-pass/range/runtime_guarded_runtime_index_increment_exit checked 12636ms check-target:macos_arm64 @ccdb99ca2214
+pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
 pass/ranges/loop_saved_guard_disjoint_write_exit rejected 2618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.index` is within length 3 in body::entry
 pass/ranges/runtime_array_element_full_width_receiving_exit checked 4151ms check-target:macos_arm64 @ccdb99ca2214
@@ -11948,6 +12538,7 @@ pass/recast/mutable_signed_bits_write_compile checked 2221ms @ccdb99ca2214
 pass/recast/mutable_u16_signed_write_compile checked 2833ms @ccdb99ca2214
 pass/recast/mutable_unsigned_signed_write_compile checked 2515ms @ccdb99ca2214
 pass/recast/narrow_signed_bits_view_compile checked 2356ms @ccdb99ca2214
+pass/recast/native_bounded_array_window_exit checked 1315ms check-target:macos_arm64 @bb8f3fedf0ae
 pass/recast/nested_operand_view_compile checked 2761ms @ccdb99ca2214
 pass/recast/non_owning_erasure_additional_record_predicate_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/non_owning_erasure_authored_reestablishment_exit checked 3470ms check-target:macos_arm64 @ccdb99ca2214
@@ -12810,16 +13401,20 @@ pass/traits/runtime_dyn_mutable_byte_result checked 3783ms check-target:macos_ar
 pass/traits/runtime_dyn_nested_result_exit checked 2658ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_post_write_alternatives_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_qualified_byte_result checked 3393ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_ranked_dispatch_cycle_exit checked 2941ms check-target:macos_arm64 @3caadfad789f+wt
+pass/traits/runtime_dyn_ranked_self_dispatch_exit checked 2702ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit checked 11240ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_requirement_contract_exit checked 13627ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_and_literal_addresses_exit checked 12212ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit checked 11285ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 4282ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_stored_byte_input incomplete 3835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `Main::main::main`, statement 3
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
@@ -13430,7 +14025,7 @@ fail/asm/checked_asm_compare_x86_uninitialized_register rejected 729ms expected 
 	assembly label `asm#entry` reads uninitialized scratch register/flag value
 fail/asm/checked_asm_nested_implicit_runtime_capture rejected 1271ms expected @ccdb99ca2214
 	machine `received` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/asm/checked_asm_nested_unproved_arrival rejected 1116ms unexpected @ccdb99ca2214
+fail/asm/checked_asm_nested_unproved_arrival rejected 412ms expected @7b9a72614daf
 	machine `left` state `entry` value call to `received` violates required fact `value == 37`: the instantiated fact is structurally false (`36 == 37`)
 fail/asm/checked_asm_nominal_overwritten_exit rejected 2689ms expected @ccdb99ca2214
 	cannot prove asm `ensures` fact at block exit in move_selected state `entry` (statement 7): output == selected.length && output == 7
@@ -14627,8 +15222,9 @@ fail/borrows/reference_record_index_predicate_invalid_store rejected 841ms expec
 fail/borrows/reference_record_mutable_shared_overlap rejected 13129ms expected @ccdb99ca2214
 	statement 4 borrows `main.first.value` while local borrow `view` is still active (borrowed at statement 4; its last use is at statement 5)
 	`view` holds `main.first` as both mutable and read-only
-fail/borrows/reference_result_case_payload_missing_premise rejected 307ms unexpected @ccdb99ca2214
-	source adapter failed for product dependency row 0 of package `predicate_reference_result_case_payload`: cannot establish canonical external source path `/Users/zcanann/Documents/Projects/Omega/source/library/std`: No such file or directory (os error 2)
+fail/borrows/reference_result_case_payload_missing_premise rejected 5767ms expected @00e93f641615+wt
+	cannot prove requires contract for call relay from main: choice == constructor:80:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Choice9:name:Some && choice.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/region_store_live_sibling_reference checked 2393ms @ccdb99ca2214
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -14722,12 +15318,12 @@ fail/borrows/scalar_operand_consumes_reference_carrier_once rejected 1635ms unex
 	cannot use `held`: this selected region was transferred or has not been established in machine `main` state `entry`
 fail/borrows/selected_primitive_reference_live_backing_write rejected 2169ms expected @ccdb99ca2214
 	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 6252ms expected @ccdb99ca2214
+fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 1210ms expected @e5a7f19e3929
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
-fail/borrows/selected_projected_state_keeps_residual_loan rejected 3717ms expected @ccdb99ca2214
+fail/borrows/selected_projected_state_keeps_residual_loan rejected 1197ms expected @e5a7f19e3929
 	statement 6 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
 	statement 6 reads `output.value` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
@@ -15216,9 +15812,9 @@ fail/build/retired_service_exclusion_receiver rejected 2ms expected @ccdb99ca221
 	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
 fail/build/retired_wire_compatibility_receiver rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
-fail/build/root_binding_descriptor_helper_invocation rejected 262ms expected @ccdb99ca2214
-	machine `choose` omits `invokes Probe;` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
-	machine `choose` omits `invokes BuildProductOperations;` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+fail/build/root_binding_descriptor_helper_invocation rejected 161ms expected @2fc408782574
+	machine `choose` omits `invokes Probe` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+	machine `choose` omits `invokes BuildProductOperations` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 fail/build/root_binding_fabricated_receiver rejected 68ms expected @ccdb99ca2214
 	the compiler-owned Build activation cannot be copied into local `other`
 	source cannot construct the compiler-owned Build activation
@@ -15651,8 +16247,8 @@ fail/calls/value_call_wrong_argument_count_rejected rejected 13761ms expected @c
 	state `pick` expects 2 argument(s), got 1
 fail/calls/void_value_callee_rejected rejected 17128ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: `act(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
-fail/capabilities/blocking_beneath_no_block_root rejected 2014ms expected @ccdb99ca2214
-	machine `Main::main` omits `blocks;` from its published contract, but its body may block
+fail/capabilities/blocking_beneath_no_block_root rejected 1727ms expected @2fc408782574
+	machine `Main::main` omits `blocks` from its published contract, but its body may block
 fail/capabilities/boundary_qualification_subject_rejected rejected 651ms expected @ccdb99ca2214
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
 fail/capabilities/callback_synchronous_registration_cycle rejected 17888ms unexpected @ccdb99ca2214
@@ -15669,8 +16265,8 @@ fail/capabilities/native_slice_external_leaf_rejected rejected 644ms expected @c
 	external leaf `send` cannot use safe slice `&[u8]` as a default-native parameter for `NativeSlice::send`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation
 fail/capabilities/provider_widens_requirement_ceiling rejected 9913ms expected @ccdb99ca2214
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
-fail/capabilities/undeclared_synchronous_invocation rejected 1789ms expected @ccdb99ca2214
-	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
+fail/capabilities/undeclared_synchronous_invocation rejected 1502ms expected @2fc408782574
+	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler` (requirement invokes: [])
 fail/capabilities/via_producer_without_target_body rejected 16700ms expected @ccdb99ca2214
 	ordinary external `via` producer `beeper_binding` has no body for target `windows_x86_64`
 fail/cases/borrowed_case_write_only_tag_read rejected 710ms expected @ccdb99ca2214
@@ -16224,22 +16820,6 @@ fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 1925ms un
 	cannot prove requires contract for call pop from second: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/static_type_requires_later_fact_rejected rejected 1226ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `partial` in machine `admitted` requires contract: establish its selected precondition in an independently formed prior requires fact
-fail/contracts/strict_clause_blocks_before_body rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_blocks_before_body/main.omg:1:24: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_invokes_before_body rejected 2ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_invokes_before_body/main.omg:1:33: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_ranked_terminates_before_body rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_ranked_terminates_before_body/main.omg:3:1: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_signature_terminates_before_requires rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_signature_terminates_before_requires/main.omg:4:5: expected `;`, found identifier `requires`
-fail/contracts/strict_clause_stack_before_body rejected 2ms unexpected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_stack_before_body/main.omg:1:17: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
-fail/contracts/strict_clause_suspends_before_body rejected 2ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_suspends_before_body/main.omg:1:26: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_terminates_before_body rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_terminates_before_body/main.omg:3:1: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_terminates_before_requires rejected 2ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_terminates_before_requires/main.omg:3:1: expected `;`, found identifier `requires`
 fail/contracts/target_family_recursive_guarantee rejected 2771ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
 	cannot prove ensures contract for exit from selected at statement 0: result == 7
@@ -17472,6 +18052,8 @@ fail/domains/refinement_chain_routed_provenance_forge rejected 1599ms expected @
 fail/domains/result_domain_overload_duplicate_predicate rejected 815ms expected @ccdb99ca2214
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` cannot prove ensures contract proof fact `result >= 0 && result <= 100` on the transition arm guarded by `<always>`
+fail/domains/retired_case_predicate rejected 4ms expected @3caadfad789f+wt
+	tests/omega/fail/domains/retired_case_predicate/main.omg:2:34: case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`
 fail/domains/retired_empty_body rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/domains/retired_empty_body/main.omg:1:20: empty domain bodies are retired; end the declaration with `;`
 fail/domains/retired_empty_predicate_body rejected 4ms expected @ccdb99ca2214
@@ -17788,9 +18370,9 @@ fail/drops/selected_partial_replacement_old_cleanup_prerequisite rejected 1864ms
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing pair.first.ready == true required by Token::drop clause `token.ready`
 fail/drops/selected_partial_requires_disposition rejected 1568ms expected @ccdb99ca2214
 	cannot automatically dispose retained selected owner region: every live linear obligation requires an eligible disposition
-fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 3824ms expected @ccdb99ca2214
+fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 1201ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/drops/selected_projected_state_cleanup_prerequisite rejected 3763ms expected @ccdb99ca2214
+fail/drops/selected_projected_state_cleanup_prerequisite rejected 1326ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from finish state entry after statement 0: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/drops/selected_replacement_old_cleanup_prerequisite rejected 2095ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
@@ -27721,28 +28303,25 @@ fail/facts/nominal_declaration_owner_through_target_body rejected 1332ms expecte
 	argument `token` for state `read::entry` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 	argument `token` for state `read::entry` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 	argument `token` for state `read::entry` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 3335ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 967ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 2898ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 959ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 3541ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 951ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: holder.room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 3781ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 976ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 2863ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 934ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 3618ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 1051ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 3662ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 932ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from prepare state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 3314ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 946ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 0: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 2989ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 3938ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 944ms expected @e5a7f19e3929
+	cannot prove automatic cleanup requires at selected edge from CheckedScope::scope state scope after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 928ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_reference_cleanup_through_call_result_prerequisite rejected 3471ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: Keeper does not establish Keeper::drop clause `keeper.code == 7`
@@ -28513,18 +29092,18 @@ fail/facts/recoverable_replacement_window_through_target_body_rejected rejected 
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 4617ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 1213ms expected @e5a7f19e3929
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 3454ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 1355ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 4503ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1195ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 3: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 2893ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 4308ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 1203ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_through_call_result_rejected rejected 3289ms expected @ccdb99ca2214
 	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
@@ -31369,56 +31948,36 @@ fail/facts/structural_issuer_forwarding_target_body rejected 2936ms expected @cc
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 2746ms expected @ccdb99ca2214
 	cannot prove requires contract for call extended from transfer: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/target_family_callback_guarantee/call_result rejected 1240ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/const_name rejected 1183ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/disjunctive_guarantee rejected 1091ms expected @ccdb99ca2214
+fail/facts/target_family_callback_guarantee/call_result rejected 1028ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/const_name rejected 1434ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Action`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/distinct_capture rejected 1075ms expected @ccdb99ca2214
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/disjunctive_guarantee rejected 1436ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/distinct_capture rejected 1262ms expected @45fb2a705c96
 	machine argument `identity` for `contract::apply` does not refine `Selected`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/field rejected 1005ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/local rejected 1222ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/match_join rejected 1310ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/other_machine rejected 1098ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/other_state rejected 1195ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/parameter rejected 1163ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/sibling_helper rejected 1252ms expected @ccdb99ca2214
+fail/facts/target_family_callback_guarantee/field rejected 1091ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/local rejected 1186ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/match_join rejected 1159ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/other_machine rejected 1118ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/other_state rejected 1131ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/parameter rejected 1114ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/sibling_helper rejected 715ms expected @45fb2a705c96
 	argument `value` for state `entry` expects `u64`, got `bool`
 	argument `value` for state `entry` expects `u64`, got `bool`
-fail/facts/target_family_callback_guarantee/stronger_precondition rejected 1349ms expected @ccdb99ca2214
+fail/facts/target_family_callback_guarantee/stronger_precondition rejected 738ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Callback`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Action`: its requires facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its requires facts are not a conservative refinement
-fail/facts/target_family_callback_guarantee/target_body rejected 1407ms expected @ccdb99ca2214
-	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
-	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/target_body rejected 709ms expected @45fb2a705c96
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_contract_operand/call_result rejected 1591ms expected @ccdb99ca2214
 	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
 	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
@@ -34113,6 +34672,42 @@ fail/facts/zero_byte_erased_carrier_unproved_target_body rejected 3208ms expecte
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/fixed_layout_bit_observation_through_call_result_rejected rejected 663ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_const_name_rejected rejected 147ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_field_rejected rejected 670ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_local_rejected rejected 666ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_match_join_rejected rejected 674ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_other_machine_rejected rejected 674ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_other_state_rejected rejected 670ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_parameter_rejected rejected 659ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_target_body_rejected rejected 683ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_storage_through_call_result_rejected rejected 664ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_const_name_rejected rejected 141ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_field_rejected rejected 662ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_local_rejected rejected 669ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_match_join_rejected rejected 694ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_machine_rejected rejected 700ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_state_rejected rejected 660ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_parameter_rejected rejected 669ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_target_body_rejected rejected 684ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/filesystem/windows_directory_nth_requires_metadata rejected 26559ms expected @ccdb99ca2214
 	machine `Main::main` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/filesystem/windows_read_link_requires_metadata rejected 22326ms expected @ccdb99ca2214
@@ -35170,8 +35765,8 @@ fail/generics/selected_open_capture_wrong_extent rejected 859ms expected @ccdb99
 	argument `value` for state `forward` expects `[u64; 2]`, got `named value`
 fail/generics/selected_open_capture_wrong_nominal rejected 763ms expected @ccdb99ca2214
 	argument `value` for state `Selected::forward::forward` expects the `First` data type but got `Second` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/generics/selected_operator_preserves_blocking_ceiling rejected 1591ms expected @ccdb99ca2214
-	machine `choose` omits `blocks;` from its published contract, but its body may block
+fail/generics/selected_operator_preserves_blocking_ceiling rejected 1957ms expected @2fc408782574
+	machine `choose` omits `blocks` from its published contract, but its body may block
 fail/generics/selected_value_bool_public_contract_mismatch rejected 3086ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_true from main: second == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 932ms unexpected @ccdb99ca2214
@@ -35186,8 +35781,8 @@ fail/generics/static_machine_borrowed_parameter_mismatch_after_substitution reje
 	machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `choose` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
-fail/generics/static_requirement_record_blocking_ceiling rejected 3026ms expected @ccdb99ca2214
-	machine `wrap` omits `blocks;` from its published contract, but its body may block
+fail/generics/static_requirement_record_blocking_ceiling rejected 3768ms expected @2fc408782574
+	machine `wrap` omits `blocks` from its published contract, but its body may block
 fail/generics/static_requirement_record_public_requires rejected 4195ms expected @ccdb99ca2214
 	cannot prove requires contract for call calculate from wrap: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call calculate from wrap$specialized$7aca5590afe02521$0: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -35494,15 +36089,13 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 7440ms expected @ccd
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/portable_layout_constant_composition rejected 3854ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() + align_of() == 24
-fail/layouts/private_callback_slot_standalone_source_rejected checked 2985ms @ccdb99ca2214
-fail/layouts/private_callback_slot_wrong_layout rejected 434ms expected @ccdb99ca2214
-	plan-laid value type `Spread<ForeignRecord>`: error: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
+fail/layouts/private_callback_slot_wrong_layout rejected 237ms expected @2ba727eefb59+wt
+	policy `Spread::plan` selected private slot `WrongLayoutSlot` for a different exact fixed-layout implementation application
 fail/layouts/public_layout_keeps_private_schema rejected 168ms expected @ccdb99ca2214
 	plan-laid value type `LayoutPolicy<HiddenSchema>`: error: demanded premise closure checking failed: public interface selects private data `LayoutPolicy<HiddenSchema>`
 fail/layouts/public_schema_keeps_private_layout rejected 181ms expected @ccdb99ca2214
 	plan-laid value type `HiddenPolicy<RecordSchema>`: error: demanded premise closure checking failed: public interface selects private data `HiddenPolicy<RecordSchema>`
 fail/layouts/qualified_record_layout_requires_alignment checked 3781ms @ccdb99ca2214
-fail/layouts/qualified_record_reference_is_not_inline checked 3762ms @ccdb99ca2214
 fail/layouts/recast_integer_at_store_requires_fit rejected 1481ms expected @ccdb99ca2214
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 1861ms expected @ccdb99ca2214
@@ -35538,8 +36131,6 @@ fail/layouts/runtime_restricted_shared_unbounded rejected 2149ms expected @ccdb9
 	cannot prove index `position` is within length 4 in inspect::entry
 fail/layouts/runtime_value_is_not_layout_constant rejected 3002ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call required from forward state entry statement 0
-fail/layouts/schema_identity_payload_predicate rejected 264ms expected @ccdb99ca2214
-	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/layouts/schema_key_read_after_move rejected 8860ms expected @ccdb99ca2214
 	cannot use `schema.fields[0].key` in machine `main` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 fail/layouts/size_of_uninstantiated_plan_laid rejected 15075ms unexpected @ccdb99ca2214
@@ -35552,8 +36143,8 @@ fail/layouts/target_layout_invalid_unselected_member rejected 1111ms expected @c
 	plan-laid value type `Policy<Payload>` target `linux_x86_64` member `Policy::plan::linux_x86_64`: error: policy `Policy::plan` produced an invalid plan: field `value` ends at bit 64, past the fixed size 32 bits
 fail/layouts/target_layout_recast_checks_all_extents rejected 1809ms expected @ccdb99ca2214
 	machine `program` state `entry`: the recast target needs 8 bytes at offset 0, but the region holds 4 -- the view would read past the buffer
-fail/layouts/unselected_target_callback_layout_underflow rejected 3423ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
+fail/layouts/unselected_target_callback_layout_underflow rejected 1307ms expected @2ba727eefb59+wt
+	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
 fail/layouts/unselected_target_helper_layout_underflow rejected 3490ms unexpected @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
 fail/layouts/unselected_target_layout_contract rejected 4334ms unexpected @ccdb99ca2214
@@ -36196,8 +36787,8 @@ fail/packages/std_missing_dependency_rejected rejected 300ms expected @ccdb99ca2
 	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (145ac3c645f4d6d28016570d3481be506c9727f8ff632d12f4346c545db6c00e) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 579ms expected @ccdb99ca2214
 	package-aware import `omega::language::std::console` in tests/omega/fail/packages/std_mount_path_rejected/main.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
-fail/parse/machine_clause_garbage_rejected rejected 8ms expected @ccdb99ca2214
-	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
+fail/parse/machine_clause_garbage_rejected rejected 7ms expected @2fc408782574
+	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 5ms expected @ccdb99ca2214
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
 fail/ports/asm_port_in_unsettled checked 3772ms @ccdb99ca2214
@@ -37185,9 +37776,9 @@ fail/range/funnel_guard_one_edge_unguarded rejected 13167ms expected @ccdb99ca22
 	cannot prove requires contract for call push from other: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/range/guarded_copy_stale_after_write rejected 10865ms expected @ccdb99ca2214
 	cannot prove requires contract for call store from stale: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/range/guarded_runtime_index_collection_write rejected 12262ms expected @ccdb99ca2214
-	cannot prove requires contract for call bump from interpose: u < 16 (needs fact `v < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/range/indexed_field_range_runtime_write_rejected rejected 12886ms expected @ccdb99ca2214
+fail/range/guarded_runtime_index_collection_write rejected 959ms expected @89d5d2d7655c
+	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/range/indexed_field_range_runtime_write_rejected rejected 6767ms expected @89d5d2d7655c
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/indexed_field_window_different_positions rejected 820ms expected @ccdb99ca2214
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -37316,6 +37907,8 @@ fail/recast/interior_slice_runtime_offset_non_tiling rejected 639ms expected @cc
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
 fail/recast/local_stored_byte_region_escape rejected 2671ms expected @ccdb99ca2214
 	machine `escape` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/recast/native_bounded_array_window_short rejected 969ms expected @bb8f3fedf0ae
+	cannot prove requires contract for call fill from main: bytes[8..151].len >= 144 (needs fact `output.len >= 144` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/non_owning_erasure_false_reestablishment rejected 2873ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from overwrite at statement 2: storage in Storage::Issued
 fail/recast/non_owning_erasure_joined_shared_store rejected 730ms expected @ccdb99ca2214
@@ -37808,8 +38401,8 @@ fail/targets/family_callback_first_member_guarantee_only_rejected rejected 609ms
 	machine argument `yes` for `choose` does not refine `Callback`: its ensures facts are not a conservative refinement
 fail/targets/family_callback_first_member_only_rejected rejected 748ms expected @ccdb99ca2214
 	machine argument `narrow` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
-fail/targets/family_callback_member_effect_ceiling_rejected rejected 1846ms expected @ccdb99ca2214
-	machine argument `may_block` for `choose` does not refine `Callback`: it may block, but the requirement omits `blocks;`
+fail/targets/family_callback_member_effect_ceiling_rejected rejected 1636ms expected @2fc408782574
+	machine argument `may_block` for `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`
 fail/targets/family_deep_nominal_callback_variance_rejected rejected 721ms expected @ccdb99ca2214
 	nested machine parameter `Inner` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
 	nested machine parameter `Inner` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
@@ -37817,8 +38410,8 @@ fail/targets/family_deep_nominal_callback_variance_rejected rejected 721ms expec
 fail/targets/family_forwarded_callback_first_member_only_rejected rejected 654ms expected @ccdb99ca2214
 	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 	machine argument `narrow` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
-fail/targets/family_forwarded_callback_member_effect_ceiling_rejected rejected 1051ms expected @ccdb99ca2214
-	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks;`
+fail/targets/family_forwarded_callback_member_effect_ceiling_rejected rejected 461ms expected @2fc408782574
+	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`
 fail/targets/family_forwarded_nominal_callback_application_rejected rejected 815ms expected @ccdb99ca2214
 	machine parameter `Action` forwarded into `choose` does not carry the exact nominal requirement of `Callback`; matching callable structure establishes no satisfaction row
 fail/targets/family_nested_nominal_callback_authority_rejected rejected 733ms expected @ccdb99ca2214
@@ -37880,8 +38473,8 @@ fail/targets/unrealized_family_signature_rejected rejected 932ms expected @ccdb9
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature; incompatible ordinary parameter relevance/calling shape or result", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 2417ms expected @ccdb99ca2214
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
-fail/tasks/task_runtime_provider_contract_narrowing rejected 1282ms expected @ccdb99ca2214
-	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
+fail/tasks/task_runtime_provider_contract_narrowing rejected 1574ms expected @2fc408782574
+	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks`
 fail/tasks/task_runtime_selected_provider_missing rejected 3059ms expected @ccdb99ca2214
 	TaskRuntime boundary slot has no retained selected provider plan
 fail/terminal_psi/inspection_scalar_library rejected 4064ms expected @ccdb99ca2214
@@ -37906,22 +38499,22 @@ fail/termination/bounded_distance_suffix_nonhost_reentry checked 3999ms @ccdb99c
 fail/termination/computed_distance_moving_bound rejected 2317ms expected @ccdb99ca2214
 	cannot prove the `terminates by` ranking for machine walk
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/computed_measure_non_monotone_body rejected 2232ms expected @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine walk
+fail/termination/computed_measure_non_monotone_body rejected 845ms expected @30a668a64c1c+wt
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `walk` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_measure_rank_range_overflow rejected 2144ms expected @ccdb99ca2214
 	terminating machine walk: cannot prove rank range `0..=400` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/computed_rank_guard_write rejected 2976ms expected @ccdb99ca2214
+fail/termination/computed_rank_guard_write rejected 1574ms expected @be61262f3842
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_rank_no_decrease rejected 3000ms expected @ccdb99ca2214
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/computed_rank_operand_write rejected 2902ms expected @ccdb99ca2214
+fail/termination/computed_rank_operand_write rejected 1288ms expected @be61262f3842
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	machine `retain_counted$specialized$a095a17ef6fb648a$0` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- call operands invalidate the exact entry-relative ranking frame; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_rank_static_arity rejected 1470ms expected @ccdb99ca2214
 	machine `retain_counted` has no const parameter for extra argument `Count`
 fail/termination/computed_result_rank_alternative_results rejected 2010ms expected @ccdb99ca2214
@@ -38981,8 +39574,7 @@ run/slices/computed_record_window rejected 2451ms check-target:macos_arm64 regre
 	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 run/slices/disjoint_local_state_windows checked 9954ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/edge_window_owned_backing checked 3548ms check-target:macos_arm64 @ccdb99ca2214
-run/slices/folded_window_endpoint_effects rejected 2850ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6544, generation: 1 }), established: StructuralArgument { place: PlaceId(44), path: [], access: Owned }, established_type: StructuralTypeId(10), requested: StructuralArgument { place: PlaceId(49), path: [], access: Owned }, requested_type: StructuralTypeId(10), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+run/slices/folded_window_endpoint_effects checked 1208ms check-target:macos_arm64 @e5a7f19e3929
 run/slices/matched_computed_window_end checked 3476ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/matched_record_window_lower_bound checked 2924ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/mutable_window_call_argument checked 2693ms check-target:macos_arm64 @ccdb99ca2214

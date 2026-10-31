@@ -1,0 +1,29 @@
+// Expected exit: 0
+public data Tallies [copy]
+requires self.values[0] >= 0 && self.values[0] <= 16,
+    self.values[1] >= 0 && self.values[1] <= 16,
+    self.values[2] >= 0 && self.values[2] <= 16,
+    self.values[3] >= 0 && self.values[3] <= 16
+{ values: [i32; 4]; }
+
+public machine observe(tallies: &mut Tallies, index: u64) -> i32
+requires index < 4
+requires tallies.values[index] < 16
+ensures result >= 0 && result < 16
+{
+    let saved: i32 = tallies.values[index];
+    tallies.values[index] = 16;
+    tallies.values[index]
+}
+
+machine main() crashes Trap {
+    let mut tallies: Tallies = Tallies { values: [0, 15, 15, 8] };
+    let saved: i32 = observe(&mut tallies, 2);
+    transition saved == 15 && tallies.values[0] == 0 && tallies.values[1] == 15
+        && tallies.values[2] == 16 && tallies.values[3] == 8 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() crashes Trap { crash Trap; }
+}

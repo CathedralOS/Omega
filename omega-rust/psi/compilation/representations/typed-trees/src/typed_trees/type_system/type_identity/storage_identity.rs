@@ -38,11 +38,7 @@ fn independent_type(
     parameter: SymbolHandle,
     depth: usize,
 ) -> bool {
-    if depth > 128
-        || !program
-            .type_reference_table
-            .contains_type_reference(reference)
-    {
+    if depth > 128 || !program.contains_type_reference(reference) {
         return false;
     }
     let child = |reference| independent_type(program, reference, parameter, depth + 1);
@@ -61,7 +57,6 @@ fn independent_type(
             length: FixedArrayLength::Literal(_),
         } => child(*element_type),
         TypeReferenceNode::Generic { arguments, .. } => program
-            .type_reference_table
             .type_reference_handles(*arguments)
             .iter()
             .all(|argument| child(*argument)),

@@ -198,11 +198,7 @@ impl TypeWorld {
         mut reference: TypeReferenceHandle,
     ) -> TypeReferenceHandle {
         let mut seen = Vec::new();
-        while !seen.contains(&reference)
-            && program
-                .type_reference_table
-                .contains_type_reference(reference)
-        {
+        while !seen.contains(&reference) && program.contains_type_reference(reference) {
             seen.push(reference);
             let crate::types::TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)

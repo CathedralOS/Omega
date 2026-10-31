@@ -40,6 +40,7 @@ use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
     parameters, primitive_locals,
 };
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
@@ -606,9 +607,7 @@ pub(super) fn emit(
             checked,
             super::completion_cleanup::NormalExitSource {
                 completion: plan.normal_exit_cleanups.completion,
-                cleanups: checked
-                    .facts
-                    .flow
+                cleanups: flow_facts(checked)
                     .terminal_unit_effects
                     .cleanup_control
                     .normal_exits(plan.normal_exit_cleanups),

@@ -7,10 +7,9 @@ machine Main::main(main: &mut Main) -> u64 {
     transition { _ -> Main::walk(main, 0, 4, 0) }
 }
 
-machine Main::walk(main: &mut Main, mut index: u64, limit: u64, mut count: u64)
-requires index <= limit && limit <= 10;
-terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
--> u64 {
+machine Main::walk(main: &mut Main, mut index: u64, limit: u64, mut count: u64) -> u64
+requires index <= limit && limit <= 10
+terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1) {
     index = 0;
     transition index < limit {
         true -> walk(main, index + 1, limit, count)

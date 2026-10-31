@@ -1,0 +1,38 @@
+// Expected exit: 0
+// A checked callee forms the selected descriptor; callers retain its backing
+// alternatives without requiring both source cases to be active at once.
+data Locator {
+    case Absolute(name: [u8; 2]);
+    case Module(name: [u8; 2]);
+}
+data View { bytes: &[u8]; }
+machine name(locator: &Locator) -> &[u8] {
+    transition locator {
+        Locator::Module { name } -> (&name[0..2])
+        Locator::Absolute { name } -> (&name[0..2])
+    }
+}
+machine wrapped(locator: &Locator) -> View { View { bytes: name(locator) } }
+machine first(bytes: &[u8]) -> u8 {
+    transition bytes.len > 0 { true -> read(bytes) false -> (0) }
+    machine read(bytes: &[u8]) -> u8 requires bytes.len > 0 { bytes[0] }
+}
+machine direct(locator: &Locator) -> u8 { first(name(locator)) }
+machine carried(locator: &Locator) -> u8 {
+    let view: View = wrapped(locator);
+    first(view.bytes)
+}
+machine main() crashes Trap {
+    let module: Locator = Locator::Module { name: [73, 91] };
+    let absolute: Locator = Locator::Absolute { name: [19, 27] };
+    let left: u8 = direct(&module);
+    let right: u8 = direct(&absolute);
+    let carried_left: u8 = carried(&module);
+    let carried_right: u8 = carried(&absolute);
+    transition left == 73 && right == 19 && carried_left == 73 && carried_right == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

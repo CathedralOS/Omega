@@ -205,23 +205,9 @@ pub enum RuntimeSpillSpanPolicy {
     UnitWriteCrossing,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRuntimeSpill {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RuntimeSpillReceipt,
-}
-
 validated_transformed_receipt!(ValidatedRuntimeSpill, RuntimeSpillReceipt);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeSpillReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-}
-
-receipt_selected_identities!(RuntimeSpillReceipt);
+rewrite_receipt!(RuntimeSpillReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeSpillError {

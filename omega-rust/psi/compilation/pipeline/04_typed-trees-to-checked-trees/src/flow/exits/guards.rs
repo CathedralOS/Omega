@@ -30,6 +30,7 @@ fn retain_semantic_context(
 }
 
 use crate::flow::append_constraint_ref;
+use crate::flow::expressions;
 use crate::flow::guard_predicates::{expression_is_stable_predicate, guard_observations};
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
@@ -401,12 +402,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
             crate::values::integer_bounds_at_place(
                 program,
                 semantic,
-                build
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(*active_contexts)
-                    .iter()
-                    .map(|reference| semantic.contexts.get(reference.context)),
+                build.semantic_context_views(semantic, *active_contexts),
                 &subject,
             )
         });
@@ -948,8 +944,7 @@ pub(in crate::flow) fn append_match_pattern_context(
         && let Some(dispatch) = program.expression_table.match_node(expression)
         && let Some((machine_position, state_position)) =
             build.state_location(program, state_symbol)
-        && let Some(source_arm) = program
-            .expression_table
+        && let Some(source_arm) = expressions(program)
             .match_arms(dispatch.arms)
             .iter()
             .enumerate()
@@ -971,8 +966,7 @@ pub(in crate::flow) fn append_match_pattern_context(
         ) && case.is_valid()
         {
             let alias = if dispatch.capture.is_valid() {
-                program
-                    .expression_table
+                expressions(program)
                     .value_capture(dispatch.capture)
                     .value_anchor
             } else {

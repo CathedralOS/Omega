@@ -1,5 +1,7 @@
 // A selected reference map is valid without a separate machine satisfaction
 // edge. Its authored policy rejection still prevents boundary realization.
+// This row stays a reference: the callee does not satisfy CallingPolicy::plan,
+// and adding that edge would stop testing a plan map with no satisfaction edge.
 use omega_language_std::calling;
 
 data LocalPolicy { }

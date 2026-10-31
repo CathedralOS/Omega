@@ -6,9 +6,8 @@
 // separators of "a/b/c" through the recursive walk. Exit 70.
 use omega_language_std::console;
 data Main { n: i32 in Wrapping; r: i32; }
-machine Main::walk(main: &mut Main, path: &[u8], i: u64, acc: i32)
-terminates by (i, path.len) -> Nat::BoundedDistance;
--> i32
+machine Main::walk(main: &mut Main, path: &[u8], i: u64, acc: i32) -> i32
+terminates by (i, path.len) -> Nat::BoundedDistance
 {
     Main::bump(main, path, i);
     transition i < path.len {

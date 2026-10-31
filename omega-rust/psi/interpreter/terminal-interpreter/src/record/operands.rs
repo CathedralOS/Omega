@@ -2,6 +2,7 @@
 //! Stage custody before removing any runtime cells so malformed later operands
 //! cannot consume an earlier child or its still-live siblings.
 use crate::custody::resolve_single_structural_argument;
+use crate::custody::whole_path_discard;
 use crate::errors::TerminalInterpretError;
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::StructuralRuntimePlace;
@@ -62,7 +63,7 @@ impl TerminalExecution<'_> {
         result_frontier: &BTreeSet<StructuralAffineDiscard>,
         result_case: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
     ) -> Result<(), TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         // A nominal linear claim cannot be divided by projecting its fields.
         for (_, claim) in crate::custody::projected_ownership_claims(&self.live_claims, source)? {
             if claim.path.is_empty() && claim.multiplicity != Some(result.multiplicity) {
@@ -156,7 +157,7 @@ impl TerminalExecution<'_> {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
             } else if !crate::custody::consume_projected_affine_complement(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &self.structural_values,
                 self.structural_cases.as_map(),
                 frontier,
@@ -214,7 +215,6 @@ impl TerminalExecution<'_> {
                     && binding.path.is_empty()
                     && !self.live_claims.contains_key(&binding.claim)
                     && self
-                        .program
                         .structural_types()
                         .get(&result.structural_type)
                         .is_some_and(|declaration| {
@@ -284,7 +284,7 @@ impl TerminalExecution<'_> {
             // and typed destination path in the result roster.
             if nominal_root.is_none()
                 || crate::custody::resolve_structural_path_type(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     result.structural_type,
                     path,
                 )
@@ -304,7 +304,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
     ) -> Result<bool, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         crate::structural_inputs::case_membership::case_projection_with_membership_is_active(
             &types,
             result.structural_type,
@@ -343,16 +343,12 @@ impl TerminalExecution<'_> {
                     active_claims.push((result.place, claim.path.as_slice()));
                 }
             }
-            let root = StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            };
+            let root = whole_path_discard(result.place, result.structural_type);
             if !frontier.insert(root) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             crate::custody::exclude_linear_regions(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 frontier,
                 active_claims,
                 case_membership,
@@ -384,7 +380,7 @@ impl TerminalExecution<'_> {
             .iter()
             .map(|argument| {
                 let child = resolve_single_structural_argument(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     &self.structural_values,
                     argument,
                 )?;

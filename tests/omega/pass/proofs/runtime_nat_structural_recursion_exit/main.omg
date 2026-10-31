@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::exit_process(70);
 }
 machine double(n: Nat) -> Nat
-terminates by n;
+terminates by n
 {
     transition n {
         Nat::Zero -> Nat::Zero

@@ -1,7 +1,7 @@
 data Cell { value: u64; }
 machine change<'storage>(source: &'storage mut Cell) -> &'storage Cell { source.value = 9; source }
 machine apply<'storage, machine Callback>(source: &'storage mut Cell) -> &'storage Cell
-where machine Callback<'fresh>(source: &'fresh mut Cell) -> &'fresh Cell;
+requires machine Callback<'fresh>(source: &'fresh mut Cell) -> &'fresh Cell;
 { Callback(source) }
 machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value }
 machine main() {

@@ -6,12 +6,12 @@
 use validation::CallSite;
 use validation::CanonicalPlace;
 use validation::call_site_argument_expressions;
-use validation::canonical_place_from_expression_in_state;
 use validation::expression_root_symbol;
 use validation::find_call_site;
 
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_may_overlap;
+use crate::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -406,7 +406,7 @@ fn exclusive_loan_places(
             }
 
             if let Some(argument) = argument
-                && let Some(place) = canonical_place_from_expression_in_state(
+                && let Some(place) = place_at(
                     program,
                     caller_state_symbol,
                     borrow_call.statement_index,
@@ -488,9 +488,7 @@ fn state_root_place(
         .iter()
         .find_map(|parameter| (parameter.name.as_str() == path).then_some(parameter.symbol))
         .or_else(|| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
+            crate::flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .find_map(|statement| {
                     let local = statement.as_local_data()?;
@@ -697,7 +695,7 @@ fn boundary_frame_access_places(
                 // its referent names; the path records only the argument's own
                 // spelling coarsened to its collection, so that spelling is the
                 // coarsest contribution that must stay intact.
-                let Some(actual) = canonical_place_from_expression_in_state(
+                let Some(actual) = place_at(
                     program,
                     caller_state_symbol,
                     borrow_call.statement_index,
@@ -806,16 +804,12 @@ pub(crate) fn statement_mutated_place(
     statement: &StatementNode,
 ) -> Option<CanonicalPlace> {
     let mut place = match statement {
-        StatementNode::Assignment(assignment) => canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            assignment.target,
-        )
-        .or_else(|| {
-            expression_root_symbol(assignment.target, &program.expression_table, machine_symbol)
-                .and_then(canonical_place_from_symbol)
-        }),
+        StatementNode::Assignment(assignment) => {
+            place_at(program, state_symbol, statement_index, assignment.target).or_else(|| {
+                expression_root_symbol(assignment.target, &program.expression_table, machine_symbol)
+                    .and_then(canonical_place_from_symbol)
+            })
+        }
         _ => None,
     }?;
     normalize_write_only_range_place(program, state_symbol, &mut place);
@@ -855,8 +849,7 @@ pub(crate) fn atomic_once_write_effects(
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let target = validation::atomic_once_write_place(program, machine, state, expression)?;
-    let place =
-        canonical_place_from_expression_in_state(program, state_symbol, statement_index, target)?;
+    let place = place_at(program, state_symbol, statement_index, target)?;
     let places = local_origins::rebase_local_write_places(
         program,
         state_symbol,

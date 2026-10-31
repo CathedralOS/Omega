@@ -37,7 +37,8 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     let services = input
         .service_declarations
         .is_none()
-        .then(|| input.project_service_declarations());
+        .then(|| input.project_service_declarations())
+        .transpose()?;
     let compilation = &PackageReviewInput {
         service_declarations: input.service_declarations.or(services.as_ref()),
         external_providers: input.external_providers.or(projected.as_ref()),
@@ -47,11 +48,7 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     // The candidate under review cannot manufacture selected-instance custody.
     // Derive this source-only projection from the original compiler program;
     // ordinary native products obtain their associations from Terminal instead.
-    let selected_instances = provider_planning::project_checked_provider_instances(
-        &selected_execution.program.typed,
-        &selected_execution.program.facts,
-        &selected_execution.selected_provider_plan_facts,
-    )?;
+    let selected_instances = selected_execution.provider_source.project_instances()?;
     let mut plans = selected_execution
         .selected_provider_provenance
         .as_slice()
@@ -75,7 +72,8 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         .count();
     if projected_installation_reaches
         != selected_execution
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .installation_reach_resolutions()
             .len()
     {
@@ -111,12 +109,13 @@ fn project_plan(
     // names no authored provider type and deliberately covers only the
     // leaves the toolchain can bind honestly.
     let toolchain_settled = selected_execution
-        .selected_provider_plan_facts
+        .provider_source
+        .plans()
         .is_toolchain_settled(plan);
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(
         &schema_declaration,
-        plan.schema.trait_package_identity,
+        plan.schema.declaration.trait_package_identity,
         &plan.name,
         "service schema",
     )?;
@@ -145,9 +144,9 @@ fn project_plan(
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),
     }
-    let mut methods = Vec::with_capacity(plan.schema.methods.len());
+    let mut methods = Vec::with_capacity(plan.schema.declaration.methods.len());
     let mut signatures = services::SignatureProjection::new(*compilation);
-    for method in &plan.schema.methods {
+    for method in &plan.schema.declaration.methods {
         let matching_rows = plan
             .rows
             .iter()
@@ -173,7 +172,7 @@ fn project_plan(
             retained.provider.provider_type,
             retained.provider.row_requirements[*index],
             method,
-            &plan.schema.identities,
+            &plan.schema.declaration.identities,
         )?);
     }
     let mut rows = rows::project(
@@ -229,7 +228,8 @@ fn normalized_plan_name(
     };
     let generated = provider_planning::satisfies_plan_name(
         &plan.target,
-        plan.schema.identity_text(plan.schema.trait_name),
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name),
         &plan.provider_type,
     );
     if plan.name != generated {

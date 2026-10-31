@@ -33,6 +33,7 @@ use super::{
     ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference, reference_values,
 };
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -56,11 +57,23 @@ pub(super) fn delivered_value_type(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<DeliveredType> {
+    // Constant substitution changes the payload syntax, not the complete type
+    // selected by this authored value use. Preserve its application operands
+    // before contextual literal formation can choose another destination.
+    if let Some(declaration) = program.expression_const_declaration(value) {
+        return declaration
+            .declared_type
+            .is_valid()
+            .then_some(DeliveredType {
+                reference: declaration.declared_type,
+                substitutions: Vec::new(),
+            });
+    }
     let mut substitutions = Vec::new();
-    let reference = match program.expression_table.expression(value) {
-        ExpressionNode::Call(_) => program
-            .expression_table
-            .constructed_value_type_reference(value),
+    let reference = match expression_table(program).expression(value) {
+        ExpressionNode::Call(_) => {
+            expression_table(program).constructed_value_type_reference(value)
+        }
         ExpressionNode::Name(path) => named_value_type_reference(program, path)?,
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             reference_values::declared_value_type(program, value, &mut substitutions)?
@@ -126,6 +139,7 @@ pub(super) fn application_form(
 enum Carrier {
     Parameter(SymbolHandle),
     Data(SymbolHandle),
+    Implementation(SymbolHandle),
     Primitive(PrimitiveType),
 }
 
@@ -138,8 +152,11 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
         return None;
     }
     match program.symbols.get(symbol).kind {
-        symbols::SymbolKind::TypeParameter => Some(Carrier::Parameter(symbol)),
+        symbols::SymbolKind::TypeParameter | symbols::SymbolKind::ConformanceParameter => {
+            Some(Carrier::Parameter(symbol))
+        }
         symbols::SymbolKind::Data => Some(Carrier::Data(symbol)),
+        symbols::SymbolKind::Conformance => Some(Carrier::Implementation(symbol)),
         _ => None,
     }
 }
@@ -302,11 +319,41 @@ fn carrier_conflict(
     let required_arguments = program
         .type_reference_table
         .type_reference_handles(*required_arguments);
+    let implementation_parameters = match actual_carrier {
+        Carrier::Implementation(symbol) => program
+            .conformance_by_symbol(symbol)
+            .map(|declaration| program.conformance_type_parameters(declaration)),
+        _ => None,
+    };
     actual_arguments.len() == required_arguments.len()
         && actual_arguments
             .iter()
             .zip(required_arguments.iter())
-            .any(|(actual, required)| {
+            .enumerate()
+            .any(|(ordinal, (actual, required))| {
+                // A selected implementation's own static operands are part of
+                // its identity, not runtime carriers whose absence can waive
+                // comparison. Type operands retain the contextual/rigid
+                // correspondence below. Normalize supplied value bindings in
+                // the same chained/receiving-simultaneous scopes as references.
+                if let Some(parameter) = implementation_parameters
+                    .and_then(|parameters| parameters.get(ordinal))
+                    .filter(|parameter| {
+                        !matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Type
+                                | typed_trees::data::TypeParameterKind::Implementation
+                        )
+                    })
+                {
+                    return static_implementation_operand_conflict(
+                        program,
+                        scope,
+                        &parameter.kind,
+                        (*actual, actual_substitutions),
+                        (*required, required_substitutions),
+                    );
+                }
                 carrier_conflict(
                     program,
                     scope,
@@ -320,6 +367,52 @@ fn carrier_conflict(
             })
 }
 
+fn static_implementation_operand_conflict(
+    program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
+    kind: &typed_trees::data::TypeParameterKind,
+    actual: (TypeReferenceHandle, &[(SymbolHandle, TypeReferenceHandle)]),
+    required: (TypeReferenceHandle, &[(SymbolHandle, TypeReferenceHandle)]),
+) -> bool {
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::type_identity::{IndexIdentityArgument, StaticOperandIdentityRequest};
+    let compare = |actual_operand, required_operand| {
+        let actual_identity = program.static_operand_identity(StaticOperandIdentityRequest {
+            operand: actual_operand,
+            lexical_owner: scope,
+            substitutions: actual.1,
+        });
+        let required_identity = program.static_operand_identity_with_simultaneous_substitutions(
+            StaticOperandIdentityRequest {
+                operand: required_operand,
+                lexical_owner: scope,
+                substitutions: required.1,
+            },
+        );
+        !matches!((actual_identity, required_identity), (Some(actual), Some(required)) if actual == required)
+    };
+    match kind {
+        // Different static value identities can still be equal under a checked
+        // caller premise. The application-index checker owns that comparison
+        // together with capture time, effects and current scalar relations.
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => false,
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => {
+            let Ok(actual_operand) = program.static_operand_from_type_reference(actual.0) else {
+                return true;
+            };
+            let Ok(required_operand) = program.static_operand_from_type_reference(required.0)
+            else {
+                return true;
+            };
+            compare(
+                IndexIdentityArgument::StaticArgument(&actual_operand),
+                IndexIdentityArgument::StaticArgument(&required_operand),
+            )
+        }
+        TypeParameterKind::Type | TypeParameterKind::Implementation => false,
+    }
+}
+
 /// The delivered type that fails its destination, if any: a reference by
 /// carrier correspondence, a by-value carrier by rigid parameter and applied
 /// argument identity.
@@ -330,9 +423,8 @@ fn delivered_type_conflict(
     value: ExpressionHandle,
     destination: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    if let Some(dispatch) = program.expression_table.match_node(value) {
-        return program
-            .expression_table
+    if let Some(dispatch) = expression_table(program).match_node(value) {
+        return expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .find_map(|arm| delivered_type_conflict(program, scope, arm.value, destination));

@@ -570,7 +570,6 @@ pub(crate) fn expression_snapshot(
                     .name_path_members(cast.semantic_domain),
             ),
             semantic_domain_arguments: program
-                .type_reference_table
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .iter()
                 .map(|argument| type_reference_snapshot(program, *argument))

@@ -34,7 +34,7 @@ impl TerminalExecution<'_> {
         backing: &ReferenceBacking,
         actual: &ReferenceReferent,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let mut selected = ResolvedStructuralProjection {
             array_loan: backing.array_loan.clone(),
             placed: backing.placed.clone(),
@@ -185,7 +185,7 @@ impl TerminalExecution<'_> {
             return Ok(None);
         };
         if let Some(home) = &source.collection_home {
-            let types = self.program.structural_types();
+            let types = self.structural_types();
             if terminal_semantics::reference_storage_region(
                 types.values(),
                 source.value.structural_type,
@@ -246,7 +246,7 @@ impl TerminalExecution<'_> {
         interpretation: Option<AggregateViewRegion>,
         placed: Option<PlacedReference>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let logical_path = [StructuralPathSegment::FixedIndex(index)];
         let (collection, physical_path) = view.structural_projection(
             &types,
@@ -345,7 +345,7 @@ impl TerminalExecution<'_> {
         };
         // These are physical owned coordinates. An implicit view index or a
         // stored descriptor crossing is not an inline storage projection.
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let Some(selected) = terminal_semantics::reference_storage_region(
             types.values(),
             region.value.structural_type,

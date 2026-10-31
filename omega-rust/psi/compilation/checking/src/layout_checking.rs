@@ -25,6 +25,9 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn defers_pending_layout_geometry(&self) -> bool {
+        self.input.defers_pending_layout_geometry()
+    }
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         self.input.retained_borrow_custodies()
     }
@@ -67,28 +70,26 @@ pub(crate) fn layout_family_is_complete(
     program: &dyn CheckingInput,
     layout: &PlanLaidLayout,
 ) -> bool {
-    let PlanLaidRealizations::TargetFamily(span) = layout.realizations else {
+    let PlanLaidRealizations::TargetInputs(span) = layout.realizations else {
         return true;
     };
     let Some(rows) = program.plan_laid_target_layouts.span(span) else {
         return false;
     };
-    let Some(machine) = program.machine(layout.policy_plan_machine_symbol) else {
-        return false;
-    };
-    let Some(members) = crate::machine_calls::calls::target_family_members(program, machine) else {
-        return false;
-    };
-    !rows.is_empty()
-        && rows.len() == members.len()
-        && rows.iter().enumerate().all(|(index, row)| {
-            !rows[..index]
-                .iter()
-                .any(|previous| previous.target == row.target || previous.machine == row.machine)
-                && members
-                    .iter()
-                    .any(|member| member.target == row.target && member.machine == row.machine)
-        })
+    rows.len() == layout.target_inputs.len()
+        && rows
+            .iter()
+            .zip(&layout.target_inputs)
+            .enumerate()
+            .all(|(index, (row, input))| {
+                row.target_facts == *input
+                    && row.machine == layout.policy_plan_machine_symbol
+                    && row.target.as_str() == row.target_facts.profile
+                    && row.target_facts.validate().is_ok()
+                    && !rows[..index]
+                        .iter()
+                        .any(|previous| previous.target == row.target)
+            })
 }
 
 /// Guards needed by the exact participating types, including nested records.
@@ -98,68 +99,29 @@ pub fn layout_checking_targets(
     program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> Result<Vec<Option<&str>>, ()> {
+    let alternatives = discover_layout_checking_targets(program, roots)?;
     if let Some(target) = program.layout_target() {
-        return Ok(vec![Some(target)]);
+        // An outer query guard selects geometry; it cannot establish that a
+        // participating application actually possesses that alternative.
+        return (alternatives == [None] || alternatives.contains(&Some(target)))
+            .then_some(vec![Some(target)])
+            .ok_or(());
     }
-    let roots: Vec<_> = roots.into_iter().collect();
-    let memos = crate::frozen_program::frozen_program_memos(program);
-    if let Some(memos) = memos
-        && let Ok(rosters) = memos.layout_target_rosters.lock()
-        && let Some(roster) = rosters.get(&roots)
-    {
-        return roster
-            .as_ref()
-            .map(|rows| {
-                rows.iter()
-                    .map(|row| {
-                        row.map(|index| {
-                            program.plan_laid_target_layouts.storage_slice()[index]
-                                .target
-                                .as_str()
-                        })
-                    })
-                    .collect()
-            })
-            .map_err(|_| ());
-    }
-    let result = discover_layout_checking_targets(program, roots.iter().copied());
-    if let Some(memos) = memos {
-        // Discovery returns only target names borrowed from these exact rows.
-        // Retain their storage positions so lookup can reborrow from `program`.
-        let roster = result
-            .as_ref()
-            .map(|targets| {
-                targets
-                    .iter()
-                    .map(|target| {
-                        target.map(|target| {
-                            program
-                                .plan_laid_target_layouts
-                                .storage_slice()
-                                .iter()
-                                .position(|row| std::ptr::eq(row.target.as_str(), target))
-                                .expect("layout target discovery returns an exact stored row")
-                        })
-                    })
-                    .collect()
-            })
-            .map_err(|_| ());
-        if let Ok(mut rosters) = memos.layout_target_rosters.lock() {
-            rosters.insert(roots, roster);
-        }
-    }
-    result
+    Ok(alternatives)
 }
 
 fn discover_layout_checking_targets(
     program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> Result<Vec<Option<&str>>, ()> {
-    let mut pending: Vec<_> = roots.into_iter().collect();
+    // Operation roots may name borrowed storage. Once a record/array owns a
+    // field, however, a reference in that field stores only its descriptor;
+    // its pointee is not an inline representation dependency.
+    let mut pending: Vec<_> = roots.into_iter().map(|root| (root, true)).collect();
     let mut visited = Vec::new();
-    let mut targets = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if !reference.is_valid() || visited.contains(&reference) {
+    let mut targets: Option<Vec<Option<&str>>> = None;
+    while let Some((reference, root_referent)) = pending.pop() {
+        if !reference.is_valid() || visited.contains(&(reference, root_referent)) {
             continue;
         }
         if !program
@@ -168,25 +130,45 @@ fn discover_layout_checking_targets(
         {
             return Err(());
         }
-        visited.push(reference);
+        visited.push((reference, root_referent));
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::Reference { referee, .. } => {
+                if root_referent {
+                    pending.push((*referee, true));
+                }
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                pending.push((*base_type, root_referent));
+            }
             TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            | TypeReferenceNode::Slice { element_type } => pending.push((*element_type, false)),
             _ => {
+                if program.layout_storage_arguments(reference).is_some()
+                    && program.plan_laid_layout_for_type(reference).is_none()
+                {
+                    return Err(());
+                }
                 let Some(data) =
                     crate::value_custody::places::data_definition_for_type(program, reference)
                 else {
                     continue;
                 };
-                if let Some(layout) = program.plan_laid_layout(data.symbol) {
+                if let Some(layout) = program.plan_laid_layout_for_type(reference) {
                     if !layout_family_is_complete(program, layout) {
                         return Err(());
                     }
-                    for row in layout.target_layouts(program.typed_program()) {
-                        if !targets.contains(&Some(row.target.as_str())) {
-                            targets.push(Some(row.target.as_str()));
+                    if matches!(layout.realizations, PlanLaidRealizations::TargetInputs(_)) {
+                        let alternatives = layout
+                            .target_layouts(program.typed_program())
+                            .iter()
+                            .map(|row| Some(row.target.as_str()))
+                            .collect::<Vec<_>>();
+                        // One physical judgment needs a common application of
+                        // every participating representation. An empty roster
+                        // describes retained, unapplied storage, not packing.
+                        match &mut targets {
+                            Some(targets) => targets.retain(|target| alternatives.contains(target)),
+                            None => targets = Some(alternatives),
                         }
                     }
                 }
@@ -194,13 +176,77 @@ fn discover_layout_checking_targets(
                     program
                         .data_member_fields(program.data_members(data))
                         .filter(|field| !field.relevance.is_erased())
-                        .map(|field| field.type_reference),
+                        .map(|field| (field.type_reference, false)),
                 );
             }
         }
     }
+    let targets = targets.unwrap_or_else(|| vec![None]);
+    // A retained description without physical alternatives proves no layout
+    // relation. In particular an empty loop must never establish a recast.
     if targets.is_empty() {
-        targets.push(None);
+        Err(())
+    } else {
+        Ok(targets)
     }
-    Ok(targets)
+}
+
+/// The normalized constructor occurrence is the pending obligation. Walk exact
+/// semantic members, not erased implementation arguments or nominal headers.
+/// No caller may use this test to claim geometry: it only withholds preliminary
+/// physical judgments until policy evaluation installs their complete inputs.
+pub fn pending_layout_geometry(
+    program: &dyn CheckingInput,
+    roots: impl IntoIterator<Item = TypeReferenceHandle>,
+) -> bool {
+    let mut work = roots.into_iter().collect::<Vec<_>>();
+    let mut visited = Vec::new();
+    while let Some(reference) = work.pop() {
+        if !reference.is_valid() {
+            continue;
+        }
+        let Some(index) = program.normalized_type_identity(reference).storage_index() else {
+            continue;
+        };
+        if visited.len() <= index {
+            visited.resize(index + 1, false);
+        }
+        if std::mem::replace(&mut visited[index], true) {
+            continue;
+        }
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            if program
+                .plan_laid_layout_for_type(storage.application)
+                .is_none()
+            {
+                return true;
+            }
+            work.push(storage.semantic_type);
+            continue;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            }
+            | TypeReferenceNode::FixedArray {
+                element_type: base_type,
+                ..
+            }
+            | TypeReferenceNode::Slice {
+                element_type: base_type,
+            } => work.push(*base_type),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                if let Some(data) = program.closed_data_definition(reference) {
+                    work.extend(
+                        program
+                            .live_data_fields(program.data_members(data))
+                            .map(|field| field.type_reference),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }

@@ -2,12 +2,13 @@ trait Handler { machine call() -> bool; }
 machine yes() -> bool satisfies Handler::call { true }
 
 machine invoke_leaf<machine Leaf>() -> bool
-where machine Leaf() -> bool;
+requires machine Leaf() -> bool;
 { Leaf() }
 
 machine invoke_middle<machine Middle>() -> bool
-where machine Middle<machine Leaf>() -> bool
-where machine Leaf satisfies Handler::call;
+requires machine Middle<machine Leaf>() -> bool
+requires machine Leaf satisfies Handler::call;
+;
 { Middle<yes>() }
 
 // The caller supplies an intermediate body that accepts arbitrary structural
@@ -15,27 +16,35 @@ where machine Leaf satisfies Handler::call;
 // second input layer reverses refinement again; it is not a blanket ban on
 // different nested nominal contracts.
 linux_arm64 machine choose<machine Routine>() -> bool
-where machine Routine<machine Intermediate>() -> bool
-where machine Intermediate<machine Inner>() -> bool
-where machine Inner() -> bool;
+requires machine Routine<machine Intermediate>() -> bool
+requires machine Intermediate<machine Inner>() -> bool
+requires machine Inner() -> bool;
+;
+;
 { Routine<invoke_leaf>() }
 
 linux_x86_64 machine choose<machine Operation>() -> bool
-where machine Operation<machine Nested>() -> bool
-where machine Nested<machine Leaf>() -> bool
-where machine Leaf() -> bool;
+requires machine Operation<machine Nested>() -> bool
+requires machine Nested<machine Leaf>() -> bool
+requires machine Leaf() -> bool;
+;
+;
 { Operation<invoke_leaf>() }
 
 macos_arm64 machine choose<machine Schema>() -> bool
-where machine Schema<machine Chosen>() -> bool
-where machine Chosen<machine Callback>() -> bool
-where machine Callback() -> bool;
+requires machine Schema<machine Chosen>() -> bool
+requires machine Chosen<machine Callback>() -> bool
+requires machine Callback() -> bool;
+;
+;
 { Schema<invoke_leaf>() }
 
 windows_x86_64 machine choose<machine Action>() -> bool
-where machine Action<machine Selected>() -> bool
-where machine Selected<machine Element>() -> bool
-where machine Element() -> bool;
+requires machine Action<machine Selected>() -> bool
+requires machine Selected<machine Element>() -> bool
+requires machine Element() -> bool;
+;
+;
 { Action<invoke_leaf>() }
 
 machine main() crashes Trap {

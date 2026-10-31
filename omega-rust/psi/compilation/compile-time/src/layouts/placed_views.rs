@@ -22,6 +22,8 @@
 //! route; the synthesized placed record contains opaque accessor fields and is
 //! linear.
 
+use crate::build_time_evaluation::type_references;
+use crate::unique::push_unique;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -162,8 +164,7 @@ pub fn desugar_placed_views(
     let mut selected_arguments = applied_results::retain_applied_results(syntax, &context)?;
     // Header selection retains nominal custody without executing a body.
     // Generated result demands already carry their selected template identity.
-    let requests = syntax
-        .type_references
+    let requests = type_references(syntax)
         .generic_nodes()
         .into_iter()
         .filter_map(|reference| {
@@ -178,8 +179,7 @@ pub fn desugar_placed_views(
             Some((
                 reference,
                 base_name.clone(),
-                syntax
-                    .type_references
+                type_references(syntax)
                     .type_reference_handles(*arguments)
                     .to_vec(),
             ))
@@ -246,21 +246,16 @@ pub fn desugar_placed_views(
         &schemas,
         sources.as_deref(),
     )?;
-    let mut probe = crate::syntax_probes::normalize_generic_data(
+    let probe = crate::syntax_probes::normalize_generic_data(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
     )?;
-    let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::resolve_deferred(context.resolution_request(probe))?;
-    let (mut typed, domain, selected_layouts) = prepare_placement_probe(
-        frontier,
-        &applications,
-        &probe_plan_laid,
-        context.predecessor.clone(),
-    )?;
+    let (mut typed, domain) =
+        prepare_placement_probe(frontier, &applications, context.predecessor.clone())?;
     crate::const_evaluation::const_lengths::evaluate_const_array_lengths_in(
         &mut typed,
         selection_authority.clone(),
@@ -274,7 +269,6 @@ pub fn desugar_placed_views(
     )?;
     super::plan_laid::compute_plan_laid_layouts_in(
         &mut typed,
-        &selected_layouts,
         selection_authority.clone(),
         &domain,
     )?;
@@ -350,10 +344,9 @@ pub fn desugar_placed_views(
 fn prepare_placement_probe(
     frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     applications: &[Application],
-    records: &[crate::PlanLaidRecord],
     predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
-) -> Result<(TypedTrees, EvaluationDomain, Vec<crate::PlanLaidRecord>), Vec<Diagnostic>> {
-    let mut machines = applications
+) -> Result<(TypedTrees, EvaluationDomain), Vec<Diagnostic>> {
+    let machines = applications
         .iter()
         .map(|application| application.policy_machine_source)
         .collect::<Vec<_>>();
@@ -376,64 +369,9 @@ fn prepare_placement_probe(
                     .with_source_span(source),
             ]);
         };
-        if !declarations.contains(&declaration.symbol) {
-            declarations.push(declaration.symbol);
-        }
+        push_unique(&mut declarations, declaration.symbol);
     }
-    let mut selected = Vec::new();
-    loop {
-        let (typed, domain) = crate::syntax_probes::prepare_evaluation(
-            frontier.clone(),
-            &machines,
-            &[],
-            &declarations,
-            predecessor.clone(),
-        )?;
-        let previous_count = selected.len();
-        for record in records {
-            if selected.contains(record) || !domain.contains_data(&typed, &record.synthetic_name)? {
-                continue;
-            }
-            let mut policies = typed
-                .machines()
-                .iter()
-                .filter(|machine| machine.name.as_str() == record.policy_machine);
-            let (Some(policy), None) = (policies.next(), policies.next()) else {
-                return Err(vec![Diagnostic::error(format!(
-                    "plan-laid probe `{}` lost its unique policy declaration",
-                    record.synthetic_name,
-                ))]);
-            };
-            let mut schemas = typed
-                .data_definitions()
-                .iter()
-                .filter(|definition| definition.name.as_str() == record.schema_data);
-            let (Some(schema), None) = (schemas.next(), schemas.next()) else {
-                return Err(vec![Diagnostic::error(format!(
-                    "plan-laid probe `{}` lost its unique schema declaration",
-                    record.synthetic_name,
-                ))]);
-            };
-            let Some(policy_source) = typed.symbols.symbol_source_span(policy.symbol) else {
-                return Err(vec![Diagnostic::error(
-                    "plan-laid probe lost its policy source",
-                )]);
-            };
-            if !machines.contains(&policy_source) {
-                machines.push(policy_source);
-            }
-            // A normalized schema can be generated and have no authored span.
-            // These records were synthesized before the retained frontier was
-            // indexed, so their exact declaration symbols are stable roots.
-            if !declarations.contains(&schema.symbol) {
-                declarations.push(schema.symbol);
-            }
-            selected.push(record.clone());
-        }
-        if selected.len() == previous_count {
-            return Ok((typed, domain, selected));
-        }
-    }
+    crate::syntax_probes::prepare_evaluation(frontier, &machines, &[], &declarations, predecessor)
 }
 
 pub(crate) fn validate_placed_view_plans_in(
@@ -626,10 +564,7 @@ fn discover_applications(
             ));
             continue;
         }
-        let argument_handles = syntax
-            .tables
-            .type_references
-            .type_reference_handles(*arguments);
+        let argument_handles = type_references(&syntax.tables).type_reference_handles(*arguments);
         let [policy_handle, schema_handle] = argument_handles else {
             diagnostics.push(Diagnostic::error(
                 "`Placed` takes exactly a nominal placement policy and a plain schema",
@@ -881,9 +816,7 @@ fn discover_applications(
             .iter_mut()
             .find(|application: &&mut Application| application.key == key)
         {
-            if !application.invocation_sources.contains(&policy_source) {
-                application.invocation_sources.push(policy_source);
-            }
+            push_unique(&mut application.invocation_sources, policy_source);
         } else {
             applications.push(Application {
                 key,

@@ -17,6 +17,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         root_path: arguments.main_path,
         target_name: arguments.target_name,
         compare_interpreter: arguments.both,
+        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
         keep_artifacts: arguments.keep,
     }) {
         Ok(outcome) => outcome,
@@ -135,6 +136,7 @@ fn run_cases(arguments: RunArguments, outputs: std::path::PathBuf) -> ! {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         compare_interpreter: arguments.both,
+        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
         inputs: cases,
         output_directory: outputs.clone(),
         keep_artifacts: arguments.keep,

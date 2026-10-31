@@ -91,7 +91,8 @@ pub fn required_dangerous_services(
     let mut console = ConsoleUse::default();
     for (plan, provenance) in checked
         .execution()
-        .selected_provider_plan_facts
+        .provider_source
+        .plans()
         .plans()
         .iter()
         .zip(checked.execution().selected_provider_provenance.as_slice())
@@ -109,7 +110,10 @@ pub fn required_dangerous_services(
                     .get(position)
                     .is_some_and(|leaves| !leaves.is_empty())
         });
-        match plan.schema.identity_text(plan.schema.trait_name) {
+        match plan
+            .schema
+            .identity_text(plan.schema.declaration.trait_name)
+        {
             "Console"
                 if super::provider_acceptance::schema_symbol_owner(checked, provenance, owner)
                     && host_exit =>

@@ -1,0 +1,10 @@
+// Expected exit: 0
+// Canonical nested callable contract ends at its semicolon.
+// The following crash ceiling belongs to the enclosing declaration.
+machine invoke<machine Step>() -> u64
+requires machine Step() -> u64 terminates;
+crashes Trap
+{
+    Step()
+}
+machine main() {}

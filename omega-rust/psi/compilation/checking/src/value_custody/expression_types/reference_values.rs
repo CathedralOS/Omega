@@ -9,7 +9,9 @@ use super::{
     ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference,
 };
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::declared_reference_access;
+use crate::value_custody::type_references::substituted_identity;
 use language_semantics::ReferenceAccess;
 use numerics::bignum::BigInt;
 use typed_trees::data::TypeParameterKind;
@@ -44,12 +46,7 @@ pub(super) fn reference_type_matches(
     else {
         return false;
     };
-    let actual_identity = |reference| {
-        program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(reference)
-        })
-    };
+    let actual_identity = |reference| substituted_identity(program, reference, substitutions);
     if actual_identity(actual)
         == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
             substitutions: required_substitutions,
@@ -192,38 +189,37 @@ fn shared_referee_matches(
 ) -> bool {
     let (required, required_substitutions) =
         substituted_required_reference(program, required, required_substitutions);
-    if program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required)
-    }) {
+    if substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
+    {
         return true;
     }
     let actual = program
         .type_reference_table
         .unconstrained_type_reference(actual);
     let required = declared_domain_base_reference(program, required);
-    program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required)
-    }) || owned_array_projects_to_slice(
-        program,
-        actual,
-        required,
-        substitutions,
-        required_substitutions,
-    ) || fixed_array_binds_open_length(
-        program,
-        actual,
-        required,
-        substitutions,
-        required_substitutions,
-    )
+    substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
+        || owned_array_projects_to_slice(
+            program,
+            actual,
+            required,
+            substitutions,
+            required_substitutions,
+        )
+        || fixed_array_binds_open_length(
+            program,
+            actual,
+            required,
+            substitutions,
+            required_substitutions,
+        )
 }
 
 /// Remove the outer declared-domain requirements a call contract proves.
@@ -301,13 +297,12 @@ pub(super) fn fixed_array_binds_open_length(
     else {
         return false;
     };
-    if program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(*actual_element)
-    }) != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(*required_element)
-    }) {
+    if substituted_identity(program, *actual_element, substitutions)
+        != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*required_element)
+        })
+    {
         return false;
     }
     let Some(required_declared) = const_length_declared_type(program, *required_symbol) else {
@@ -549,31 +544,32 @@ fn owned_referee_carrier_matches(
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    program.type_identity(TypeIdentityRequest {
-        substitutions,
-        ..TypeIdentityRequest::ordinary(actual)
-    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-        substitutions: required_substitutions,
-        ..TypeIdentityRequest::ordinary(required_referee)
-    }) || owned_array_projects_to_slice(
-        program,
-        actual,
-        required_referee,
-        substitutions,
-        required_substitutions,
-    ) || owned_array_satisfies_constrained_referee(
-        program,
-        actual,
-        required_referee,
-        substitutions,
-        required_substitutions,
-    ) || fixed_array_binds_open_length(
-        program,
-        actual,
-        required_referee,
-        substitutions,
-        required_substitutions,
-    )
+    substituted_identity(program, actual, substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required_referee)
+        })
+        || owned_array_projects_to_slice(
+            program,
+            actual,
+            required_referee,
+            substitutions,
+            required_substitutions,
+        )
+        || owned_array_satisfies_constrained_referee(
+            program,
+            actual,
+            required_referee,
+            substitutions,
+            required_substitutions,
+        )
+        || fixed_array_binds_open_length(
+            program,
+            actual,
+            required_referee,
+            substitutions,
+            required_substitutions,
+        )
 }
 
 /// Shape correspondence for a shared view, not a loan or a domain proof.
@@ -610,13 +606,11 @@ fn owned_array_projects_to_slice(
         && program
             .type_reference_table
             .contains_type_reference(*required_element)
-        && program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(*actual_element)
-        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(*required_element)
-        })
+        && substituted_identity(program, *actual_element, substitutions)
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(*required_element)
+            })
 }
 
 /// Constrained-referee correspondence: an owned `[u8; N] in D` carrier
@@ -694,13 +688,11 @@ fn owned_array_satisfies_constrained_referee(
         || !program
             .type_reference_table
             .contains_type_reference(*required_element)
-        || program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(*actual_element)
-        }) != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(*required_element)
-        })
+        || substituted_identity(program, *actual_element, substitutions)
+            != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(*required_element)
+            })
     {
         return false;
     }
@@ -734,13 +726,11 @@ fn constrained_referee_forgets_qualification(
         .unconstrained_type_reference(actual);
     let constrained = peeled != actual;
     constrained
-        && program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(peeled)
-        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(required)
-        })
+        && substituted_identity(program, peeled, substitutions)
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(required)
+            })
 }
 
 pub(super) fn substituted_reference(
@@ -814,16 +804,15 @@ fn projection_ends_at_owned_rvalue(
     mut expression: ExpressionHandle,
 ) -> bool {
     loop {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(indexed)
-                if !program.expression_table.indexed_on_range(indexed) =>
+                if !expression_table(program).indexed_on_range(indexed) =>
             {
                 expression = indexed.collection;
             }
             ExpressionNode::Match(dispatch) => {
-                return program
-                    .expression_table
+                return expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .all(|arm| projection_ends_at_owned_rvalue(program, arm.value));
@@ -874,9 +863,9 @@ pub(crate) fn place_permits_reference_borrow(
 ) -> bool {
     // A range lends its collection's backing. Its bounds remain independently
     // checked; selecting its extent cannot manufacture source permission.
-    if let Some(indexed) = program.expression_table.indexed_node(expression)
+    if let Some(indexed) = expression_table(program).indexed_node(expression)
         && matches!(
-            program.expression_table.expression(indexed.index),
+            expression_table(program).expression(indexed.index),
             ExpressionNode::Range(_)
         )
     {
@@ -1021,9 +1010,9 @@ fn selected_value_type(
     forwarding_root: Option<(facts::PlaceRoot, TypeReferenceHandle)>,
     projection: &mut ProjectionContext,
 ) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(name) => {
-            let [spelling] = program.expression_table.name_path_members(name.members) else {
+            let [spelling] = expression_table(program).name_path_members(name.members) else {
                 return None;
             };
             if !(name.symbol.is_valid() && name.symbol == name.head_symbol) {
@@ -1042,8 +1031,7 @@ fn selected_value_type(
             // The definition authenticates the completed capture; do not
             // substitute the supplier's current place for its value anchor.
             let source = program.saved_value_source(saved)?;
-            let anchor = program
-                .expression_table
+            let anchor = expression_table(program)
                 .value_capture(saved.capture)
                 .value_anchor;
             if let Some((root, reference)) = forwarding_root {
@@ -1059,7 +1047,7 @@ fn selected_value_type(
         // arm; divergent arms stay unresolved rather than picking one.
         ExpressionNode::Match(dispatch) if forwarding_root.is_none() => {
             let mut joined = None;
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
                 let mut arm_substitutions = substitutions.clone();
                 let arm_type = selected_value_type(
                     program,
@@ -1082,7 +1070,7 @@ fn selected_value_type(
         ExpressionNode::Member(member) => {
             if forwarding_root.is_none()
                 && let ExpressionNode::Name(root) =
-                    program.expression_table.expression(member.receiver)
+                    expression_table(program).expression(member.receiver)
                 && let Some(machine) = program.machines().iter().find(|machine| {
                     root.head_symbol.is_valid() && machine.symbol == root.head_symbol
                 })
@@ -1163,13 +1151,9 @@ fn selected_value_type(
                     // Re-entering this telescope with different arguments needs
                     // scoped type views. This flat comparison cannot safely
                     // rebind earlier argument payloads, so retain rejection.
-                    if program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*existing)
-                    }) != program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(*argument)
-                    }) {
+                    if substituted_identity(program, *existing, substitutions)
+                        != substituted_identity(program, *argument, substitutions)
+                    {
                         return None;
                     }
                 } else {
@@ -1207,9 +1191,7 @@ fn selected_value_type(
         ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
             if forwarding_root.is_none() =>
         {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let reference = expression_table(program).constructed_value_type_reference(expression);
             reference.is_valid().then_some(reference).or_else(|| {
                 // Substituted constant arrays retain their declaration's exact
                 // carrier when they have no separately prepared construction.
@@ -1217,7 +1199,7 @@ fn selected_value_type(
             })
         }
         ExpressionNode::Indexed(indexed) => {
-            if program.expression_table.indexed_on_range(indexed) {
+            if expression_table(program).indexed_on_range(indexed) {
                 return None;
             }
             let collection = selected_value_type(
@@ -1236,10 +1218,7 @@ fn selected_value_type(
             if !substitutions.is_empty()
                 && !is_builtin_indexed_shape(program, collection)
                 && program.normalized_type_identity(collection)
-                    != program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(collection)
-                    })
+                    != substituted_identity(program, collection, substitutions)
             {
                 return None;
             }
@@ -1264,7 +1243,7 @@ fn selected_value_type(
                     program,
                     language_core::OperatorSpelling::Index,
                     &operands,
-                    program.expression_table.source_span(expression),
+                    expression_table(program).source_span(expression),
                 )
                 .is_empty()
             };
@@ -1287,7 +1266,7 @@ fn place_machine_symbol(
     mut expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     for _ in 0..128 {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(indexed) => expression = indexed.collection,
             ExpressionNode::Name(path)

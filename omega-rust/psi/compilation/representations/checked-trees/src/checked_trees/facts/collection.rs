@@ -14,6 +14,9 @@ pub struct CheckFacts {
     pub declaration_descriptions: crate::CheckedDeclarationDescriptions,
     /// Conditional proof scope retained independently of the selected body roster.
     pub proof_applications: crate::ProofApplicationPlan,
+    /// Exact physical applications retained before target policy evaluation.
+    /// They establish no geometry and cannot cross the Terminal boundary.
+    pub deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     pub quotient_formations: Vec<super::CheckedQuotientFormation>,
     pub quotient_operations: Vec<super::CheckedQuotientOperation>,
     /// Portable specialization identities derived from checked machine contracts.
@@ -186,6 +189,14 @@ impl CheckFacts {
         &self,
     ) -> &language_semantics::declaration_selection::AuthoredDeclarationSelections {
         &self.finalized_selections
+    }
+
+    /// The contract proof facts this `requires` or `ensures` span names.
+    pub(crate) fn contract_fact_refs(
+        &self,
+        refs: arena::HandleSpan<crate::ContractProofFactRef>,
+    ) -> &[crate::ContractProofFactRef] {
+        self.proof.contract_fact_refs.span_or_empty(refs)
     }
 
     /// Retain typed occurrence identities and append checking-minted associations.

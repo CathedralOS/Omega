@@ -17,6 +17,7 @@ use crate::interpreter::evaluator::filesystem::preparation::{
     check_filesystem_arity, checked_filesystem_transfer_count, checked_relative_component,
     rooted_package_build_operation_refusal,
 };
+use crate::interpreter::evaluator::filesystem::real::real_fs;
 use crate::interpreter::evaluator::{
     EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, FilesystemLogicalHandleKind,
     Frame, Halt, Value, rooted_build_path_parts, trap, unsupported, validate_build_relative_path,
@@ -704,10 +705,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         let (operand_ordinal, value) = self.value()?;
         let Some((root, relative)) = rooted_build_path_parts(&value)? else {
             if self.evaluator.rooted_build_paths_required
-                && self
-                    .evaluator
-                    .real_fs
-                    .as_ref()
+                && real_fs(self.evaluator)
                     .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped)
             {
                 return Err(Halt::Trap(

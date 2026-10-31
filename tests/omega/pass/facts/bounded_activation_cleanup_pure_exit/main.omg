@@ -10,7 +10,7 @@ public boundary trait Console {
 public data ConsoleNativeProvider {}
 data PosixConsoleIo {}
 boundary requirement PosixConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-terminates;
+terminates
 reaches Console;
 data PosixConsoleImports {}
 macos_arm64 machine macos_arm64_write_binding() -> ForeignBinding<26, 6, 0> {
@@ -48,7 +48,7 @@ reaches Console
 // All bound targets are little-endian: the low byte is the first byte.
 data WindowsConsoleIo {}
 boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-terminates;
+terminates
 reaches Console;
 data WindowsConsoleImports {}
 windows_x86_64 machine windows_x86_64_write_binding() -> ForeignBinding<10, 6, 0> {

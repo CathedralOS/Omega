@@ -33,6 +33,7 @@ mod request_admission;
 
 pub(crate) use equivalence_selection::exact_relation_application_matches;
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
@@ -194,8 +195,7 @@ pub fn admit_checked_quotient_requests(
     program: &dyn crate::CheckingInput,
     termination: &dyn CheckedTerminationOracle,
 ) -> Result<Vec<ValidatedQuotientOperation>, Vec<Diagnostic>> {
-    if !program
-        .expression_table
+    if !expression_table(program)
         .iter_expressions()
         .any(|(_, expression)| {
             matches!(

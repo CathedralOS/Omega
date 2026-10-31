@@ -1,5 +1,6 @@
 //! Translation of retained physical representation contracts into review evidence.
 
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
@@ -55,20 +56,12 @@ pub(crate) fn project_representation_target(
         .custody
         .execution()
         .selected_target_profile
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "representation demand requires a selected target profile",
-            )]
-        })?;
+        .or_evidence("representation demand requires a selected target profile")?;
     let native = compilation
         .custody
         .execution()
         .selected_native_target()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "representation demand requires a selected native target",
-            )]
-        })?;
+        .or_evidence("representation demand requires a selected native target")?;
     // A recognized profile can lack a Rust native realization (the
     // bootstrap Alpha target); such a custody is rejected rather than
     // interrogating `native_target()`.

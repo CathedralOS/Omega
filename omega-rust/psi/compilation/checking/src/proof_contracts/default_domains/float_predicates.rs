@@ -3,6 +3,7 @@
 //! different snapshots. Missing fields and unsupported operations stay unknown;
 //! neither source spelling nor an integer interval grants float algebra.
 
+use crate::frozen_program::expression_table;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::data::{DataDefinition, DataField};
@@ -32,10 +33,10 @@ pub(crate) fn float_field_literal_bound_meaning(
     definition: &DataDefinition,
     conjunct: ExpressionHandle,
 ) -> Option<FloatMeaning> {
-    if !program.expression_table.expression_is_valid(conjunct) {
+    if !expression_table(program).expression_is_valid(conjunct) {
         return None;
     }
-    let Some(binary) = program.expression_table.binary_node(conjunct) else {
+    let Some(binary) = expression_table(program).binary_node(conjunct) else {
         return None;
     };
     let field_format = |expression| {
@@ -74,8 +75,8 @@ pub(crate) fn float_field_literal_bound_meaning(
         return None;
     }
     match (
-        program.expression_table.expression(binary.left),
-        program.expression_table.expression(binary.right),
+        expression_table(program).expression(binary.left),
+        expression_table(program).expression(binary.right),
     ) {
         (ExpressionNode::Float(_), ExpressionNode::Name(_)) => Some(left),
         (ExpressionNode::Name(_), ExpressionNode::Float(_)) => Some(right),
@@ -90,11 +91,9 @@ fn predicate(
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
     depth: usize,
 ) -> Option<bool> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     let ExpressionNode::Binary(binary) = node else {
-        return match program.expression_table.expression(expression) {
+        return match expression_table(program).expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),
             _ => None,
         };
@@ -143,7 +142,7 @@ fn operand(
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
     destination: Option<numerics::literals::FloatFormat>,
 ) -> Option<(FloatMeaning, PrimitiveType, TypeReferenceHandle)> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
             let field = declared_field(program, definition, expression)?;
             let primitive = program.primitive_type_reference(field.type_reference)?;

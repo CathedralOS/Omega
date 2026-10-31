@@ -1,5 +1,6 @@
 //! calls in the current typed trees program.
 
+pub mod application_graph;
 pub mod boundary;
 pub mod dynamic_traits;
 pub mod finite_family;

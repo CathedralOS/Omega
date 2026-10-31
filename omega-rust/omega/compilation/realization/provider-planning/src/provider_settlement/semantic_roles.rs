@@ -1,6 +1,7 @@
 //! Rejoin source completion declarations to selected provider realizations.
 //! Source admission belongs to Psi; this operation never mutates its judgment.
 
+use crate::provider_planning::trait_name_text;
 use crate::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::boundary_completions::completion_declaration;
@@ -22,8 +23,8 @@ pub(super) fn validate_proposed(
         let Some(package) = plan.provider_type_package_identity else {
             continue;
         };
-        if plan.schema.identity_text(plan.schema.trait_name) != "Console"
-            || plan.schema.trait_package_identity != Some(package)
+        if trait_name_text(&plan.schema) != "Console"
+            || plan.schema.declaration.trait_package_identity != Some(package)
             || plan.origin_package_identity != Some(package)
             || typed.symbols.symbol_package_identity(owner) != Some(package)
         {

@@ -23,6 +23,8 @@
 //! member types with the folded literals, and rewriting the site to `Named`.
 
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
+use crate::unique::extend_unique;
 use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
@@ -290,8 +292,7 @@ fn realize_folded_applications(
             if closed.contains(&site) || declined.contains(&site) || origins.contains(&site) {
                 continue;
             }
-            let argument_handles = typed
-                .type_reference_table
+            let argument_handles = type_reference_table(typed)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if !argument_handles
@@ -340,8 +341,7 @@ fn argument_contains(
         return true;
     }
     match typed.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Generic { arguments, .. } => typed
-            .type_reference_table
+        TypeReferenceNode::Generic { arguments, .. } => type_reference_table(typed)
             .type_reference_handles(*arguments)
             .iter()
             .any(|argument| argument_contains(typed, *argument, closed)),
@@ -373,8 +373,7 @@ fn closed_argument(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                     SymbolKind::BuiltinType | SymbolKind::Data
                 )
         }
-        TypeReferenceNode::Generic { arguments, .. } => typed
-            .type_reference_table
+        TypeReferenceNode::Generic { arguments, .. } => type_reference_table(typed)
             .type_reference_handles(*arguments)
             .iter()
             .all(|argument| closed_argument(typed, *argument)),
@@ -396,8 +395,7 @@ fn direct_const_call(
     root: ExpressionHandle,
 ) -> Option<(SymbolHandle, Identifier)> {
     let call = typed.expression_table.call_node(root)?;
-    if !typed
-        .expression_table
+    if !expression_table(typed)
         .expression_handles(call.arguments)
         .is_empty()
         || !call.machine_arguments.is_empty()
@@ -445,8 +443,7 @@ pub(crate) fn realize_symbolic_applications(
                 continue;
             };
             let base_symbol = *base_symbol;
-            let argument_handles = typed
-                .type_reference_table
+            let argument_handles = type_reference_table(typed)
                 .type_reference_handles(*arguments)
                 .to_vec();
             let symbolic = |argument: &TypeReferenceHandle| {
@@ -500,8 +497,7 @@ fn realize_data_instance(
     else {
         return None;
     };
-    let argument_handles = typed
-        .type_reference_table
+    let argument_handles = type_reference_table(typed)
         .type_reference_handles(arguments)
         .to_vec();
     let template = typed.data_definition_by_symbol(base_symbol).cloned()?;
@@ -671,8 +667,7 @@ fn substitute_member_type(
             arguments,
         } => {
             let mut substituted = Vec::new();
-            for argument in typed
-                .type_reference_table
+            for argument in type_reference_table(typed)
                 .type_reference_handles(arguments)
                 .to_vec()
             {
@@ -713,8 +708,7 @@ fn argument_slug(typed: &TypedTrees, reference: TypeReferenceHandle) -> Option<S
         } => Some(format!(
             "{}<{}>",
             base_name.as_str(),
-            typed
-                .type_reference_table
+            type_reference_table(typed)
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| argument_slug(typed, *argument))
@@ -741,9 +735,7 @@ fn instance_origin_matches(
     else {
         return false;
     };
-    let origin_handles = typed
-        .type_reference_table
-        .type_reference_handles(*origin_arguments);
+    let origin_handles = type_reference_table(typed).type_reference_handles(*origin_arguments);
     *origin_base == base_symbol
         && origin_handles.len() == arguments.len()
         && origin_handles
@@ -798,12 +790,9 @@ fn closed_argument_eq(
                 ..
             },
         ) => {
-            let left_handles = typed
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_handles = typed
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
+            let left_handles = type_reference_table(typed).type_reference_handles(*left_arguments);
+            let right_handles =
+                type_reference_table(typed).type_reference_handles(*right_arguments);
             left_base == right_base
                 && left_handles.len() == right_handles.len()
                 && left_handles
@@ -946,11 +935,7 @@ fn evaluate_const_application(
             carrier,
             &invocation,
         )?;
-    for warning in additions {
-        if !warnings.contains(&warning) {
-            warnings.push(warning);
-        }
-    }
+    extend_unique(warnings, additions);
     let spelling = match value.decode_encoding() {
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             value,
@@ -1032,8 +1017,7 @@ pub(crate) fn const_application_plan(
             continue;
         };
         let parameters = generic_type_parameters(typed, *base_symbol);
-        for (index, argument) in typed
-            .type_reference_table
+        for (index, argument) in type_reference_table(typed)
             .type_reference_handles(*arguments)
             .iter()
             .enumerate()
@@ -1058,6 +1042,9 @@ fn generic_type_parameters(
     }
     if let Some(machine) = typed.machine(base_symbol) {
         return Some(typed.machine_type_parameters(machine));
+    }
+    if let Some(declaration) = typed.conformance_by_symbol(base_symbol) {
+        return Some(typed.conformance_type_parameters(declaration));
     }
     if let Some(trait_definition) = typed.trait_definition_by_symbol(base_symbol) {
         return Some(typed.trait_type_parameters(trait_definition));
@@ -1157,8 +1144,7 @@ fn visit_argument(
             ..
         } => {
             let parameters = generic_type_parameters(typed, *base_symbol);
-            for (index, nested) in typed
-                .type_reference_table
+            for (index, nested) in type_reference_table(typed)
                 .type_reference_handles(*arguments)
                 .iter()
                 .enumerate()

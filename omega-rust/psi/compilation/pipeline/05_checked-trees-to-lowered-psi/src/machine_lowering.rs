@@ -23,6 +23,7 @@ pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
 
+use crate::checked_facts::flow_facts;
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;
 
@@ -52,9 +53,12 @@ pub fn lower_machine(
     publication: terminal_codec::TerminalPublication,
     external_declarations: Option<&crate::PreparedExternalProviderDeclarations>,
 ) -> Result<LoweredPsi, LoweringError> {
-    if checked
-        .facts
-        .flow
+    if !checked.facts.deferred_layout_applications.is_empty() {
+        return unsupported(
+            "physical layout applications require strict target closure before Terminal production",
+        );
+    }
+    if flow_facts(checked)
         .terminal_unit_effects
         .boundary_machines
         .iter()
@@ -170,16 +174,12 @@ pub fn lower_machine(
             && selection.signature == CheckedTerminalSignatureEligibility::Eligible
             && completion.debug == DebugPublication::FromCheckedPlan
         {
-            let live_states = checked
-                .facts
-                .flow
+            let live_states = flow_facts(checked)
                 .terminal_unit_effects
                 .composed_for_machine(selection.machine)
                 .map(attached_unit::unit_graph_live_states)
                 .transpose()?;
-            checked
-                .facts
-                .flow
+            flow_facts(checked)
                 .terminal_debug
                 .for_machine(selection.machine)
                 .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
@@ -393,13 +393,6 @@ fn lower_terminal_selection(
                 exact_toolchain_sources,
                 &mut lowered,
             )?;
-            suspension_call_plan::retain_suspension_call_plans(
-                identities,
-                checked,
-                &source_machines,
-                &lowered.source_call_occurrences,
-                &mut lowered.semantic_module,
-            )?;
             retained_borrow_custody::retain_foreign_borrow_custodies(
                 identities,
                 checked,
@@ -445,6 +438,16 @@ fn lower_terminal_selection(
                 identities,
                 checked,
                 &source_machines,
+                &mut lowered.semantic_module,
+            )?;
+            // A suspending selector call binds live arguments to the public
+            // slot shape. That shape is the catalog published above; reading
+            // it earlier finds no interface.
+            suspension_call_plan::retain_suspension_call_plans(
+                identities,
+                checked,
+                &source_machines,
+                &lowered.source_call_occurrences,
                 &mut lowered.semantic_module,
             )?;
             retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;

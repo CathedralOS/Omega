@@ -21,9 +21,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::RemoveRedundantBlockParameter(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, RemoveRedundantBlockParameter, candidate);
     let witness = candidate
         .redundant_block_parameter_witness()
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;

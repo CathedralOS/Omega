@@ -5,9 +5,9 @@
 //! Unused unsupported/local declarations retain refusals instead of introducing
 //! new obligations merely because the inventory was prepared eagerly.
 
-use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceSchema;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -64,25 +64,22 @@ impl SourceServiceDeclaration {
 
 impl ServiceDeclarations {
     pub fn prepare(
-        context: ProviderPlanningContext<'_>,
+        catalog: ServiceCatalog<'_>,
         calling_plans: &[BoundaryCallingPlanRealization],
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Self {
-        let typed = context.typed;
+        let typed = catalog.context().typed;
         let mut sources = Vec::new();
-        for definition in typed.traits() {
-            if !definition.is_boundary || !context.contains(definition.symbol) {
-                continue;
-            }
-            let nominal_identity =
-                exact_identity(typed, definition.symbol, exact_toolchain_sources);
+        for definition in catalog.declared_traits() {
+            let symbol = definition.schema.symbol();
+            let nominal_identity = exact_identity(typed, symbol, exact_toolchain_sources);
             let projection = (|| {
                 let nominal_identity = nominal_identity.as_ref().map_err(Clone::clone)?.clone();
-                let schema = crate::service_schema::from_typed(context, calling_plans, definition)
-                    .ok_or_else(|| {
-                        Diagnostic::error("service declaration has no supported exact schema")
-                    })?;
-                let requirements = requirement_symbols(typed, definition.symbol, &schema)?;
+                let projected = definition.surface.as_ref().ok_or_else(|| {
+                    Diagnostic::error("service declaration has no supported exact schema")
+                })?;
+                let schema = crate::service_schema::attach_calling(projected, calling_plans);
+                let requirements = projected.exact_requirements()?;
                 let identities = requirements
                     .iter()
                     .map(|symbol| exact_identity(typed, *symbol, exact_toolchain_sources))
@@ -97,9 +94,9 @@ impl ServiceDeclarations {
                 })
             })();
             sources.push(SourceServiceDeclaration {
-                symbol: definition.symbol,
-                package: typed.symbols.symbol_package_identity(definition.symbol),
-                path: typed.symbols.display_path(definition.symbol, "::"),
+                symbol,
+                package: definition.package,
+                path: definition.path.to_owned(),
                 nominal_identity,
                 projection,
             });
@@ -197,72 +194,4 @@ pub(crate) fn exact_identity(
         .ok_or_else(|| {
             Diagnostic::error("service declaration has no exact package or toolchain owner")
         })
-}
-
-/// Resolve schema rows within the exact inherited declaration closure while
-/// source still exists. Both custody and independent review use this producer.
-fn requirement_symbols(
-    typed: &TypedTrees,
-    root: SymbolHandle,
-    schema: &ServiceSchema,
-) -> Result<Vec<SymbolHandle>, Diagnostic> {
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    let mut declarations = Vec::new();
-    while let Some(symbol) = pending.pop() {
-        if visited.contains(&symbol) {
-            continue;
-        }
-        visited.push(symbol);
-        let mut matches = typed
-            .traits()
-            .iter()
-            .filter(|definition| definition.symbol == symbol);
-        let Some(definition) = matches.next() else {
-            return Err(Diagnostic::error(
-                "service inheritance has no exact declaration",
-            ));
-        };
-        if matches.next().is_some() {
-            return Err(Diagnostic::error(
-                "service inheritance has ambiguous declarations",
-            ));
-        }
-        declarations.push(definition);
-        pending.extend(
-            typed
-                .trait_requirements(definition)
-                .iter()
-                .map(|parent| parent.symbol),
-        );
-    }
-    schema
-        .methods
-        .iter()
-        .map(|method| {
-            let mut matches = Vec::new();
-            for owner in &declarations {
-                if typed.symbols.symbol_package_identity(owner.symbol)
-                    != method.requirement_owner_package_identity
-                {
-                    continue;
-                }
-                for requirement in typed.trait_machine_signatures(owner) {
-                    if typed.symbols.symbol_package_identity(requirement.symbol)
-                        == method.requirement_owner_package_identity
-                        && typed.trait_requirement_callable_identity_text(owner, requirement)
-                            == schema.identity_text(method.requirement_identity)
-                    {
-                        matches.push(requirement.symbol);
-                    }
-                }
-            }
-            let [requirement] = matches.as_slice() else {
-                return Err(Diagnostic::error(
-                    "service row has no unique exact inherited requirement",
-                ));
-            };
-            Ok(*requirement)
-        })
-        .collect()
 }

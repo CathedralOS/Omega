@@ -67,4 +67,27 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently.
+### 1. How should users select interpreted execution and a possible future JIT?
+
+AOT remains the established native execution path. How should users explicitly
+trigger standalone Terminal Psi interpretation? If we add a JIT later, should
+it be another explicitly selected execution mode, or should an opted-in runtime
+automatically compile hot code? Keep `--both` as a separate native/interpreter
+comparison choice rather than conflating comparison with engine selection.
+
+The concrete customer is running an ordinary Omega program through the chosen
+engine, including running it without first generating a native executable.
+The current CLI exposes native `omega run` and comparison through `--both`, but
+no interpreter-only option. This asks for the user-facing selection policy, not
+an implementation change or a decision that JIT must be built.
+
+Contracts checked: [embedding's engine/target separation](wiki/spec/build/embedding.md#target-environments-and-execution-engines)
+already treats interpreted and native execution independently from OS targets;
+[separate Terminal consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+allows compilation to stop at Terminal Psi for later interpretation or native
+lowering. The embedding execution contract says no JIT is required, and its
+[implementation ownership](wiki/spec/build/embedding.md#authority-evidence-and-ownership-of-implementation)
+treats the CLI as a library client. These establish independent interpretation
+but do not settle a standalone CLI selection surface or a future JIT trigger
+policy. Any future automatic JIT policy would be an explicit new design choice,
+not an implicit requirement of the existing interpreter contract.

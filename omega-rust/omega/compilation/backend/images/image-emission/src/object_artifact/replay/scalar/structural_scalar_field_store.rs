@@ -6,6 +6,7 @@ use machine_code::{MachineCodeFunction, SemanticCodeSite};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use target::{Architecture, NativeTarget};
 
+use super::super::instruction_bytes;
 use super::super::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
 use super::super::unit::structural_scalar_field_store::integer_bits;
 use crate::ObjectError;
@@ -446,13 +447,7 @@ fn expected_aarch64(
         ScalarType::IeeeFloat(_) => return None,
     }
     instructions.push(0xd65f_03c0);
-    Some((
-        store_bytes,
-        instructions
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect(),
-    ))
+    Some((store_bytes, instruction_bytes(instructions)))
 }
 
 fn scalar_width(scalar_type: ScalarType) -> Option<u16> {

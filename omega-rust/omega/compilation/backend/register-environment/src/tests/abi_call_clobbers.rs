@@ -20,17 +20,20 @@ use isa_x86_64::{
     x86_64_machine_effect_catalog, x86_64_preservation_convention_for_target,
 };
 use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey, RegisterUnitId,
+    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterUnitId, RegisterView,
     ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    MachineSemanticKind, ValidatedMachineEffectCatalog,
+    MachineAlternative, MachineAlternativeApplicability, MachineEffectCatalog,
+    MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
-use super::super::baseline_target_register_environment;
 use super::super::catalog::scalar_call_constraint_key;
+use super::super::{ValidatedTargetRegisterEnvironment, baseline_target_register_environment};
 
 #[derive(Clone, Copy)]
 struct ScalarAbiCase {
@@ -71,6 +74,28 @@ fn named_view<'m>(
         .expect(missing)
 }
 
+/// The Microsoft x86-64 record both COFF targets declare. The two pairs
+/// differ by `NativeTarget` alone: one convention, one call row, and one set
+/// of call-clobbered argument views serve both.
+fn microsoft_x64(target: NativeTarget) -> ScalarAbiCase {
+    ScalarAbiCase {
+        target,
+        convention: "microsoft-x64",
+        call: X86_64_MICROSOFT_CALL,
+        arguments: &["rcx", "rdx", "r8", "r9"],
+        result: "rax",
+        implicit_uses: &["rsp"],
+        implicit_defs: &["rsp", "rip"],
+        stack_alignment: 16,
+        red_zone_bytes: 0,
+        opposite_call: X86_64_SYSTEM_V_CALL,
+        integer_results: &["rax", "rdx"],
+        float_result: "xmm0",
+        return_uses: &["rsp"],
+        return_defs: &["rsp", "rip"],
+    }
+}
+
 fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
     vec![
         ScalarAbiCase {
@@ -89,38 +114,8 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             return_uses: &["rsp"],
             return_defs: &["rsp", "rip"],
         },
-        ScalarAbiCase {
-            target: NativeTarget::windows_x64(),
-            convention: "microsoft-x64",
-            call: X86_64_MICROSOFT_CALL,
-            arguments: &["rcx", "rdx", "r8", "r9"],
-            result: "rax",
-            implicit_uses: &["rsp"],
-            implicit_defs: &["rsp", "rip"],
-            stack_alignment: 16,
-            red_zone_bytes: 0,
-            opposite_call: X86_64_SYSTEM_V_CALL,
-            integer_results: &["rax", "rdx"],
-            float_result: "xmm0",
-            return_uses: &["rsp"],
-            return_defs: &["rsp", "rip"],
-        },
-        ScalarAbiCase {
-            target: NativeTarget::uefi_x64(),
-            convention: "microsoft-x64",
-            call: X86_64_MICROSOFT_CALL,
-            arguments: &["rcx", "rdx", "r8", "r9"],
-            result: "rax",
-            implicit_uses: &["rsp"],
-            implicit_defs: &["rsp", "rip"],
-            stack_alignment: 16,
-            red_zone_bytes: 0,
-            opposite_call: X86_64_SYSTEM_V_CALL,
-            integer_results: &["rax", "rdx"],
-            float_result: "xmm0",
-            return_uses: &["rsp"],
-            return_defs: &["rsp", "rip"],
-        },
+        microsoft_x64(NativeTarget::windows_x64()),
+        microsoft_x64(NativeTarget::uefi_x64()),
         ScalarAbiCase {
             target: NativeTarget::linux_arm64(),
             convention: "aapcs64",
@@ -235,6 +230,142 @@ fn produced_effects(
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
         Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
     }
+}
+
+/// The stack-pointer view the ABI matrix names for this target.
+fn stack_pointer_view<'m>(
+    model: &'m PhysicalRegisterModel,
+    case: ScalarAbiCase,
+) -> &'m RegisterView {
+    named_view(
+        model,
+        case.target,
+        "rsp",
+        "sp",
+        "the ABI matrix names a stack-pointer view",
+    )
+}
+
+/// The condition-codes view the ABI matrix names for this target.
+fn flags_view<'m>(model: &'m PhysicalRegisterModel, case: ScalarAbiCase) -> &'m RegisterView {
+    named_view(
+        model,
+        case.target,
+        "rflags",
+        "nzcv",
+        "the ABI matrix names a flags view",
+    )
+}
+
+/// The produced catalog names this exact target, this validated constraint
+/// catalog's root, and this environment's selected keys: provenance, not a
+/// re-derived roster.
+fn binds_catalog_provenance(
+    catalog: &ValidatedMachineEffectCatalog,
+    case: ScalarAbiCase,
+    environment: &ValidatedTargetRegisterEnvironment,
+    keys: SelectedConstraintKeys,
+) {
+    assert_eq!(catalog.catalog().target, case.target);
+    assert_eq!(
+        catalog.catalog().register_constraints,
+        environment.constraints().identity()
+    );
+    assert_eq!(catalog.catalog().selected_keys, keys);
+}
+
+/// The one canonical alternative a rule declares, bound to its own family and
+/// admitted by the always-applicable window.
+fn sole_alternative<'a>(
+    declaration: &'a MachineEffectDeclaration,
+    semantic: MachineSemanticKind,
+    key: RegisterConstraintKey,
+) -> &'a MachineAlternative {
+    assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
+    let alternative = &declaration.alternatives[0];
+    assert_eq!(alternative.key.family, semantic.into(), "{key:?}");
+    assert_eq!(alternative.key.variant, 0, "{key:?}");
+    assert_eq!(
+        alternative.applicability,
+        MachineAlternativeApplicability::Always,
+        "{key:?}"
+    );
+    alternative
+}
+
+/// The selected constraint row and the effect declaration one selected rule
+/// is checked through: the environment owns the row, the produced catalog the
+/// declaration, both addressed by the same key.
+fn row_and_declaration<'a>(
+    environment: &'a ValidatedTargetRegisterEnvironment,
+    catalog: &'a ValidatedMachineEffectCatalog,
+    key: RegisterConstraintKey,
+) -> (
+    &'a RegisterInstructionConstraint,
+    &'a MachineEffectDeclaration,
+) {
+    let row = environment
+        .constraint(key)
+        .unwrap_or_else(|| panic!("environment selects no constraint row {key:?}"));
+    let declaration = catalog
+        .catalog()
+        .declaration(key)
+        .unwrap_or_else(|| panic!("effect catalog declares no rule for {key:?}"));
+    (row, declaration)
+}
+
+/// The (constraint, semantic) coordinate pairs a catalog declares, filtered to
+/// the declarations `owns` admits: the roster one sweep compares its selected
+/// rules against.
+fn declared_pairs(
+    catalog: &ValidatedMachineEffectCatalog,
+    owns: impl Fn(&MachineEffectDeclaration) -> bool,
+) -> BTreeSet<(RegisterConstraintKey, MachineSemanticKind)> {
+    catalog
+        .catalog()
+        .declarations
+        .iter()
+        .filter(|declaration| owns(declaration))
+        .map(|declaration| (declaration.constraint, declaration.semantic))
+        .collect()
+}
+
+/// One alternative's encoded effects inside a catalog a test is corrupting:
+/// the declaration is addressed by its key and semantic, the alternative by
+/// its ordinal.
+fn encoded_mut<'a>(
+    catalog: &'a mut MachineEffectCatalog,
+    key: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
+    index: usize,
+) -> &'a mut MachineEncodedEffects {
+    &mut declaration_mut(catalog, key, semantic).alternatives[index].encoded
+}
+
+/// One encoded rule may take an architectural fault: its encoded trap surface
+/// admits a fault whatever trap policy its declaration states.
+fn assert_faulting_trap(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
+    assert_eq!(
+        encoded.trap,
+        MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        "{key:?}"
+    );
+}
+
+/// One encoded rule that touches no memory and leaves the stack alone: its
+/// contribution is register custody plus whatever control and trap shape its
+/// own family declares.
+fn assert_storage_free(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
+    assert_eq!(
+        encoded.memory,
+        MachineEncodedMemoryEffect::NoneV1,
+        "{key:?}"
+    );
+    assert_eq!(
+        encoded.stack,
+        MachineEncodedStackEffect::UnchangedV1,
+        "{key:?}"
+    );
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -359,45 +490,38 @@ fn every_supported_target_selects_its_exact_scalar_call_abi() {
     }
 }
 
+/// Whether the target's scalar-call row clobbers every unit `names` names.
+fn call_clobbers(environment: &ValidatedTargetRegisterEnvironment, names: &[&str]) -> bool {
+    let row = environment.scalar_call_constraint().unwrap();
+    units_for_names(environment.physical().model(), names)
+        .iter()
+        .all(|unit| row.clobbers.contains(unit))
+}
+
+/// Whether the target's scalar-call row preserves every unit `names` names.
+fn call_preserves(environment: &ValidatedTargetRegisterEnvironment, names: &[&str]) -> bool {
+    let row = environment.scalar_call_constraint().unwrap();
+    units_for_names(environment.physical().model(), names)
+        .iter()
+        .all(|unit| !row.clobbers.contains(unit))
+}
+
 #[test]
 fn platform_abi_differences_are_explicit_call_clobber_facts() {
     let linux_x64 = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     let windows_x64 = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
-    for name in ["rsi", "xmm6"] {
-        let units = units_for_names(linux_x64.physical().model(), &[name]);
-        assert!(units.iter().all(|unit| {
-            linux_x64
-                .scalar_call_constraint()
-                .unwrap()
-                .clobbers
-                .contains(unit)
-        }));
-        assert!(units.iter().all(|unit| {
-            !windows_x64
-                .scalar_call_constraint()
-                .unwrap()
-                .clobbers
-                .contains(unit)
-        }));
-    }
+    // The System V row clobbers the second argument register and the low
+    // SIMD view; the Microsoft row preserves both.
+    assert!(call_clobbers(&linux_x64, &["rsi", "xmm6"]));
+    assert!(call_preserves(&windows_x64, &["rsi", "xmm6"]));
 
     let linux_arm64 = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
     let macos_arm64 = baseline_target_register_environment(NativeTarget::macos_arm64()).unwrap();
+    // Linux reserves x18 as the platform register, so its call row clobbers
+    // it; Darwin neither reserves nor clobbers it.
+    assert!(call_clobbers(&linux_arm64, &["x18"]));
+    assert!(call_preserves(&macos_arm64, &["x18"]));
     let x18 = units_for_names(linux_arm64.physical().model(), &["x18"]);
-    assert!(x18.iter().all(|unit| {
-        linux_arm64
-            .scalar_call_constraint()
-            .unwrap()
-            .clobbers
-            .contains(unit)
-    }));
-    assert!(x18.iter().all(|unit| {
-        !macos_arm64
-            .scalar_call_constraint()
-            .unwrap()
-            .clobbers
-            .contains(unit)
-    }));
     assert!(
         x18.iter()
             .all(|unit| macos_arm64.reservations().reserved_units().contains(unit))

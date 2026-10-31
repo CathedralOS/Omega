@@ -17,6 +17,6 @@ data DeviceProvider {}
 machine DeviceProvider::write(byte: i32) satisfies Device::write reaches Device {}
 data Provider {}
 machine Provider::emit(byte: i32) satisfies Sink::emit reaches Device { DeviceProvider::write(byte); }
-machine run() reaches Sink, Device invokes Sink; blocks; {
+machine run() reaches Sink, Device invokes Sink blocks {
     block Sink::emit(7);
 }

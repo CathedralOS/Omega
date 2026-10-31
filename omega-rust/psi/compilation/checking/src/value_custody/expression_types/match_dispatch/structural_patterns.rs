@@ -3,6 +3,7 @@
 //! This module checks carrier/case correspondence, field drift and coverage;
 //! recognizing a case never grants permission to read or move its payload.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::DataMember;
@@ -41,7 +42,7 @@ pub fn structural_match_pattern_case(
         MatchPattern::Destructure(pattern) => pattern.head,
         MatchPattern::Wildcard => return Some(SymbolHandle::invalid()),
     };
-    if let Some(name) = program.expression_table.name_path_node(head) {
+    if let Some(name) = expression_table(program).name_path_node(head) {
         if name.symbol.is_valid() && program.symbols.get(name.symbol).kind == SymbolKind::Variant {
             return crate::applied_case_membership_variant(
                 program,
@@ -84,21 +85,17 @@ pub fn structural_match_pattern_case(
     }
     // Preserve the fieldless literal classifier accepted before payload
     // patterns, without imposing copyability or a source-location roster.
-    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(head)
-        && literal.type_symbol == data.symbol
-        && program
-            .expression_table
+    if let ExpressionNode::StructLiteral(literal) = expression_table(program).expression(head)
+        && expression_table(program)
             .struct_fields(literal.fields)
             .is_empty()
         && let Some(case) = literal.case_symbol
-        && program.data_members(data).iter().any(|member| {
-            member
-                .as_variant()
-                .is_some_and(|variant| variant.symbol == case)
-        })
+        && let Some(selected) = program.data_constructor_case(reference, literal.type_symbol, case)
+        && selected.payload.is_empty()
     {
-        return Some(case);
+        return Some(selected.symbol);
     }
+
     None
 }
 
@@ -115,12 +112,10 @@ pub fn structural_match_pattern_is_total(
         MatchPattern::Wildcard => false,
         MatchPattern::Destructure(pattern) => {
             !pattern.guard.is_valid()
-                && !program
-                    .expression_table
+                && !expression_table(program)
                     .name_path_node(pattern.head)
                     .is_some_and(|head| program.domain_definition(head.symbol).is_some())
-                && !program
-                    .expression_table
+                && !expression_table(program)
                     .match_fields(pattern.fields)
                     .iter()
                     .any(|field| matches!(field.action, MatchFieldAction::Equal(_)))
@@ -168,29 +163,35 @@ pub(super) fn validate(
             .find(|variant| variant.symbol == case)?;
         declared.extend(program.data_payload_fields(variant));
     }
-    let fields = program.expression_table.match_fields(pattern.fields);
+    let fields = expression_table(program).match_fields(pattern.fields);
     let total = structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
     let selected_field_symbol = |field_symbol: SymbolHandle| {
+        // An exact prepared selector already belongs to this declaration.
+        // Translate a template selector only through the complete receiver;
+        // representation applications retain their semantic constructor view.
         if declared
             .iter()
             .any(|declared| declared.symbol == field_symbol)
         {
-            return field_symbol;
+            return Some(field_symbol);
         }
         program
-            .closed_data_constructor_field(reference, data.symbol, field_symbol)
+            .data_constructor_field(reference, data.symbol, field_symbol)
             .map(|selected| selected.symbol)
-            .unwrap_or(field_symbol)
     };
     for (ordinal, field) in fields.iter().enumerate() {
-        let exact = declared.iter().find(|declared| {
-            declared.symbol == selected_field_symbol(field.field_symbol)
-                && declared.name.as_str() == field.member.as_str()
+        let selected = selected_field_symbol(field.field_symbol);
+        let exact = selected.and_then(|selected| {
+            declared.iter().find(|declared| {
+                declared.symbol == selected && declared.name.as_str() == field.member.as_str()
+            })
         });
         if exact.is_none()
-            || fields[..ordinal]
-                .iter()
-                .any(|prior| prior.field_symbol == field.field_symbol)
+            || fields[..ordinal].iter().any(|prior| {
+                selected_field_symbol(prior.field_symbol)
+                    .zip(selected)
+                    .is_some_and(|(prior, selected)| prior == selected)
+            })
         {
             diagnostics.push(
                 Diagnostic::error(format!(
@@ -229,7 +230,7 @@ pub(super) fn validate(
         && declared.iter().any(|declared| {
             !fields
                 .iter()
-                .any(|field| selected_field_symbol(field.field_symbol) == declared.symbol)
+                .any(|field| selected_field_symbol(field.field_symbol) == Some(declared.symbol))
         })
     {
         diagnostics.push(
@@ -298,7 +299,7 @@ fn variant_is_impossible(
         .span_or_empty(variant.where_facts)
         .iter()
         .any(|fact| match fact.as_expression() {
-            Some(expression) => match program.expression_table.expression(*expression) {
+            Some(expression) => match expression_table(program).expression(*expression) {
                 ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
                 ExpressionNode::Boolean(value) => !*value,
                 _ => false,

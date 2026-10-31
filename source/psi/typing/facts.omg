@@ -10,9 +10,11 @@ use psi::typing::typer;
 // their parameters (`result` is the machine's result), each `where
 // machine` contract's `requires` facts over its own parameters, each
 // domain's predicates over its subject binder, a data
-// declaration's `where` facts over its fields, and each case's own `where`
-// facts over its payload fields and those fields. A proposition
-// application, a whole fact, is a Boolean statement (calls.omg).
+// declaration's `requires` and retired `where` facts over its fields, and
+// each case's own `where` facts over its payload fields and those fields.
+// A data `requires self` types `self` as that declaration applied to its
+// own generic parameters. A proposition application, a whole fact, is a
+// Boolean statement (calls.omg).
 public machine Typer::type_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
@@ -67,6 +69,7 @@ crashes Trap
 
     machine data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
+        Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Where);
         transition { _ -> next_case(typer, sources, syntax, resolution, index, item, 0) }
     }

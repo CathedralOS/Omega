@@ -1,6 +1,6 @@
 machine step(value: i32, increase: bool) -> i32
-requires value > 0 && value < 8;
-ensures result == value - 1 || result == value + 1;
+requires value > 0 && value < 8
+ensures result == value - 1 || result == value + 1
 {
     transition increase {
         true -> (value + 1)
@@ -8,8 +8,8 @@ ensures result == value - 1 || result == value + 1;
     }
 }
 machine countdown(remaining: i32, increase: bool) -> i32
-requires remaining >= 0 && remaining <= 9;
-terminates by remaining -> Nat::Descending in 0..=9;
+requires remaining >= 0 && remaining <= 9
+terminates by remaining -> Nat::Descending in 0..=9
 {
     transition remaining > 0 && remaining < 8 {
         true -> countdown(step(remaining, increase), increase)

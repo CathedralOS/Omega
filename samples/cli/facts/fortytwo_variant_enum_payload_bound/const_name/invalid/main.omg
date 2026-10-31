@@ -3,49 +3,51 @@
 const MAX_RES: u64 = 80u64;
 const MIN_RES: u64 = 40u64;
 
-data FortyTwoChoice [copy] {
-    case V1(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V2(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V3(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V4(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V5(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V6(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V7(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V8(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V9(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V10(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V11(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V12(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V13(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V14(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V15(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V16(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V17(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V18(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V19(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V20(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V21(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V22(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V23(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V24(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V25(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V26(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V27(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V28(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V29(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V30(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V31(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V32(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V33(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V34(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V35(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V36(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V37(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V38(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V39(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V40(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V41(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V42(v: u64) where v >= 39u64 && v <= MAX_RES;
+data FortyTwoChoice [copy] 
+    requires ((self in FortyTwoChoice::V1) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V2) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V3) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V4) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V5) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V6) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V7) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V8) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V9) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V10) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V11) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V12) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V13) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V14) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V15) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V16) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V17) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V18) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V19) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V20) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V21) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V22) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V23) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V24) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V25) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V26) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V27) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V28) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V29) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V30) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V31) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V32) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V33) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V34) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V35) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V36) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V37) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V38) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V39) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V40) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V41) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in FortyTwoChoice::V42) && (self.v >= 39u64 && self.v <= MAX_RES))
+{
+    case V1(v: u64);
+    case V2(v: u64);
+    case V3(v: u64);
+    case V4(v: u64);
+    case V5(v: u64);
+    case V6(v: u64);
+    case V7(v: u64);
+    case V8(v: u64);
+    case V9(v: u64);
+    case V10(v: u64);
+    case V11(v: u64);
+    case V12(v: u64);
+    case V13(v: u64);
+    case V14(v: u64);
+    case V15(v: u64);
+    case V16(v: u64);
+    case V17(v: u64);
+    case V18(v: u64);
+    case V19(v: u64);
+    case V20(v: u64);
+    case V21(v: u64);
+    case V22(v: u64);
+    case V23(v: u64);
+    case V24(v: u64);
+    case V25(v: u64);
+    case V26(v: u64);
+    case V27(v: u64);
+    case V28(v: u64);
+    case V29(v: u64);
+    case V30(v: u64);
+    case V31(v: u64);
+    case V32(v: u64);
+    case V33(v: u64);
+    case V34(v: u64);
+    case V35(v: u64);
+    case V36(v: u64);
+    case V37(v: u64);
+    case V38(v: u64);
+    case V39(v: u64);
+    case V40(v: u64);
+    case V41(v: u64);
+    case V42(v: u64);
 }
 
 machine verify_payload(value: u64) -> u64

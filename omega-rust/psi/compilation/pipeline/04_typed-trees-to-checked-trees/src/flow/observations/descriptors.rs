@@ -71,11 +71,11 @@ fn descriptor_source<'facts>(
         let formation = control.referent_formations.get(referent.formation);
         if formation.owner.is_valid()
             || !formation.path.is_empty()
-            || !control.case_accesses.is_valid(formation.source_access)
+            || !control.case_accesses.is_valid(formation.source_access())
         {
             break;
         }
-        let access = control.case_accesses.get(formation.source_access);
+        let access = control.case_accesses.get(formation.source_access());
         if access.expression != operand.expression
             || access.state_symbol != operand.state_symbol
             || access.statement_index != operand.statement_index

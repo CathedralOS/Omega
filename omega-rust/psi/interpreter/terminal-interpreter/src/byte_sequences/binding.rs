@@ -171,7 +171,7 @@ impl ByteSequenceBinding {
         execution: &TerminalExecution,
         value: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        let structural_types = execution.program.structural_types();
+        let structural_types = execution.structural_types();
         if let Self::MutableArray {
             array,
             array_type,
@@ -285,13 +285,9 @@ impl ByteSequenceBinding {
         }
         let case = match field.namespace {
             crate::values::StructuralFieldNamespace::Member => None,
-            crate::values::StructuralFieldNamespace::CasePayload => Some(
-                execution
-                    .structural_cases
-                    .get(&field.parent)
-                    .ok_or_else(malformed)?
-                    .case,
-            ),
+            crate::values::StructuralFieldNamespace::CasePayload => {
+                Some(execution.structural_cases.require(&field.parent)?.case)
+            }
         };
         let (fields, _) = execution.active_field_declarations(*parent_type, &field.parent, case)?;
         if !fields.iter().any(|declaration| {
@@ -318,10 +314,7 @@ impl TerminalExecution<'_> {
         field: &StructuralByteSequenceRuntimeField,
     ) -> Result<super::read::TerminalByteRead<'_>, TerminalInterpretError> {
         use super::read::TerminalByteRead;
-        let binding = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
+        let binding = self.structural_byte_sequence_fields.require(field)?;
         if let ByteSequenceBinding::Immutable(bytes) = binding {
             return Ok(TerminalByteRead::contiguous(bytes.bytes()));
         }
@@ -341,8 +334,7 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::MutableField { field, .. } => {
                 let bytes = self
                     .structural_byte_sequence_fields
-                    .get(field)
-                    .ok_or_else(malformed)?
+                    .require(field)?
                     .immutable()?;
                 Ok(TerminalByteRead::contiguous(bytes.bytes()))
             }
@@ -359,10 +351,7 @@ impl TerminalExecution<'_> {
         &self,
         field: &StructuralByteSequenceRuntimeField,
     ) -> Result<u64, TerminalInterpretError> {
-        let binding = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
+        let binding = self.structural_byte_sequence_fields.require(field)?;
         match binding {
             ByteSequenceBinding::Immutable(bytes) => {
                 u64::try_from(bytes.len()).map_err(|_| malformed())
@@ -379,10 +368,7 @@ impl TerminalExecution<'_> {
         &self,
         field: &StructuralByteSequenceRuntimeField,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
-        let binding = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
+        let binding = self.structural_byte_sequence_fields.require(field)?;
         if let ByteSequenceBinding::Immutable(bytes) = binding {
             return Ok(bytes.clone());
         }
@@ -402,11 +388,8 @@ impl TerminalExecution<'_> {
         &self,
         argument: &StructuralArgument,
     ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
-        let root = self
-            .structural_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
-        let types = self.program.structural_types();
+        let root = self.structural_value(argument.place)?;
+        let types = self.structural_types();
         if crate::custody::inline_structural_field(&types, root.structural_type, &argument.path)
             .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some())
         {
@@ -432,7 +415,6 @@ impl TerminalExecution<'_> {
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
         if argument.access == StructuralAccess::WriteOnlyBorrow
             || !self
-                .program
                 .structural_types()
                 .get(&selected.structural_type)
                 .is_some_and(|row| {
@@ -527,10 +509,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
             if field.field_type.byte_sequence_carrier().is_some() {
                 let (cell, _) = self.readable_byte_field(argument.place, prefix, field.id)?;
-                let bytes = self
-                    .structural_byte_sequence_fields
-                    .get(&cell)
-                    .ok_or_else(malformed)?;
+                let bytes = self.structural_byte_sequence_fields.require(&cell)?;
                 return Ok(bytes.clone().with_descriptor_home(selected.clone()));
             }
         }
@@ -627,7 +606,6 @@ impl TerminalExecution<'_> {
             argument.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
         ) || !self
-            .program
             .structural_types()
             .get(&value.structural_type)
             .is_some_and(|row| row.shape.is_shared_readable_byte_view())
@@ -663,7 +641,6 @@ impl TerminalExecution<'_> {
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
         let Some(StructuralTypeShape::ByteSequence(carrier)) = self
-            .program
             .structural_types()
             .get(&parameter.structural_type)
             .map(|declaration| &declaration.shape)
@@ -756,10 +733,10 @@ impl TerminalExecution<'_> {
     {
         if terminal_semantics::borrowed_storage_parameter(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         ) && terminal_semantics::borrowed_storage_reference_ceiling(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         )
         .is_none()
         {
@@ -783,7 +760,6 @@ impl TerminalExecution<'_> {
             return Ok(None);
         };
         if !self
-            .program
             .structural_types()
             .get(&value.structural_type)
             .is_some_and(|row| row.shape.is_borrowed_byte_carrier())
@@ -800,11 +776,11 @@ impl TerminalExecution<'_> {
         // lifetimes without granting ownership or widening the source loan.
         let storage_ceiling = terminal_semantics::borrowed_storage_reference_ceiling(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         );
         if !(terminal_semantics::view_descriptor_parameter(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         ) || storage_ceiling.is_some())
             || argument.access != parameter.access
             || !parameter.projected_qualifications.is_empty()
@@ -816,7 +792,7 @@ impl TerminalExecution<'_> {
         let binding = self.byte_descriptor_binding(argument, &value)?;
         let requested_access = storage_ceiling.unwrap_or(parameter.access);
         if !terminal_semantics::descriptor_reborrow_matches(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             value.structural_type,
             parameter.access,
             Some(binding.access()),
@@ -907,8 +883,7 @@ impl TerminalExecution<'_> {
                 }),
             ByteSequenceBinding::MutableField { field, .. } => self
                 .structural_byte_sequence_fields
-                .get(field)
-                .ok_or_else(malformed)?
+                .require(field)?
                 .immutable()?
                 .clone(),
             ByteSequenceBinding::MutableOwner { home, .. } => self.byte_owner_bytes(home)?.clone(),
@@ -930,8 +905,7 @@ impl TerminalExecution<'_> {
                 field, capacity, ..
             } => (
                 self.structural_byte_sequence_fields
-                    .get(field)
-                    .ok_or_else(malformed)?
+                    .require(field)?
                     .immutable()?,
                 *capacity,
             ),

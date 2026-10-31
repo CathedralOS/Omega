@@ -4,8 +4,9 @@ use omega::language::core::layout;
 // `&'storage mut` sources (the declared source union) under a
 // `terminates by` ranking, so writes land through whichever storage the
 // caller picked.
-data SignedByte {}
-machine SignedByte::plan(schema: Schema) -> Plan {
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -23,14 +24,14 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 data PortableByte [copy] { value: i64; }
-data RawView { value: SignedByte<PortableByte>; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 data Main { bytes: [u8; 2]; ordinary: i64; }
 
-machine retain<'storage>(value: &'storage mut i64, remaining: u64)
+machine retain<'storage>(value: &'storage mut i64, remaining: u64) -> &'storage mut i64
     requires remaining <= 4
-terminates by remaining -> Nat::Descending in 0..=4;
--> &'storage mut i64 {
+terminates by remaining -> Nat::Descending in 0..=4 {
     transition remaining > 0 {
         true -> retain(value, remaining - 1)
         false -> value
@@ -47,10 +48,9 @@ machine choose<'storage>(first: &'storage mut i64, second: &'storage mut i64, ch
         _ -> first
     }
 }
-machine select_recursive<'storage>(first: &'storage mut i64, second: &'storage mut i64, remaining: u64, choose_second: bool)
+machine select_recursive<'storage>(first: &'storage mut i64, second: &'storage mut i64, remaining: u64, choose_second: bool) -> &'storage mut i64
     requires remaining <= 4
-terminates by remaining -> Nat::Descending in 0..=4;
--> &'storage mut i64 {
+terminates by remaining -> Nat::Descending in 0..=4 {
     transition remaining > 0 {
         true -> select_recursive(first, second, remaining - 1, choose_second)
         _ -> choose(first, second, choose_second)

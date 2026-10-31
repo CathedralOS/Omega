@@ -114,10 +114,7 @@ fn internal_call_relocations(
             &function.bytes,
             *call,
         )?;
-        let offset = emitted
-            .text_offset
-            .checked_add(call.offset)
-            .ok_or(ObjectError::TextSizeOverflow)?;
+        let offset = super::text_offset_of(emitted.text_offset, call.offset)?;
         let origin = match call.owner {
             CallSiteOwner::Operation(operation) => RelocationOrigin::SemanticOperation {
                 function_symbol_handle: emitted.symbol,
@@ -205,10 +202,7 @@ fn foreign_call_relocations(
             }
             let mut push_callback_relocation =
                 |local_offset: usize, kind: RelocationKind| -> Result<(), ObjectError> {
-                    let offset = emitted
-                        .text_offset
-                        .checked_add(local_offset)
-                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    let offset = super::text_offset_of(emitted.text_offset, local_offset)?;
                     relocations.push_record(RelocationRecord {
                         origin,
                         section: SectionKind::Text,
@@ -252,10 +246,7 @@ fn foreign_call_relocations(
             &function.bytes,
             call,
         )?;
-        let offset = emitted
-            .text_offset
-            .checked_add(call.offset)
-            .ok_or(ObjectError::TextSizeOverflow)?;
+        let offset = super::text_offset_of(emitted.text_offset, call.offset)?;
         relocations.push_record(RelocationRecord {
             origin,
             section: SectionKind::Text,

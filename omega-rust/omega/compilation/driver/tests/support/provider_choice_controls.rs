@@ -38,11 +38,22 @@ pub(super) fn prepare(
     )
     .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
     let context = provider_planning::ProviderPlanningContext::new(
-        &checked.execution().program.typed,
+        &checked.execution().provider_source.program().typed,
         source::DependencyScope::Product,
     );
     let inventory = TargetProviderInventoryRequest {
-        context,
+        body_declarations: checked
+            .execution()
+            .provider_source
+            .inventory()
+            .direct_calls(),
+        origins: checked.execution().provider_source.inventory().origins(),
+        services: checked
+            .execution()
+            .provider_source
+            .inventory()
+            .services_for(checked.execution().provider_source.program())
+            .map_err(|error| format!("provider choice source catalog: {error:?}"))?,
         defaults: checked.provider_defaults(),
         settlement: checked.providers(),
     };
@@ -50,13 +61,21 @@ pub(super) fn prepare(
         profile.target_name().to_owned(),
         inventory.prepare(profile.target_name()),
     )];
+    let deployment = checked
+        .build()
+        .config
+        .provider_deployment()
+        .map_err(|errors| format!("provider choice deployment inputs: {errors:?}"))?;
     let publication = TargetProviderPreparationRequest {
+        application_roots: deployment.roots.as_deref(),
+        application_scopes: &deployment.scopes,
         context,
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         overrides: &checked.build().config.provider_selections,
         assumed_bindings: checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings(),
         independent_components: &checked.providers().verified_independent_components,
         targets: &targets,

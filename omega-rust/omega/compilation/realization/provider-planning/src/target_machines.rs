@@ -7,23 +7,21 @@
 //! provider settlement behind Terminal Psi is separate work.
 
 use crate::SettledTargetMachineDeclarations;
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 use diagnostics::Diagnostic;
+use language_semantics::direct_calls::DirectCallDeclarations;
+use symbols::SymbolHandle;
 use target::TargetProfile;
 
 mod authored_providers;
-mod direct_body_absences;
 pub use authored_providers::{AuthoredTargetProviders, TargetProviderInventoryRequest};
 mod provider_publication;
-pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
 pub use provider_publication::{
     PreparedTargetProviderPublication, TargetProviderPreparationRequest, provider_selection_roots,
 };
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(
-    context: crate::ProviderPlanningContext<'_>,
+    origins: &[crate::SelectedTargetMachineOrigin],
     retained: &[crate::TargetProviderDefaults],
     target: TargetProfile,
 ) -> SettledTargetMachineDeclarations {
@@ -35,21 +33,10 @@ pub fn settle_provider_defaults(
         .filter(|row| row.target.as_ref().is_none_or(|name| matches_target(name)))
         .flat_map(|row| row.selections.iter().cloned())
         .collect();
-    let origins = context
-        .typed
-        .machines()
+    let origins = origins
         .iter()
-        .filter(|machine| {
-            context.contains(machine.symbol)
-                && (context.scope == source::DependencyScope::Product || machine.target.is_none())
-        })
-        .filter_map(|machine| {
-            let authored = machine.authored_target.as_ref()?;
-            matches_target(authored.as_str()).then(|| crate::SelectedTargetMachineOrigin {
-                machine: machine.symbol,
-                target: authored.as_str().to_owned(),
-            })
-        })
+        .filter(|origin| matches_target(&origin.target))
+        .cloned()
         .collect();
     SettledTargetMachineDeclarations {
         provider_defaults,
@@ -81,16 +68,12 @@ pub fn settle_provider_defaults(
 /// not explicit callees; a missing body reached only through one is refused
 /// when the native execution scope reaches the absent member.
 pub fn reject_reached_inert_sibling_calls(
-    typed: &TypedTrees,
+    declarations: &DirectCallDeclarations<SymbolHandle>,
     target: TargetProfile,
     entry: Option<symbols::SymbolHandle>,
     selected_providers: &[crate::SelectedProviderReviewProvenance],
 ) -> Result<(), Vec<Diagnostic>> {
-    let machines = typed.machines();
-    let realized = target.target_name();
-    // Selected rows pair each requirement with the realization this target
-    // installs for it; unselected candidates are never reached.
-    let provider_rows: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)> = selected_providers
+    let provider_rows = selected_providers
         .iter()
         .flat_map(|selected| {
             selected
@@ -98,81 +81,16 @@ pub fn reject_reached_inert_sibling_calls(
                 .row_requirements
                 .iter()
                 .copied()
-                .zip(selected.provider.row_realizations.iter())
+                .zip(&selected.provider.row_realizations)
                 .filter_map(|(required, owner)| owner.authored().map(|machine| (required, machine)))
         })
-        .collect();
-    // Roster positions index the reach marks; the roster is fixed here.
-    let mut reached = vec![false; machines.len()];
-    let mut frontier: Vec<usize> = entry
-        .and_then(|entry| called_machine(typed, entry))
-        .and_then(|entry| typed.machine_for_target(entry, target.target_name()))
-        .and_then(|entry| typed.machine_position_by_symbol(entry.symbol))
-        .into_iter()
-        .collect();
-    for position in &frontier {
-        reached[*position] = true;
-    }
-    // One walk both extends reach and records refusals. A machine's states
-    // are visited together, so ordering by caller position restores the
-    // declaration order without a second walk.
-    let mut refusals: Vec<(usize, Diagnostic)> = Vec::new();
-    let mut callees = ExplicitStateCallees::default();
-    while let Some(position) = frontier.pop() {
-        let caller = &machines[position];
-        for state in typed.machine_states(caller) {
-            for called_symbol in callees.collect(typed, state) {
-                // A trait requirement call names the member itself; a
-                // top-level requirement call names its entry state.
-                let direct = called_machine(typed, *called_symbol);
-                let requirement_machine = direct.map(|callee| callee.symbol);
-                let realizations = provider_rows
-                    .iter()
-                    .filter(|(requirement, _)| {
-                        requirement == called_symbol || Some(*requirement) == requirement_machine
-                    })
-                    .filter_map(|(_, realization)| called_machine(typed, *realization));
-                for callee in direct.into_iter().chain(realizations) {
-                    let Some(callee) = typed.machine_for_target(callee, target.target_name())
-                    else {
-                        refusals.push((
-                            position,
-                            Diagnostic::error(unrealized_call_message(
-                                typed, caller, state, callee, realized,
-                            )),
-                        ));
-                        continue;
-                    };
-                    let Some(callee_position) = typed.machine_position_by_symbol(callee.symbol)
-                    else {
-                        continue;
-                    };
-                    if !std::mem::replace(&mut reached[callee_position], true) {
-                        frontier.push(callee_position);
-                    }
-                }
-            }
-        }
-    }
-    if refusals.is_empty() {
-        return Ok(());
-    }
-    refusals.sort_by_key(|(position, _)| *position);
-    Err(refusals
-        .into_iter()
-        .map(|(_, diagnostic)| diagnostic)
-        .collect())
-}
-
-/// A call names the callee's entry state, a named transition one of its own
-/// states, and a few call forms the machine itself.
-fn called_machine(
-    typed: &TypedTrees,
-    called_symbol: symbols::SymbolHandle,
-) -> Option<&checked_trees::typed_trees::machine::Machine> {
-    typed
-        .machine_by_symbol(called_symbol)
-        .or_else(|| typed.machine_holding_state(called_symbol))
+        .collect::<Vec<_>>();
+    provider_selection::reject_reached_inert_calls(
+        declarations,
+        target.target_name(),
+        entry.as_ref(),
+        &provider_rows,
+    )
 }
 
 /// The same exact family selection supplies closed source evaluation. These
@@ -268,55 +186,4 @@ pub(crate) fn realizes_machine(
         .typed
         .source_target_context(machine)
         .is_none_or(|authored| authored == target)
-}
-
-/// Name every target the callee's family supplies: a family with bodies for
-/// several other targets is not "declared only for" its canonical one.
-fn unrealized_call_message(
-    typed: &TypedTrees,
-    caller: &checked_trees::typed_trees::machine::Machine,
-    state: &checked_trees::typed_trees::state::State,
-    callee: &checked_trees::typed_trees::machine::Machine,
-    realized: &str,
-) -> String {
-    let declared: Vec<&str> = typed
-        .target_machine_families
-        .iter()
-        .find(|family| {
-            family.canonical == callee.symbol
-                || family
-                    .members
-                    .iter()
-                    .any(|member| member.machine == callee.symbol)
-        })
-        .map(|family| {
-            family
-                .members
-                .iter()
-                .map(|member| member.target.as_str())
-                .collect()
-        })
-        .unwrap_or_else(|| callee.target.iter().map(|target| target.as_str()).collect());
-    let caller_name = caller.name.as_str();
-    let state_name = state.name.as_str();
-    let callee_name = callee.name.as_str();
-    match declared.as_slice() {
-        [only] => format!(
-            "machine `{caller_name}` state `{state_name}` calls `{callee_name}`, which is \
-             declared only for target `{only}`. This build realizes `{realized}`, so that body \
-             is an inert sibling and the call has no implementation; scope the caller to \
-             `{only}` as well, or declare `{callee_name}` for the target being built."
-        ),
-        several => format!(
-            "machine `{caller_name}` state `{state_name}` calls `{callee_name}`, which is \
-             declared only for targets {}. This build realizes `{realized}`, so those bodies \
-             are inert siblings and the call has no implementation; scope the caller to one \
-             of those targets, or declare `{callee_name}` for the target being built.",
-            several
-                .iter()
-                .map(|target| format!("`{target}`"))
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
-    }
 }

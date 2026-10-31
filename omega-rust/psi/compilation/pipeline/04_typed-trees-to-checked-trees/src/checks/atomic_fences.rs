@@ -5,6 +5,7 @@
 //! proof selects the event. A copied enum keeps its completion facts; no
 //! initializer or later state of its former storage is substituted here.
 
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use language_core::atomic::FenceOrdering;
@@ -107,7 +108,9 @@ pub(crate) fn ordering(
                         value.type_reference,
                     )
                     .is_some_and(|constructor| {
-                        constructor.case == *case && constructor.fields.is_empty()
+                        constructor.case == *case
+                            && constructor.fields.is_empty()
+                            && constructor.omitted_fields.is_empty()
                     }))
                     || case_at_capture(
                         program,
@@ -136,7 +139,7 @@ fn case_at_capture(
     remaining: &[facts::PlaceSegment],
     case: symbols::SymbolHandle,
 ) -> bool {
-    let Some(mut subject) = validation::canonical_place_from_expression_in_state(
+    let Some(mut subject) = place_at(
         program,
         operand.state_symbol,
         operand.statement_index,

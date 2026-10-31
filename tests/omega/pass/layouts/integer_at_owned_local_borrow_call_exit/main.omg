@@ -1,40 +1,13 @@
+use omega::language::core::layout;
 // A program that holds a plan-laid IntegerAt layout checks every effectful
 // invocation's writes against physical storage. A later state that lends one
 // of its own owned locals to a callee writes only that local: its origin is
 // the local, not unknown storage, so the call needs no IntegerAt fit and the
 // program runs. Declaring the plan-laid `RawView` is what enables the check.
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField
-where
-    size <= 4096,
-    1 <= align,
-    align <= 16,
-{
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema
-where
-    field_count <= 32,
-{ fields: [SchemaField; 32]; field_count: u64; }
-data IntegerInterpretation { case Signed; case Unsigned; }
-data FieldPlan {
-    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
 
-data SignedByte { }
-machine SignedByte::plan(schema: Schema) -> Plan {
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -52,9 +25,10 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 
 data PortableByte [copy] { value: i64; }
-data RawView { value: SignedByte<PortableByte>; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 data Main { bytes: [u8; 2]; }
 
 machine set(dst: &mut i64, value: i64) { dst = value; }

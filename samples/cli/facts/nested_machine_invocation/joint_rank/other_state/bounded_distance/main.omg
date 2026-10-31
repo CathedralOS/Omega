@@ -7,8 +7,8 @@ requires items.len == 7
     transition { _ -> count(counter, items, cursor) }
     machine count(counter: &mut u64, items: &[u8], cursor: u64)
     requires cursor <= items.len
-    terminates;
-    terminates by (cursor, items.len) -> Nat::BoundedDistance;
+    terminates
+    terminates by (cursor, items.len) -> Nat::BoundedDistance
     {
         transition cursor < items.len {
             true -> forward(counter, items, cursor)

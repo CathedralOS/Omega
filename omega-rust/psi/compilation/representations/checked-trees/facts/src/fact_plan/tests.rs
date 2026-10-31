@@ -313,6 +313,7 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
+        conformance_bounds: Vec::new(),
         generic_instance: None,
         members: HandleSpan::empty(),
     });
@@ -331,6 +332,7 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
+        conformance_bounds: Vec::new(),
         generic_instance: None,
         members: HandleSpan::empty(),
     };
@@ -768,4 +770,39 @@ fn shared_checkpoint_adopts_disjoint_worker_pages_in_publication_order() {
             .generation(),
         3
     );
+}
+
+#[test]
+fn sealed_declaration_baseline_is_shared_by_a_flow_fork() {
+    let mut baseline = FactPlan::default();
+    baseline.append_fact_context(Fact {
+        place: FactPlace::Unknown,
+        point: ProgramPoint::Global,
+        origin: FactOrigin::ProofObligation,
+        evidence: QualificationEvidence::default(),
+        payload: FactPayload::StorageDependency {
+            dependent: crate::FactHandle::default(),
+        },
+    });
+    baseline.share_pages();
+    let mut worker = baseline.clone();
+    worker.clone_from(&baseline);
+    assert!(worker.shares_declaration_baseline(&baseline));
+    let before = crate::declaration_page_fork_totals();
+    crate::note_declaration_page_fork(&worker, &baseline);
+    let after = crate::declaration_page_fork_totals();
+    assert_eq!(after.0, before.0 + 1);
+    assert_eq!(after.1, before.1);
+    worker.begin_page(2);
+    worker.append_fact_context(Fact {
+        place: FactPlace::Unknown,
+        point: ProgramPoint::Global,
+        origin: FactOrigin::StatementTransfer,
+        evidence: QualificationEvidence::default(),
+        payload: FactPayload::StorageDependency {
+            dependent: crate::FactHandle::default(),
+        },
+    });
+    assert!(worker.shares_declaration_baseline(&baseline));
+    assert_eq!(baseline.facts.len() + 1, worker.facts.len());
 }

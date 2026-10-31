@@ -29,13 +29,13 @@ Primary satisfies Shape { Shape::code = Item::code; }
 Bumped satisfies Shape { Shape::code = Item::bumped; }
 
 machine scan(selected: dyn Shape, item: &mut Item, packet: Packet, width: u32) -> Packet
-requires width == 16 || width == 32 || width == 64;
+requires width == 16 || width == 32 || width == 64
 {
     transition {
         _ -> dispatch(selected, item, packet, width)
     }
     machine dispatch(selected: dyn Shape, item: &mut Item, packet: Packet, width: u32) -> Packet
-    requires width == 16 || width == 32 || width == 64;
+    requires width == 16 || width == 32 || width == 64
     {
         let result: Packet = Shape::code<width>(selected, item, packet);
         transition { _ -> forward(result) }

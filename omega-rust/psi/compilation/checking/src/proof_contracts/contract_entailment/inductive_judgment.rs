@@ -45,9 +45,20 @@ pub(super) fn inductive_transition_entailment(
         return;
     }
     let mut arms = Vec::new();
+    let mut seen_arm = false;
     for statement in statements {
         if is_arm_pattern_marker(statement) {
             continue; // exhaustiveness carrier, not shape
+        }
+        // A dispatch subject is evaluated once and then relabeled as an
+        // ordinary value. Its comparison remains on the arm guards. A pure
+        // inferred local before the first arm is that capture, not a second
+        // proof obligation.
+        if !seen_arm
+            && let typed_trees::statement::StatementNode::LocalData(local) = statement
+            && pure_dispatch_capture(program, local)
+        {
+            continue;
         }
         let Some(transition) = statement.as_transition() else {
             return; // assignments / locals / calls: out of shape, stand down
@@ -84,6 +95,7 @@ pub(super) fn inductive_transition_entailment(
             }
         };
         arms.push(TransitionArm { guard, kind });
+        seen_arm = true;
     }
 
     if arms.is_empty() {
@@ -193,6 +205,50 @@ pub(super) fn inductive_transition_entailment(
         // the engine's language: stand down rather than reject what we
         // cannot fully read.
     }
+}
+
+/// A generated dispatch subject is an immutable inferred binding whose
+/// initializer does not call. Arm guards still carry that comparison.
+fn pure_dispatch_capture(
+    program: &dyn crate::CheckingInput,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    !local.is_mutable
+        && local.type_is_inferred
+        && !local.is_operand_capture
+        && local.initial_value.is_valid()
+        && !expression_invokes(program, local.initial_value)
+}
+
+fn expression_invokes(program: &dyn crate::CheckingInput, root: ExpressionHandle) -> bool {
+    let mut pending = vec![root];
+    let mut seen = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() || seen.contains(&expression) {
+            continue;
+        }
+        seen.push(expression);
+        let node = program.expression_table.expression(expression);
+        if matches!(node, ExpressionNode::Call(_)) {
+            return true;
+        }
+        match node {
+            ExpressionNode::Binary(binary) => {
+                pending.push(binary.left);
+                pending.push(binary.right);
+            }
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Indexed(indexed) => {
+                pending.push(indexed.collection);
+                pending.push(indexed.index);
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// An arm with its proof context installed, ready to judge ensures goals.

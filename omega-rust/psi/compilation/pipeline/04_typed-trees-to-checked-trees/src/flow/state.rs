@@ -37,12 +37,6 @@ pub(super) fn build_state_flow_fact<'plans>(
         return;
     };
 
-    // Store potentials are this pass's evidence; a rebuilt state accumulates
-    // them afresh.
-    build
-        .element_store_potentials
-        .retain(|(stored_state, _, _, _)| *stored_state != state.symbol);
-
     super::state_values::append_entry_context(program, semantic, build, machine, state);
     let declaration_contexts = declaration_groups
         .into_iter()
@@ -230,10 +224,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         &mut build.contexts.constraint_refs,
         active_constraints,
         borrow,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
+        crate::flow::state_statements(program, state.statement_nodes).len(),
         &execution_order,
         FlowBorrowWeakeningReason::StateExit,
     );

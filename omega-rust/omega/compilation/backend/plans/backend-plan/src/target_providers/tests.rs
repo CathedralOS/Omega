@@ -23,18 +23,20 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
             provider_type: "First".into(),
             target: "macos_arm64".into(),
             identities,
-            schema: ServiceSchema {
-                trait_name,
-                identities: schema_identities,
-                methods: vec![ServiceMethod {
-                    name: "read".into(),
-                    requirement_owner: "Parent".into(),
-                    requirement_identity: schema_requirement,
-                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-                    ..ServiceMethod::default()
-                }],
-                ..ServiceSchema::default()
-            },
+            schema: ServiceSchema::from_declaration(std::sync::Arc::new(
+                effects::provider_plan::ServiceSurface {
+                    trait_name,
+                    identities: schema_identities,
+                    methods: vec![ServiceMethod {
+                        name: "read".into(),
+                        requirement_owner: "Parent".into(),
+                        requirement_identity: schema_requirement,
+                        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                        ..ServiceMethod::default()
+                    }],
+                    ..effects::provider_plan::ServiceSurface::default()
+                },
+            )),
             rows: vec![ProviderPlanRow {
                 method: "read".into(),
                 requirement_identity: requirement,
@@ -126,14 +128,11 @@ fn canonical_instances_replace_source_rows_and_keep_uncalled_inherited_coordinat
 #[test]
 fn canonical_projection_preserves_partial_toolchain_plan_custody() {
     let (mut declaration, module) = fixture();
-    let mut missing = declaration.plan.schema.methods[0].clone();
+    let mut missing = declaration.plan.schema.declaration.methods[0].clone();
     missing.name = "unavailable".into();
-    missing.requirement_identity = declaration
-        .plan
-        .schema
-        .identities
-        .intern("Parent::unavailable");
-    declaration.plan.schema.methods.push(missing);
+    let surface = std::sync::Arc::make_mut(&mut declaration.plan.schema.declaration);
+    missing.requirement_identity = surface.identities.intern("Parent::unavailable");
+    surface.methods.push(missing);
     assert!(
         effects::SelectedProviderPlanFacts::from_selected_plans(vec![declaration.plan.clone()])
             .is_err()

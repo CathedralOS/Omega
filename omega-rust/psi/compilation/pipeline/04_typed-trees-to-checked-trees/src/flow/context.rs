@@ -4,6 +4,7 @@
 //! and memo tables for lookups that depend only on the program, which survive
 //! between sweeps.
 use crate::flow::StateMutationSummaryCache;
+use crate::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
@@ -64,9 +65,7 @@ impl PlacePreparation {
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Self {
         Self {
-            place: validation::canonical_place_from_expression_in_state(
-                program, state, statement, expression,
-            ),
+            place: place_at(program, state, statement, expression),
             entry_subject: None,
         }
     }
@@ -163,21 +162,6 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     pub(super) new_state_field_input_height: usize,
-    /// Per (state, carrier root, carrier segments) byte-class evidence of this
-    /// pass's element stores, intersected across the state's stores: the
-    /// greatest claim the state's outgoing edges could carry for the carrier
-    /// once the carrier's own premise is satisfied. Captured at store time;
-    /// read by field capture as each edge's delivery potential and reset when
-    /// a state rebuilds. The carrier root is part of the key because attached
-    /// machine storage and a named `&mut T` parameter's fields are two root
-    /// spellings of the same carrier kind: the same segments under a different
-    /// root are different storage.
-    pub(super) element_store_potentials: Vec<(
-        SymbolHandle,
-        facts::PlaceRoot,
-        Vec<facts::PlaceSegment>,
-        Vec<validation::field_domains::ByteSequencePredicate>,
-    )>,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     /// Program-global lookups repeated by every call site on every pass. The
     /// typed program is immutable for the whole fixpoint, so each answer
@@ -311,6 +295,19 @@ pub(super) struct FlowBuildContext<'plans> {
 }
 
 impl<'plans> FlowBuildContext<'plans> {
+    /// Each active semantic context, resolved against the plan's arena.
+    pub(super) fn semantic_context_views<'a>(
+        &'a self,
+        semantic: &'a facts::FactPlan,
+        active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+    ) -> impl Iterator<Item = &'a facts::FactContext> + 'a {
+        self.contexts
+            .semantic_context_refs
+            .span_or_empty(active)
+            .iter()
+            .map(|reference| semantic.contexts.get(reference.context))
+    }
+
     pub(super) fn stored_reference_effects(
         &mut self,
         machine: &typed_trees::machine::Machine,
@@ -406,7 +403,6 @@ impl<'plans> FlowBuildContext<'plans> {
             state_value_inputs: Vec::new(),
             dirty_state_value_inputs: Vec::new(),
             new_state_field_input_height: 0,
-            element_store_potentials: Vec::new(),
             call_sites: HashMap::default(),
             call_stored_reference_effects: Vec::new(),
             call_target_parameters: HashMap::default(),
@@ -573,7 +569,7 @@ impl<'plans> FlowBuildContext<'plans> {
                     statement,
                     writes,
                     unknown_write,
-                    operand,
+                    operand.scalar()?,
                 )
             },
         )
@@ -592,7 +588,7 @@ impl<'plans> FlowBuildContext<'plans> {
                 self,
                 state,
                 statement,
-                &binding.operand,
+                binding.operand.scalar()?,
             )?;
             if program.primitive_type_reference(observed.reference)
                 != binding.operand.primitive_type()
@@ -1017,23 +1013,52 @@ impl<'plans> FlowBuildContext<'plans> {
         self.discard_output();
         self.state_value_inputs.clear();
         self.dirty_state_value_inputs.clear();
-        self.element_store_potentials.clear();
         flow
     }
 }
 
 /// The semantic context handles active at one program point, in span order.
-pub(super) fn active_context_handles(
-    contexts: &FlowBuildContext<'_>,
+pub(crate) fn active_context_handles(
+    contexts: &checked_trees::FlowContextFacts,
     active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
 ) -> Vec<facts::FactContextHandle> {
     contexts
-        .contexts
         .semantic_context_refs
         .span_or_empty(active)
         .iter()
         .map(|reference| reference.context)
         .collect::<Vec<_>>()
+}
+
+/// The call flow facts a state's call span names, in span order.
+pub(crate) fn call_flows(
+    control: &checked_trees::FlowControlFacts,
+    calls: arena::HandleSpan<checked_trees::FlowCallFact>,
+) -> &[checked_trees::FlowCallFact] {
+    control.calls.span_or_empty(calls)
+}
+
+/// The statements a state's statement span names, in authored order.
+pub(crate) fn state_statements(
+    program: &dyn ::validation::CheckingInput,
+    statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
+) -> &[typed_trees::statement::StatementNode] {
+    program.statement_table.statements(statements)
+}
+
+/// The statements a state's statement span names, paired with their index.
+pub(crate) fn indexed_statements(
+    program: &dyn ::validation::CheckingInput,
+    statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
+) -> impl Iterator<Item = (usize, &typed_trees::statement::StatementNode)> {
+    program.statement_table.indexed_statements(statements)
+}
+
+/// The expression table of the program under check.
+pub(crate) fn expressions(
+    program: &dyn ::validation::CheckingInput,
+) -> &typed_trees::expression::ExpressionTable {
+    &program.expression_table
 }
 
 /// Every fact payload the active contexts carry, in span order.
@@ -1068,7 +1093,7 @@ pub(super) fn source_transfer_cases_selected(
     root: facts::PlaceRoot,
     segments: Vec<facts::PlaceSegment>,
 ) -> bool {
-    let context_handles = active_context_handles(contexts, active);
+    let context_handles = active_context_handles(&contexts.contexts, active);
     let facts::ProgramPoint::Statement {
         machine_symbol,
         state_symbol,

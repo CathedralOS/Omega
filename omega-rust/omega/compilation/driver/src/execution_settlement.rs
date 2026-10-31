@@ -54,7 +54,10 @@ impl SelectedProductTarget {
         if let Some(inputs) = package_inputs.as_ref()
             && let Some(binding) =
                 provider_planning::program_entry::discover_explicit_entry_binding(
-                    &source.program.typed,
+                    source
+                        .provider_inventory
+                        .services_for(&source.program)
+                        .map_err(|error| vec![error])?,
                     &source.computed_build_config.config.root_bindings,
                     target,
                     &source.computed_build_config.config.provider_selections,
@@ -153,7 +156,7 @@ impl SelectedProductTarget {
         }
 
         let execution = &self.custody.execution;
-        let facts = &execution.selected_provider_plan_facts;
+        let facts = execution.provider_source.plans();
         let mut receiving_identities = None;
         let mut selected_components = Vec::new();
         let mut unavailable = None;
@@ -246,15 +249,11 @@ impl SelectedProductTarget {
         // A source-only stop owes selected-instance coverage without native
         // realization. Executable products obtain it from Terminal instead.
         let execution = &self.custody.execution;
-        provider_planning::project_checked_provider_instances(
-            &execution.program.typed,
-            &execution.program.facts,
-            &execution.selected_provider_plan_facts,
-        )?;
+        execution.provider_source.project_instances()?;
         match terminal {
             Some(module) => check_terminal_task_activations(
                 module,
-                &execution.selected_provider_plan_facts,
+                execution.provider_source.plans(),
                 execution.selected_target_profile,
             ),
             None => {
@@ -263,13 +262,13 @@ impl SelectedProductTarget {
                 // this complete source obligation bundle, including inert uses.
                 let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
                 let demands = psi_compiler::lower_task_activation_demands(
-                    &execution.program,
+                    execution.provider_source.program(),
                     &mut identities,
                 )?;
                 task_plans::realize_task_activations(
                     &demands,
                     &identities.build(),
-                    &execution.selected_provider_plan_facts,
+                    execution.provider_source.plans(),
                     execution
                         .selected_target_profile
                         .unwrap_or_else(target::TargetProfile::host),
@@ -344,7 +343,10 @@ fn select_checked_providers(
     } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
     let mut selected_program_entry =
         provider_planning::program_entry::select_compiler_program_entry(
-            typed,
+            source
+                .provider_inventory
+                .services_for(&source.program)
+                .map_err(|error| vec![error])?,
             &build_config.root_bindings,
             selected_target_profile,
             &providers.boundary_calling_plan_realizations,
@@ -354,7 +356,10 @@ fn select_checked_providers(
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
     }
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        typed,
+        source
+            .provider_inventory
+            .direct_calls_for(&source.program)
+            .map_err(|error| vec![error])?,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         selected_program_entry
             .as_ref()
@@ -368,6 +373,7 @@ fn select_checked_providers(
         Arc::clone(&source.program),
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
+            provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
@@ -396,12 +402,13 @@ fn prepare_target_provider_selection(
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
-    let selected_native_target = selected_target_profile
-        .map(target::TargetProfile::native_target)
-        .unwrap_or_else(target::NativeTarget::host);
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &source.program,
+            source
+                .provider_inventory
+                .services_for(&source.program)
+                .map_err(|error| vec![error])?,
             selected_target_profile.unwrap_or_else(target::TargetProfile::host),
             &build_config.opaque_representation_selections,
             package_inputs,
@@ -411,22 +418,37 @@ fn prepare_target_provider_selection(
     // otherwise nominal placements retain no private materialization and a
     // later closure would invalidate the already-captured plan commitment.
     // This consumes the shared source judgment, never another Psi check.
-    if selected_target_profile.is_some() {
+    if let Some(profile) = selected_target_profile {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
             typed,
             &mut boundary_calling_plan_realizations,
-            selected_native_target,
+            profile,
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
     }
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        source
+            .provider_inventory
+            .origins_for(&source.program)
+            .map_err(|error| vec![error])?,
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     provider_planning::settle_checked_providers(
         &source.program,
+        source
+            .provider_inventory
+            .services_for(&source.program)
+            .map_err(|error| vec![error])?,
+        source
+            .provider_inventory
+            .uses_for(&source.program)
+            .map_err(|error| vec![error])?,
+        source
+            .provider_inventory
+            .direct_calls_for(&source.program)
+            .map_err(|error| vec![error])?,
         settled_target_machines,
         selected_target_profile,
         package_inputs,

@@ -40,11 +40,8 @@ pub(super) fn reconstruct(
     if destination.access != terminal_psi::StructuralAccess::Owned {
         return Err(LegalizationError::custody());
     }
-    let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
-        destination,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let shape = crate::structural_inputs::parameter_shape(destination, &plan.structural_types)
+        .ok_or(LegalizationError::custody())?;
     let value_shape = crate::structural_inputs::structural_reference_input::owned_storage_shape(
         destination.structural_type,
         &plan.structural_types,

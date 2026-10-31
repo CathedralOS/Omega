@@ -7,10 +7,10 @@ boundary trait Completion {
 }
 proposition acknowledged(ack: Ack, word: &Cell) = atomic_release_written<AtomicBool, bool>(&word.value, ack.nonce);
 machine write_nonce(word: &Cell, nonce: bool)
-ensures atomic_release_written<AtomicBool, bool>(&word.value, nonce);
+ensures atomic_release_written<AtomicBool, bool>(&word.value, nonce)
 { word.value.store(nonce, Publish); }
 machine finish(ack: Ack, word: &Cell) satisfies Completion::complete
-ensures acknowledged(ack, word);
+ensures acknowledged(ack, word)
 {
  write_nonce(word, ack.nonce);
 }

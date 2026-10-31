@@ -2,6 +2,7 @@
 //! Type and const proposals are simultaneous caller-scoped data, not admission.
 
 use super::{CallSite, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees};
+use crate::tables::expressions_of;
 use symbols::SymbolKind;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 
@@ -110,10 +111,7 @@ pub(super) fn derive(
     // explicit const cannot be silently reselected from a callback's carrier.
     let application = site.authored_machine_application(program)?;
     if application.is_valid() {
-        for binding in program
-            .expression_table
-            .static_machine_application_bindings(application)
-        {
+        for binding in expressions_of(program).static_machine_application_bindings(application) {
             use typed_trees::static_applications::StaticMachineBindingValue;
             let actual = match binding.value {
                 StaticMachineBindingValue::Type(actual)

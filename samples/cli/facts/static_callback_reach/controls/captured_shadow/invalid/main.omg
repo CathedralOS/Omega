@@ -5,36 +5,36 @@ const Limits::MAXIMUM: u64 = 37;
 public boundary trait Extra {}
 public trait StepContract {
     machine step(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 machine quiet(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine second(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine console_step(value: u64) -> u64
 satisfies StepContract::step
-reaches Console terminates;
+reaches Console terminates
 requires value <= 37
 ensures result <= 37
 { value }
 trait Getter<const Limit: u64> {
     machine get<const Count: u64>(value: u64) -> u64
-    reaches Console blocks; terminates;
+    reaches Console blocks terminates
     requires value <= 37 && Limit <= 37
     ensures result <= 37;
 }
 Selected<const Count: u64, machine Step> satisfies Getter<Count>
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 {
     machine get<const Count: u64>(value: u64) -> u64
     requires value <= 37
@@ -42,11 +42,11 @@ where machine Step satisfies StepContract::step;
     { Step(value) }
 }
 machine choose<Operations satisfies Getter<Limits::MAXIMUM>>(value: u64) -> u64
-reaches Console blocks; terminates;
+reaches Console blocks terminates
 requires value <= 37
 ensures result <= 37
 { block Operations::get<99>(value) }
-machine main() reaches Console blocks; crashes Trap {
+machine main() reaches Console blocks crashes Trap {
     let value: u64 = block choose<Selected<38, quiet>>(37);
     let margin: u64 = 37 - value;
     let declared: u64 = block choose<Selected<37, console_step>>(37);

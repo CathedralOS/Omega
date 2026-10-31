@@ -2,6 +2,7 @@ use crate::expressions::context::ExpressionContext;
 use crate::expressions::match_dispatch::parse_match_expression_handle;
 use crate::expressions::parse_expression::{parse_expression_handle, parse_expression_handle_in};
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::tables::{exprs, exprs_of};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, Span};
@@ -18,10 +19,8 @@ fn spanned(
     node: ExpressionNode,
     source_span: SourceSpan,
 ) -> ExpressionHandle {
-    let expression = syntax_trees.expressions.insert(node);
-    syntax_trees
-        .expressions
-        .set_source_span(expression, source_span);
+    let expression = exprs(syntax_trees).insert(node);
+    exprs(syntax_trees).set_source_span(expression, source_span);
     expression
 }
 
@@ -98,9 +97,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let rest = rest.take_punctuation(PunctuationKind::RightParen, ")")?;
             return Ok((
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::ZeroValue(type_reference)),
+                exprs(syntax_trees).insert(ExpressionNode::ZeroValue(type_reference)),
                 rest,
             ));
         }
@@ -147,18 +144,16 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
         let units: Vec<_> = value
             .encode_utf16()
             .map(|unit| {
-                syntax_trees.expressions.insert(ExpressionNode::Integer(
-                    IntegerLiteral::from_value(i64::from(unit)),
-                ))
+                exprs(syntax_trees).insert(ExpressionNode::Integer(IntegerLiteral::from_value(
+                    i64::from(unit),
+                )))
             })
             .collect();
-        let units = syntax_trees.expressions.insert_expression_handles(units);
+        let units = exprs(syntax_trees).insert_expression_handles(units);
         let expression = syntax_trees
             .expressions
             .insert(ExpressionNode::ArrayLiteral(units));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, start.source_span_until(input));
+        exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
         return Ok((expression, input));
     }
 
@@ -169,9 +164,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     {
         let (value, input) = input.take_string_bytes()?;
         return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::String(value)),
+            exprs(syntax_trees).insert(ExpressionNode::String(value)),
             input,
         ));
     }
@@ -191,9 +184,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             let expression = syntax_trees
                 .expressions
                 .insert(ExpressionNode::TypeExpression(type_reference));
-            syntax_trees
-                .expressions
-                .set_source_span(expression, start.source_span_until(input));
+            exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
             return Ok((expression, input));
         }
         let start = input;
@@ -206,28 +197,22 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                     parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
                 values.push(value);
                 input = rest;
-
                 let Some(next) = input.take_comma()? else {
                     break;
                 };
-
                 input = next;
-
-                continue;
             }
         }
 
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-        let values = syntax_trees.expressions.insert_expression_handles(values);
+        let values = exprs(syntax_trees).insert_expression_handles(values);
         let expression = syntax_trees
             .expressions
             .insert(ExpressionNode::ArrayLiteral(values));
         // A constant initializer retains this exact occurrence for later
         // diagnostics and package review, including empty arrays with no child
         // from which a source location could be recovered.
-        syntax_trees
-            .expressions
-            .set_source_span(expression, start.source_span_until(input));
+        exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
         return Ok((expression, input));
     }
 
@@ -252,9 +237,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             return parse_applied_requirement_call(syntax_trees, start, application, rest);
         }
         let (path, input) = parse_path_handle_span(input, |member| {
-            syntax_trees
-                .expressions
-                .append_identifier_path_member(member)
+            exprs(syntax_trees).append_identifier_path_member(member)
         })?;
 
         if context.allows_type_expression()
@@ -264,14 +247,12 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             let expression = syntax_trees
                 .expressions
                 .insert(ExpressionNode::TypeExpression(type_reference));
-            syntax_trees
-                .expressions
-                .set_source_span(expression, start.source_span_until(rest));
+            exprs(syntax_trees).set_source_span(expression, start.source_span_until(rest));
             return Ok((expression, rest));
         }
 
         if context.allows_struct_literal() && input.at_punctuation(PunctuationKind::LeftBrace) {
-            let members = syntax_trees.expressions.identifier_path_members(path);
+            let members = exprs_of(syntax_trees).identifier_path_members(path);
             let first = members.first().expect("constructor path has a head");
             let last = members.last().expect("constructor path has a tail");
             let mut source_span = first.source_span();
@@ -285,10 +266,8 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             return parse_struct_literal_handle(syntax_trees, constructor_name, input);
         }
 
-        let expression = syntax_trees.expressions.insert(ExpressionNode::Name(path));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, start.source_span_until(input));
+        let expression = exprs(syntax_trees).insert(ExpressionNode::Name(path));
+        exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
         return Ok((expression, input));
     }
 
@@ -360,9 +339,7 @@ fn parse_applied_requirement_call<'tokens, 'source>(
     let receiver = syntax_trees
         .expressions
         .insert(ExpressionNode::TypeExpression(application));
-    syntax_trees
-        .expressions
-        .set_source_span(receiver, start.source_span_until(rest));
+    exprs(syntax_trees).set_source_span(receiver, start.source_span_until(rest));
     let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (target, rest) = rest.take_identifier()?;
     let (machine_arguments, rest) =
@@ -380,7 +357,7 @@ fn parse_applied_requirement_call<'tokens, 'source>(
             rest,
         )?;
     let source = target.source_span();
-    let call = syntax_trees.expressions.insert(ExpressionNode::Call(
+    let call = exprs(syntax_trees).insert(ExpressionNode::Call(
         syntax_trees::expression::TableCallExpression {
             receiver,
             target,
@@ -391,7 +368,7 @@ fn parse_applied_requirement_call<'tokens, 'source>(
             operational_acknowledgement: Default::default(),
         },
     ));
-    syntax_trees.expressions.set_source_span(call, source);
+    exprs(syntax_trees).set_source_span(call, source);
     Ok((call, rest))
 }
 
@@ -520,7 +497,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let fields = syntax_trees.expressions.insert_struct_fields(fields);
+    let fields = exprs(syntax_trees).insert_struct_fields(fields);
     let expression = syntax_trees
         .expressions
         .insert(ExpressionNode::StructLiteral(TableStructLiteral {
@@ -529,7 +506,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
         }));
     let literal_tail_span = start.source_span_until(input);
     debug_assert_eq!(type_name_span.source_id, literal_tail_span.source_id);
-    syntax_trees.expressions.set_source_span(
+    exprs(syntax_trees).set_source_span(
         expression,
         SourceSpan::new(
             type_name_span.source_id,

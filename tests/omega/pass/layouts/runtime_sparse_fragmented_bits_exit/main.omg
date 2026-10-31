@@ -1,35 +1,12 @@
+use omega::language::core::layout;
 // The code's low and high bits occupy different containers 299 bytes apart.
 // Entries deliberately arrive out of source-bit order. The distant container
 // is three bytes wide; a write must preserve its neighboring mode bits.
 use omega_language_std::console;
 
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField where size <= 4096, 1 <= align, align <= 16 {
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema where field_count <= 32 { fields: [SchemaField; 32]; field_count: u64; }
-data FieldPlan {
-    case At(offset: u64);
-    case Bits(container: u64, container_width: u64,
-              destination_lsb: u64, source_lsb: u64, width: u64);
-    case Varint(tag: u64);
-    case LengthPrefixed(tag: u64);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
 
-data SparseBits { }
-machine SparseBits::plan(schema: Schema) -> Plan {
+SparseBits satisfies FixedLayout<PackedFlags> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[2].key,
@@ -64,9 +41,10 @@ machine SparseBits::plan(schema: Schema) -> Plan {
         size_fixed: 302, size_is_dynamic: false, align: 1,
     }
 }
+}
 
 data PackedFlags where mode <= 7, code <= 15 { present: bool; mode: u8; code: u8; }
-data Main { packed: SparseBits<PackedFlags>; }
+data Main { packed: LayoutStorage<PackedFlags, SparseBits>; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.packed.present = true;

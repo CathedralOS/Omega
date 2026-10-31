@@ -4,7 +4,9 @@
 //! Bind decoded fields by declaration symbol and rejoin selected operators
 //! before evaluating a predicate. Unknown expressions supply no evidence.
 
+use crate::frozen_program::expression_table;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -16,13 +18,23 @@ pub(super) fn validate(
     facts: arena::HandleSpan<ProofFact>,
     fields: &[&DataField],
     values: &[(String, DecodedCanonicalConstValue)],
+    active_case: SymbolHandle,
 ) -> Result<(), String> {
     for fact in program.proof_facts.span_or_empty(facts) {
         let verdict = fact
             .as_expression()
             .ok_or("membership and proposition predicates need their own index-use proof")
             .and_then(|expression| {
-                evaluate(program, definition.symbol, fields, values, *expression, 0)
+                evaluate(
+                    program,
+                    definition.symbol,
+                    definition.predicate_subject_symbol,
+                    active_case,
+                    fields,
+                    values,
+                    *expression,
+                    0,
+                )
             })
             .and_then(|(value, _)| match value {
                 Scalar::Boolean(true) => Ok(()),
@@ -46,7 +58,19 @@ pub(super) fn closed_boolean(
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<bool> {
-    match evaluate(program, owner, &[], &[], expression, 0).ok()?.0 {
+    match evaluate(
+        program,
+        owner,
+        SymbolHandle::invalid(),
+        SymbolHandle::invalid(),
+        &[],
+        &[],
+        expression,
+        0,
+    )
+    .ok()?
+    .0
+    {
         Scalar::Boolean(value) => Some(value),
         Scalar::Integer(_) => None,
     }
@@ -69,6 +93,8 @@ fn scalar(value: &DecodedCanonicalConstValue) -> Option<Scalar> {
 fn evaluate(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
+    subject: SymbolHandle,
+    active_case: SymbolHandle,
     fields: &[&DataField],
     values: &[(String, DecodedCanonicalConstValue)],
     expression: ExpressionHandle,
@@ -77,10 +103,21 @@ fn evaluate(
     if depth > 128 {
         return Err("closed scalar predicate exceeds the evaluation depth bound");
     }
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return Err("closed scalar predicate has an invalid expression handle");
     }
-    let operand = |expression| evaluate(program, owner, fields, values, expression, depth + 1);
+    let operand = |expression| {
+        evaluate(
+            program,
+            owner,
+            subject,
+            active_case,
+            fields,
+            values,
+            expression,
+            depth + 1,
+        )
+    };
     let boolean = |value| {
         let carrier = crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
             program,
@@ -89,7 +126,7 @@ fn evaluate(
         .ok_or("closed scalar predicate has no resolved Boolean carrier")?;
         Ok((Scalar::Boolean(value), Some(carrier)))
     };
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => Ok((
             Scalar::Integer(
                 value
@@ -101,8 +138,7 @@ fn evaluate(
         ExpressionNode::Boolean(value) => boolean(*value),
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid()
-                || program
-                    .expression_table
+                || expression_table(program)
                     .name_path_members(path.members)
                     .len()
                     != 1
@@ -144,7 +180,7 @@ fn evaluate(
             boolean(!value)
         }
         ExpressionNode::Call(call) => {
-            let arguments = program.expression_table.expression_handles(call.arguments);
+            let arguments = expression_table(program).expression_handles(call.arguments);
             let values = arguments
                 .iter()
                 .map(|argument| {
@@ -164,7 +200,51 @@ fn evaluate(
                 .ok_or("closed predicate call has no fully decided admitted integer application")?;
             boolean(value)
         }
+        ExpressionNode::Member(member) => {
+            if !names_subject(program, subject, member.receiver) {
+                return Err("predicate projection is outside the closed scalar fragment");
+            }
+            let field = fields
+                .iter()
+                .find(|field| {
+                    (member.member_symbol.is_valid() && field.symbol == member.member_symbol)
+                        || field.name.as_str() == member.member.as_str()
+                })
+                .ok_or("predicate projection is neither its field nor an evaluated constant")?;
+            let (_, value) = values
+                .iter()
+                .find(|(name, _)| name == field.name.as_str())
+                .ok_or("predicate field has no completed value")?;
+            Ok((
+                scalar(value)
+                    .ok_or("predicate field is outside the closed integer/Boolean fragment")?,
+                Some(field.type_reference),
+            ))
+        }
         ExpressionNode::Binary(binary) => {
+            if let Some(matches_case) = case_membership(
+                program,
+                subject,
+                active_case,
+                binary.operator,
+                binary.left,
+                binary.right,
+            ) {
+                return boolean(matches_case);
+            }
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                let (left, _) = operand(binary.left)?;
+                if let Scalar::Boolean(value) = left {
+                    let decided = match binary.operator {
+                        BinaryOperator::Or => value,
+                        BinaryOperator::And => !value,
+                        _ => false,
+                    };
+                    if decided {
+                        return boolean(value);
+                    }
+                }
+            }
             let (left, left_type) = operand(binary.left)?;
             let (right, right_type) = operand(binary.right)?;
             if let Some(spelling) =
@@ -212,4 +292,58 @@ fn evaluate(
         }
         _ => Err("predicate expression is outside the closed scalar fragment"),
     }
+}
+
+fn names_subject(
+    program: &dyn crate::CheckingInput,
+    subject: SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
+        return false;
+    };
+    subject.is_valid()
+        && path.symbol == subject
+        && expression_table(program)
+            .name_path_members(path.members)
+            .len()
+            == 1
+}
+
+/// `self in Data::Case` lowers to a tag comparison. Judge it from the variant
+/// being admitted so the other disjunct's payload is not read.
+fn case_membership(
+    program: &dyn crate::CheckingInput,
+    subject: SymbolHandle,
+    active_case: SymbolHandle,
+    operator: BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> Option<bool> {
+    if !matches!(
+        operator,
+        BinaryOperator::Equal | BinaryOperator::CaseMembership
+    ) || !active_case.is_valid()
+    {
+        return None;
+    }
+    let case_expression = if names_subject(program, subject, left) {
+        right
+    } else if names_subject(program, subject, right) {
+        left
+    } else {
+        return None;
+    };
+    let ExpressionNode::Name(path) = expression_table(program).expression(case_expression) else {
+        return None;
+    };
+    if expression_table(program)
+        .name_path_members(path.members)
+        .len()
+        != 2
+        || !path.symbol.is_valid()
+    {
+        return None;
+    }
+    Some(path.symbol == active_case)
 }

@@ -9,6 +9,8 @@
 //! A helper call cannot cross an open invariant or invent establishment: its
 //! ordinary argument checking remains authoritative. Finite lexical assembly
 //! without scratch state retains its existing storage-frame route.
+use super::normal_exit_contracts::derived_contract;
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_core::inline_assembly::ASM_ZERO_FLAG_SLOT;
@@ -17,7 +19,7 @@ use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableBorrowExpression, TableNamePath, TableUnaryExpression,
     UnaryOperator,
 };
-use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::statement::{
     AssemblyControlFlow, AssemblyControlPoint, AssemblyExit, AssemblyFactKind, StatementNode,
     TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -36,21 +38,17 @@ struct Binding {
 fn name(program: &mut TypedTrees, symbol: SymbolHandle) -> ExpressionHandle {
     let identifier = Identifier::generated(program.symbols.name(symbol));
     let mut members = HandleSpan::empty();
-    program
-        .expression_table
-        .push_name_path_member(&mut members, identifier.clone());
-    program
-        .expression_table
-        .insert(ExpressionNode::Name(TableNamePath::new(
-            members,
-            HandleSpan::empty(),
-            symbol,
-            symbol,
-        )))
+    expressions_of_mut(program).push_name_path_member(&mut members, identifier.clone());
+    expressions_of_mut(program).insert(ExpressionNode::Name(TableNamePath::new(
+        members,
+        HandleSpan::empty(),
+        symbol,
+        symbol,
+    )))
 }
 
 pub(super) fn root(program: &TypedTrees, expression: ExpressionHandle) -> Option<SymbolHandle> {
-    match program.expression_table.expression(expression) {
+    match expressions_of(program).expression(expression) {
         ExpressionNode::Name(path) => Some(path.head_symbol),
         ExpressionNode::Member(member) => root(program, member.receiver),
         ExpressionNode::Indexed(index) => root(program, index.collection),
@@ -127,7 +125,7 @@ fn target_reads(
     expression: ExpressionHandle,
     reads: &mut Vec<ExpressionHandle>,
 ) {
-    match program.expression_table.expression(expression) {
+    match expressions_of(program).expression(expression) {
         ExpressionNode::Name(_) => {}
         ExpressionNode::Member(member) => target_reads(program, member.receiver, reads),
         ExpressionNode::Indexed(indexed) => {
@@ -251,7 +249,7 @@ fn check_register_flow(
                 );
             }
             for expression in reads {
-                if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+                if let ExpressionNode::Name(path) = expressions_of(program).expression(expression)
                     && let Some(register) = scratch
                         .iter()
                         .position(|candidate| *candidate == Some(path.head_symbol))
@@ -336,7 +334,7 @@ fn rereads_mutable_capture(
     validation::expression_traversal::collect_expression_tree(program, value, &mut expressions);
     expressions.iter().any(|expression| {
         matches!(
-            program.expression_table.expression(*expression),
+            expressions_of(program).expression(*expression),
             ExpressionNode::Name(path) if mutable_captures.contains(&path.head_symbol)
         )
     })
@@ -464,12 +462,10 @@ fn exit(
         let condition = if when_set {
             operand
         } else {
-            program
-                .expression_table
-                .insert(ExpressionNode::Unary(TableUnaryExpression {
-                    operator: UnaryOperator::LogicalNot,
-                    operand,
-                }))
+            expressions_of_mut(program).insert(ExpressionNode::Unary(TableUnaryExpression {
+                operator: UnaryOperator::LogicalNot,
+                operand,
+            }))
         };
         transition.guard = TransitionGuardNode::When(condition);
         let continuation = next(program);
@@ -755,7 +751,7 @@ fn normalize_graph(
             &mut expressions,
         );
         for expression in expressions {
-            let ExpressionNode::Name(path) = source.expression_table.expression(expression) else {
+            let ExpressionNode::Name(path) = expressions_of(source).expression(expression) else {
                 continue;
             };
             let symbol = path.head_symbol;
@@ -932,14 +928,14 @@ fn normalize_graph(
                 let inverse_guard = if (edge == 0) != when_set {
                     flag
                 } else {
-                    program
-                        .expression_table
-                        .insert(ExpressionNode::Unary(TableUnaryExpression {
+                    expressions_of_mut(program).insert(ExpressionNode::Unary(
+                        TableUnaryExpression {
                             operator: UnaryOperator::LogicalNot,
                             operand: flag,
-                        }))
+                        },
+                    ))
                 };
-                let implication = program.expression_table.insert(ExpressionNode::Binary(
+                let implication = expressions_of_mut(program).insert(ExpressionNode::Binary(
                     typed_trees::expression::TableBinaryExpression {
                         left: inverse_guard,
                         operator: typed_trees::expression::BinaryOperator::Or,
@@ -951,13 +947,7 @@ fn normalize_graph(
             let facts = program.proof_facts.insert_many([fact]);
             program.push_machine_contract(
                 &mut helper,
-                SignatureContract {
-                    kind: SignatureContractKind::Requires,
-                    keyword_source_span: None,
-                    binding: None,
-                    facts,
-                    token_count: 0,
-                },
+                derived_contract(SignatureContractKind::Requires, facts),
             );
         }
     }
@@ -1029,13 +1019,7 @@ fn normalize_graph(
                 let facts = program.proof_facts.insert_many([fact]);
                 program.push_state_contract(
                     &mut label,
-                    SignatureContract {
-                        kind: SignatureContractKind::Requires,
-                        keyword_source_span: None,
-                        binding: None,
-                        facts,
-                        token_count: 0,
-                    },
+                    derived_contract(SignatureContractKind::Requires, facts),
                 );
                 continue;
             }
@@ -1107,12 +1091,10 @@ fn normalize_graph(
                 .map_or(binding.symbol, |register| register.current);
             let target = name(program, symbol);
             if let Some(access) = binding.access {
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Borrow(TableBorrowExpression {
-                        target,
-                        access,
-                    }))
+                expressions_of_mut(program).insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target,
+                    access,
+                }))
             } else {
                 target
             }

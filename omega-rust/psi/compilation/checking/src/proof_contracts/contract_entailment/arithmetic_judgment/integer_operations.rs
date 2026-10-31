@@ -10,6 +10,40 @@ use typed_trees::operator::builtin_integer_result_carrier;
 use typed_trees::types::PrimitiveType;
 
 impl Engine<'_> {
+    /// Fixed-width complement is total in its selected carrier and does not
+    /// select an overflow policy. This mathematical candidate grants no
+    /// formation to its operand, including any erased unsafe children.
+    pub(super) fn integer_complement_value(
+        primitive: PrimitiveType,
+        operand: &Polynomial,
+    ) -> Option<Polynomial> {
+        if !primitive.is_fixed_integer() {
+            return None;
+        }
+        let (_, maximum) = primitive.integer_bounds()?;
+        let corner = if primitive.is_signed_integer() {
+            BigInt::from_i64(-1)
+        } else {
+            BigInt::from_i128(maximum)
+        };
+        Some(Polynomial::constant(corner).sub(operand))
+    }
+
+    /// The caller independently forms the child first. Only then may its
+    /// selected fixed carrier justify the complement's produced value. Both
+    /// queries are read-only, so refusal cannot publish speculative facts.
+    pub(in crate::proof_contracts::contract_entailment) fn admit_integer_complement(
+        &self,
+        primitive: PrimitiveType,
+        operand: &Polynomial,
+    ) -> Option<Polynomial> {
+        if !self.integer_value_lands(primitive, operand) {
+            return None;
+        }
+        let value = Self::integer_complement_value(primitive, &self.substituted(operand))?;
+        self.integer_value_lands(primitive, &value).then_some(value)
+    }
+
     /// Bitwise denotation belongs to the selected fixed carrier, independently
     /// of overflow policy. Substitute both operands before evaluation, but keep
     /// their declaration's operator selection and reject unlanded magnitudes.
@@ -397,12 +431,23 @@ impl Engine<'_> {
             };
             admitted.integer_policy_value(result, policy, candidate)?
         };
+        if operator == BinaryOperator::Multiply
+            && Self::integer_operation_meaning(operator, meaning)
+        {
+            // Operand intervals are established before result formation. Their
+            // mathematical product bounds remain valid after polynomial
+            // expansion; the result carrier supplies no premise here.
+            admitted.install_exact_product_interval(left, right, &value);
+        }
         if !admitted.integer_value_lands(result, &value) {
             return None;
         }
         // Shift consequences refer to the reduced count, not a discarded
         // positive multiple of width whose actual shift is zero.
         admitted.install_integer_operation_bounds(operator, left, &effective_right, &value);
+        if operator == BinaryOperator::Modulo {
+            admitted.install_fixed_quotient_remainder(left, &effective_right, &value);
+        }
         if let Some(binding) = binding
             && !admitted.install_hypotheses(vec![(
                 BinaryOperator::Equal,
@@ -414,6 +459,40 @@ impl Engine<'_> {
         }
         *self = admitted;
         Some(value)
+    }
+
+    /// Once the selected remainder and all children independently form,
+    /// operand bounds may establish one truncating quotient. The remainder
+    /// then retains its exact relation to those operands, not only [0,d-1].
+    /// This is mathematical truncation for both signs, including the finite
+    /// policy MIN % -1 result; no executable quotient is introduced.
+    fn install_fixed_quotient_remainder(
+        &mut self,
+        dividend: &Polynomial,
+        divisor: &Polynomial,
+        remainder: &Polynomial,
+    ) -> bool {
+        let interval = self.quotient_interval(dividend, divisor);
+        let (Some(minimum), Some(maximum)) = (interval.low, interval.high) else {
+            return false;
+        };
+        if minimum != maximum {
+            return false;
+        }
+        let Some(product) = self
+            .substituted(divisor)
+            .checked_mul(&Polynomial::constant(minimum))
+        else {
+            return false;
+        };
+        let value = self.substituted(dividend).sub(&product);
+        let difference = self.substituted(remainder).sub(&value);
+        if self.prove_at_least(&difference, &BigInt::zero())
+            && self.prove_at_least(&difference.neg(), &BigInt::zero())
+        {
+            return false;
+        }
+        self.install_hypotheses(vec![(BinaryOperator::Equal, remainder.clone(), value)])
     }
 
     /// Correlated consequences of an independently admitted integer operation.

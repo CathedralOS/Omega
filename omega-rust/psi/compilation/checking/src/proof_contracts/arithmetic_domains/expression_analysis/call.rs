@@ -11,6 +11,7 @@
 //! policy selection belongs to the binary operation, not namespace spelling.
 
 use super::{Analysis, ExpressionWalk, NEUTRAL};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, primitive_range,
 };
@@ -81,7 +82,7 @@ fn returned_referent_range(
     let returned = frames.reference_result_origins(selected_state.symbol)?;
     let actuals = frames.expression_call_write_origins(walk.machine?, expression)?;
     let writes = frames.expression_may_write_paths(walk.machine?, expression)?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let mut interval = None;
     for source in returned {
         if !source.segments.is_empty()
@@ -110,7 +111,7 @@ fn returned_referent_range(
             return None;
         }
         let mut actual = *arguments.get(position)?;
-        if let Some(borrow) = program.expression_table.borrow_expression(actual) {
+        if let Some(borrow) = expression_table(program).borrow_expression(actual) {
             if !borrow.access.is_readable() {
                 return None;
             }
@@ -191,7 +192,7 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         .filter(|primitive| integer_bit_width(*primitive).is_some())?;
     let range = primitive_range(primitive)?;
     let converted = (|| {
-        let [operand] = program.expression_table.expression_handles(call.arguments) else {
+        let [operand] = expression_table(program).expression_handles(call.arguments) else {
             return None;
         };
         let source = super::super::float_source_bounds(
@@ -356,10 +357,7 @@ fn argument_collection_lengths(
     else {
         return Vec::new();
     };
-    let arguments = walk
-        .program
-        .expression_table
-        .expression_handles(call.arguments);
+    let arguments = expression_table(walk.program).expression_handles(call.arguments);
     let Some(arguments) = arguments.get(callee.leading_operands..) else {
         return Vec::new();
     };
@@ -442,9 +440,7 @@ fn exact_ordinary_actual_intervals(
     let callee =
         crate::machine_calls::calls::callee_entry_contract(walk.program, call.target_symbol)?;
     let parameters = callee.parameters.iter().collect::<Vec<_>>();
-    let arguments = walk
-        .program
-        .expression_table
+    let arguments = expression_table(walk.program)
         .expression_handles(call.arguments)
         .get(callee.leading_operands..)?;
     if parameters.len() != arguments.len() {

@@ -149,7 +149,9 @@ impl<'program> Collector<'program, '_> {
             TypeReference::Named { symbol, .. } => {
                 self.type_declaration(*symbol)?;
             }
-            TypeReference::ConstExpression(expression) => self.expressions.push(*expression),
+            TypeReference::ConstExpression(expression) => {
+                self.expressions.push(expression.expression)
+            }
             TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}
         }
         Ok(())

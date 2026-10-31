@@ -85,14 +85,11 @@ use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::forward_selected_stored_load;
 
-/// An accepted store-to-load forwarding with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedStoredLoadForwarding {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: StoredLoadForwardingReceipt,
-}
-
-validated_transformed_receipt!(ValidatedStoredLoadForwarding, StoredLoadForwardingReceipt);
+validated_transformed_receipt!(
+    /// An accepted store-to-load forwarding with its replay receipt.
+    ValidatedStoredLoadForwarding,
+    StoredLoadForwardingReceipt
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredLoadForwardingReceipt {

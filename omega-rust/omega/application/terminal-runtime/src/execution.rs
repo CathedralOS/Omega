@@ -268,7 +268,10 @@ pub fn execute_sliced(
         .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
     let target_layouts = target_machines
         .as_ref()
-        .map(|selected| terminal_interpreter::admit_target_layouts(artifact, selected))
+        .map(|selected| {
+            let facts = layout_target_facts(selected.target())?;
+            terminal_interpreter::admit_target_layouts(artifact, selected, &facts)
+        })
         .transpose()
         .map_err(|error| {
             TerminalRuntimeError::Requirements(
@@ -490,4 +493,26 @@ pub fn capture_host_x86_flags(
     terminal_interpreter::TerminalX86FlagsEnvironment::new(image)
         .map(Some)
         .map_err(TerminalRuntimeError::Requirements)
+}
+
+/// Rejoin portable layout inputs to the receiving compiler target catalogue.
+/// A retained artifact cannot choose the pointer geometry used to validate it.
+fn layout_target_facts(
+    name: &str,
+) -> Result<
+    terminal_installation::LayoutTargetFacts,
+    terminal_installation::TargetLayoutSelectionError,
+> {
+    target::TargetProfile::from_canonical_target_name(name)
+        .map_err(|reason| {
+            terminal_installation::TargetLayoutSelectionError::InvalidTargetInput(
+                reason.to_string(),
+            )
+        })?
+        .layout_target_facts()
+        .ok_or_else(|| {
+            terminal_installation::TargetLayoutSelectionError::InvalidTargetInput(
+                "selected target has no representation context".into(),
+            )
+        })
 }

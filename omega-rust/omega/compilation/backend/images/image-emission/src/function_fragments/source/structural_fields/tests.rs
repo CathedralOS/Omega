@@ -122,6 +122,25 @@ fn plain_structural_type(
     }
 }
 
+/// A packed record carrier with exactly one field: the shape every
+/// field-membership fixture declares around its carrier.
+fn packed_record_field(
+    id: StructuralFieldId,
+    identity: terminal_psi::TerminalIdentityIndex,
+    field_type: terminal_psi::StructuralFieldType,
+) -> StructuralTypeShape {
+    StructuralTypeShape::Record {
+        storage: terminal_psi::StructuralRecordStorage::Packed,
+        fields: vec![StructuralFieldDeclaration {
+            storage: None,
+            id,
+            identity,
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type,
+        }],
+    }
+}
+
 fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) {
     // These fixtures isolate source membership, not object/load replay certificates.
     // The declared record still supplies the namespace used by path translation;
@@ -528,18 +547,13 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         stored_target.graph.structural_types = vec![structural_declaration(
             owner.structural_type,
             terminal_psi::TerminalIdentityIndex(10),
-            terminal_psi::StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                fields: vec![terminal_psi::StructuralFieldDeclaration {
-                    storage: None,
-                    id: field,
-                    identity: terminal_psi::TerminalIdentityIndex(11),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: terminal_psi::StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
-                    ),
-                }],
-            },
+            packed_record_field(
+                field,
+                terminal_psi::TerminalIdentityIndex(11),
+                terminal_psi::StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                ),
+            ),
         )]
         .into();
         stored_function.operations[1] = AbstractOperation::StructuralByteSequenceFieldStore {
@@ -1594,16 +1608,11 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
         target.graph.structural_types = vec![structural_declaration(
             function.structural_parameters[0].structural_type,
             terminal_psi::TerminalIdentityIndex(20),
-            terminal_psi::StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                fields: vec![terminal_psi::StructuralFieldDeclaration {
-                    storage: None,
-                    id: carrier_field,
-                    identity: terminal_psi::TerminalIdentityIndex(21),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: terminal_psi::StructuralFieldType::Structural(child),
-                }],
-            },
+            packed_record_field(
+                carrier_field,
+                terminal_psi::TerminalIdentityIndex(21),
+                terminal_psi::StructuralFieldType::Structural(child),
+            ),
         )]
         .into();
         target
@@ -1613,16 +1622,11 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             .push(structural_declaration(
                 child,
                 terminal_psi::TerminalIdentityIndex(22),
-                terminal_psi::StructuralTypeShape::Record {
-                    storage: terminal_psi::StructuralRecordStorage::Packed,
-                    fields: vec![terminal_psi::StructuralFieldDeclaration {
-                        storage: None,
-                        id: carrier_field,
-                        identity: terminal_psi::TerminalIdentityIndex(23),
-                        relevance: terminal_psi::BindingRelevance::Relevant,
-                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
-                    }],
-                },
+                packed_record_field(
+                    carrier_field,
+                    terminal_psi::TerminalIdentityIndex(23),
+                    terminal_psi::StructuralFieldType::Scalar(scalar),
+                ),
             ));
         let source = scalar_field_read_source_mut(&mut target.graph, 0);
         source.path.push(StructuralPathSegment::Field(
@@ -1665,16 +1669,11 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             structural_declaration(
                 function.structural_parameters[0].structural_type,
                 terminal_psi::TerminalIdentityIndex(20),
-                terminal_psi::StructuralTypeShape::Record {
-                    storage: terminal_psi::StructuralRecordStorage::Packed,
-                    fields: vec![terminal_psi::StructuralFieldDeclaration {
-                        storage: None,
-                        id: maps_field,
-                        identity: terminal_psi::TerminalIdentityIndex(25),
-                        relevance: terminal_psi::BindingRelevance::Relevant,
-                        field_type: terminal_psi::StructuralFieldType::Structural(array),
-                    }],
-                },
+                packed_record_field(
+                    maps_field,
+                    terminal_psi::TerminalIdentityIndex(25),
+                    terminal_psi::StructuralFieldType::Structural(array),
+                ),
             ),
             structural_declaration(
                 array,
@@ -1687,16 +1686,11 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             structural_declaration(
                 element,
                 terminal_psi::TerminalIdentityIndex(27),
-                terminal_psi::StructuralTypeShape::Record {
-                    storage: terminal_psi::StructuralRecordStorage::Packed,
-                    fields: vec![terminal_psi::StructuralFieldDeclaration {
-                        storage: None,
-                        id: leaf,
-                        identity: terminal_psi::TerminalIdentityIndex(23),
-                        relevance: terminal_psi::BindingRelevance::Relevant,
-                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
-                    }],
-                },
+                packed_record_field(
+                    leaf,
+                    terminal_psi::TerminalIdentityIndex(23),
+                    terminal_psi::StructuralFieldType::Scalar(scalar),
+                ),
             ),
         ]
         .into();
@@ -1765,17 +1759,11 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             assert!(!retained(&invalid, &invalid.operations[0], &target));
         }
         let mut non_array = target.clone();
-        non_array.graph.structural_types.make_mut()[1].shape =
-            terminal_psi::StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                fields: vec![terminal_psi::StructuralFieldDeclaration {
-                    storage: None,
-                    id: leaf,
-                    identity: terminal_psi::TerminalIdentityIndex(23),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
-                }],
-            };
+        non_array.graph.structural_types.make_mut()[1].shape = packed_record_field(
+            leaf,
+            terminal_psi::TerminalIdentityIndex(23),
+            terminal_psi::StructuralFieldType::Scalar(scalar),
+        );
         assert!(!retained(&function, &function.operations[0], &non_array));
     }
 }

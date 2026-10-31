@@ -27,7 +27,7 @@ impl TerminalExecution<'_> {
         let end = count(end)?;
         let length = count(length)?;
         let access = terminal_semantics::descriptor_results::descriptor_value_access(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             result.structural_type,
             result.multiplicity,
         )
@@ -46,14 +46,14 @@ impl TerminalExecution<'_> {
                 && place.kind.as_operation_result()
                     == Some((operation.id, result.structural_type))
         }) || !matches!(
-            self.program.structural_types().get(&result.structural_type),
+            self.structural_types().get(&result.structural_type),
             Some(declaration)
                 if declaration.shape.is_borrowed_byte_view()
         ) || u64::try_from(length).ok() != Some(source_length)
             || start > end
             || end > length
             || !terminal_semantics::descriptor_reborrow_matches(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 source_value.structural_type, source.access, Some(binding.access()),
                 result.structural_type, access,
             )
@@ -126,7 +126,7 @@ impl TerminalExecution<'_> {
             || !matches!(
                 access,terminal_psi::reading_borrow_pair_pattern!())
             || !terminal_semantics::descriptor_reborrow_matches(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 source.structural_type, access, Some(binding.access()),
                 destination.structural_type,
                 access,
@@ -135,9 +135,7 @@ impl TerminalExecution<'_> {
             // qualified source without claiming its predicates.
             || (access != StructuralAccess::SharedBorrow && !source.qualifications.is_empty())
             || !destination.qualifications.is_empty()
-            || !self
-                .program
-                .structural_types()
+            || !self.structural_types()
                 .get(&destination.structural_type)
                 .is_some_and(|row| row.shape.is_borrowed_byte_view())
         {

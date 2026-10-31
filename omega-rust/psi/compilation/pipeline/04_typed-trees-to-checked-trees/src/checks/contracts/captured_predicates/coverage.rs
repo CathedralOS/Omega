@@ -75,9 +75,7 @@ pub(super) fn join_identities(
         for left in 0..right {
             let source = required.bindings[right].clone();
             let destination = required.bindings[left].clone();
-            if source.place == destination.place
-                || source.operand.primitive_type() != destination.operand.primitive_type()
-            {
+            if source.place == destination.place || !source.compatible_with(program, &destination) {
                 continue;
             }
             let mut good = conditions.never();
@@ -116,9 +114,7 @@ pub(super) fn join_identities(
                 // substitution identity, including IEEE values, not a new
                 // assertion that Float language equality is reflexive.
                 for binding in &mut required.bindings {
-                    if binding.place == source.place
-                        && binding.operand.primitive_type() == source.operand.primitive_type()
-                    {
+                    if binding.place == source.place && binding.compatible_with(program, &source) {
                         binding.place = destination.place.clone();
                     }
                 }

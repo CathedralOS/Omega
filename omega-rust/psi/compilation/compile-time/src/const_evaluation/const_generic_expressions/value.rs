@@ -47,6 +47,8 @@
 //! evaluator's arbitrary payload. Format, operator selection and argument
 //! admission remain attached to every operation throughout evaluation.
 
+use crate::build_time_evaluation::{expression_table, type_reference_table};
+use crate::unique::extend_unique;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
@@ -432,11 +434,7 @@ fn evaluate_expression(
                             }
                             _ => return Err("constant call result differs from its validated scalar carrier".into()),
                         });
-                        for warning in call_warnings {
-                            if !warnings.contains(&warning) {
-                                warnings.push(warning);
-                            }
-                        }
+                        extend_unique(&mut warnings, call_warnings);
                     }
                     ExpressionNode::Match(dispatch) => {
                         active.push(expression);
@@ -576,8 +574,7 @@ fn evaluate_expression(
                 let Some(dispatch) = program.expression_table.match_node(expression) else {
                     return Err("constant Match lost dispatch".into());
                 };
-                let arm = program
-                    .expression_table
+                let arm = expression_table(program)
                     .match_arms(dispatch.arms)
                     .get(ordinal)
                     .ok_or("constant Match has no selected arm")?;
@@ -620,8 +617,7 @@ fn evaluate_expression(
                     let Some(dispatch) = program.expression_table.match_node(expression) else {
                         return Err("constant Match lost dispatch".into());
                     };
-                    let arm = program
-                        .expression_table
+                    let arm = expression_table(program)
                         .match_arms(dispatch.arms)
                         .get(ordinal)
                         .ok_or("constant Match lost arm")?;
@@ -884,17 +880,12 @@ fn validate_shapes(
                     }
                     shapes.push(shape);
                     call_shapes.push((expression, shape));
-                    for warning in call_warnings {
-                        if !warnings.contains(&warning) {
-                            warnings.push(warning);
-                        }
-                    }
+                    extend_unique(&mut warnings, call_warnings);
                 }
                 ExpressionNode::Match(dispatch) => {
                     active.push(expression);
                     pending.push((expression, true));
-                    for arm in program
-                        .expression_table
+                    for arm in expression_table(program)
                         .match_arms(dispatch.arms)
                         .iter()
                         .rev()
@@ -1583,9 +1574,7 @@ fn reference_policy(
     let mut seen = Vec::new();
     let mut policy = None;
     loop {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
+        if !type_reference_table(program).contains_type_reference(reference)
             || seen.contains(&reference)
         {
             return Err("constant scalar type is invalid or cyclic".into());
@@ -1598,8 +1587,7 @@ fn reference_policy(
         else {
             break;
         };
-        let constraints = program
-            .type_reference_table
+        let constraints = type_reference_table(program)
             .constraint_span(*constraints)
             .ok_or("constant scalar type has invalid constraints")?;
         for constraint in constraints {

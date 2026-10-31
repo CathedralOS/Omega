@@ -228,7 +228,7 @@ machine bignum_mul_schoolbook(left: &Bignum, right: &Bignum, out: &mut Bignum) {
 // quotient in `quotient` and returning the remainder in `0..divisor`.
 machine bignum_divmod_small(dividend: &Bignum, divisor: u32, quotient: &mut Bignum) -> u32
 requires
-    divisor > 0;
+    divisor > 0
 {
     let d64: u64 = divisor as u64;
     transition d64 > 0 && d64 <= 4294967295 {

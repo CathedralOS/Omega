@@ -79,35 +79,18 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::remove_redundant_compare;
 pub(crate) use validation::measured_steps;
 
-/// An accepted redundant-compare removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRedundantCompare {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RedundantCompareReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted redundant-compare removal with its replay receipt.
+    ValidatedRedundantCompare,
+    RedundantCompareReceipt
+);
 
-validated_transformed_receipt!(ValidatedRedundantCompare, RedundantCompareReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RedundantCompareReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    compare: SelectedInstructionId,
-}
-
-impl RedundantCompareReceipt {
-    receipt_accessor_rows!(ref RedundantCompareReceipt {
+rewrite_receipt!(RedundantCompareReceipt {
     /// The transformed function index that carried the removed compare.
-        function_index: usize,
+    function_index: usize,
     /// The removed redundant compare instruction.
-        compare: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(RedundantCompareReceipt);
+    compare: SelectedInstructionId,
+});
 
 // Canonical identity of one validated redundant-compare removal: every
 // receipt field — the coordinate, both plan identities, and the proof

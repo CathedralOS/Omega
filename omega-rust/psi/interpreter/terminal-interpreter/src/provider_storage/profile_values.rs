@@ -238,7 +238,7 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
         }
         path.push(StructuralPathSegment::Field(field.identity));
         let value = crate::custody::project_structural_value(
-            &self.execution.program.structural_types(),
+            &self.execution.structural_types(),
             &self.value,
             &path,
         )?;
@@ -250,10 +250,8 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
     }
 
     fn selected_case(mut self, count: usize) -> Result<(usize, Self), TerminalInterpretError> {
-        let types = self.execution.program.structural_types();
-        let declaration = types
-            .get(&self.value.structural_type)
-            .ok_or_else(malformed)?;
+        let types = self.execution.structural_types();
+        let declaration = types.declaration(&self.value.structural_type)?;
         let StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Err(malformed());
         };
@@ -286,14 +284,11 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
         self.record(2)?;
         let count = self.unsigned(1)?;
         let array = self.field(0)?;
-        let types = self.execution.program.structural_types();
+        let types = self.execution.structural_types();
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = types
-            .get(&array.value.structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = types.declaration(&array.value.structural_type)?.shape
         else {
             return Err(malformed());
         };

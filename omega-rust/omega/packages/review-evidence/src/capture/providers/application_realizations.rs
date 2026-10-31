@@ -10,6 +10,7 @@ mod compiler_intrinsics;
 use super::super::semantics::declarations::nominal_identity;
 use super::super::semantics::types::review_type_identity_with_binders;
 use super::super::source::locations::canonical_source_span_location;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
@@ -37,7 +38,7 @@ pub(crate) fn project_boundary_application_realizations(
     }
     let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
         compilation,
-        &compilation.custody.execution().selected_provider_plan_facts,
+        compilation.custody.execution().provider_source.plans(),
         applications.iter().copied(),
     )?;
     let mut staged: Vec<StagedRealization> = Vec::new();
@@ -130,7 +131,7 @@ fn project_specialized_checked_body_applications(
 ) -> Result<(), Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_specialized_operator_application_realizations(
         compilation,
-        &compilation.custody.execution().selected_provider_plan_facts,
+        compilation.custody.execution().provider_source.plans(),
         applications.iter().copied(),
     )?;
     for realization in derived {
@@ -360,12 +361,7 @@ fn expression_is_owned_by_package(
     let ownership_span = if span.span.start >= span.span.end {
         let expected_kind = authored_application_selection_kind(use_kind);
         let has_authored_selection = compilation
-            .authored_selection_occurrences(expression)
-            .filter_map(|occurrence| {
-                compilation
-                    .authored_declaration_selections()
-                    .get(occurrence)
-            })
+            .authored_selections(expression)
             .any(|selection| selection.kind() == expected_kind);
         if !has_authored_selection {
             return Ok(false);
@@ -384,22 +380,18 @@ fn expression_is_owned_by_package(
         .typed
         .symbols
         .source_file(ownership_span)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "boundary application expression {expression:?} has no retained source file",
-            ))]
-        })?;
+        .or_evidence(format!(
+            "boundary application expression {expression:?} has no retained source file",
+        ))?;
     match source.origin {
         source::SourceOrigin::Toolchain => Ok(false),
         source::SourceOrigin::User => source
             .package_identity
             .map(|owner| owner == package)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "boundary application source `{}` has no reconciled package identity",
-                    source.path.display(),
-                ))]
-            }),
+            .or_evidence(format!(
+                "boundary application source `{}` has no reconciled package identity",
+                source.path.display(),
+            )),
     }
 }
 
@@ -441,12 +433,7 @@ pub(super) fn authored_application_source_span(
 
     let expected_kind = authored_application_selection_kind(use_kind);
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == expected_kind)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
@@ -523,12 +510,7 @@ pub(super) fn token_authored_use_kind(
     };
 
     let authored_token = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .any(|selection| {
             selection.kind() == AuthoredDeclarationSelectionKind::Operator
                 && matches!(

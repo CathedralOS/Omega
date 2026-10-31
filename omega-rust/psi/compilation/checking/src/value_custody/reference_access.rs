@@ -21,6 +21,7 @@
 //! refused by name rather than as a generic access shortfall.
 
 use super::expression_types::declared_reference_access;
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -65,9 +66,8 @@ pub(crate) fn receiving_reference_access_refusal(
     // effects, coverage and each arm's loans keep their ordinary formation
     // judgments. Reuse those exact result handles rather than deriving one
     // access from a representative arm or flattening the source expression.
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
-        return program
-            .expression_table
+    if let ExpressionNode::Match(dispatch) = expression_table(program).expression(value) {
+        return expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .find_map(|arm| {
@@ -118,7 +118,7 @@ pub(crate) fn receiving_reference_access_refusal(
     // descriptor neither forms another borrow nor observes its referent.
     if expected_access == Some(ReferenceAccess::WriteOnly)
         && supplied_access != Some(ReferenceAccess::WriteOnly)
-        && !matches!(program.expression_table.expression(value),
+        && !matches!(expression_table(program).expression(value),
             ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::WriteOnly)
     {
         return Some(ReferenceAccessRefusal::ExplicitWriteOnlyRequired);
@@ -242,7 +242,7 @@ fn completed_reference_borrow_source(
             bare_window: false,
         });
     }
-    match program.expression_table.expression(value) {
+    match expression_table(program).expression(value) {
         ExpressionNode::Indexed(indexed)
             if program.expression_table.range_node(indexed.index).is_some()
                 && crate::value_custody::places::place_has_builtin_coordinates(
@@ -366,10 +366,9 @@ pub(crate) fn assignment_storage_write_access(
     let writes_parameter_referent = state.is_some_and(|state| {
         crate::value_custody::places::assignment_targets_parameter_referent(program, state, target)
     });
-    let writes_range_backing = program
-        .expression_table
+    let writes_range_backing = expression_table(program)
         .indexed_node(target)
-        .is_some_and(|indexed| program.expression_table.indexed_on_range(indexed));
+        .is_some_and(|indexed| expression_table(program).indexed_on_range(indexed));
     if writes_parameter_referent || writes_range_backing {
         return crate::value_custody::expression_types::place_permits_reference_borrow(
             program,
@@ -403,7 +402,7 @@ fn source_place_root(
     }
     let mut root = argument;
     loop {
-        let receiver = match program.expression_table.expression(root) {
+        let receiver = match expression_table(program).expression(root) {
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(_) => break,
@@ -424,11 +423,10 @@ fn source_place_root(
                         source,
                     )?
                 };
-                let anchor = program
-                    .expression_table
+                let anchor = expression_table(program)
                     .value_capture(saved.capture)
                     .value_anchor;
-                if !program.expression_table.expression_is_valid(anchor) {
+                if !expression_table(program).expression_is_valid(anchor) {
                     return None;
                 }
                 // The match owns completed subject storage. Its declared
@@ -440,8 +438,8 @@ fn source_place_root(
         };
         root = receiver;
     }
-    let path = program.expression_table.name_path_node(root)?;
-    let [_] = program.expression_table.name_path_members(path.members) else {
+    let path = expression_table(program).name_path_node(root)?;
+    let [_] = expression_table(program).name_path_members(path.members) else {
         return None;
     };
     if path.head_symbol != path.symbol {

@@ -33,6 +33,7 @@
 //! `count as u64` for a nonnegative wrapping count, through a local, a field,
 //! a parameter, or a call, because each spelling is that same integer.
 use crate::checks::unsigned;
+use crate::flow::expressions;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -117,6 +118,13 @@ pub(crate) struct CurrentScalarValues<'program> {
 }
 
 impl<'program> CurrentScalarValues<'program> {
+    pub(crate) fn machine(&self) -> &Machine {
+        self.machine
+    }
+    pub(crate) fn state(&self) -> &State {
+        self.state
+    }
+
     pub(crate) fn program(&self) -> &'program dyn ::validation::CheckingInput {
         self.program
     }
@@ -179,12 +187,20 @@ impl<'program> CurrentScalarValues<'program> {
                 Some(Binding {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
-                    value: readable.then(|| ScopedArithmeticValue::Atom {
-                        identity: format!(
-                            "state:{:?}:parameter:{:?}",
-                            state.symbol, parameter.symbol
-                        ),
-                        unsigned: unsigned(primitive),
+                    value: readable.then(|| {
+                        entry_fields::entry_value(
+                            program,
+                            validation::reference_shell(program, parameter.type_reference)
+                                .map_or(parameter.type_reference, |shell| shell.referee),
+                            None,
+                            ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "state:{:?}:parameter:{:?}",
+                                    state.symbol, parameter.symbol
+                                ),
+                                unsigned: unsigned(primitive),
+                            },
+                        )
                     }),
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
@@ -211,13 +227,18 @@ impl<'program> CurrentScalarValues<'program> {
                     Some(Binding {
                         symbol: parameter.symbol,
                         name: parameter.name.to_string(),
-                        value: Some(ScopedArithmeticValue::Atom {
-                            identity: format!(
-                                "machine:{:?}:value:{:?}",
-                                machine.symbol, parameter.symbol
-                            ),
-                            unsigned: unsigned(primitive),
-                        }),
+                        value: Some(entry_fields::entry_value(
+                            program,
+                            reference,
+                            None,
+                            ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "machine:{:?}:value:{:?}",
+                                    machine.symbol, parameter.symbol
+                                ),
+                                unsigned: unsigned(primitive),
+                            },
+                        )),
                         alternatives: Vec::new(),
                         immutable_coordinate: true,
                         read_dependencies: Some(Vec::new()),
@@ -241,12 +262,16 @@ impl<'program> CurrentScalarValues<'program> {
                     name: parameter.name.to_string(),
                     stable: true,
                     type_reference: parameter.type_reference,
-                    value: Some(fixed_length(program, parameter.type_reference, || {
-                        format!(
-                            "state:{:?}:parameter:{:?}:length",
-                            state.symbol, parameter.symbol
-                        )
-                    })?),
+                    value: Some(entry_collection_length(
+                        program,
+                        parameter.type_reference,
+                        || {
+                            format!(
+                                "state:{:?}:parameter:{:?}:length",
+                                state.symbol, parameter.symbol
+                            )
+                        },
+                    )?),
                 })
             })
             .collect();
@@ -884,7 +909,7 @@ impl<'program> CurrentScalarValues<'program> {
                         self.statement_index,
                         self.in_transition_target,
                         validation::NumericObservationDemand {
-                            scalar_values: true,
+                            scalar_values: validation::ScalarObservationDemand::StatePrefix,
                             integer_operations: false,
                             scalar_associations: false,
                         },
@@ -1046,6 +1071,27 @@ impl<'program> CurrentScalarValues<'program> {
         values
     }
 
+    /// Facts already captured in their establishing rosters. Consumers must
+    /// preserve those rosters rather than reread the source predicates.
+    pub(crate) fn captured_hypotheses(&self) -> &[ScopedArithmeticHypothesis] {
+        &self.hypotheses
+    }
+
+    pub(crate) fn declared_integer_application_formation(
+        &self,
+        machine: &Machine,
+        expression: &ScopedArithmeticExpression,
+        result: PrimitiveType,
+    ) -> Option<validation::IntegerApplicationFormation> {
+        validation::scoped_declared_integer_application_formation(
+            self.program,
+            machine,
+            &self.hypotheses,
+            expression,
+            result,
+        )
+    }
+
     pub(crate) fn proves_values_relation(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -1192,6 +1238,22 @@ fn integer_carrier(
 }
 /// A collection type's length when no store or reseat can change it during
 /// the activation: a literal fixed array's own length, or one unsigned unknown.
+/// Entry metadata includes inline fixed arrays as well as borrowed descriptors.
+/// Only the descriptor owner below may create a live length atom; a declared
+/// extent supplies its exact constant without treating owned storage as a loan.
+fn entry_collection_length(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    identity: impl FnOnce() -> String,
+) -> Option<ScopedArithmeticValue> {
+    if let Some(extent) = validation::fixed_array_type_length(program, reference) {
+        return Some(ScopedArithmeticValue::Integer(
+            numerics::bignum::BigInt::from_u64(u64::try_from(extent).ok()?),
+        ));
+    }
+    fixed_length(program, reference, identity)
+}
+
 fn fixed_length(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
@@ -1282,8 +1344,7 @@ fn closed_integer_literal(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<numerics::bignum::BigInt> {
-    program
-        .expression_table
+    expressions(program)
         .integer_node(expression)?
         .value_bignum()
 }
@@ -1579,8 +1640,7 @@ fn preserving_integer_cast_operand(
     let operand = integer_cast_operand(program, machine, state, expression)?;
     let (target_minimum, target_maximum) =
         integer_carrier_span(program, machine, state, expression)?;
-    if let Some(value) = program
-        .expression_table
+    if let Some(value) = expressions(program)
         .integer_node(operand)
         .and_then(|literal| literal.value_bignum())
     {

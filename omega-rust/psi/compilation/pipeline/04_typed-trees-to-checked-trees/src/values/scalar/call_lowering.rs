@@ -1,6 +1,7 @@
 //! Lowering call arguments into scalar plans: retained arguments, boundary
 //! calls, direct call bindings and qualified call expressions.
 
+use crate::flow::expressions;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::{ScalarLocal, located_binding_symbols};
 use crate::values::scalar::scalar_lowering::lower_return_expression;
@@ -51,7 +52,11 @@ pub(crate) fn call_is_boundary(
 ) -> bool {
     let requirement_symbol = program
         .machine_parameter_signature(target_symbol)
-        .map_or(target_symbol, |(_, signature)| signature.symbol);
+        .map(|(_, signature)| signature.symbol)
+        .unwrap_or(target_symbol);
+    let requirement_symbol = program
+        .closed_requirement_application(requirement_symbol)
+        .map_or(requirement_symbol, |application| application.template);
     program.machines().iter().any(|machine| {
         machine.has_bodyless_signature()
             && program
@@ -284,13 +289,17 @@ pub(crate) fn lower_call_arguments(
         validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
         validation::CallSite::TransitionNamed { .. } => &[],
     };
-    if machine_arguments.is_empty() {
+    // Ordinary static operands have already been admitted in the call's
+    // application telescope. They add no executable row-selection arguments
+    // and cannot erase the ordinary scalar arguments collected above.
+    let slot = program.dynamic_slot_by_symbol(target_symbol);
+    if machine_arguments.is_empty() || slot.is_none() {
         return Some(LoweredCallArguments {
             scalar_arguments: output,
             proof_terms,
         });
     }
-    let slot = program.dynamic_slot_by_symbol(target_symbol)?;
+    let slot = slot?;
     let requirement = program.dynamic_slot_requirement(slot)?;
     let typed_trees::finite_family::FamilyProbe::Finite { arity, .. } =
         program.finite_signature_family(requirement)
@@ -639,11 +648,7 @@ pub(crate) fn lower_proof_term(
                 return None;
             }
             let mut fields = Vec::new();
-            for field in program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-            {
+            for field in expressions(program).struct_fields(literal.fields).iter() {
                 let declared = program
                     .data_constructor_field(expected_type, literal.type_symbol, field.field_symbol)?
                     .type_reference;

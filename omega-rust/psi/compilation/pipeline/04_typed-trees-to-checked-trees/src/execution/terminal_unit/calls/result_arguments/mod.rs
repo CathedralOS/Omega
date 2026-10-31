@@ -16,6 +16,8 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     base_type_identity, structural_access_for_type_reference,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
@@ -170,9 +172,7 @@ fn argument_contract(
     ) {
         return Some(argument);
     }
-    if let Some(StatementNode::LocalData(local)) = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    if let Some(StatementNode::LocalData(local)) = crate::flow::state_statements(program, source_state.statement_nodes)
         .get(result.statement_index as usize)
         && reference::is_carrier(program, local.type_reference)
         // Anonymous operand results carry their consuming statement's index,
@@ -472,10 +472,9 @@ fn argument_contract(
                     == program.normalized_type_identity(parameter.type_reference)))
         && let Some(view_symbol) = place.root.as_symbol()
     {
-        let Some(StatementNode::LocalData(local)) = program
-            .statement_table
-            .statements(source_state.statement_nodes)
-            .get(result.statement_index as usize)
+        let Some(StatementNode::LocalData(local)) =
+            crate::flow::state_statements(program, source_state.statement_nodes)
+                .get(result.statement_index as usize)
         else {
             return None;
         };
@@ -600,12 +599,8 @@ fn argument_contract(
                     // A loan selects a place within the complete producer.
                     // Rejoin that root/path, not expression equality: the
                     // selected field is not a separate temporary owner.
-                    let referent_place = validation::canonical_place_from_expression_in_state(
-                        program,
-                        state,
-                        call.statement_index,
-                        referent_expression,
-                    );
+                    let referent_place =
+                        place_at(program, state, call.statement_index, referent_expression);
                     let (owner, owner_type) = if referent_place.as_ref() == Some(place) {
                         (source, produced_type?)
                     } else if place.segments.is_empty()
@@ -655,10 +650,7 @@ fn argument_contract(
             // field at the captured path. The statement is the consumer, so
             // the loan is not a local initialized by this call.
             if projected
-                && program
-                    .expression_table
-                    .borrow_expression(expression)
-                    .is_none()
+                && expressions(program).borrow_expression(expression).is_none()
                 && matches!(place.root, facts::PlaceRoot::Expression(_))
             {
                 return Some(CheckedUnitStructuralArgumentPlan {
@@ -783,9 +775,7 @@ fn argument_contract(
             }
             trace.phase("call operation: result argument: local binding custody");
             let source_state = program.state_by_symbol(state)?;
-            let local = program
-                .statement_table
-                .statements(source_state.statement_nodes)
+            let local = crate::flow::state_statements(program, source_state.statement_nodes)
                 .get(usize::try_from(result.statement_index).ok()?)?
                 .as_local_data()?;
             // Authenticate the containing local independently of the selected
@@ -839,13 +829,7 @@ fn argument_contract(
                     .count()
                     != 1
                 || (projected
-                    && validation::canonical_place_from_expression_in_state(
-                        program,
-                        state,
-                        call.statement_index,
-                        expression,
-                    )
-                    .as_ref()
+                    && place_at(program, state, call.statement_index, expression).as_ref()
                         != Some(place))
             {
                 return None;
@@ -929,9 +913,7 @@ fn whole_local_storage_type(
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let symbol = place.root.as_symbol()?;
-    let local = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    let local = crate::flow::state_statements(program, source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
         .as_local_data()?;
     (place.segments.is_empty() && local.symbol == symbol).then_some(local.type_reference)

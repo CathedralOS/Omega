@@ -249,9 +249,7 @@ pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::SpecializeCaseMembership(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, SpecializeCaseMembership, candidate);
     if candidate.node_decision_point() != patch.memberships.first().map(|row| row.site) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

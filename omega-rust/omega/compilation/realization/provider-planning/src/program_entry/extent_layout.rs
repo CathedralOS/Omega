@@ -1,5 +1,6 @@
 //! Typed source projection of the target-owned program-storage Extent contract.
 
+use crate::provider_planning::type_reference_node;
 use calling_conventions::{BoundaryValueClass, BoundaryValueField, ValueShape};
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -25,22 +26,22 @@ pub(super) fn capture(
                 .into(),
         );
     }
-    let mut values = BoundaryValueLayout::new(typed, slot.owner.native_target(), &[], &[]);
-    let (shape, root) = values.value_type(type_reference)?;
+    let mut preparation =
+        checked_trees::typed_trees::boundary_values::BoundaryValuePreparation::new(typed, &[], &[]);
+    let recipe = preparation.value_type(type_reference);
+    let recipes = preparation.finish();
+    let mut values = BoundaryValueLayout::new(layout::LayoutTarget::for_profile(slot.owner)?, &[]);
+    let (shape, root) = values.value_type(&recipes, recipe)?;
     let (shapes, fields, _) = values.into_parts();
     let mut base_type = type_reference;
     while let TypeReferenceNode::Constrained {
         base_type: unconstrained,
         ..
-    } = typed.type_reference_table.type_reference(base_type)
+    } = type_reference_node(typed, base_type)
     {
         base_type = *unconstrained;
     }
-    let Some(data_symbol) = typed
-        .type_reference_table
-        .type_reference(base_type)
-        .as_named_symbol()
-    else {
+    let Some(data_symbol) = type_reference_node(typed, base_type).as_named_symbol() else {
         return Err("selected program-storage root is not a named Extent record".into());
     };
     let definition = typed

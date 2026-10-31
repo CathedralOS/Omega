@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 machine forward_eval(q: u8) -> i32
-    requires q >= 30u8 && q <= 30u8;
+    requires q >= 30u8 && q <= 30u8
 {
     let check: u8 = q - 30u8;
     transition q == 30u8 && check == 0u8 {
@@ -15,8 +15,8 @@ machine forward_eval(q: u8) -> i32
 }
 
 machine divide_other_machine(dividend: u8, divisor: u8) -> i32
-    requires dividend >= 120u8 && dividend <= 120u8;
-    requires divisor >= 4u8 && divisor <= 4u8;
+    requires dividend >= 120u8 && dividend <= 120u8
+    requires divisor >= 4u8 && divisor <= 4u8
 {
     let quotient: u8 = dividend / divisor;
     forward_eval(quotient)

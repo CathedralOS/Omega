@@ -51,3 +51,30 @@ Governing contracts: [domains](../../../../../wiki/spec/language/domains.md),
 [data and literals](../../../../../wiki/spec/language/data_and_literals.md),
 [generics](../../../../../wiki/spec/language/generics.md),
 [dependent values](../../../../../wiki/spec/language/dependent_values.md).
+
+Requirement established: one predicate, written as `Value<T>`'s default
+domain and again as `u64::AtMost<Bound>`, carries case membership and the
+guarded `hi <= 32` bound through every transport place into `pick` and
+`width`.
+
+- Establishment: constructing `Boolean` and `Range` proves the default domain.
+  Matching `Range` justifies `lo <= hi` for `hi - lo`. `width_range` admits
+  `lo as u64 in AtMost<32>` from that same `<=` bound. No caller re-proves the
+  bound after the construct.
+- Identity and lifetime: each place names the same `Value<bool>` and `Interval`
+  values. The reject twin deletes only the `hi <= 32` conjunct, so the named
+  domain no longer follows.
+- Composition: calls, joins, nested machines, and the selected target body
+  substitute those same values. `match_join` exercises `Boolean { value: false }`
+  and `Empty` with outcomes distinct from the success path.
+- Soundness: inactive `Integer` on `Value<bool>` is refuted by `T == bool`.
+  Payload fields are read only on the matching case.
+- Psi 05–07 through Omega 00–09: `omega run --both` requires Terminal Psi and
+  native agreement on exit 0 for all four hosted `ProgramEntry` rows. This
+  host executes `linux_x86_64`.
+
+`Value<T>`'s `requires` uses `T` on the applied subject. Case-local `where`
+is retired; `tests/omega/fail/domains/retired_case_predicate` rejects it.
+The parent item still owes one general predicate representation through
+formation, construction, calls, matching, coverage, writes, and erasure.
+The local write place is `default_domain_field_write`.

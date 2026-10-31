@@ -7,6 +7,7 @@
 //! folding an enclosing guard does not change their operand custody.
 //! One builder owns both plan arenas: structural members may compute scalar
 //! operands, and scalar observations may first establish a structural value.
+use crate::flow::expressions;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::semantic_casts;
@@ -170,15 +171,12 @@ pub(crate) fn build_checked_value_computation_plans(
                         .map(|expected| (assignment.value, expected))
                     }
                     StatementNode::Expression(expression) => {
-                        let expected = if program
-                            .expression_table
+                        let expected = if expressions(program)
                             .call_node(*expression)
                             .and_then(|call| call.native_code_layout.as_ref())
                             .is_some_and(|query| query.discards_result)
                         {
-                            program
-                                .expression_table
-                                .constructed_value_type_reference(*expression)
+                            expressions(program).constructed_value_type_reference(*expression)
                         } else {
                             state.return_type
                         };
@@ -231,9 +229,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     && program
                         .primitive_type_reference(local.type_reference)
                         .is_none()
-                    && !program
-                        .expression_table
-                        .expression_is_valid(local.initial_value)
+                    && !expressions(program).expression_is_valid(local.initial_value)
                     && validation::zeroed_structural_parts(program, local.type_reference)
                     && let Ok(projected_qualifications) =
                         validation::zeroed_byte_projected_qualifications(
@@ -575,10 +571,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // independent of guard/operand evaluation order; internal
                 // state transfers keep the transition roles below instead.
                 if let Some(captured) = captured {
-                    for call in flow
-                        .control
-                        .calls
-                        .span_or_empty(captured.calls)
+                    for call in crate::flow::call_flows(&flow.control, captured.calls)
                         .iter()
                         .filter(|call| call.statement_index == statement_index)
                     {

@@ -5,7 +5,7 @@ This row establishes the static-backed exclusive-state and installed-handoff
 requirements of [entry roots](../../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
 
 **Fact:** An explicitly installed private `Registers` allocation lends its exact
-exclusive placed view, reading status 41 and writing transmit 9 into the same
+exclusive access view, reading status 41 and writing transmit 9 into the same
 backing before handback. Every standard place copies that sentence and operation.
 The code byte 9 travels through each place before the same placed write consumes
 its proved contract. Each twin changes that input to 8 and refuses the unchanged
@@ -67,7 +67,7 @@ backing independently of their exit agreement. With `--keep`, inspect
 `native.identity.txt`, `program.oterm` and `terminal.effects`; both backing files
 must contain `29 00 00 00 09 00 00 00`.
 
-Checked-to-Terminal lowering retains the exact placed loan, scalar read/write
+Checked-to-Terminal lowering retains the exact access loan, scalar read/write
 and selected entry identity. Terminal installation constructs its own private
 allocation from the checked recipe and observes the original after execution.
 Provider settlement, layout geometry and ABI planning retain source/physical

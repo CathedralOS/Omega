@@ -13,6 +13,7 @@
 //! owned declaration roots participate; Product descriptions retained during
 //! Build admission never become host-target evaluation work.
 
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use typed_trees::TypedTrees;
@@ -26,7 +27,9 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// only as an explicit `DataLayoutQueryRequest`, so the field's presence is
 /// the complete deferral condition — no admission or selection closure is
 /// needed to know the answer is target-dependent. Ownership traversal excludes
-/// unselected declarations and stale arena nodes.
+/// unselected declarations and stale arena nodes. Fixed-storage policy jobs
+/// have their own explicit target-input closure; their presence alone does not
+/// make an otherwise semantic aggregate constant a scalar observation.
 pub(crate) fn has_pending_target_observations(
     typed: &TypedTrees,
     selection: &typed_trees::references::DeclarationSelection,
@@ -40,6 +43,7 @@ pub(crate) fn has_pending_target_observations(
                 _ => false,
             },
         )
+        || has_pending_recast_geometry(typed, selection)
         || typed.const_declarations().iter().any(|declaration| {
             selection.contains(declaration.symbol)
                 && declaration.pending_target_observation
@@ -47,13 +51,78 @@ pub(crate) fn has_pending_target_observations(
         })
 }
 
+/// Recast formation consumes the actual source and target storage geometry.
+/// Plain scalar bit/qualification views remain semantic constants. Only an
+/// unresolved representation application defers this operation's value job.
+fn has_pending_recast_geometry(
+    typed: &TypedTrees,
+    selection: &typed_trees::references::DeclarationSelection,
+) -> bool {
+    let casts = typed_trees::references::collect_selected_program_references(typed, selection)
+        .expressions
+        .into_iter()
+        .filter_map(
+            |expression| match typed.expression_table.expression(expression) {
+                ExpressionNode::Cast(cast) if cast.form.recast_access().is_some() => {
+                    Some((expression, cast))
+                }
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    if casts.is_empty() {
+        return false;
+    }
+    let owners = typed_trees::references::collect_program_operand_owners(typed);
+    casts.into_iter().any(|(expression, cast)| {
+        if validation::pending_layout_geometry(typed, [cast.target_type]) {
+            return true;
+        }
+        owners
+            .expression_owners(expression)
+            .filter(|owner| selection.contains(*owner))
+            .any(|owner| {
+                let Some(machine) = typed
+                    .machine_by_symbol(owner)
+                    .or_else(|| typed.machine_holding_state(owner))
+                else {
+                    return false;
+                };
+                typed.machine_states(machine).iter().any(|state| {
+                    validation::declared_place_type_raw(typed, machine, Some(state), cast.value)
+                        .is_some_and(|source| validation::pending_layout_geometry(typed, [source]))
+                })
+            })
+    })
+}
+
 /// Supplies a fresh measurement view for one query pass. Evaluation can install
 /// new authored plans between passes; contexts must not leak across that change.
 /// The provider measures storage only: Psi owns formation and source mutation.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct LayoutApplicationTargetInput {
+    /// Canonical identity export, never a Source spelling or lookup key for a
+    /// declaration. Forked program interners rehydrate it before handle joins.
+    pub application_identity: String,
+    pub target: layout_plans::LayoutTargetFacts,
+    /// Actual demanding occurrence in this same typed invocation, not every
+    /// reference elsewhere to the selected policy declaration.
+    pub lexical_owner: symbols::SymbolHandle,
+}
+
 pub trait LayoutQueryProvider {
     type Measurements: LayoutQueryMeasurements;
 
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements;
+    /// Complete applicable target inputs, supplied by Omega's target catalog.
+    fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
+        Vec::new()
+    }
+    /// None is a host evaluation domain; Some is the complete explicit Product
+    /// application roster, including absence of a demand for a retained type.
+    fn layout_application_inputs(&self) -> Option<&[LayoutApplicationTargetInput]> {
+        None
+    }
 }
 
 /// Read-only geometry for the exact supplied source operand. None means an
@@ -98,8 +167,7 @@ pub fn fold_data_layout_queries(
         checked_trees::typed_trees::expression::ExpressionHandle,
         checked_trees::typed_trees::expression::DataLayoutQueryRequest,
         source::SourceSpan,
-    )> = program
-        .expression_table
+    )> = expression_table(program)
         .iter_expressions()
         .filter(|(handle, _)| owned_expressions.contains(handle))
         .filter_map(|(handle, node)| match node {
@@ -165,46 +233,14 @@ pub fn fold_data_layout_queries(
     Ok(())
 }
 
-/// Whether the operand is a `Policy<Schema>` application whose validated
-/// plan instance the deferred evaluation has not installed yet. Mirrors the
-/// layout builder's own route: an installed `plan_laid_layouts` entry for
-/// `{policy_symbol, schema_symbol}` answers immediately, otherwise the
-/// attached `{policy}::plan` machine marks the operand plan-laid and the
-/// query must wait for installation rather than error early.
+/// An exact fixed-representation application waits for its validated plan;
+/// ordinary record packing cannot supply a provisional answer.
 fn plan_laid_operand_pending_installation(
     program: &TypedTrees,
     operand: TypeReferenceHandle,
 ) -> bool {
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(operand)
-    else {
-        return false;
-    };
-    if arguments.is_empty() || !base_symbol.is_valid() {
-        return false;
-    }
-    let argument_handles = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    let installed = program.plan_laid_layouts.iter().any(|plan| {
-        plan.policy_symbol == *base_symbol
-            && argument_handles
-                .iter()
-                .any(|argument| program.type_reference_symbol(*argument) == plan.schema_symbol)
-    });
-    if installed {
-        return false;
-    }
-    let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
-        return false;
-    };
-    program.machines().iter().any(|machine| {
-        machine.attached_data_symbol == *base_symbol
-            && machine.name.as_str() == format!("{}::plan", definition.name)
-    })
+    program.layout_storage_arguments(operand).is_some()
+        && program.plan_laid_layout_for_type(operand).is_none()
 }
 
 /// A `layout_type_reference` of an unresolved fixed array returns the
@@ -223,6 +259,13 @@ fn reject_unresolved_layout_operands(
             continue;
         }
         visited.push(reference);
+        // Code evidence selects geometry but occupies no field or runtime
+        // extent. The installer's ordinary evidence checker already validated
+        // its complete telescope before evaluation. Only T supplies contents.
+        if let Some(storage) = typed.layout_storage_arguments(reference) {
+            pending.push(storage.semantic_type);
+            continue;
+        }
         match typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -256,8 +299,7 @@ fn reject_unresolved_layout_operands(
             TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
             TypeReferenceNode::Generic { arguments, .. } => {
                 pending.extend(
-                    typed
-                        .type_reference_table
+                    type_reference_table(typed)
                         .type_reference_handles(*arguments)
                         .iter()
                         .copied(),

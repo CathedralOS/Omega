@@ -9,7 +9,10 @@ use posix_filesystem_adapter;
 use posix_filesystem_host;
 use filesystem_host;
 
-linux_x86_64 machine StatLayout::plan(schema: Schema) -> Plan {
+StatLayout satisfies FixedLayout<StatRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
@@ -25,6 +28,7 @@ linux_x86_64 machine StatLayout::plan(schema: Schema) -> Plan {
     entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 64 } };
     entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 56 } };
     Plan { entries: entries, entry_count: 13, size_fixed: 144, size_is_dynamic: false, align: 8 }
+}
 }
 
 linux_x86_64 machine posix_filesystem_encode_open_options(filesystem: &mut PosixFilesystem) {
@@ -55,10 +59,8 @@ data StatRecord {
     blksize: i64;
 }
 
-data StatLayout {}
-
 data StatView {
-    value: StatLayout<StatRecord>;
+    value: LayoutStorage<StatRecord, StatLayout>;
 }
 
 linux_x86_64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
@@ -70,7 +72,7 @@ linux_x86_64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFile
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
     machine decode(stat: &StatView, block_count: i64, block_size: i64) -> MetadataResult
-    requires block_count >= 0 && block_size >= 0;
+    requires block_count >= 0 && block_size >= 0
     {
         let mode: u32 = stat.value.mode;
         let nlink: u64 = stat.value.nlink;

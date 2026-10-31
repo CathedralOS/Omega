@@ -4,7 +4,8 @@
 //! identity cannot select a scope.
 
 use crate::ProviderPlanningContext;
-use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
+use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration, ServiceCatalog};
 
 pub(crate) use backend_plan::synchronous_invocations::exact_row_for_schema_method;
 
@@ -15,7 +16,7 @@ pub(crate) use backend_plan::synchronous_invocations::exact_row_for_schema_metho
 /// appearing to have no schema.
 /// Execution admissibility and source operands remain the interpreter's work.
 pub fn selected_requirement_checked_adapter<'typed>(
-    context: ProviderPlanningContext<'typed>,
+    services: ServiceCatalog<'typed>,
     plan: &ProviderPlan,
     requirement: symbols::SymbolHandle,
 ) -> Result<
@@ -25,6 +26,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     )>,
     diagnostics::Diagnostic,
 > {
+    let context = services.context();
     let typed = context.typed;
     if !context.contains(requirement) {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -36,20 +38,26 @@ pub fn selected_requirement_checked_adapter<'typed>(
     // A signature view must not supply a fallback schema for an invalid machine.
     let trait_method = typed.trait_machine_signature(requirement);
     let schema = if let Some(machine) = typed.machine(requirement) {
-        crate::service_schema::from_typed_boundary_requirement(context, machine)
+        services.declaration(ProviderSchemaDeclaration::BoundaryRequirement(
+            machine.symbol,
+        ))
     } else if let Some((owner, _)) = trait_method {
-        crate::service_schema::from_typed(context, &[], owner)
+        services.declaration(ProviderSchemaDeclaration::BoundaryTrait(owner.symbol))
     } else {
         typed
             .operator_definition_by_symbol(requirement)
-            .and_then(|operator| crate::service_schema::from_typed_operator(context, operator))
+            .and_then(|operator| {
+                services.declaration(ProviderSchemaDeclaration::BoundaryOperator(operator.symbol))
+            })
     };
-    let Some(schema) = schema else {
+    let Some(prepared) = schema else {
         return Ok(None);
     };
+    let schema = crate::service_schema::attach_calling(&prepared, &[]);
     let trait_identity = trait_method
         .map(|(owner, method)| typed.trait_requirement_callable_identity_text(owner, method));
     let methods = schema
+        .declaration
         .methods
         .iter()
         .filter(|method| {
@@ -70,7 +78,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    if plan.schema != schema || plan.rows.len() != schema.methods.len() {
+    if plan.schema != schema || plan.rows.len() != schema.declaration.methods.len() {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected build-time operator ProviderPlan `{}` does not bind exact overload `{}`",
             plan.name,
@@ -79,7 +87,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     }
     // A trait owns one plan for all its methods. Select the demanded exact
     // coordinate without requiring the whole trait to be a singleton slot.
-    for method in &schema.methods {
+    for method in &schema.declaration.methods {
         exact_row_for_schema_method(plan, method)?;
     }
     let row = exact_row_for_schema_method(plan, required_method)?;
@@ -173,7 +181,7 @@ pub fn exact_checked_adapter<'typed>(
             return Err(diagnostics::Diagnostic::error(format!(
                 "checked adapter `{}` for `{}::{}` is absent from typed machines",
                 plan.identity_text(*machine_identity),
-                plan.schema.identity_text(plan.schema.trait_name),
+                trait_name_text(&plan.schema),
                 row.method,
             )));
         }

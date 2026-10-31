@@ -235,7 +235,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                             })
                             .collect()
                     } else {
-                        crate::flow::active_context_handles(build, *active_contexts)
+                        crate::flow::active_context_handles(&build.contexts, *active_contexts)
                     }
                 } else {
                     Vec::new()
@@ -860,10 +860,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         build,
         machine.symbol,
         state.symbol,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
+        crate::flow::state_statements(program, state.statement_nodes).len(),
         active_contexts,
         active_constraints,
     );
@@ -923,9 +920,7 @@ fn unknown_alias_footprints(
     let mut footprints = places.to_vec();
     let mut owned_frames = None;
     let frames = super::shared_call_frames_or(call_frames, program, &mut owned_frames);
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
+    for statement in crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(statement_index)
     {

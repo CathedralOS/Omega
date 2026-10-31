@@ -3,7 +3,7 @@ use clearance::model;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
 machine number(value: i32 in Saturating) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_byte(((value / 100) % 10 + 48) as i32);
     Console::write_byte(((value / 10) % 10 + 48) as i32);
@@ -12,7 +12,7 @@ invokes Console;
 }
 
 machine number5(value: i32 in Saturating) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_byte(((value / 10000) % 10 + 48) as i32);
     Console::write_byte(((value / 1000) % 10 + 48) as i32);
@@ -23,7 +23,7 @@ invokes Console;
 }
 
 public machine report(certificate: &Certificate) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_line("clearance_route_planner: synthetic span-height clearance model");
     Console::write_line("explored_words"); number5(10000);

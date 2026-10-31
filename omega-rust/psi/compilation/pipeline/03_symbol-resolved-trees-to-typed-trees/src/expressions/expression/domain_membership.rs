@@ -1,5 +1,7 @@
 use super::lower_expression_handle_from_table_with_symbol_substitution;
 use crate::lowerer::name::lower_name;
+use crate::tables::expression_table;
+use crate::tables::expression_table_mut;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -112,38 +114,28 @@ fn case_membership_test(
     // tag operand has exactly two semantic owners: the selected data and case.
     // Namespace/package spellings must not become extra runtime path segments.
     for member in [type_name, case_name] {
-        target
-            .expression_table
-            .push_name_path_member(&mut members, lower_name(member));
+        expression_table_mut(target).push_name_path_member(&mut members, lower_name(member));
     }
     let mut member_symbols = arena::HandleSpan::empty();
-    target
-        .expression_table
-        .push_name_path_member_symbol(&mut member_symbols, type_symbol);
-    target
-        .expression_table
-        .push_name_path_member_symbol(&mut member_symbols, case_symbol);
-    let case_reference = target
-        .expression_table
-        .insert(typed::expression::ExpressionNode::Name(
-            typed::expression::TableNamePath::new(
-                members,
-                member_symbols,
-                type_symbol,
-                case_symbol,
-            ),
-        ));
+    expression_table_mut(target).push_name_path_member_symbol(&mut member_symbols, type_symbol);
+    expression_table_mut(target).push_name_path_member_symbol(&mut member_symbols, case_symbol);
+    let case_reference = expression_table_mut(target).insert(
+        typed::expression::ExpressionNode::Name(typed::expression::TableNamePath::new(
+            members,
+            member_symbols,
+            type_symbol,
+            case_symbol,
+        )),
+    );
 
     Some(
-        target
-            .expression_table
-            .insert(typed::expression::ExpressionNode::Binary(
-                typed::expression::TableBinaryExpression {
-                    left: value,
-                    operator,
-                    right: case_reference,
-                },
-            )),
+        expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
+            typed::expression::TableBinaryExpression {
+                left: value,
+                operator,
+                right: case_reference,
+            },
+        )),
     )
 }
 
@@ -186,10 +178,7 @@ fn is_pending_data_subject(
             // Its source is dependency/type custody, never permission to read
             // or execute it. Refusal must survive before expansion can erase it.
             typed::expression::ExpressionNode::SavedSubject(saved) => {
-                if !target
-                    .expression_table
-                    .contains_value_capture(saved.capture)
-                {
+                if !expression_table(target).contains_value_capture(saved.capture) {
                     return true;
                 }
                 value = target.expression_table.value_capture(saved.capture).subject;
@@ -275,17 +264,14 @@ fn lower_atomic_domain_membership_expression(
                                 "replayed domain case membership lost its selected owner or case",
                             )
                         })?;
-                        target
-                            .expression_table
+                        expression_table_mut(target)
                             .set_source_span(generated, source.source_span(*expression));
-                        target
-                            .expression_table
-                            .attach_authored_selection_occurrences(
-                                generated,
-                                source
-                                    .authored_selection_occurrences(*expression)
-                                    .collect::<Vec<_>>(),
-                            );
+                        expression_table_mut(target).attach_authored_selection_occurrences(
+                            generated,
+                            source
+                                .authored_selection_occurrences(*expression)
+                                .collect::<Vec<_>>(),
+                        );
                         generated
                     }
                     _ => lower_expression_handle_from_table_with_symbol_substitution(
@@ -380,21 +366,19 @@ fn combine_conjunction(
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     let mut lowered_facts = lowered_facts.into_iter();
     let Some(mut combined) = lowered_facts.next() else {
-        return Ok(target
-            .expression_table
-            .insert(typed::expression::ExpressionNode::Boolean(true)));
+        return Ok(
+            expression_table_mut(target).insert(typed::expression::ExpressionNode::Boolean(true))
+        );
     };
 
     for fact in lowered_facts {
-        combined = target
-            .expression_table
-            .insert(typed::expression::ExpressionNode::Binary(
-                typed::expression::TableBinaryExpression {
-                    left: combined,
-                    operator: typed::expression::BinaryOperator::And,
-                    right: fact,
-                },
-            ));
+        combined = expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
+            typed::expression::TableBinaryExpression {
+                left: combined,
+                operator: typed::expression::BinaryOperator::And,
+                right: fact,
+            },
+        ));
     }
 
     Ok(combined)

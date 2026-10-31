@@ -1,7 +1,7 @@
 data Narrow [copy] { value: u8; }
 domain Narrow::Seven requires self.value == 7;
 machine make(value: u64) -> Narrow in Seven
-requires value <= 255;
+requires value <= 255
 {
     Narrow { value: value as u8 }
 }

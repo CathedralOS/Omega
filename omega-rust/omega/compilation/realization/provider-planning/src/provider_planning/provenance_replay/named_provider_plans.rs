@@ -7,107 +7,22 @@ use super::{
     satisfies_plan_name,
 };
 use crate::ProviderPlanningContext;
-use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use checked_trees::typed_trees::typed_trees::CapturedMachineApplication;
-use checked_trees::typed_trees::{
-    TypedTrees,
-    trait_definition::{AppliedTraitScope, Conformance},
+use crate::provider_planning::entry_state;
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
+use build_time_evaluation::provider_declarations::{
+    prepared_named_provider_applications, prepared_named_provider_member,
 };
 use effects::provider_plan::ProviderIdentityTable;
 
-struct NamedApplication<'program> {
-    declaration: &'program Conformance,
-    scope: AppliedTraitScope<'program>,
-    capture: arena::Handle<CapturedMachineApplication>,
-    identity: Option<String>,
-}
-
-fn applications(context: ProviderPlanningContext<'_>) -> Vec<NamedApplication<'_>> {
-    let program = context.typed;
-    let mut applications = Vec::new();
-    for declaration in program.conformances().iter().filter(|declaration| {
-        context.contains(declaration.symbol) && crate::provider_identity::eligible(declaration)
-    }) {
-        if let Some(scope) = AppliedTraitScope::from_conformance(program, declaration) {
-            applications.push(NamedApplication {
-                declaration,
-                scope,
-                capture: arena::Handle::default(),
-                identity: None,
-            });
-        }
-    }
-    // Capture receipts arise from actual checked conformance applications.
-    // Unexecuted Product recipes never seed captures or executable candidates.
-    for (capture_handle, capture) in program.captured_machine_applications.iter() {
-        let Some(declaration) = program
-            .conformance_by_symbol(capture.conformance_application.declaration)
-            .filter(|declaration| context.contains(declaration.symbol))
-        else {
-            continue;
-        };
-        let Some(identity) = program
-            .portable_conformance_application_identity(
-                &capture.conformance_application,
-                capture.supplying_application,
-            )
-            .and_then(|identity| program.type_identity_text(identity))
-        else {
-            continue;
-        };
-        if applications.iter().any(|existing| {
-            existing.declaration.symbol == declaration.symbol
-                && existing.identity.as_ref() == Some(&identity)
-        }) {
-            continue;
-        }
-        let Some(scope) = capture.conformance_application.trait_scope.scope(program) else {
-            continue;
-        };
-        applications.push(NamedApplication {
-            declaration,
-            scope,
-            capture: capture_handle,
-            identity: Some(identity),
-        });
-    }
-    applications
-}
-
-fn captured_row<'program>(
-    program: &'program TypedTrees,
-    application: &NamedApplication<'_>,
-    template: symbols::SymbolHandle,
-) -> Option<symbols::SymbolHandle> {
-    let identity = application.identity.as_deref()?;
-    let mut matching = program
-        .captured_machine_applications
-        .iter()
-        .filter(|(_, capture)| {
-            capture.template == template
-                && capture.conformance_application.declaration == application.declaration.symbol
-                && program
-                    .portable_conformance_application_identity(
-                        &capture.conformance_application,
-                        capture.supplying_application,
-                    )
-                    .and_then(|identity| program.type_identity_text(identity))
-                    .as_deref()
-                    == Some(identity)
-        })
-        .map(|(_, capture)| capture.instance);
-    let selected = matching.next()?;
-    matching.next().is_none().then_some(selected)
-}
-
 pub(super) fn derive(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     candidates: &[DerivedProviderPlan],
 ) -> Vec<DerivedProviderPlan> {
+    let context = services.context();
     let typed = context.typed;
-    applications(context)
+    prepared_named_provider_applications(context)
         .into_iter()
         .filter_map(|application| {
             let implementation = application.declaration;
@@ -117,15 +32,12 @@ pub(super) fn derive(
                     && definition.is_boundary
                     && context.contains(definition.symbol)
             })?;
-            let arguments = typed
-                .type_reference_table
-                .type_reference_handles(implementation.arguments);
-            let schema = crate::service_schema::from_typed_application(
-                context,
-                calling_plans,
-                application.scope.clone(),
-                arguments,
+            let prepared = services.named_application(
+                implementation.symbol,
+                application.capture,
+                definition.symbol,
             )?;
+            let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");
             let package = typed.symbols.symbol_package_identity(implementation.symbol);
             let origin_package = typed
@@ -133,11 +45,7 @@ pub(super) fn derive(
                 .symbol_package_identity(rows.first()?.realization_machine);
             let target = selected_target.unwrap_or_default().to_owned();
             let mut plan = ProviderPlan {
-                name: satisfies_plan_name(
-                    &target,
-                    schema.identity_text(schema.trait_name),
-                    &provider_type,
-                ),
+                name: satisfies_plan_name(&target, trait_name_text(&schema), &provider_type),
                 provider_type,
                 provider_type_package_identity: package,
                 provider_application: Default::default(),
@@ -172,11 +80,11 @@ pub(super) fn derive(
                 // The row binds the entry of the machine resolution named; a
                 // family head's entry stands for every member's.
                 let named = typed.machine_by_symbol(row.realization_machine)?;
-                if typed.machine_states(named).first()?.symbol != row.realization_state {
+                if entry_state(typed, named)?.symbol != row.realization_state {
                     return None;
                 }
                 let realization = if application.capture.is_valid() {
-                    captured_row(typed, &application, row.realization_machine)?
+                    prepared_named_provider_member(typed, &application, row.realization_machine)?
                 } else {
                     row.realization_machine
                 };

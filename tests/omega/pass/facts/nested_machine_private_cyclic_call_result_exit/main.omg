@@ -1,6 +1,6 @@
 // Every cyclic private arrival carries depth >= 1, so consume can form depth - 1.
 // Expected exit: 0
-machine identity(ready: bool) -> bool ensures result == ready; { ready }
+machine identity(ready: bool) -> bool ensures result == ready { ready }
 data Counter { depth: u64; marker: u64; canary: u64; }
 machine probe(output: &mut Counter, depth: u64, select: bool) {
     output.depth = depth;

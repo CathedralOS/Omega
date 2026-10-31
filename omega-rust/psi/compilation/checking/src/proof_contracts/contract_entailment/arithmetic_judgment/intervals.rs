@@ -10,6 +10,31 @@ use crate::proof_contracts::arithmetic_domains::{
 };
 
 impl<'program> Engine<'program> {
+    /// Preserve bounds derived from independently formed operands, rather than
+    /// trying to rediscover correlation in an expanded product. This is a
+    /// mathematical interval; it does not assume that the result fits a carrier.
+    pub(super) fn install_exact_product_interval(
+        &mut self,
+        left: &Polynomial,
+        right: &Polynomial,
+        value: &Polynomial,
+    ) {
+        let interval = self
+            .polynomial_interval(&self.substituted(left))
+            .multiply(&self.polynomial_interval(&self.substituted(right)));
+        for bound in interval
+            .low
+            .map(|low| (value.clone(), low))
+            .into_iter()
+            .chain(interval.high.map(|high| (value.neg(), high.negate())))
+        {
+            if !self.bounds.contains(&bound) {
+                self.bounds.push(bound);
+            }
+        }
+        self.refresh_difference_bounds();
+    }
+
     /// The interval a truncating remainder atom takes from its operand's:
     /// `(-|modulus|, |modulus|)` clamped by the operand's own sign, tightening
     /// monotonically when the operand's whole range shares one quotient and

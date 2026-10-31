@@ -87,11 +87,7 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 let establishing = facts.borrow.calls.get(loan.established_by_call);
-                let mut actual = facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(state_flow.calls)
+                let mut actual = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
                     .iter()
                     .filter(|call| {
                         call.statement_index == statement.statement_index
@@ -395,10 +391,9 @@ pub(super) fn check_statement_borrows<'p>(
             };
             Some(vec![super::aliases::ResolvedAlias {
                 place: checked_trees::CapturedPlace {
-                    incoming_reference: Default::default(),
-                    incoming_owner_path: Default::default(),
                     root: facts::PlaceRoot::Symbol(root),
                     segments: mutated_place.segments.clone(),
+                    ..Default::default()
                 },
                 lineage: Vec::new(),
             }])

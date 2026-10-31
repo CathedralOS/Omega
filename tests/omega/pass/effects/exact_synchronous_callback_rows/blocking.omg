@@ -5,11 +5,11 @@ public boundary trait BlockingHandler {
 }
 public boundary trait BlockingRegistrar {
     machine execute<machine Callback>() -> u64
-    where machine Callback satisfies BlockingHandler::wait;
+    requires machine Callback satisfies BlockingHandler::wait;
     reaches
     invokes BlockingHandler;
 }
-machine wait_callback() -> u64 satisfies BlockingHandler::wait blocks; { 7 }
+machine wait_callback() -> u64 satisfies BlockingHandler::wait blocks { 7 }
 
 machine execute_blocking() -> u64 reaches BlockingRegistrar {
     block BlockingRegistrar::execute<wait_callback>()

@@ -3,6 +3,8 @@
 //! name one exact live owned argument, and an unspent modeled instruction must
 //! establish it at this point. Logical truth alone grants no terminal disposal.
 use super::linear_obligations::LinearPlace;
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEvaluation, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -32,10 +34,8 @@ impl InstructionDispositions {
         if evaluation != FlowPermissionEvaluation::Statement {
             return;
         }
-        let Some(StatementNode::AssemblyFact(assertion)) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement)
+        let Some(StatementNode::AssemblyFact(assertion)) =
+            crate::flow::state_statements(program, state.statement_nodes).get(statement)
         else {
             return;
         };
@@ -170,16 +170,8 @@ impl InstructionDispositions {
             return;
         }
         let mut candidates = Vec::new();
-        for argument in program
-            .expression_table
-            .expression_handles(application.arguments)
-        {
-            let Some(place) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement,
-                *argument,
-            ) else {
+        for argument in expressions(program).expression_handles(application.arguments) {
+            let Some(place) = place_at(program, state.symbol, statement, *argument) else {
                 continue;
             };
             let Some(position) = places.iter().position(|held| {
@@ -481,19 +473,13 @@ pub(super) fn valid_receipt(
         receipt.evidence,
         receipt.event,
         contract.operation,
-    ) || !program
-        .expression_table
+    ) || !expressions(program)
         .expression_handles(application.arguments)
         .contains(&receipt.argument)
     {
         return false;
     }
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        receipt.argument,
-    ) else {
+    let Some(place) = place_at(program, state.symbol, statement_index, receipt.argument) else {
         return false;
     };
     place.root == receipt.root
@@ -560,10 +546,8 @@ fn valid_effect_tree(
             let Some(state) = program.state_by_symbol(state_symbol) else {
                 return false;
             };
-            let Some(statement) = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(statement_index)
+            let Some(statement) =
+                crate::flow::state_statements(program, state.statement_nodes).get(statement_index)
             else {
                 return false;
             };
@@ -589,11 +573,7 @@ fn valid_effect_tree(
         let Some(flow) = facts.flow.control.state(machine_symbol, state_symbol) else {
             return false;
         };
-        let Some(call) = facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(flow.calls)
+        let Some(call) = crate::flow::call_flows(&facts.flow.control, flow.calls)
             .iter()
             .find(|call| {
                 call.statement_index == statement_index && call.call_ordinal == call_ordinal

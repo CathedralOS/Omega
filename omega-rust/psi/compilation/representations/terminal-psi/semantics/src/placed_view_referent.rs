@@ -7,6 +7,7 @@
 //! occurrence identity, placement/rights matching, aliasing and retirement remain
 //! with each execution owner. No address or provider authority is inferred here.
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -88,13 +89,9 @@ fn resolve_referent_place(
                 StructuralPathSegment::Field(identity),
                 terminal_psi::record_or_mixed_shape_pattern!(fields),
             ) => {
-                let mut matching = fields
-                    .iter()
-                    .filter(|field| field.identity == *identity && !field.relevance.is_erased());
-                let field = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
+                let field = exactly_one(fields.iter(), |field| {
+                    field.identity == *identity && !field.relevance.is_erased()
+                })?;
                 match &field.field_type {
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {

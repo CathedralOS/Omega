@@ -1,35 +1,26 @@
-// The runtime-index guarded increment's COLLECTION-stability twin: a write
-// into the collection (`tallies[0] = 5`) between the guard and the bounded
-// call may alias the guarded element (index-blind), so the re-read `u` has no
-// bound and `bump`'s `v < 16` requires must reject at `interpose`'s edge.
-// (Was: the increment's bounded-assignment obligation on the revoked
-// `[i32 [0..=16]; 4]` element suffix; the bound now lives on the admission
-// contract.)
-use omega_language_std::console;
-data Main {
+// Storing16 is within the owner's element domain. Incrementing the same
+// selected cell to17 cannot restore that domain at handback. No stronger
+// admission precondition masks the owner obligation.
+data Main
+requires self.tallies[0] >= 0 && self.tallies[0] <= 16,
+    self.tallies[1] >= 0 && self.tallies[1] <= 16,
+    self.tallies[2] >= 0 && self.tallies[2] <= 16,
+    self.tallies[3] >= 0 && self.tallies[3] <= 16,
+    self.k <= 3
+{
     tallies: [i32; 4];
     k: u64;
 }
-machine Main::main(main: &mut Main) reaches Console {
+
+machine Main::main(main: &mut Main) {
     main.k = 2;
-    let t: i32 = main.tallies[main.k];
-    transition t < 16 {
-        true -> interpose(main, main.k)
-        false -> full(main)
-    }
-    machine interpose(main: &mut Main, ki: u64) requires ki < 4 {
-        main.tallies[0] = 5;
-        let u: i32 = main.tallies[ki];
-        transition { _ -> bump(main, u, ki) }
-    }
-    machine bump(main: &mut Main, v: i32, ki: u64) requires v < 16, ki < 4 {
-        main.tallies[ki] = v + 1;
-        transition main.tallies[2] == 1 {
-            true -> matched(main)
-            false -> unmatched(main)
-        }
-    }
-    machine matched(main: &mut Main) { Console::exit_process(1); }
-    machine unmatched(main: &mut Main) { Console::exit_process(9); }
-    machine full(main: &mut Main) { Console::exit_process(8); }
+    interpose(main, main.k);
+}
+
+machine interpose(main: &mut Main, ki: u64)
+requires ki < 4
+{
+    main.tallies[ki] = 16;
+    let observed: i32 = main.tallies[ki];
+    main.tallies[ki] = observed + 1;
 }

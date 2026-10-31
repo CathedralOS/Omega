@@ -1,13 +1,29 @@
 //! proofs slice of result_domains.
 
-use validation::canonical_place_from_expression_in_state;
-
 use super::super::super::return_values::exit_return_expression;
 use super::{domain_predicate_meaning, exact_integer_reference};
 use crate::flow::canonical_place_from_semantic_place;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
 use facts::{FactContextHandle, FactOrigin, FactPayload};
 use typed_trees::types::TypeReferenceNode;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ScalarPredicateJudgment {
+    Proven,
+    Refuted,
+    Unknown,
+}
+
+impl ScalarPredicateJudgment {
+    fn join(self, next: Self) -> Self {
+        match (self, next) {
+            (Self::Refuted, _) | (_, Self::Refuted) => Self::Refuted,
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            (Self::Proven, Self::Proven) => Self::Proven,
+        }
+    }
+}
 
 pub(super) fn establishes_scalar_predicates(
     program: &dyn ::validation::CheckingInput,
@@ -16,7 +32,7 @@ pub(super) fn establishes_scalar_predicates(
     contexts: &[FactContextHandle],
     domain: &typed_trees::domain::DomainDefinition,
     constraint: &typed_trees::types::DomainConstraint,
-) -> bool {
+) -> ScalarPredicateJudgment {
     establishes_scalar_predicates_inner(
         program,
         facts,
@@ -42,9 +58,9 @@ fn establishes_scalar_predicates_inner(
     domain: &typed_trees::domain::DomainDefinition,
     constraint: &typed_trees::types::DomainConstraint,
     visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
-) -> bool {
+) -> ScalarPredicateJudgment {
     if domain.alias.is_some() || visited.contains(&(domain.symbol, domain.semantic_id)) {
-        return false;
+        return ScalarPredicateJudgment::Unknown;
     }
     visited.push((domain.symbol, domain.semantic_id));
     let result = establishes_scalar_predicates_visited(
@@ -62,15 +78,15 @@ fn establishes_scalar_predicates_visited(
     domain: &typed_trees::domain::DomainDefinition,
     constraint: &typed_trees::types::DomainConstraint,
     visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
-) -> bool {
+) -> ScalarPredicateJudgment {
     let Some(indices) = closed_domain_indices(program, domain, constraint) else {
-        return false;
+        return ScalarPredicateJudgment::Unknown;
     };
     let Some(machine) = program.machine(exit.machine_symbol) else {
-        return false;
+        return ScalarPredicateJudgment::Unknown;
     };
     let Some(state) = validation::find_state_for_exit(program, exit) else {
-        return false;
+        return ScalarPredicateJudgment::Unknown;
     };
     let proof = ScalarReturnProof {
         program,
@@ -187,25 +203,19 @@ fn establishes_scalar_predicates_visited(
             }
         }
     }
-    program
-        .proof_facts
-        .span_or_empty(domain.facts)
-        .iter()
-        .all(|fact| {
-            if let Some(membership) = fact.as_membership() {
-                let Some(parent) = program.domain_definition_for_instance(
-                    membership.domain_symbol,
-                    membership.semantic_domain,
-                ) else {
-                    return false;
-                };
-                if !typed_trees::domain::domain_subject_reference(
-                    program,
-                    domain,
-                    membership.value,
-                ) {
-                    return false;
-                }
+    let mut judgment = ScalarPredicateJudgment::Proven;
+    for fact in program.proof_facts.span_or_empty(domain.facts) {
+        let next = if let Some(membership) = fact.as_membership() {
+            let parent = program.domain_definition_for_instance(
+                membership.domain_symbol,
+                membership.semantic_domain,
+            );
+            if parent.is_none()
+                || !typed_trees::domain::domain_subject_reference(program, domain, membership.value)
+            {
+                ScalarPredicateJudgment::Unknown
+            } else {
+                let parent = parent.expect("parent domain is present");
                 let constraint = typed_trees::types::DomainConstraint {
                     symbol: membership.domain_symbol,
                     semantic_id: membership.semantic_domain,
@@ -215,15 +225,17 @@ fn establishes_scalar_predicates_visited(
                         .to_vec(),
                     ..Default::default()
                 };
-                return establishes_scalar_predicates_inner(
-                    program, facts, exit, contexts, parent, &constraint, visited,
-                );
+                establishes_scalar_predicates_inner(
+                    program,
+                    facts,
+                    exit,
+                    contexts,
+                    parent,
+                    &constraint,
+                    visited,
+                )
             }
-            let Some(expression) = fact.as_expression() else {
-                // A proposition conjunct remains an obligation; an arithmetic
-                // proof of its neighbors cannot discard it.
-                return false;
-            };
+        } else if let Some(expression) = fact.as_expression() {
             let returned = exit_return_expression(program, exit);
             if super::super::super::float_predicate_domains::expression_establishes_domain_predicate(
                 program,
@@ -236,91 +248,131 @@ fn establishes_scalar_predicates_visited(
                 domain,
                 *expression,
             ) {
-                return true;
-            }
-            let mut subjects = Vec::new();
-            let has_meaning =
-                domain_predicate_meaning(program, domain, *expression, &mut subjects, 0).is_some();
-            if has_meaning {
-                let returned = exit_return_expression(program, exit);
-                let known = proof.current_value(returned);
-                if super::super::super::prover::evaluate_scalar(
+                ScalarPredicateJudgment::Proven
+            } else {
+                let mut subjects = Vec::new();
+                let has_meaning =
+                    domain_predicate_meaning(program, domain, *expression, &mut subjects, 0)
+                        .is_some();
+                if has_meaning {
+                    let known = proof.current_value(returned);
+                    let evaluated = super::super::super::prover::evaluate_scalar(
+                        program,
+                        *expression,
+                        &mut |leaf| {
+                            if subjects.contains(&leaf) {
+                                return known.clone();
+                            }
+                            let typed_trees::expression::ExpressionNode::Name(path) =
+                                program.expression_table.expression(leaf)
+                            else {
+                                return None;
+                            };
+                            indices
+                                .iter()
+                                .find(|index| index.symbol == path.symbol)
+                                .map(|index| index.value.clone())
+                        },
+                        &|_, _| true,
+                    );
+                    if evaluated == Some(super::super::super::prover::ScalarValue::Boolean(true)) {
+                        ScalarPredicateJudgment::Proven
+                    } else if evaluated
+                        == Some(super::super::super::prover::ScalarValue::Boolean(false))
+                    {
+                        ScalarPredicateJudgment::Refuted
+                    } else if let Some(returned_term) = proof.current_expression(returned) {
+                        let mut bindings = Vec::new();
+                        let mut indices_ok = true;
+                        for index in &indices {
+                            let super::super::super::prover::ScalarValue::Integer(value) =
+                                &index.value
+                            else {
+                                indices_ok = false;
+                                break;
+                            };
+                            bindings.push(validation::ScopedArithmeticBinding {
+                                binder: validation::ScopedArithmeticBinder::Symbol(index.symbol),
+                                value: validation::ScopedArithmeticValue::Integer(value.clone()),
+                            });
+                        }
+                        if indices_ok {
+                            bindings.push(validation::ScopedArithmeticBinding {
+                                binder: validation::ScopedArithmeticBinder::Symbol(
+                                    domain.subject_symbol,
+                                ),
+                                value: validation::ScopedArithmeticValue::Term(returned_term),
+                            });
+                            let goal = validation::ScopedArithmeticExpression {
+                                owner: domain.symbol,
+                                expression: *expression,
+                                bindings,
+                            };
+                            if validation::scoped_arithmetic_implication(
+                                program,
+                                machine,
+                                &hypotheses,
+                                &goal,
+                            ) == validation::StrictArithmeticImplicationJudgment::Proven
+                            {
+                                ScalarPredicateJudgment::Proven
+                            } else if validation::completed_value_proves_domain_predicate(
+                                program,
+                                machine,
+                                state,
+                                exit.statement_index,
+                                returned,
+                                domain.symbol,
+                                *expression,
+                                &[],
+                            ) {
+                                ScalarPredicateJudgment::Proven
+                            } else {
+                                ScalarPredicateJudgment::Unknown
+                            }
+                        } else {
+                            ScalarPredicateJudgment::Unknown
+                        }
+                    } else if validation::completed_value_proves_domain_predicate(
+                        program,
+                        machine,
+                        state,
+                        exit.statement_index,
+                        returned,
+                        domain.symbol,
+                        *expression,
+                        &[],
+                    ) {
+                        ScalarPredicateJudgment::Proven
+                    } else {
+                        ScalarPredicateJudgment::Unknown
+                    }
+                } else if validation::completed_value_proves_domain_predicate(
                     program,
+                    machine,
+                    state,
+                    exit.statement_index,
+                    returned,
+                    domain.symbol,
                     *expression,
-                    &mut |leaf| {
-                        if subjects.contains(&leaf) {
-                            return known.clone();
-                        }
-                        let typed_trees::expression::ExpressionNode::Name(path) =
-                            program.expression_table.expression(leaf)
-                        else {
-                            return None;
-                        };
-                        indices
-                            .iter()
-                            .find(|index| index.symbol == path.symbol)
-                            .map(|index| index.value.clone())
-                    },
-                    &|_, _| true,
-                ) == Some(super::super::super::prover::ScalarValue::Boolean(true))
-                {
-                    return true;
-                }
-                if let Some(returned_term) = proof.current_expression(returned) {
-                    let mut bindings = Vec::new();
-                    let mut indices_ok = true;
-                    for index in &indices {
-                        let super::super::super::prover::ScalarValue::Integer(value) = &index.value
-                        else {
-                            indices_ok = false;
-                            break;
-                        };
-                        bindings.push(validation::ScopedArithmeticBinding {
-                            binder: validation::ScopedArithmeticBinder::Symbol(index.symbol),
-                            value: validation::ScopedArithmeticValue::Integer(value.clone()),
-                        });
-                    }
-                    if indices_ok {
-                        bindings.push(validation::ScopedArithmeticBinding {
-                            binder: validation::ScopedArithmeticBinder::Symbol(
-                                domain.subject_symbol,
-                            ),
-                            value: validation::ScopedArithmeticValue::Term(returned_term),
-                        });
-                        let goal = validation::ScopedArithmeticExpression {
-                            owner: domain.symbol,
-                            expression: *expression,
-                            bindings,
-                        };
-                        if validation::scoped_arithmetic_implication(
-                            program,
-                            machine,
-                            &hypotheses,
-                            &goal,
-                        ) == validation::StrictArithmeticImplicationJudgment::Proven
-                        {
-                            return true;
-                        }
-                    }
+                    &[],
+                ) {
+                    // Truth about a completed value is independent of its transport.
+                    ScalarPredicateJudgment::Proven
+                } else {
+                    ScalarPredicateJudgment::Unknown
                 }
             }
-            // Truth about a completed value is independent of its transport:
-            // a local, field, joined arm or public call result uses the same
-            // observation owner. It proves every reachable observation and
-            // imports only portable guarantees shared by all target members.
-            // Issuer authority remains the caller's separate judgment above;
-            // observing a predicate never creates routed provenance.
-            validation::completed_value_proves_domain_predicate(
-                program,
-                machine,
-                state,
-                exit.statement_index,
-                returned,
-                domain.symbol,
-                *expression,
-                &[],
-            )
-        })
+        } else {
+            // A proposition conjunct remains an obligation.
+            ScalarPredicateJudgment::Unknown
+        };
+        judgment = judgment.join(next);
+        if judgment == ScalarPredicateJudgment::Refuted {
+            break;
+        }
+    }
+    judgment
 }
 
 pub(super) struct ScalarDomainIndex {
@@ -551,7 +603,7 @@ impl ScalarReturnProof<'_> {
                 if !primitive.accepts_integer_literal() {
                     return None;
                 }
-                let subject = canonical_place_from_expression_in_state(
+                let subject = place_at(
                     self.program,
                     self.exit.state_symbol,
                     self.exit.statement_index,
@@ -614,7 +666,7 @@ impl ScalarReturnProof<'_> {
             self.program,
             expression,
             &mut |leaf| {
-                let subject = canonical_place_from_expression_in_state(
+                let subject = place_at(
                     self.program,
                     self.exit.state_symbol,
                     self.exit.statement_index,
@@ -683,12 +735,8 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     if !returned.is_valid() {
         return false;
     }
-    let Some(mut subject) = canonical_place_from_expression_in_state(
-        program,
-        exit.state_symbol,
-        exit.statement_index,
-        returned,
-    ) else {
+    let Some(mut subject) = place_at(program, exit.state_symbol, exit.statement_index, returned)
+    else {
         return false;
     };
     if !crate::flow::place_cases_are_selected(

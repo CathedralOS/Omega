@@ -11,10 +11,12 @@
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
+use crate::checked_facts::value_facts;
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, prepare_structural_argument_path,
 };
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
@@ -58,12 +60,7 @@ impl Emission<'_, '_, '_> {
             let node = self.structural_value_node(source_value);
             let root_type = lookup_type_id(
                 self.type_ids,
-                &validation::stored_structural_type_identity(
-                    &self.checked.typed,
-                    node.type_reference,
-                    &[],
-                    &[],
-                ),
+                &stored_structural_identity(&self.checked, node.type_reference),
             )?;
             // Backing completes through its own producer occurrence, not the
             // descriptor's child roster. The shared construction/call owner
@@ -97,10 +94,7 @@ impl Emission<'_, '_, '_> {
                 ],
             )?;
         }
-        let evaluations = self
-            .checked
-            .facts
-            .values
+        let evaluations = value_facts(&self.checked)
             .scalar_computations
             .operands
             .span(selectors)

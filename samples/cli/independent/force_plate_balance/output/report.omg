@@ -4,7 +4,7 @@ use domain::balance;
 // digits cover every bounded application result; division precedes all I/O.
 data Decimal { digits: [i32; 10]; }
 public machine number(value: i64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition value < 0 {
         true -> negative(value)
@@ -45,7 +45,7 @@ invokes Console;
     machine failed() { Console::exit_process(1); }
 }
 public machine report(frame: &Frame, result: &Balance) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("loads=");
     number(frame.values[0] as i64 in Wrapping); Console::write(",");

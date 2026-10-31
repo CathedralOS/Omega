@@ -12,7 +12,7 @@ uefi_x86_64 machine Table::read(table: &Table) -> Status
 satisfies ForeignReports::read via ForeignBinding::TableFunction(read)
 ensures result.code == 0;
 public FirmwareReports satisfies ForeignReports {
-    machine read(table: &Table) -> Status ensures result.code == 0; {
+    machine read(table: &Table) -> Status ensures result.code == 0 {
         Table::read(table)
     }
 }
@@ -27,7 +27,7 @@ GenericIdentity<T> satisfies Identity<T> {
 }
 boundary machine before_binders() -> i32 ensures result == 0;
 BoundIdentity<'scope, T, const Bytes: [u8; 2], machine Observe> satisfies Identity<T>
-where machine Observe(value: T) -> T;
+requires machine Observe(value: T) -> T;
 {
     machine same(value: T) -> T { value }
 }
@@ -51,8 +51,8 @@ boundary machine before_fixed_operator() -> i32 ensures result == 0;
 operator + i32::add(left: i32, right: i32) -> i32;
 
 machine checked_body(value: i32, domain: i32, trait: i32, operator: i32) -> i32
-requires value >= 0; domain >= 0; domain <= 100; trait >= 0;
-         operator >= 0; operator <= 100; value < 100;
-         operator + domain >= 0;
-         operator < value; operator == domain;
-ensures result == value; { value }
+requires value >= 0, domain >= 0, domain <= 100, trait >= 0,
+         operator >= 0, operator <= 100, value < 100,
+         operator + domain >= 0,
+         operator < value, operator == domain
+ensures result == value { value }

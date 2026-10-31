@@ -5,15 +5,19 @@
 use validation::CanonicalPlace;
 
 mod availability;
+mod bindings;
+mod case_subjects;
 pub(crate) use availability::CasePremiseAvailability;
+pub(crate) use case_subjects::fold_cases;
+mod integer_intervals;
 mod normalization;
 mod paths;
 mod retention;
 use arena::HandleSpan;
 use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
 use facts::{
-    Fact, FactContextHandle, FactOrigin, FactPayload, FactPlace, FactPlan, Place, ProgramPoint,
-    ScalarValue,
+    BooleanPredicateOperand as Operand, Fact, FactContextHandle, FactOrigin, FactPayload,
+    FactPlace, FactPlan, Place, ProgramPoint, ScalarValue,
 };
 use normalization::normalize;
 pub(crate) use paths::{
@@ -33,7 +37,7 @@ pub(crate) struct BoundPredicate {
 }
 
 impl BoundPredicate {
-    pub(crate) fn binding(&self, operand: &Scalar) -> Option<&BoundObservation> {
+    pub(crate) fn binding(&self, operand: &Operand) -> Option<&BoundObservation> {
         self.bindings
             .iter()
             .find(|binding| binding.operand == *operand)
@@ -65,7 +69,11 @@ impl BoundPredicate {
                 } => [(left, right), (right, left)]
                     .into_iter()
                     .find_map(|(subject, value)| {
-                        (predicate.binding(subject)?.place == *place).then_some(())?;
+                        (predicate
+                            .binding(&Operand::Scalar((**subject).clone()))?
+                            .place
+                            == *place)
+                            .then_some(())?;
                         crate::values::evaluate_checked_scalar(
                             value,
                             &mut Values {
@@ -83,7 +91,7 @@ impl BoundPredicate {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BoundObservation {
-    pub operand: Scalar,
+    pub operand: Operand,
     pub place: CanonicalPlace,
     pub type_reference: TypeReferenceHandle,
 }
@@ -124,7 +132,7 @@ pub(crate) fn entry_expression_with(
     map_observations(&mut expression, &mut |operand| {
         let binding = predicate.binding(operand)?;
         let (position, path) = subject(&binding.place)?;
-        *operand = entry_scalar(program, machine, position, path, operand.primitive_type()?)?;
+        *operand = bindings::entry(program, machine, position, path, operand)?;
         Some(())
     })?;
     Some(expression)
@@ -212,85 +220,8 @@ pub(crate) fn bind_parameters(
         {
             return Some(());
         }
-        let (place, type_reference) = match operand {
-            Scalar::Parameter { position, .. } => {
-                let mut scalars = parameters.iter().filter(|parameter| {
-                    crate::values::occupies_scalar_position(program, parameter)
-                });
-                if let Some(parameter) = scalars.nth(*position) {
-                    (
-                        crate::flow::canonical_place_from_symbol(parameter.symbol)?,
-                        parameter.type_reference,
-                    )
-                } else if *position
-                    == parameters
-                        .iter()
-                        .filter(|parameter| {
-                            crate::values::occupies_scalar_position(program, parameter)
-                        })
-                        .count()
-                {
-                    let (place, reference) = result?;
-                    (place.clone(), reference)
-                } else {
-                    return None;
-                }
-            }
-            Scalar::StorageRead { symbol, .. } => {
-                let parameter = parameters
-                    .iter()
-                    .find(|parameter| parameter.symbol == *symbol)?;
-                (
-                    crate::flow::canonical_place_from_symbol(*symbol)?,
-                    parameter.type_reference,
-                )
-            }
-            Scalar::StructuralParameterField { .. }
-            | Scalar::StructuralParameterIndexedRead { .. } => {
-                let selected = operand.parameter_observation_projection()?;
-                let parameter_position = selected.parameter_position;
-                let path = selected.path;
-                if usize::try_from(parameter_position).ok()? == parameters.len() {
-                    let (place, reference) = result?;
-                    let (segments, reference, _) =
-                        crate::values::scalar::structural_fields::resolve_structural_path(
-                            program,
-                            reference,
-                            false,
-                            &path,
-                            &mut |_, _| Some(()),
-                        )?;
-                    let reference =
-                        validation::field_domains::readable_type_reference(program, reference)?;
-                    let mut place = place.clone();
-                    place.segments.extend(segments);
-                    (place, reference)
-                } else {
-                    let (root, segments, reference, _) =
-                        crate::values::resolve_structural_parameter_path(
-                            program,
-                            parameters,
-                            parameter_position,
-                            &path,
-                        )?;
-                    // An empty projection can observe a whole primitive loan.
-                    // Bind its readable referent carrier, as scalar contract
-                    // lowering does, rather than comparing the reference type
-                    // itself with the scalar observation. Write-only stays absent.
-                    let reference =
-                        validation::field_domains::readable_type_reference(program, reference)?;
-                    (
-                        CanonicalPlace {
-                            root: facts::PlaceRoot::Symbol(root),
-                            segments,
-                        },
-                        reference,
-                    )
-                }
-            }
-            _ => return None,
-        };
-        if program.primitive_type_reference(type_reference) != operand.primitive_type() {
+        let (place, type_reference) = bindings::parameter(program, parameters, result, operand)?;
+        if !bindings::compatible_type(program, operand, type_reference) {
             return None;
         }
         bindings.push(BoundObservation {
@@ -405,7 +336,7 @@ pub(crate) fn bind_current_expression(
     state_symbol: SymbolHandle,
     mut expression: Boolean,
     value: bool,
-    mut observe: impl FnMut(&Scalar) -> Option<(CanonicalPlace, TypeReferenceHandle)>,
+    mut observe: impl FnMut(&Operand) -> Option<(CanonicalPlace, TypeReferenceHandle)>,
 ) -> Option<BoundPredicate> {
     let (machine, state) = validation::find_state(program, state_symbol)?;
     let mut bindings = Vec::new();
@@ -422,7 +353,7 @@ pub(crate) fn bind_current_expression(
         // parameter-contract binding does; write-only loans remain absent.
         let type_reference =
             validation::field_domains::readable_type_reference(program, type_reference)?;
-        if program.primitive_type_reference(type_reference) != operand.primitive_type() {
+        if !bindings::compatible_type(program, operand, type_reference) {
             return None;
         }
         bindings.push(BoundObservation {
@@ -451,9 +382,13 @@ pub(crate) fn declared_observation(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    operand: &Scalar,
+    operand: &Operand,
 ) -> Option<(CanonicalPlace, TypeReferenceHandle)> {
     let (_, state) = validation::find_state(program, state_symbol)?;
+    if matches!(operand, Operand::CaseSubject(_)) {
+        return bindings::parameter(program, program.state_parameters(state), None, operand);
+    }
+    let operand = operand.scalar()?;
     let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
     let place = match operand {
         Scalar::Parameter { position, .. } | Scalar::Local { position, .. } => {
@@ -678,13 +613,13 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> crate::values::Scal
     for Values<'_, Resolve>
 {
     fn binding(&mut self, position: usize) -> Option<ScalarValue> {
-        let binding = self.predicate.bindings.iter().find(|binding| matches!(&binding.operand, Scalar::Parameter { position: candidate, .. } | Scalar::Local { position: candidate, .. } if *candidate == position))?;
+        let binding = self.predicate.bindings.iter().find(|binding| matches!(binding.operand.scalar(), Some(Scalar::Parameter { position: candidate, .. } | Scalar::Local { position: candidate, .. }) if *candidate == position))?;
         (self.resolve)(&binding.place)
     }
     fn storage(&mut self, symbol: SymbolHandle) -> Option<ScalarValue> {
         let binding = self.predicate.bindings.iter().find(|binding| {
-            matches!(&binding.operand,
-            Scalar::StorageRead { symbol: candidate, .. } if *candidate == symbol)
+            matches!(binding.operand.scalar(),
+            Some(Scalar::StorageRead { symbol: candidate, .. }) if *candidate == symbol)
         })?;
         (self.resolve)(&binding.place)
     }
@@ -695,7 +630,7 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> crate::values::Scal
         parameter_position: u32,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {
-        let binding = self.predicate.bindings.iter().find(|binding| matches!(&binding.operand, Scalar::StructuralParameterField { observation: candidate_observation, parameter_position: candidate, path: candidate_path, .. } if *candidate_observation == observation && *candidate == parameter_position && candidate_path == path))?;
+        let binding = self.predicate.bindings.iter().find(|binding| matches!(binding.operand.scalar(), Some(Scalar::StructuralParameterField { observation: candidate_observation, parameter_position: candidate, path: candidate_path, .. }) if *candidate_observation == observation && *candidate == parameter_position && candidate_path == path))?;
         (self.resolve)(&binding.place)
     }
 }
@@ -724,9 +659,9 @@ pub(crate) fn inferred_boolean_at_place(
         return None;
     }
     let (expressions, observations) = normalize(predicates)?;
-    let position = observations
-        .iter()
-        .position(|(place, primitive)| *place == *actual && *primitive == PrimitiveType::Bool)?;
+    let position = observations.iter().position(|(place, primitive)| {
+        *place == *actual && primitive.primitive() == Some(PrimitiveType::Bool)
+    })?;
     let truths = formula_closure(&expressions, &[], &observations, ordinary).ok()?;
     truths.into_iter().find_map(|(expression, value)| {
         (expression == Boolean::Parameter { position }).then_some(value)
@@ -738,7 +673,46 @@ pub(crate) fn inferred_boolean_at_place(
 /// read a decided conflict instead of a closed door.
 struct Contradiction;
 
-type Observation = (CanonicalPlace, PrimitiveType);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ObservationKind {
+    Scalar(PrimitiveType),
+    CaseSubject(TypeReferenceHandle),
+}
+
+impl ObservationKind {
+    fn of(binding: &BoundObservation) -> Option<Self> {
+        match &binding.operand {
+            Operand::Scalar(scalar) => Some(Self::Scalar(scalar.primitive_type()?)),
+            Operand::CaseSubject(_) => binding
+                .type_reference
+                .is_valid()
+                .then_some(Self::CaseSubject(binding.type_reference)),
+        }
+    }
+    fn primitive(self) -> Option<PrimitiveType> {
+        match self {
+            Self::Scalar(primitive) => Some(primitive),
+            Self::CaseSubject(_) => None,
+        }
+    }
+    fn operand(self, position: usize) -> Option<Operand> {
+        match self {
+            Self::Scalar(primitive_type) => Some(Operand::Scalar(Scalar::Parameter {
+                position,
+                primitive_type,
+            })),
+            Self::CaseSubject(_) => Some(Operand::CaseSubject(
+                checked_trees::CheckedStructuralCaseSubject {
+                    root: checked_trees::CheckedStructuralCaseRoot::Parameter {
+                        position: u32::try_from(position).ok()?,
+                    },
+                    path: Vec::new(),
+                },
+            )),
+        }
+    }
+}
+type Observation = (CanonicalPlace, ObservationKind);
 
 /// Whether no assignment satisfies `predicates`. Only a conflict between two
 /// truths this algebra has already established makes a premise set
@@ -792,7 +766,7 @@ fn formula_closure(
     }
     let values = observations
         .iter()
-        .map(|(place, _)| ordinary(place))
+        .map(|(place, kind)| kind.primitive().and_then(|_| ordinary(place)))
         .collect::<Vec<_>>();
     let mut expressions = Vec::new();
     let mut truths = Vec::new();
@@ -917,7 +891,7 @@ pub(crate) fn fold(
         if operand.primitive_type() == Some(PrimitiveType::Bool)
             && let Some(ScalarValue::Boolean(value)) = resolve(&binding.place)
         {
-            *operand = Scalar::Boolean(Box::new(Boolean::Constant(value)));
+            *operand = Operand::Scalar(Scalar::Boolean(Box::new(Boolean::Constant(value))));
         }
         Some(())
     })?;
@@ -981,7 +955,7 @@ fn simplify(expression: &mut Boolean) {
 /// meaning for authored operators or treat opaque observations as values.
 pub(crate) fn map_observations(
     expression: &mut Boolean,
-    map: &mut impl FnMut(&mut Scalar) -> Option<()>,
+    map: &mut impl FnMut(&mut Operand) -> Option<()>,
 ) -> Option<()> {
     match expression {
         Boolean::Constant(_) => {}
@@ -990,7 +964,7 @@ pub(crate) fn map_observations(
                 position: *position,
                 primitive_type: PrimitiveType::Bool,
             };
-            map(&mut scalar)?;
+            map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
         }
         Boolean::Local { position } => {
@@ -998,7 +972,7 @@ pub(crate) fn map_observations(
                 position: *position,
                 primitive_type: PrimitiveType::Bool,
             };
-            map(&mut scalar)?;
+            map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
         }
         Boolean::StorageRead { symbol } => {
@@ -1006,7 +980,7 @@ pub(crate) fn map_observations(
                 symbol: *symbol,
                 primitive_type: PrimitiveType::Bool,
             };
-            map(&mut scalar)?;
+            map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
         }
         Boolean::StructuralParameterField {
@@ -1020,7 +994,7 @@ pub(crate) fn map_observations(
                 path: path.clone(),
                 primitive_type: PrimitiveType::Bool,
             };
-            map(&mut scalar)?;
+            map_scalar_observation(&mut scalar, map)?;
             *expression = boolean_operand(scalar)?;
         }
         Boolean::Not(operand) => map_observations(operand, map)?,
@@ -1055,9 +1029,32 @@ pub(crate) fn map_observations(
         | Boolean::IeeeFloatComparison { .. }
         | Boolean::StructuralIdentity { .. }
         | Boolean::ByteSequenceEqual { .. }
-        | Boolean::ByteSequencePredicate { .. }
-        | Boolean::StructuralCaseMembership { .. } => return None,
+        | Boolean::ByteSequencePredicate { .. } => return None,
+        Boolean::StructuralCaseMembership { subject, .. } => {
+            let mut observation = Operand::CaseSubject(subject.clone());
+            map(&mut observation)?;
+            let Operand::CaseSubject(mapped) = observation else {
+                return None;
+            };
+            *subject = mapped;
+        }
     }
+    Some(())
+}
+
+/// A visitor can rebind observations only within their real value family.
+/// Scalar computations keep their selected algebra; case subjects keep the
+/// structural namespace and are never converted to numeric or Boolean loads.
+fn map_scalar_observation(
+    scalar: &mut Scalar,
+    map: &mut impl FnMut(&mut Operand) -> Option<()>,
+) -> Option<()> {
+    let mut observation = Operand::Scalar(scalar.clone());
+    map(&mut observation)?;
+    let Operand::Scalar(mapped) = observation else {
+        return None;
+    };
+    *scalar = mapped;
     Some(())
 }
 
@@ -1092,14 +1089,14 @@ fn boolean_operand(operand: Scalar) -> Option<Boolean> {
 
 pub(crate) fn map_scalar(
     expression: &mut Scalar,
-    map: &mut impl FnMut(&mut Scalar) -> Option<()>,
+    map: &mut impl FnMut(&mut Operand) -> Option<()>,
 ) -> Option<()> {
     match expression {
         Scalar::Parameter { .. }
         | Scalar::StructuralParameterField { .. }
         | Scalar::StructuralParameterIndexedRead { .. }
         | Scalar::Local { .. }
-        | Scalar::StorageRead { .. } => map(expression)?,
+        | Scalar::StorageRead { .. } => map_scalar_observation(expression, map)?,
         Scalar::Boolean(expression) => map_observations(expression, map)?,
         Scalar::IntegerBinary { left, right, .. } => {
             map_scalar(left, map)?;
@@ -1133,20 +1130,16 @@ pub(crate) fn guarded_requirement(
     let bindings = observations
         .into_iter()
         .enumerate()
-        .map(|(position, (place, primitive_type))| {
+        .map(|(position, (place, kind))| {
             let source = guard
                 .bindings
                 .iter()
                 .chain(&required.bindings)
                 .find(|binding| {
-                    binding.place == place
-                        && binding.operand.primitive_type() == Some(primitive_type)
+                    binding.place == place && ObservationKind::of(binding) == Some(kind)
                 })?;
             Some(BoundObservation {
-                operand: Scalar::Parameter {
-                    position,
-                    primitive_type,
-                },
+                operand: kind.operand(position)?,
                 place,
                 type_reference: source.type_reference,
             })
@@ -1252,7 +1245,8 @@ mod tests {
                 operand: Scalar::Parameter {
                     position: 0,
                     primitive_type: PrimitiveType::Bool,
-                },
+                }
+                .into(),
                 place: CanonicalPlace {
                     root: PlaceRoot::Symbol(SymbolHandle::from_parts(2, 1)),
                     segments: Vec::new(),

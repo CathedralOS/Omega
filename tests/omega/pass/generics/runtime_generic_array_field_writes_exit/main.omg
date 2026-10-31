@@ -7,7 +7,7 @@ data Pair<T> { items: [T; 2]; }
 data Outer<const N: u64> where N >= 1 { inner: Inner<N>; }
 data Inner<const N: u64> where N >= 1 { cells: [u8; N]; }
 machine Pair::set_second<T>(pair: &mut Pair<T>, value: T) { pair.items[1] = value; }
-machine Outer::fill<const N: u64>(outer: &mut Outer<N>) requires N >= 1; { outer.inner.cells[0] = 9; }
+machine Outer::fill<const N: u64>(outer: &mut Outer<N>) requires N >= 1 { outer.inner.cells[0] = 9; }
 data Main { pair: Pair<i32>; outer: Outer<3>; }
 machine Main::main(main: &mut Main) reaches Console {
     Pair::set_second(&mut main.pair, 61);

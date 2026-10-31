@@ -9,6 +9,27 @@ use artifacts::compile_timings::counters;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use compiler::{CheckedCompileRequest, CompilationSession};
 
+/// Resolve one project's sources with the host-profile execution defaults that
+/// every single-root case shares.
+fn resolve_sources(
+    session: &mut omega_build::BuildSession,
+    preparation: package_manager::operations::LocalProjectPreparation,
+    profile: target::TargetProfile,
+) -> Result<omega_build::ResolvedProjectBuilds, omega_build::ProjectSourceResolutionError> {
+    omega_build::resolve_project_sources(
+        session,
+        omega_build::ProjectSourceRequest {
+            preparation,
+            collect_timings: false,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: None,
+                ..Default::default()
+            },
+        },
+    )
+}
+
 fn limits(fuel: u64) -> BuildEvaluationSponsorLimits {
     BuildEvaluationSponsorLimits::new(
         fuel, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
@@ -263,7 +284,7 @@ fn nested_readiness_jobs() {
                 root.join("backing/leaf/build.omg"),
                 r#"
 use omega::language::core::program_image;
-machine build(builder: &mut Build) suspends; {
+machine build(builder: &mut Build) suspends {
     Build::package(builder, "readiness_leaf");
     Build::build_depend_as(builder, "root", Source::Path { location: "../.." });
     suspend Build::await_provider<ProgramImage, root::TestImage>(builder);
@@ -363,20 +384,9 @@ fn source_discovery_root_inputs() {
     // Absence cannot fall back to the root's same-named input.txt or acquire
     // an ambient host path for the slot.
     let mut session = omega_build::BuildSession::create(&temporary.path().join("absent")).unwrap();
-    let error = omega_build::resolve_project_sources(
-        &mut session,
-        omega_build::ProjectSourceRequest {
-            preparation: preparation(),
-            collect_timings: false,
-            execution: package_compilation::BuildExecutionInputs {
-                profile: Some(profile),
-                snapshot: None,
-                ..Default::default()
-            },
-        },
-    )
-    .err()
-    .expect("an unassigned named slot must reject");
+    let error = resolve_sources(&mut session, preparation(), profile)
+        .err()
+        .expect("an unassigned named slot must reject");
     assert!(
         error
             .to_string()
@@ -827,19 +837,8 @@ fn anonymous_generator_source_scope() {
     let mut session =
         omega_build::BuildSession::create(&temporary.path().join("application-session")).unwrap();
     let before = counters::build_execution_count();
-    let mut resolved = omega_build::resolve_project_sources(
-        &mut session,
-        omega_build::ProjectSourceRequest {
-            preparation,
-            collect_timings: false,
-            execution: package_compilation::BuildExecutionInputs {
-                profile: Some(profile),
-                snapshot: None,
-                ..Default::default()
-            },
-        },
-    )
-    .unwrap_or_else(|error| panic!("application generator discovery: {error:?}"));
+    let mut resolved = resolve_sources(&mut session, preparation, profile)
+        .unwrap_or_else(|error| panic!("application generator discovery: {error:?}"));
     assert_eq!(resolved.builds.len(), 1);
     for name in ["main.omg", "build.omg", "asset.txt"] {
         std::fs::remove_file(project.join(name)).unwrap();
@@ -1796,20 +1795,9 @@ fn project_session_lifecycle() {
         .charge_result_custody(maximum, 0)
         .unwrap();
     let before = counters::build_execution_count();
-    let error = omega_build::resolve_project_sources(
-        &mut session,
-        omega_build::ProjectSourceRequest {
-            preparation: preparation(),
-            collect_timings: false,
-            execution: package_compilation::BuildExecutionInputs {
-                profile: Some(profile),
-                snapshot: None,
-                ..Default::default()
-            },
-        },
-    )
-    .err()
-    .expect("source work cannot replenish a spent allowance");
+    let error = resolve_sources(&mut session, preparation(), profile)
+        .err()
+        .expect("source work cannot replenish a spent allowance");
     match error {
         omega_build::ProjectSourceResolutionError::Compilation(failure) => {
             let diagnostics = failure.into_diagnostics();
@@ -1826,20 +1814,9 @@ fn project_session_lifecycle() {
     assert_eq!(counters::build_execution_count(), before + 1);
     session.close().unwrap();
     let before = counters::build_execution_count();
-    let error = omega_build::resolve_project_sources(
-        &mut session,
-        omega_build::ProjectSourceRequest {
-            preparation: preparation(),
-            collect_timings: false,
-            execution: package_compilation::BuildExecutionInputs {
-                profile: Some(profile),
-                snapshot: None,
-                ..Default::default()
-            },
-        },
-    )
-    .err()
-    .expect("closed session cannot admit another source Build");
+    let error = resolve_sources(&mut session, preparation(), profile)
+        .err()
+        .expect("closed session cannot admit another source Build");
     assert!(
         matches!(
             error,
@@ -1872,19 +1849,7 @@ fn completed_build_target_fanout() {
     .unwrap();
     let mut session = omega_build::BuildSession::create(&temporary.path().join("session")).unwrap();
     let before = counters::build_execution_count();
-    let mut resolved = omega_build::resolve_project_sources(
-        &mut session,
-        omega_build::ProjectSourceRequest {
-            preparation,
-            collect_timings: false,
-            execution: package_compilation::BuildExecutionInputs {
-                profile: Some(host),
-                snapshot: None,
-                ..Default::default()
-            },
-        },
-    )
-    .unwrap();
+    let mut resolved = resolve_sources(&mut session, preparation, host).unwrap();
     let build = resolved.builds.pop().unwrap();
     let inputs = build.package_inputs().clone();
     let build = build
@@ -2035,19 +2000,7 @@ fn settled_build_product_contexts() {
     let sponsor = session.resources().evaluation_sponsor().clone();
     let before = counters::build_execution_count();
     let completions = counters::product_source_completion_count();
-    let mut resolved = omega_build::resolve_project_sources(
-        &mut session,
-        omega_build::ProjectSourceRequest {
-            preparation,
-            collect_timings: false,
-            execution: package_compilation::BuildExecutionInputs {
-                profile: Some(host),
-                snapshot: None,
-                ..Default::default()
-            },
-        },
-    )
-    .unwrap();
+    let mut resolved = resolve_sources(&mut session, preparation, host).unwrap();
     assert_eq!(resolved.builds.len(), 2);
     let child = resolved.builds.pop().unwrap();
     let child_inputs = child.package_inputs().clone();

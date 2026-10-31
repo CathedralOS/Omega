@@ -771,3 +771,277 @@ envelope. It also executes with native/Terminal exit 70. The source control
 value read after a field write fails to establish a false field-free conjunct.
 These close this customer and the demonstrated composition defects, not the
 remaining declaration audit, other predicate mechanisms or Rust suffix removal.
+
+## Audited cellular automaton customer
+
+`samples/cli/simulation/cellular_automaton` restores all nine original bounded
+positions: both 64-element grids contain only 0/1, and `gen`, `rp`, `window`,
+`cell`, `nv`, `x` and `cv` retain their original scalar bounds. Ordinary recursive
+collection predicates and a checked selected-cell theorem replace the retired
+suffixes; the program no longer clamps values to recover discarded bounds.
+
+The checker shares a read-only ordered conjunction roster across standing
+requirements, mutation windows, constant facts and call custody. It retains the
+authored expression tree for formation and operator selection. Post-store proof
+uses independently established RHS bounds and the existing complete private
+arrival observer. Nested calls transport completed operand field facts at their
+actual storage versions, and every incoming edge participates in the join.
+Unversioned byte-carrier ceilings are removed: an earlier ASCII observation
+cannot justify a byte write after the buffer has been replaced with multibyte
+text. Open or escaping nested callables retain their declared entry envelope.
+
+On macOS ARM64, the optimized producer built from `dcd52d625a77` runs the full
+sample and a separately prepared authored replay with native/Terminal exit zero
+and the same independent 35-line Rule 90 output. The focused corpus establishes
+24 checked positives and 36 intended rejections; 19 executable fixtures agree
+across native and Terminal, including the existing correlated-store nine-place
+row and both migrated six-cell predicate fixtures. Four positives are
+compile-only. The unchanged qualified-byte argument snapshot fixture exits 70
+natively but Terminal refuses `VerifiedOperationMalformed`; the fixed-base
+producer `1545e114cb00` reproduces the same failure at machine 15, block 28,
+operation 127. That fixture is not counted as engine agreement. Other hosts and
+the remaining migration acceptance remain open.
+
+## Audited search and dungeon customers
+
+This cohort accounts for 13 historical positions in five files: one binary-search
+position and twelve DungeonCLI positions. Four declarations needed restoration:
+
+| Customer | Canonical contract |
+| --- | --- |
+| `binary_search_viz` `Main.x: i32 [0..=31]` | Data `requires self.x >= 0 && self.x <= 31`. The initialization/render loops retain the valid terminal counter 31; a store of 32 rejects. Original midpoint and narrowing clamps remain. Exactly 31 calls acknowledge the existing blocking input path. |
+| DungeonCLI `Level.room_count: u64 [0..=16]` | Data `requires self.room_count <= 16`; the unsigned carrier supplies the lower bound. A store of 17 rejects. Array capacity alone did not establish this formation restriction. |
+| Both private room-lookup `room_count: u64 [0..=16]` inputs | Each machine requires `room_count <= 16`; separate false-argument controls reject 17 at the intended call. |
+
+The other nine positions retain their meaning: five command-count requirements,
+the maze index initializer and result guarantee, and two eliminated private
+`last_index` formals. Every original caller supplied `(count, count - 1)` with no
+intervening effects. The current immutable count arrives under the same lower
+and upper bounds; its local subtraction establishes 0..255 or 0..254 before the
+read and shorter-count transfer. This is correspondence for that closed private
+call graph, not raw-signature equivalence for arbitrary count/index pairs.
+
+The restored programs check on the fixed base. Dungeon execution exposed an
+interpreter prerequisite: forming a shared byte view rejected the original
+array field's Ascii/Utf8 memberships. The byte bridge now authenticates that
+source before installing the operation's separately allocated result descriptor.
+Memberships stay on their original carrier, backing and window remain unchanged,
+and mutable qualification/restoration checks remain independent. There is no
+buffer-name, encoding-name or array-length recognizer.
+
+The optimized repaired producer `13f4ec7b35db` executes three exact-output routes
+on macOS ARM64 in both the working and separately prepared authored projects:
+binary search probes 15, 23, 19, 21, 20 (183 stdout bytes); dungeon EOF (463 bytes);
+and dungeon help/exit (536 bytes). All six cases exit zero in native and Terminal
+execution. Four over-bound controls reject, and the focused two-sample gate
+passes the complete authored oracles. The same repair makes the existing
+`runtime_qualified_byte_argument_snapshot_exit` run native/Terminal 70/70;
+the earlier malformed-operation observations above remain historical evidence.
+The currently unused mutable room lookup's source admission is checked, without
+claiming executed mutable-loan coverage. Other hosts, other gameplay paths and
+the rest of the parent migration remain open.
+
+## Audited partition and sort customers
+
+The sort visualizer and Dutch flag retain all nine original field intervals
+from `7a9a7b8287e6` on their containing data declarations:
+
+| Fields | Canonical storage restriction |
+| --- | --- |
+| Sort `Main.i`, `Main.j` | Each remains between zero and seven, inclusive. |
+| Sort `Main.jp`, `Main.ry`, `Main.cx` | Each remains between zero and eight, inclusive; eight is a valid stored sentinel. |
+| Dutch flag `Partition.r`, `Partition.w`, `Partition.b` | Each remains at most three; `u64` supplies the zero floor. |
+| Dutch flag `Partition.bp` | Remains at most two, with the unsigned zero floor. |
+
+The predicates restrict formation and typed mutable handback independently of
+the access guards. Declared `j <= 7` establishes `jp <= 8` before its store;
+declared `b <= 3` and the direct `b > 0` guard establish `bp <= 2` before its
+store. The algorithms, guards, arithmetic and original endpoints remain.
+Exactly 34 sort and 28 Dutch flag terminal calls acknowledge the existing
+blocking-input path. The Clock call and its published operational contract
+remain unchanged. This is source migration, not a compiler repair.
+
+Optimized producer `3339fc20030b` executes both programs on macOS ARM64 in the
+working and separately prepared fresh projects. All four cases agree between
+native and Terminal execution: sort exits zero with its exact 754-byte,
+eight-frame transcript; Dutch flag exits 70 with its exact 141-byte transcript.
+The independently derived output and newline input were frozen before execution.
+Five representative endpoint pairs over the exact copied customer declarations
+check signed zero floors, signed ceilings seven/eight, and unsigned ceilings
+three/two. Valid neighbours check; invalid stores reject the owning data
+predicate. The focused two-sample gate passes their complete authored oracles.
+Other hosted targets and the remainder of the parent migration remain open.
+
+## Audited loop, controller and renderer customers
+
+Seven customers retain 17 original field restrictions from `7a9a7b8287e6` on
+their existing data owners. No originally bare field gains a new restriction.
+
+| Customer | Preserved storage intervals |
+| --- | --- |
+| `bubble_sort` | Unsigned `Main.i <= 5`, `Main.j <= 4`; their carriers supply zero floors. |
+| `array_sum` | `Main.i` remains in 0..=2. |
+| `elevator` | `Elevator.moves` remains in 0..=100, including through `Main.lift`. |
+| `traffic_light` | `Light.advances` remains in 0..=100, including through `Main.light`. |
+| `bouncing_console` | `Main.p`, `frame`, `x` remain in 0..=40, 0..=50, 0..=40. |
+| `bouncing_ball_2d` | `Main.frame`, `y`, `x` remain in 0..=70, 0..=12, 0..=24. Float and ball-coordinate fields remain originally bare. |
+| `ripple_field` | `Main.frame`, `y`, `x` remain in 0..=60, 0..=16, 0..=30; `dx`, `dy`, `dist` retain -15..=15, -8..=8, -23..=23. |
+
+The original endpoints include stored sentinels that are not valid indices,
+and negative displacements that the fixed render trace later makes positive.
+All narrower index guards remain. Exactly 122 terminal calls acknowledge the
+existing blocking-input paths; computation-only command and phase calls remain
+ordinary calls. Clock calls retain their published operational contracts.
+
+Both controllers regain their original `(counter + 1) % 101` expression.
+The established pre-store 0..=100 invariant makes the removed inner remainder
+an identity and proves the intermediate 1..=101 fits i32. Only the outer
+remainder is stored, again in 0..=100. The floor write is disjoint from the move
+counter; neither spelling adds a read, call or write. This is not equivalence
+over unconstrained i32 or permission to use the desired result as its premise.
+Array sum's three hexadecimal constants denote the original two inputs and
+2,200,000,000 total; widening and Wrapping accumulation are unchanged.
+
+Optimized producer `f0584b450558` runs all seven programs in the working and
+separately prepared fresh projects on macOS ARM64. All fourteen cases agree
+between native and Terminal execution and match complete independently frozen
+stdout: 183, 170, 168, 142, 2,213, 21,372 and 30,074 bytes for bubble sort,
+array sum, elevator, traffic light, line bounce, gravity bounce and ripples.
+Their original exits remain 10, 70, 70, 70, 0, 0 and 0. The binary64 oracle
+retains the truncation-sensitive frame 44 at x=5; no physics operation changes.
+Eight representative endpoint pairs check or reject the intended data
+predicate, including stored `p=40`, `dist=-23` and both nested counters at 100.
+The focused seven-sample gate passes. These are native/Terminal observations,
+separate from older checked-tree notes; physical timing is not newly qualified.
+Other hosted targets and the full parent migration remain open.
+
+## Audited stdin byte parameters
+
+The three stdin customers retain their original `7a9a7b8287e6` byte-input
+formals: checksum `acc.value`, rot1 `wr.value`, and upper `chk.value`.
+Each remains an ordinary `i32` with `requires value >= 0 && value <= 0xFF`.
+The standard library's guarded `ByteRead` data predicate establishes these
+bounds on the exact payload when the caller matches `ByteRead::Byte`.
+The match establishes the obligation before the call; a desired callee result
+does not justify its input. EOF remains a distinct case from a zero byte.
+
+Exactly 13 calls acknowledge the existing blocking read path. Wrapping sums
+and counts, algorithms, and all 14 original `INPUT-GRID` vectors remain.
+Upper's ASCII literals use the same integer values in hex.
+
+The frozen rot1 `0xFF` case exposed a shared Terminal adapter defect: it
+rejected valid i32 output 256 while native execution emitted its low byte.
+The adapter now emits the low eight bits after checking the full i32 carrier;
+wrong operand types and values outside that carrier still reject. Selection,
+provisions, authority, and the program's input requirement remain unchanged.
+A focused corpus program writes positive, negative and integer-limit inputs
+with exact bytes `41 00 FF 00 00 FF` and exit zero in both engines.
+
+Optimized repaired producer `ae2dd53d3518` executes all 20 byte-exact cases in both the
+working and separately prepared fresh projects on macOS ARM64. All 40 case
+observations agree between native and Terminal execution on exact exit,
+stdout, and stderr. Additional cases distinguish empty EOF from NUL, check
+rot1's `0xFF` to `0x00` output, and preserve upper's `0xFF` byte. The six
+copied-header endpoint pairs accept zero and 255, and reject representable
+-1 and 256 at the intended requires contract. These controls are source checks;
+checksum exit values beyond 255 are not a runtime claim here. The focused
+three-sample gate passes their default empty-input oracles. Other hosted
+targets and the full parent migration remain open.
+
+
+### Indexed array owner predicates
+
+The indexed-storage cohort retains five lost positions from `7a9a7b8287e6`:
+`range/indexed_field_range_runtime_write_rejected` restores `Main.i <= 3`;
+`range/guarded_runtime_index_collection_write` and
+`range/runtime_guarded_runtime_index_increment_exit` each restore `Main.k <= 3`
+and the complete signed 0..16 predicate on all four `Main.tallies` elements.
+`Cell.value` retains its existing 0..7 meaning as a data `requires` predicate.
+The increment's detached scalar explicitly carries its zero floor into the
+nested call; a later `v < 16` condition does not replace the whole owner domain.
+
+The old negative interposed a disjoint write of 5 and expected a below-16 read
+to fail. That premise no longer describes an invalid program. Its replacement
+writes 16 and increments the same selected cell to 17, failing owner handback;
+the positive production writes 5, rereads it, and stores 6. This keeps both the
+complete original domain and the runtime-indexed operation.
+
+The [array owner fact](../../../samples/cli/facts/array_element_default_domain/README.md)
+transports the full requirement through all nine places. Its public observer
+must establish both bounds for arbitrary admitted callers. Missing one
+ceiling still rejects even when a convenient initializer happens to satisfy it.
+Separate productions exercise whole-owner zero establishment, restored writes,
+and the distinction between a saved value and a fresh read after mutation.
+The full parent migration remains open.
+
+## Audited arithmetic owner fields
+
+Four arithmetic customers retain five original field intervals from
+`7a9a7b8287e6` on their existing data owners:
+
+| Customer | Complete original owner bounds |
+| --- | --- |
+| `smallest_prime_factor` | Signed `Trial.n` in 0..=1000 and `Trial.d` in 0..=200. |
+| `reverse_sum` | Signed `Main.i` in -1..=4, including the final stored sentinel. |
+| `sensor_min_max` | Signed `Main.i` in 0..=6, including the final count. |
+| `stats_compute` | Signed `Stats.count` in 0..=100, including wrap from 100 to zero. |
+
+These are data `requires` propositions, not interval-only nominal domains or
+bounds supplied only on selected arithmetic edges. They apply through nested
+owners, mutable calls and handback. Zero remains valid in every owner.
+Prime factor's invoked probe and remainder steps separately require a positive
+divisor; that call obligation does not strengthen the stored divisor's domain.
+The removed probe adapter repeated the owner bounds before the square test.
+The multiply, remainder and guarded increment retain their original operations.
+
+Statistics regains `(count + 1) % 101`. The live 0..=100 owner predicate proves
+that the removed inner `% 101` was an identity and that the exact intermediate
+fits i32; the outer remainder restores the full domain. This equivalence does
+not hold for an unconstrained signed count.
+
+Exactly 31 terminal calls acknowledge the existing blocking close-prompt paths.
+Pure accumulation calls remain ordinary calls. Authored exits are 13, 75, 33
+and 70 respectively; their unchanged success transcripts are 158, 153, 164 and
+165 bytes, with LF input followed by EOF. Native and Terminal agreement on those
+oracles, fresh project acceptance, and the original owner endpoints are the
+qualification obligations. Other hosted targets and the parent migration remain
+open.
+
+## Audited remaining CLI owner fields
+
+Eight further CLI customers retain fifteen original field intervals from
+`7a9a7b8287e6` as propositions on their original data owners:
+
+| Customer | Complete original `Main` bounds |
+| --- | --- |
+| `print_number` | Signed `i` in 0..=5. |
+| `rpn_calculator` | Signed `sp` and `pc` in 0..=16. |
+| `stack_calculator` | Signed `sp` in 0..=8. |
+| `luhn_checksum` | Signed `r` in -1..=10. |
+| `rule_30` | Signed `g` in 0..=16 and `i` in 0..=31. |
+| `mandelbrot` | Signed `x` in 0..=64; `y` and `k` in 0..=28. |
+| `mandelbrot_zoom` | Signed `frame` in 0..=12, `x` in 0..=48, `y` in 0..=22, `k` in 0..=40. |
+| `descriptor_walk` | Unsigned `descriptor_size <= 16`; its carrier supplies zero. |
+
+The upper endpoints include legal completed counts and one-past-end sentinels;
+Luhn's final -1 is legal storage too. These owner domains do not grant indexed
+access at the endpoint. Existing capacity, underflow, strict-index, ASCII and
+recast-footprint guards remain, and descriptor progress still independently
+requires a positive stride. No originally bare field gains a restriction.
+
+All 147 added terminal `block` acknowledgements follow existing close-prompt
+paths. The exit-only descriptor walk remains nonblocking. UTF-8 domain identities,
+array extents, arithmetic policies, float operations, palette selection, twelve
+clock waits and the descriptor's runtime-stride operation stay intact. Rule 30's
+center seed and clipping modulus are spelled `0x8000` and `0x8000_0000`; ASCII
+and ANSI byte literals also use equal-valued hex spellings.
+
+The source-derived acceptance oracles retain exits 0/35/35/70/0/0/0/50 and
+exact stdout lengths 138/163/162/161/612/1931/13099/0 bytes in table order.
+The fractal oracles preserve binary64 primitive-operation rounding, every row
+and all twelve ANSI-prefixed frames. The current three-byte decimal output
+carrier prints `150` without a hidden terminator; this batch does not restore
+an obsolete four-byte carrier. Native/Terminal agreement in working and fresh
+projects, original owner endpoints and fact-sensitive rejects qualify this
+cohort. Other hosts, GUI customers and the whole historical migration audit
+remain open.

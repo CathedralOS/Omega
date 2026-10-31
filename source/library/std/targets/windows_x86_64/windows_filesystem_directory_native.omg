@@ -83,7 +83,7 @@ NativeWindowsFilesystemDirectoryImports satisfies WindowsFilesystemDirectoryIo {
         information_class: u32, single_entry: u8, name_filter: u64, restart: u8) -> i32
     requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8256
         && information_class == 1 && single_entry == 1 && name_filter == 0 && restart <= 1
-    reaches DirectoryEnumeration + FilesystemMetadataQuery blocks;
+    reaches DirectoryEnumeration + FilesystemMetadataQuery blocks
     { block WindowsFilesystemDirectoryImports::next_entry(handle, event, callback, context, status, output,
         capacity, information_class, single_entry, name_filter, restart) }
     machine next_name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, event: u64, callback: u64, context: u64,
@@ -91,7 +91,7 @@ NativeWindowsFilesystemDirectoryImports satisfies WindowsFilesystemDirectoryIo {
         information_class: u32, single_entry: u8, name_filter: u64, restart: u8) -> i32
     requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8208
         && information_class == 12 && single_entry == 1 && name_filter == 0 && restart == 0
-    reaches DirectoryEnumeration blocks;
+    reaches DirectoryEnumeration blocks
     { block WindowsFilesystemDirectoryImports::next_name(handle, event, callback, context, status, output,
         capacity, information_class, single_entry, name_filter, restart) }
 }

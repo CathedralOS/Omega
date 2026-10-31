@@ -7,6 +7,12 @@ use language_semantics::MachineTerminationPlan;
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 
+mod application_formation;
+pub use application_formation::{
+    CheckedRankApplicationFacts, CheckedRankApplicationFormation,
+    CheckedRankApplicationFormationHandle,
+};
+
 mod arrival_correspondence;
 pub use arrival_correspondence::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,

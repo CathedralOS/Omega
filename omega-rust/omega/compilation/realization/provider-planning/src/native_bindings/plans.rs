@@ -3,12 +3,16 @@
 //! designated operands, and each irreducible row now refines that requirement's
 //! independently evaluated calling application. Candidate construction grants
 //! no trust; ordinary selected-provider and executable admission follow it.
+//! Neutral schemas come from the same prepared Product catalog as authored
+//! providers. Exact declared-signature admission and all-target locator checks
+//! still precede attaching the selected target's calling evidence.
 
 use super::NativeBuildSupply;
+use crate::provider_planning::trait_name_text;
 use crate::{
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderPlanningContext, ProviderRowRealization,
-    ProviderSchemaDeclaration,
+    DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
 };
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
@@ -26,13 +30,13 @@ pub struct NativeBuildRowOrigin {
 }
 
 pub(crate) fn derive(
-    context: ProviderPlanningContext<'_>,
+    services: ServiceCatalog<'_>,
     calling: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     supplies: &[NativeBuildSupply],
     selected_target: Option<target::TargetProfile>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<Diagnostic>> {
-    let typed = context.typed;
+    let typed = services.context().typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     for supply in supplies {
         let selection = &supply.selection;
@@ -52,7 +56,7 @@ pub(crate) fn derive(
             target::TargetProfile::from_canonical_target_name(selection.target.canonical_name())
                 .map_err(|error| fail(error.to_string()))?;
         let requirement = typed.trait_requirement_callable_identity_text(owner, signature);
-        let evaluated = evaluate(typed, supply, &requirement, target, identities).map_err(fail)?;
+        let evaluated = evaluate(supply, &requirement, target, identities).map_err(fail)?;
         let producer = selection.producer.clone();
         let production = package_compilation::NativeBindingProduction {
             producer,
@@ -64,10 +68,12 @@ pub(crate) fn derive(
         if selected_target != Some(target) {
             continue;
         }
-        let schema =
-            crate::service_schema::from_typed(context, calling, owner).ok_or_else(|| {
+        let prepared = services
+            .declaration(ProviderSchemaDeclaration::BoundaryTrait(owner.symbol))
+            .ok_or_else(|| {
                 fail("native Build requirement has no complete service schema".into())
             })?;
+        let schema = crate::service_schema::attach_calling(&prepared, calling);
         let group = plans.iter().position(|candidate| {
             candidate.provenance.schema.symbol() == owner.symbol
                 && candidate.plan.target == target.target_name()
@@ -82,13 +88,10 @@ pub(crate) fn derive(
                     .iter()
                     .map(|byte| format!("{byte:02x}"))
                     .collect::<String>();
-                let provider = format!(
-                    "native-build:{supplier}:{}",
-                    schema.identity_text(schema.trait_name)
-                );
+                let provider = format!("native-build:{supplier}:{}", trait_name_text(&schema));
                 let name = crate::satisfies_plan_name(
                     target.target_name(),
-                    schema.identity_text(schema.trait_name),
+                    trait_name_text(&schema),
                     &provider,
                 );
                 plans.push(DerivedProviderPlan {
@@ -178,7 +181,6 @@ pub(crate) fn derive(
 }
 
 fn evaluate(
-    _typed: &checked_trees::typed_trees::TypedTrees,
     supply: &NativeBuildSupply,
     requirement: &str,
     target: target::TargetProfile,

@@ -52,7 +52,7 @@ ensures
 }
 
 machine add_le_add_right(a: Nat, b: Nat, c: Nat) -> Nat
-terminates by c;
+terminates by c
 requires
     (saturating_sub(a, b)) == Nat::Zero
 ensures
@@ -78,9 +78,9 @@ ensures
 }
 
 machine le_trans(a: Nat, b: Nat, c: Nat) -> Nat
-terminates by a;
+terminates by a
 requires
-    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(a, b)) == Nat::Zero,
     (saturating_sub(b, c)) == Nat::Zero
 ensures
     (saturating_sub(a, c)) == Nat::Zero
@@ -123,7 +123,7 @@ ensures
 
 machine add_le_add(a: Nat, b: Nat, c: Nat, d: Nat)
 requires
-    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(a, b)) == Nat::Zero,
     (saturating_sub(c, d)) == Nat::Zero
 ensures
     (saturating_sub(add(a, c), add(b, d))) == Nat::Zero
@@ -139,7 +139,7 @@ ensures
 // combines the standing a <= b premise with the conditional induction
 // hypothesis at the smaller multiplier, then transports both through add.
 machine mul_le_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
-terminates by factor;
+terminates by factor
 requires
     (saturating_sub(a, b)) == Nat::Zero
 ensures
@@ -169,9 +169,9 @@ ensures
 // branch cancels the common additive prefix exposed by mul's recursion and
 // applies the conditional induction hypothesis to the predecessor pair.
 machine mul_le_cancel_right(a: Nat, b: Nat, factor: Nat) -> Nat
-terminates by a;
+terminates by a
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero,
     (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 ensures
     (saturating_sub(a, b)) == Nat::Zero
@@ -213,7 +213,7 @@ ensures
 
 // Every b lies below a plus their absolute gap.
 machine le_add_gap(a: Nat, b: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (saturating_sub(b, add(a, nat_gap(a, b)))) == Nat::Zero
 {
@@ -258,7 +258,7 @@ ensures
 }
 
 machine nat_gap_triangle(a: Nat, b: Nat, c: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (saturating_sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
 {
@@ -318,7 +318,7 @@ ensures
 // Adding the same prefix to both operands does not change monus. This is the
 // cancellation step needed to scale absolute differences by multiplication.
 machine sub_add_cancel_left(prefix: Nat, a: Nat, b: Nat) -> Nat
-terminates by prefix;
+terminates by prefix
 ensures
     (saturating_sub(add(prefix, a), add(prefix, b))) == (saturating_sub(a, b))
 {
@@ -349,7 +349,7 @@ ensures
 
 // Absolute difference is homogeneous under a shared Nat factor.
 machine nat_gap_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (nat_gap(mul(a, factor), mul(b, factor))) == (mul(nat_gap(a, b), factor))
 {
@@ -411,7 +411,7 @@ machine nat_max(a: Nat, b: Nat) -> Nat {
 // `add(a, Succ pb)` to `Succ(add(a, pb))` so the goal unfolds through
 // saturating_sub's Succ arm to `pred` of the inductive hypothesis.
 machine le_add_right_self(a: Nat, b: Nat) -> Nat
-terminates by b;
+terminates by b
 ensures
     (saturating_sub(a, (add(a, b)))) == Nat::Zero
 {
@@ -447,7 +447,7 @@ ensures
 // case-split `b`, where the Succ x Succ arm strips both pairs and hands the
 // inductive hypothesis `b' <= nat_max(a', b')` back.
 machine le_max_right(a: Nat, b: Nat) -> Nat
-terminates by a;
+terminates by a
 ensures
     (saturating_sub(b, (nat_max(a, b)))) == Nat::Zero
 {
@@ -490,9 +490,9 @@ ensures
 // This is the discharge step callers of `doubled_nat_max_modulus` use to turn
 // per-modulus thresholds into the composed threshold.
 machine nat_max_le(a: Nat, b: Nat, c: Nat) -> Nat
-terminates by a;
+terminates by a
 requires
-    (saturating_sub(a, c)) == Nat::Zero;
+    (saturating_sub(a, c)) == Nat::Zero,
     (saturating_sub(b, c)) == Nat::Zero
 ensures
     (saturating_sub((nat_max(a, b)), c)) == Nat::Zero

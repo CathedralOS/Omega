@@ -3,8 +3,10 @@
 //! no live storage read may substitute the former source after sibling effects.
 
 use super::StateGraphEmission;
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use terminal_psi::{StructuralParameterDeclaration, ValueDeclaration};
@@ -52,9 +54,7 @@ impl StateGraphEmission<'_, '_> {
         let Some(flow_state) = checked.facts.flow.control.unique_state(owner, state.state) else {
             return Ok(Vec::new());
         };
-        let mut outgoing_rows = checked
-            .facts
-            .flow
+        let mut outgoing_rows = flow_facts(checked)
             .control
             .outgoing
             .span_or_empty(flow_state.outgoing)
@@ -69,9 +69,7 @@ impl StateGraphEmission<'_, '_> {
         if outgoing_rows.next().is_some() {
             return unsupported("selected payload entry has ambiguous completed flow");
         }
-        let copies = checked
-            .facts
-            .flow
+        let copies = flow_facts(checked)
             .control
             .operands
             .span_or_empty(outgoing.copied_payloads);
@@ -84,9 +82,7 @@ impl StateGraphEmission<'_, '_> {
             {
                 continue;
             }
-            let root = checked
-                .facts
-                .values
+            let root = value_facts(checked)
                 .structural_values
                 .root_for_captured_copy(
                     state.state,
@@ -125,12 +121,7 @@ impl StateGraphEmission<'_, '_> {
             }
             let structural_type = crate::terminal_identities::lookup_type_id(
                 &self.catalogs.type_ids,
-                &validation::stored_structural_type_identity(
-                    &checked.typed,
-                    root.type_reference,
-                    &[],
-                    &[],
-                ),
+                &stored_structural_identity(checked, root.type_reference),
             )?;
             StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
                 self.catalogs,

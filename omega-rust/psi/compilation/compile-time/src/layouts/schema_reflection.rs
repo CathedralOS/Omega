@@ -1,5 +1,6 @@
 //! Exact typed-schema identity and fixed runtime-geometry reflection.
 
+use crate::build_time_evaluation::type_reference_table;
 use typed_trees::TypedTrees;
 use typed_trees::types::PrimitiveType;
 
@@ -45,6 +46,16 @@ pub(crate) struct RepeatedFieldInfo {
     pub(crate) element_count: u64,
 }
 
+/// Policy input order is independent of the semantic field/geometry roster.
+/// Numbering is checked all-or-nothing during declaration formation.
+pub(crate) fn canonical_schema_fields(fields: &[SchemaFieldInfo]) -> Vec<&SchemaFieldInfo> {
+    let mut ordered = fields.iter().collect::<Vec<_>>();
+    if ordered.iter().any(|field| field.identity.is_some()) {
+        ordered.sort_unstable_by_key(|field| field.identity);
+    }
+    ordered
+}
+
 pub(crate) fn schema_fields(
     typed: &TypedTrees,
     schema_data: &str,
@@ -59,14 +70,22 @@ pub(crate) fn schema_fields_for(
     typed: &TypedTrees,
     data: &typed_trees::data::DataDefinition,
 ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
+    schema_fields_for_target(typed, data, None)
+}
+
+pub(crate) fn schema_fields_for_target(
+    typed: &TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+    target: Option<&layout_plans::LayoutTargetFacts>,
+) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
     let schema_data = data.name.as_str();
-    require_invariant_schema(typed, data.symbol, &[])?;
     if data.quotient.is_some() {
         return Err(format!(
             "schema reflection cannot observe quotient `{schema_data}`: retained representatives are opaque and require a named lifted operation"
         ));
     }
 
+    let field_intervals = validation::data_where_field_intervals(typed, data);
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
         let Some(field) = member.as_field() else {
@@ -79,7 +98,14 @@ pub(crate) fn schema_fields_for(
             continue;
         }
         let (size, align, source_bits, primitive, kind, declared_range, repeated) =
-            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
+            reflected_field_layout(
+                typed,
+                field.type_reference,
+                target,
+                field_intervals.as_deref().and_then(|rows| rows.iter()
+                    .find(|(symbol, _, _)| *symbol == field.symbol)
+                    .map(|(_, low, high)| (*low, *high))),
+            ).ok_or_else(|| {
                 format!(
                     "schema data `{schema_data}` field `{}` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes",
                     field.name
@@ -145,9 +171,7 @@ fn scalar_leaf_width_bits(
         if let Some(primitive) = typed.primitive_type_reference(reference) {
             return u16::try_from(primitive_byte_size(primitive)?.checked_mul(8)?).ok();
         }
-        reference = typed
-            .type_reference_table
-            .unconstrained_type_reference(reference);
+        reference = type_reference_table(typed).unconstrained_type_reference(reference);
         match typed.type_reference_table.type_reference(reference) {
             typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
                 reference = *element_type
@@ -157,80 +181,6 @@ fn scalar_leaf_width_bits(
     }
 }
 
-/// Schema arguments must have one physical meaning before a pure policy runs.
-/// Pending family applications are supplied by the installer because none of
-/// that batch's results has entered typed storage yet.
-pub(crate) fn require_invariant_schema(
-    typed: &TypedTrees,
-    schema: symbols::SymbolHandle,
-    pending: &[symbols::SymbolHandle],
-) -> Result<(), String> {
-    require_schema_layouts(typed, schema, pending, "target-dependent")
-}
-
-/// A pending ordinary policy is not ordinary packing. Family fold inputs may
-/// observe it only after its exact invariant geometry has been installed.
-pub(crate) fn require_materialized_schema(
-    typed: &TypedTrees,
-    schema: symbols::SymbolHandle,
-    pending: &[symbols::SymbolHandle],
-) -> Result<(), String> {
-    require_schema_layouts(typed, schema, pending, "unmaterialized policy")
-}
-
-fn require_schema_layouts(
-    typed: &TypedTrees,
-    schema: symbols::SymbolHandle,
-    pending: &[symbols::SymbolHandle],
-    pending_kind: &str,
-) -> Result<(), String> {
-    let mut records = vec![schema];
-    let mut visited = Vec::new();
-    while let Some(symbol) = records.pop() {
-        if visited.contains(&symbol) {
-            continue;
-        }
-        visited.push(symbol);
-        if pending.contains(&symbol) {
-            return Err(format!(
-                "schema contains {pending_kind} layout `{}`; nested schema arguments require exact retained invariant geometry",
-                typed.symbols.name(symbol)
-            ));
-        }
-        if typed.plan_laid_layout(symbol).is_some_and(|layout| {
-            matches!(
-                layout.realizations,
-                typed_trees::PlanLaidRealizations::TargetFamily(_)
-            )
-        }) {
-            return Err(format!(
-                "schema contains target-dependent layout `{}`; nested target-dependent schema arguments are not yet supported",
-                typed.symbols.name(symbol)
-            ));
-        }
-        let Some(data) = typed.data_definition_by_symbol(symbol) else {
-            continue;
-        };
-        let mut members = typed
-            .live_data_fields(typed.data_members(data))
-            .map(|field| field.type_reference)
-            .collect::<Vec<_>>();
-        while let Some(member) = members.pop() {
-            use typed_trees::types::TypeReferenceNode;
-            match typed.type_reference_table.type_reference(member) {
-                TypeReferenceNode::Named { symbol, .. } => records.push(*symbol),
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: element_type,
-                    ..
-                } => members.push(*element_type),
-                _ => {}
-            }
-        }
-    }
-    Ok(())
-}
-
 pub fn normalized_schema_report_fingerprint(
     typed: &TypedTrees,
     data: &typed_trees::data::DataDefinition,
@@ -238,22 +188,46 @@ pub fn normalized_schema_report_fingerprint(
     typed_trees::identity::normalized_schema_report_fingerprint(typed, data)
 }
 
+/// Packing consumes the same declaration-owned field interval as Terminal
+/// scalar restrictions. It refines geometry, without removing the declaration's
+/// predicates or authorizing a write that cannot satisfy its physical codec.
 fn declared_source_bits(
     typed: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
     primitive: PrimitiveType,
     byte_size: u64,
+    stated: Option<(Option<i64>, Option<i64>)>,
 ) -> u64 {
     if primitive == PrimitiveType::Bool {
         return 1;
     }
-    let Some(range) = validation::scalar_representation_range(typed, type_reference) else {
-        return byte_size * 8;
-    };
-    if range.minimum < 0 {
-        return byte_size * 8;
+    let width = byte_size * 8;
+    if !primitive.is_integer() {
+        return width;
     }
-    let maximum = range.maximum as u64;
+    let (mut minimum, mut maximum) = if primitive.is_signed_integer() {
+        (-(1i128 << (width - 1)), (1i128 << (width - 1)) - 1)
+    } else {
+        (0, (1i128 << width) - 1)
+    };
+    if let Some(range) = validation::scalar_representation_range(typed, type_reference) {
+        minimum = minimum.max(i128::from(range.minimum));
+        maximum = maximum.min(i128::from(range.maximum));
+    }
+    if let Some((low, high)) = stated {
+        if let Some(low) = low {
+            minimum = minimum.max(i128::from(low));
+        }
+        if let Some(high) = high {
+            maximum = maximum.min(i128::from(high));
+        }
+    }
+    if minimum < 0 {
+        return width;
+    }
+    let Ok(maximum) = u64::try_from(maximum) else {
+        return width;
+    };
     u64::from((u64::BITS - maximum.leading_zeros()).max(1))
 }
 
@@ -279,148 +253,133 @@ type ReflectedFieldLayout = (
 
 pub(super) fn reflected_field_layout(
     typed: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    target: Option<&layout_plans::LayoutTargetFacts>,
+    stated: Option<(Option<i64>, Option<i64>)>,
 ) -> Option<ReflectedFieldLayout> {
-    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+    if let Some(primitive) = typed.primitive_type_reference(reference) {
         let size = primitive_byte_size(primitive)?;
         return Some((
             size,
             size,
-            declared_source_bits(typed, type_reference, primitive, size),
+            declared_source_bits(typed, reference, primitive, size, stated),
             Some(primitive),
             "Scalar",
-            validation::scalar_representation_range(typed, type_reference)
+            validation::scalar_representation_range(typed, reference)
                 .map(|range| (range.minimum, range.maximum)),
             None,
         ));
     }
-    // Qualification remains in semantic schema identity and custody. It does
-    // not wrap aggregate bytes. Strip only constraint shells here: peeling a
-    // reference as well would mistake a borrowed descriptor for its referent.
-    let carrier = typed
-        .type_reference_table
-        .unconstrained_type_reference(type_reference);
-    match typed.type_reference_table.type_reference(carrier) {
+    let carrier = type_reference_table(typed).unconstrained_type_reference(reference);
+    let (size, align) = reflected_member_layout(typed, carrier, target, &mut Vec::new())?;
+    let repeated = match typed.type_reference_table.type_reference(carrier) {
         typed_trees::types::TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length),
         } => {
-            let (element_size, element_align) =
-                reflected_nested_member_layout(typed, *element_type, &mut Vec::new())?;
-            let length = u64::try_from(*length).ok()?;
-            let size = element_size.checked_mul(length)?;
-            Some((
-                size,
-                element_align,
-                size.checked_mul(8)?,
-                None,
-                "Repeated",
-                None,
-                Some(RepeatedFieldInfo {
-                    element_size,
-                    element_count: length,
-                }),
-            ))
-        }
-        typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
-            let (size, align) =
-                reflected_record_layout(typed, *symbol, name.as_str(), &mut Vec::new())?;
-            Some((
-                size,
-                align,
-                size.checked_mul(8)?,
-                None,
-                "Nested",
-                None,
-                None,
-            ))
+            let (element_size, _) =
+                reflected_member_layout(typed, *element_type, target, &mut Vec::new())?;
+            Some(RepeatedFieldInfo {
+                element_size,
+                element_count: u64::try_from(*length).ok()?,
+            })
         }
         _ => None,
-    }
-}
-
-fn reflected_record_layout(
-    typed: &TypedTrees,
-    symbol: symbols::SymbolHandle,
-    name: &str,
-    visiting: &mut Vec<symbols::SymbolHandle>,
-) -> Option<(u64, u64)> {
-    let data = typed.data_definitions().iter().find(|data| {
-        if symbol.is_valid() {
-            data.symbol == symbol
+    };
+    Some((
+        size,
+        align,
+        size.checked_mul(8)?,
+        None,
+        if repeated.is_some() {
+            "Repeated"
         } else {
-            data.name.as_str() == name
-        }
-    })?;
-    if let Some(layout) = typed.plan_laid_layout(data.symbol) {
-        return match &layout.realizations {
-            typed_trees::PlanLaidRealizations::Invariant(geometry) => Some((
-                geometry.validated_layout.size?,
-                geometry.validated_layout.align,
-            )),
-            typed_trees::PlanLaidRealizations::TargetFamily(_) => None,
-        };
-    }
-    if data.quotient.is_some()
-        || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-        || !data.type_parameters.is_empty()
-        || !data.lifetime_parameters.is_empty()
-        || visiting.contains(&data.symbol)
-    {
-        return None;
-    }
-    visiting.push(data.symbol);
-
-    let mut offset = 0u64;
-    let mut aggregate_align = 1u64;
-    for member in typed.data_members(data) {
-        let Some(field) = member.as_field() else {
-            visiting.pop();
-            return None;
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let Some((size, align)) =
-            reflected_nested_member_layout(typed, field.type_reference, visiting)
-        else {
-            visiting.pop();
-            return None;
-        };
-        offset = checked_align_up(offset, align)?.checked_add(size)?;
-        aggregate_align = aggregate_align.max(align);
-    }
-    let result = checked_align_up(offset, aggregate_align).map(|size| (size, aggregate_align));
-    visiting.pop();
-    result
+            "Nested"
+        },
+        None,
+        repeated,
+    ))
 }
 
-pub(super) fn reflected_nested_member_layout(
+/// Walk the exact closed field telescope. Lifetimes and qualifications remain
+/// semantic evidence; references contribute their descriptor geometry without
+/// recursively demanding storage of the referent.
+fn reflected_member_layout(
     typed: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    visiting: &mut Vec<symbols::SymbolHandle>,
+    reference: typed_trees::types::TypeReferenceHandle,
+    target: Option<&layout_plans::LayoutTargetFacts>,
+    visiting: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) -> Option<(u64, u64)> {
-    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    if let Some(primitive) = typed.primitive_type_reference(reference) {
         let size = primitive_byte_size(primitive)?;
         return Some((size, size));
     }
-    let carrier = typed
-        .type_reference_table
-        .unconstrained_type_reference(type_reference);
+    let carrier = type_reference_table(typed).unconstrained_type_reference(reference);
     match typed.type_reference_table.type_reference(carrier) {
-        typed_trees::types::TypeReferenceNode::FixedArray {
-            element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-        } => {
-            let (element_size, element_align) =
-                reflected_nested_member_layout(typed, *element_type, visiting)?;
+        TypeReferenceNode::Reference { referee, .. } => {
+            let target = target?;
+            let referent = type_reference_table(typed).unconstrained_type_reference(*referee);
+            let words = if matches!(
+                typed.type_reference_table.type_reference(referent),
+                TypeReferenceNode::Slice { .. }
+            ) {
+                2
+            } else {
+                1
+            };
             Some((
-                element_size.checked_mul(u64::try_from(*length).ok()?)?,
-                element_align,
+                target.pointer_size.checked_mul(words)?,
+                target.pointer_alignment,
             ))
         }
-        typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
-            reflected_record_layout(typed, *symbol, name.as_str(), visiting)
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => {
+            let (size, align) = reflected_member_layout(typed, *element_type, target, visiting)?;
+            Some((size.checked_mul(u64::try_from(*length).ok()?)?, align))
+        }
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+            if let Some(layout) = typed.plan_laid_layout_for_type(carrier) {
+                let geometry = layout
+                    .geometry_for_target(typed, target.map(|target| target.profile.as_str()))?;
+                return Some((
+                    geometry.validated_layout.size?,
+                    geometry.validated_layout.align,
+                ));
+            }
+            // A representation recipe without its admitted plan is pending,
+            // never default-packed because its semantic fields are available.
+            if typed.layout_storage_arguments(carrier).is_some() {
+                return None;
+            }
+            let data = typed.closed_data_definition(carrier)?;
+            let identity = typed.normalized_type_identity(carrier);
+            if data.quotient.is_some()
+                || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+                || visiting.contains(&identity)
+            {
+                return None;
+            }
+            visiting.push(identity);
+            let result = (|| {
+                let mut offset = 0u64;
+                let mut aggregate_align = 1u64;
+                for member in typed.data_members(data) {
+                    let field = member.as_field()?;
+                    if field.relevance.is_erased() {
+                        continue;
+                    }
+                    let (size, align) =
+                        reflected_member_layout(typed, field.type_reference, target, visiting)?;
+                    offset = checked_align_up(offset, align)?.checked_add(size)?;
+                    aggregate_align = aggregate_align.max(align);
+                }
+                Some((checked_align_up(offset, aggregate_align)?, aggregate_align))
+            })();
+            visiting.pop();
+            result
         }
         _ => None,
     }

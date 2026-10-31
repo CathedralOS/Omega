@@ -66,12 +66,11 @@ pub(super) fn estimated_borrow_root_capacity(program: &dyn ::validation::Checkin
                 .machine_states(machine)
                 .iter()
                 .map(|state| {
-                    let local_data_count = program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .iter()
-                        .filter(|statement| matches!(statement, StatementNode::LocalData(_)))
-                        .count();
+                    let local_data_count =
+                        crate::flow::state_statements(program, state.statement_nodes)
+                            .iter()
+                            .filter(|statement| matches!(statement, StatementNode::LocalData(_)))
+                            .count();
 
                     program.machine_owned_data(machine).len()
                         + local_data_count

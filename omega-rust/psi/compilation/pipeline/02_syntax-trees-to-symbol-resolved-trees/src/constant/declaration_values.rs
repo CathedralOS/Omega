@@ -2,6 +2,9 @@
 
 use crate::constant::initializer_normalization;
 use crate::constant::substitution::semantic_const_name;
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -107,6 +110,12 @@ pub(crate) fn evaluated_declaration_value(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<language_core::constant_value::EvaluatedConstant, String> {
     use language_core::constant_value::EvaluatedConstant;
+    if let Some(normalization) = &definition.normalization {
+        // This is provisional producer output, not accepted value evidence.
+        // PendingInitializer independently re-encodes the resolved payload
+        // before substitution or publication of this resolution result.
+        return Ok(normalization.result_value.clone());
+    }
     if let syntax_trees::expression::ExpressionNode::UndeterminedNaN(format) =
         syntax.expressions.expression(definition.value)
     {
@@ -161,8 +170,7 @@ pub(crate) fn validate_scalar_initializer(
     // Unused private declarations never reach substitution or public identity
     // checks. Their numeric and Boolean landing obligations still apply.
     // Floating values need no const-index encoding to check their carrier.
-    let Some(carrier) = syntax
-        .type_references
+    let Some(carrier) = syntax_type_references(&syntax)
         .type_reference(constant.type_reference)
         .as_named()
     else {
@@ -213,12 +221,17 @@ pub(crate) fn validate_const_definition(
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
+    if definition.normalization.is_some() {
+        // Materialized receipts use the one post-binding payload validator.
+        // Ordinary typed declaration eligibility, destination establishment
+        // and independent authored-result replay remain mandatory afterward.
+        return Ok(());
+    }
     if definition.pending_target_observation {
         // The late scalar evaluator owns the same carrier landing once the
         // target closes. Aggregate and qualified destinations need their own
         // complete late value/qualification route; do not silently admit them.
-        let supported = syntax
-            .type_references
+        let supported = syntax_type_references(&syntax)
             .type_reference(definition.type_reference)
             .as_named()
             .and_then(|name| selection.and_then(|selected| selected.builtin_type(syntax, name)))
@@ -248,11 +261,9 @@ pub(crate) fn validate_const_definition(
     // An unused private declaration never acquires a use-site proof obligation.
     // Its constrained destination is still mandatory; failure to encode a
     // public/index value must not swallow a false declaration-site predicate.
-    if let syntax_trees::types::TypeReferenceNode::Constrained { constraints, .. } = syntax
-        .type_references
-        .type_reference(definition.type_reference)
-        && syntax
-            .type_references
+    if let syntax_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+        syntax_type_references(&syntax).type_reference(definition.type_reference)
+        && syntax_type_references(&syntax)
             .constraints(*constraints)
             .iter()
             .any(|constraint| {
@@ -303,7 +314,8 @@ pub(crate) fn retain_const_initializer(
 ) -> Result<ExpressionHandle, Diagnostic> {
     let pending =
         lowerer.const_resolution_mode != crate::resolution::lowerer::ConstResolutionMode::Complete;
-    if !pending && !has_scalar_initializer(syntax, definition) {
+    if !pending && definition.normalization.is_none() && !has_scalar_initializer(syntax, definition)
+    {
         if crate::preparation::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
             crate::preparation::generic_data::canonicalize_declared_const_definition(
@@ -420,9 +432,7 @@ fn validate_literal_initializer(
                     return false;
                 };
                 data.name.as_str(syntax_trees) == type_name.as_str(syntax_trees)
-                    && syntax_trees
-                        .items
-                        .data_members(data.members)
+                    && syntax_items(&syntax_trees).data_members(data.members)
                         .iter()
                         .any(|member| {
                             matches!(
@@ -454,8 +464,7 @@ fn invalid_literal_initializer(
          -- richer const expressions arrive with build-time evaluation",
         definition.scope.as_str(syntax_trees),
         definition.name.as_str(syntax_trees),
-        syntax_trees
-            .expressions
+        syntax_expressions(&syntax_trees)
             .expression(value)
             .display_name(syntax_trees),
     )))

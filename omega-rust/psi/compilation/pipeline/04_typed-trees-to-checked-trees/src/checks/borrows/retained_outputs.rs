@@ -5,6 +5,7 @@
 //! insufficient: the receiving storage path and establishment statement must
 //! identify the produced occurrence whose lifetime the flow ledger tracks.
 
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
@@ -174,7 +175,7 @@ fn inactive_path(
     operand: &checked_trees::FlowOperandFact,
     path: &[PlaceSegment],
 ) -> bool {
-    let Some(mut subject) = validation::canonical_place_from_expression_in_state(
+    let Some(mut subject) = place_at(
         program,
         operand.state_symbol,
         operand.statement_index,

@@ -36,15 +36,11 @@ pub(in crate::encoding::encode) fn trait_shape(
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.boolean_field("is_boundary", shape.is_boundary)?;
     encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, type_parameter)
-    })?;
+    encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
     encoder.field("conformance_bounds", |encoder| {
         encoder.sequence(&shape.conformance_bounds, encode_conformance_bound)
     })?;
-    encoder.field("parents", |encoder| {
-        encoder.sequence(&shape.parents, encode_trait_parent)
-    })?;
+    encoder.sequence_field("parents", &shape.parents, encode_trait_parent)?;
     encoder.field("requirements", |encoder| {
         encoder.sequence(&shape.requirements, |encoder, requirement| {
             encoder.field_by("identity", &requirement.identity, encode_nominal)?;
@@ -65,9 +61,46 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.parameters,
                 requirement.return_type.as_ref()
             );
-            encode_callable_behavior_tail!(encoder, requirement)
+            encode_callable_behavior_tail!(encoder, requirement)?;
+            encoder.field("returned_borrow_origins", |encoder| {
+                encoder.sequence(
+                    &requirement.returned_borrow_origins,
+                    encode_returned_borrow_origin,
+                )
+            })?;
+            encoder.field("parameter_qualification_preconditions", |encoder| {
+                encoder.sequence(
+                    &requirement.parameter_qualification_preconditions,
+                    encode_parameter_qualification,
+                )
+            })
         })
     })
+}
+
+fn encode_returned_borrow_origin(
+    encoder: &mut Encoder,
+    origin: &crate::record::PackageReviewReturnedBorrowOrigin,
+) -> Result<(), PackageReviewEncodingError> {
+    use crate::record::PackageReviewBorrowOrigin;
+    match &origin.origin {
+        PackageReviewBorrowOrigin::Parameter { index } => {
+            encoder.tag_field("origin", "parameter", 1)?;
+            encoder.u32_field("parameter_index", *index)
+        }
+        PackageReviewBorrowOrigin::Invocation { carrier } => {
+            encoder.tag_field("origin", "invocation", 2)?;
+            encoder.field_by("carrier", carrier, encode_type_identity)
+        }
+    }
+}
+
+fn encode_parameter_qualification(
+    encoder: &mut Encoder,
+    qualification: &crate::record::PackageReviewParameterQualification,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.u32_field("structural_index", qualification.structural_index())?;
+    encoder.field_by("domain", qualification.domain(), encode_nominal)
 }
 
 pub(in crate::encoding) fn conformance_shape(
@@ -76,9 +109,7 @@ pub(in crate::encoding) fn conformance_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, type_parameter)
-    })?;
+    encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
     encoder.field_by("interface", &shape.interface, encode_evidence_interface)
 }
 
@@ -87,9 +118,7 @@ pub(in crate::encoding::encode) fn domain_shape(
     shape: &PackagePolicyDomainShape,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, type_parameter)
-    })?;
+    encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
     encoder.field_by("target_type", &shape.target_type, encode_type_identity)?;
     encoder.field("index_arguments", |encoder| {
         encoder.sequence(&shape.index_arguments, encode_type_identity)
@@ -106,9 +135,7 @@ pub(in crate::encoding::encode) fn domain_shape(
     })?;
     encoder.field("alias_expansion", |encoder| {
         encoder.option(shape.alias_expansion.as_deref(), |encoder, atoms| {
-            encoder.field("atoms", |encoder| {
-                encoder.sequence(atoms, encode_domain_alias_atom)
-            })
+            encoder.sequence_field("atoms", atoms, encode_domain_alias_atom)
         })
     })?;
     encoder.field("classification", |encoder| {
@@ -152,16 +179,10 @@ pub(in crate::encoding::encode) fn operator_shape(
     encoder.boolean_field("is_boundary", shape.is_boundary)?;
     encoder.option_field("spelling", shape.spelling.as_ref(), spelling)?;
     encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, type_parameter)
-    })?;
+    encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
     encode_callable_shape!(encoder, &shape.parameters, shape.return_type.as_ref());
-    encoder.field("contracts", |encoder| {
-        encoder.sequence(&shape.contracts, encode_callable_contract)
-    })?;
-    encoder.field("published_crash", |encoder| {
-        encoder.sequence(&shape.published_crash, crash_route)
-    })
+    encoder.sequence_field("contracts", &shape.contracts, encode_callable_contract)?;
+    encoder.sequence_field("published_crash", &shape.published_crash, crash_route)
 }
 
 pub(in crate::encoding::encode) fn data_shape(
@@ -188,23 +209,17 @@ pub(in crate::encoding::encode) fn data_shape(
         Ok(())
     })?;
     encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, type_parameter)
-    })?;
+    encoder.sequence_field("type_parameters", &shape.type_parameters, type_parameter)?;
     encoder.field_by("properties", shape.properties, encode_data_properties)?;
     encoder.boolean_field("zero_gated", shape.zero_gated)?;
-    encoder.field("invariants", |encoder| {
-        encoder.sequence(&shape.invariants, encode_contract_fact)
-    })?;
+    encoder.sequence_field("invariants", &shape.invariants, encode_contract_fact)?;
     encoder.field("retired_identities", |encoder| {
         encoder.sequence(&shape.retired_identities, |encoder, identity| {
             encoder.u64_field("identity", *identity)?;
             Ok(())
         })
     })?;
-    encoder.field("members", |encoder| {
-        encoder.sequence(&shape.members, encode_data_member)
-    })
+    encoder.sequence_field("members", &shape.members, encode_data_member)
 }
 
 fn spelling(

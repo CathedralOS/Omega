@@ -14,6 +14,7 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::value_successor;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
@@ -261,9 +262,7 @@ impl StateGraphEmission<'_, '_> {
                         checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
                     }
                     None => checked_trees::CheckedCallScalarArgument::Computation(
-                        checked
-                            .facts
-                            .values
+                        value_facts(checked)
                             .scalar_computations
                             .root_at(state.state, *statement_ordinal, role)
                             .ok_or(LoweringError::Unsupported(
@@ -286,25 +285,8 @@ impl StateGraphEmission<'_, '_> {
                             next_edge,
                             operations,
                         },
-                        |frame| {
-                            let (mut environment, emission) = frame.split();
-                            emission.evaluation.source_value(
-                                identities,
-                                checked,
-                                owner,
-                                state.state,
-                                *statement_ordinal,
-                                role,
-                                &retained,
-                                emission.source_value_count,
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
-                                &mut environment,
-                            )
+                        |mut frame| {
+                            frame.source_value(identities, *statement_ordinal, role, &retained)
                         },
                     )?;
                 PreparedArmCompletion::Edge(Terminator::Return {

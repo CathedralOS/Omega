@@ -82,11 +82,9 @@ impl TypedTrees {
             theory.semantic_roles.arithmetic_policy.map(|_| identity);
         if let Some(selection) = &mut theory.cleanup_selection {
             let original = self
-                .expression_table
                 .static_machine_application(selection.application)
                 .clone();
             let mut arguments = self
-                .expression_table
                 .static_machine_application_arguments(selection.application)
                 .to_vec();
             application.static_arguments(self, &mut arguments)?;
@@ -96,7 +94,6 @@ impl TypedTrees {
                 &arguments,
             );
             let lifetimes = self
-                .expression_table
                 .static_machine_application_lifetimes(selection.application)
                 .to_vec();
             self.expression_table

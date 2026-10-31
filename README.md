@@ -389,7 +389,7 @@ data UartRegisters {
 }
 
 machine broken_reset(
-    uart: &mut Placed<UartMmio, UartRegisters>
+    uart: &mut Access<UartMmio, UartRegisters>
 )
 reaches DeviceIo
 {

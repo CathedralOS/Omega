@@ -65,7 +65,7 @@ pub fn lower_typed_trees(
     preparation: TypedPreparation,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_reusing(program, preparation, None, request, &[], false).map(|outcome| {
+    lower_typed_trees_reusing(program, preparation, None, request, &[], &[], false).map(|outcome| {
         std::sync::Arc::try_unwrap(outcome.checked).unwrap_or_else(|shared| (*shared).clone())
     })
 }
@@ -87,6 +87,9 @@ pub struct RetainedCheck {
     preparation_admission: typed_trees_to_typed_trees::PreparationAdmission,
     admits_pending_inputs: bool,
     checked: std::sync::Arc<CheckedTrees>,
+    /// Dependency bodies whose declaration/state/expression correspondence
+    /// matched this strict check. Later consumers read those frozen bodies.
+    frozen_dependency_bodies: Vec<validation::FrozenDependencyBody>,
     /// Entailment judgments for non-instance machines in this strict check.
     /// A later dependent in the same invocation may reuse one of them when
     /// the body's correspondence still matches. Pending checks record none.
@@ -124,6 +127,15 @@ impl RetainedCheck {
             &[]
         } else {
             &self.dependency_bodies
+        }
+    }
+
+    /// Frozen bodies a strict consumer may read through the same correspondence.
+    pub fn strict_frozen_dependency_bodies(&self) -> &[validation::FrozenDependencyBody] {
+        if self.admits_pending_inputs || !self.dependency_judgments_admitted {
+            &[]
+        } else {
+            &self.frozen_dependency_bodies
         }
     }
 }
@@ -177,30 +189,35 @@ pub fn lower_typed_trees_reusing(
     )>,
     request: &CheckingRequest<'_>,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+    prior_frozen_bodies: &[validation::FrozenDependencyBody],
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let (
         admits_pending_inputs,
+        deferred_layout_applications,
         mathematics,
         opaque_property_receipts,
         opaque_representation_selections,
     ) = preparation.into_checking_judgments();
-    let (checked, dependency_bodies) = check_program(
+    let (checked, dependency_bodies, frozen_dependency_bodies) = check_program(
         program,
         admits_pending_inputs,
+        &deferred_layout_applications,
         mathematics,
         opaque_property_receipts,
         opaque_representation_selections,
         prior_dependency_bodies,
-        retain && !admits_pending_inputs,
+        prior_frozen_bodies,
+        retain && !admits_pending_inputs && deferred_layout_applications.is_empty(),
     )?;
     let checked = std::sync::Arc::new(checked);
     let retained = retained_input.map(|(preparation_input, preparation_admission)| RetainedCheck {
         dependency_judgments_admitted: true,
         preparation_input,
         preparation_admission,
-        admits_pending_inputs,
+        admits_pending_inputs: admits_pending_inputs || !deferred_layout_applications.is_empty(),
         checked: checked.clone(),
+        frozen_dependency_bodies,
         dependency_bodies,
     });
     phase_profile::scope("05.e.declaration_authority", || {
@@ -235,17 +252,29 @@ fn admit_declaration_authority(
 fn check_program(
     program: typed_trees::FrozenTypedTrees,
     admits_pending_inputs: bool,
+    deferred_layout_applications: &[typed_trees::types::TypeReferenceHandle],
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+    prior_frozen_bodies: &[validation::FrozenDependencyBody],
     record_dependency_bodies: bool,
-) -> Result<(CheckedTrees, Vec<validation::DependencyBodyJudgment>), Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        CheckedTrees,
+        Vec<validation::DependencyBodyJudgment>,
+        Vec<validation::FrozenDependencyBody>,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     // Borrow the prepared program with invocation-owned query state. Read-only inputs
     // carry this context through the checking flow; no consumer discovers it
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program)
+        .with_pending_layout_geometry(
+            admits_pending_inputs || !deferred_layout_applications.is_empty(),
+        )
         .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_selected_attached_method_bounds(&program)?;
@@ -261,11 +290,13 @@ fn check_program(
             &opaque_property_receipts,
             admits_pending_inputs,
             prior_dependency_bodies,
+            prior_frozen_bodies,
             record_dependency_bodies,
         )
     })?;
     phase_profile::checkpoint("after typed preparation", "05.d.2.prepare_typed_program");
     let dependency_body_judgments = std::mem::take(&mut validated.dependency_body_judgments);
+    let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
     // Caller-visible mutation summaries depend only on the immutable typed
     // program and the borrow facts assembled once here. Fact construction, the
     // direct-borrow resource closures, and the independent check replay all
@@ -303,6 +334,7 @@ fn check_program(
     })?;
     phase_profile::checkpoint("after check-fact construction", "05.d.3.build_check_facts");
     let program = program.with_prepared_effect_plans(&prepared_effects);
+    facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
@@ -552,5 +584,5 @@ fn check_program(
     );
     crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
     checked.facts.proof_applications = crate::facts::proof_applications::retain(&checked);
-    Ok((checked, dependency_body_judgments))
+    Ok((checked, dependency_body_judgments, frozen_dependency_bodies))
 }

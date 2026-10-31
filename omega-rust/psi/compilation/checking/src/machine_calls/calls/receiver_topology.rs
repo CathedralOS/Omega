@@ -1,5 +1,6 @@
 //! Resolve retained receiver identities to exact callable targets.
 
+use crate::frozen_program::expression_table;
 use crate::machine_symbol_from_type_reference_handle;
 use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
@@ -74,21 +75,19 @@ pub fn call_receiver_parts(
         return (SymbolHandle::invalid(), None);
     }
 
-    match program.expression_table.expression(receiver) {
+    match expression_table(program).expression(receiver) {
         ExpressionNode::Borrow(inner) => call_receiver_parts(program, inner.target),
         ExpressionNode::Name(path) => (
             resolve_name_path_member_symbol(
                 program,
                 path,
-                program
-                    .expression_table
+                expression_table(program)
                     .name_path_members(path.members)
                     .len()
                     .saturating_sub(1),
             ),
             Some(NamePath::resolved_from_iter(
-                program
-                    .expression_table
+                expression_table(program)
                     .name_path_members(path.members)
                     .iter()
                     .cloned(),
@@ -96,8 +95,7 @@ pub fn call_receiver_parts(
                 resolve_name_path_member_symbol(
                     program,
                     path,
-                    program
-                        .expression_table
+                    expression_table(program)
                         .name_path_members(path.members)
                         .len()
                         .saturating_sub(1),
@@ -120,10 +118,8 @@ pub fn resolve_name_path_member_symbol(
     path: &typed_trees::expression::TableNamePath,
     target_index: usize,
 ) -> SymbolHandle {
-    let members = program.expression_table.name_path_members(path.members);
-    let authored = program
-        .expression_table
-        .name_path_member_symbols(path.member_symbols);
+    let members = expression_table(program).name_path_members(path.members);
+    let authored = expression_table(program).name_path_member_symbols(path.member_symbols);
     let mut selected = SymbolHandle::invalid();
 
     for (index, member) in members.iter().enumerate() {

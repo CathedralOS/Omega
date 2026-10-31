@@ -50,15 +50,31 @@ public data TimeHostNativeProvider { }
 // complete map; each inline member makes an ordinary call to its exact target
 // body, retaining that body's raw-provider closure and operational contract.
 public NativeTimeHost satisfies TimeHost {
-    machine monotonic_ticks() -> u64 reaches TimeHost {
+    machine monotonic_ticks() -> u64
+    reaches TimeHost
+    invokes LinuxX64TimeRead
+    invokes LinuxArm64TimeRead
+    invokes DarwinTimeRead
+    invokes DarwinX64TimeRead
+    invokes WindowsTimeRead
+    {
         TimeHostNativeProvider::monotonic_ticks()
     }
 
-    machine monotonic_ticks_per_second() -> u64 {
+    machine monotonic_ticks_per_second() -> u64
+    invokes WindowsTimeRead
+    {
         TimeHostNativeProvider::monotonic_ticks_per_second()
     }
 
-    machine wall_clock_raw() -> u64 reaches TimeHost {
+    machine wall_clock_raw() -> u64
+    reaches TimeHost
+    invokes LinuxX64TimeRead
+    invokes LinuxArm64TimeRead
+    invokes DarwinTimeRead
+    invokes DarwinX64TimeRead
+    invokes WindowsTimeRead
+    {
         TimeHostNativeProvider::wall_clock_raw()
     }
 
@@ -70,20 +86,44 @@ public NativeTimeHost satisfies TimeHost {
         TimeHostNativeProvider::wall_clock_epoch_offset_seconds()
     }
 
-    machine sleep(milliseconds: u32) reaches TimeHost blocks; {
+    machine sleep(milliseconds: u32)
+    reaches TimeHost
+    invokes LinuxX64TimeRead
+    invokes LinuxArm64TimeRead
+    invokes DarwinTimeRead
+    invokes DarwinX64TimeRead
+    blocks
+    {
         block TimeHostNativeProvider::sleep(milliseconds);
     }
 }
 
 public boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
-    // Only differences are meaningful.
-    machine monotonic_ticks() -> u64 reaches TimeHost;
+    // Only differences are meaningful. Each hosted read may enter its raw
+    // time trait; the trait name is a synchronous invocation, not extra reach.
+    machine monotonic_ticks() -> u64
+    reaches TimeHost
+    invokes LinuxX64TimeRead
+    invokes LinuxArm64TimeRead
+    invokes DarwinTimeRead
+    invokes DarwinX64TimeRead
+    invokes WindowsTimeRead;
     // Ticks per second for monotonic_ticks. Stable for the process lifetime.
-    machine monotonic_ticks_per_second() -> u64 reaches TimeHost;
+    // Windows reads the frequency through the same raw trait; other hosts
+    // return a constant.
+    machine monotonic_ticks_per_second() -> u64
+    reaches TimeHost
+    invokes WindowsTimeRead;
     // Wall clock: ONE non-tearing read, raw platform units since the
     // platform epoch.
-    machine wall_clock_raw() -> u64 reaches TimeHost;
+    machine wall_clock_raw() -> u64
+    reaches TimeHost
+    invokes LinuxX64TimeRead
+    invokes LinuxArm64TimeRead
+    invokes DarwinTimeRead
+    invokes DarwinX64TimeRead
+    invokes WindowsTimeRead;
     // Units per second for wall_clock_raw (constant per target).
     machine wall_clock_units_per_second() -> u64 reaches TimeHost;
     // Platform-epoch -> Unix-epoch shift, in seconds (constant per target).
@@ -91,6 +131,12 @@ public boundary trait TimeHost {
     // Millisecond sleep. The Darwin and Linux x86-64 providers wait with
     // poll, Linux arm64 with nanosleep (the asm-generic table publishes no
     // poll), Windows with kernel32 `Sleep`, and the interpreter advances its
-    // virtual clock.
-    machine sleep(milliseconds: u32) reaches TimeHost blocks;
+    // virtual clock. Windows Sleep is the requirement leaf itself.
+    machine sleep(milliseconds: u32)
+    reaches TimeHost
+    invokes LinuxX64TimeRead
+    invokes LinuxArm64TimeRead
+    invokes DarwinTimeRead
+    invokes DarwinX64TimeRead
+    blocks;
 }

@@ -9,8 +9,8 @@ use omega::language::core::float_operations;
 // consumed; a minus sign must be followed by a digit, including at EOF.
 public machine read_integer(application: &mut Spectrometer) -> IntegerRead
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> begin(application) }

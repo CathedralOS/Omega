@@ -1,4 +1,5 @@
 use super::facts::ContractProjectionContext;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
@@ -17,10 +18,8 @@ pub(crate) fn checked_outcome_specific_guarantee<'a>(
     binding: Option<&typed_trees::name::Identifier>,
 ) -> Result<&'a checked_trees::OutcomeSpecificGuaranteeFact, Vec<Diagnostic>> {
     let checked_trees::ContractProofFactOwner::Machine { machine_symbol } = context.owner else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` publishes an outcome-specific guarantee without a checked machine owner",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context
+            .rejected("publishes an outcome-specific guarantee without a checked machine owner"));
     };
     let public_selector = binding.map(|binding| binding.as_str());
     let matching = compilation
@@ -38,12 +37,10 @@ pub(crate) fn checked_outcome_specific_guarantee<'a>(
         })
         .collect::<Vec<_>>();
     let [checked] = matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` outcome-specific guarantee has {} exact checked carrier rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "outcome-specific guarantee has {} exact checked carrier rows; expected one",
             matching.len()
-        ))]);
+        )));
     };
     Ok(*checked)
 }
@@ -69,12 +66,10 @@ pub(crate) fn checked_contract_fact<'a>(
         })
         .collect::<Vec<_>>();
     let [checked] = matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract fact has {} checked owner rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "contract fact has {} checked owner rows; expected one",
             matching.len()
-        ))]);
+        )));
     };
     Ok(*checked)
 }
@@ -109,64 +104,58 @@ pub(crate) fn validate_checked_contract_evidence_components(
 ) -> Result<Option<u32>, Vec<Diagnostic>> {
     let Some(binding) = binding else {
         if checked_evidence_term.is_some() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` has an unnamed contract with a checked evidence term",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("has an unnamed contract with a checked evidence term"));
         }
         return Ok(None);
     };
     let Some(term_handle) = checked_evidence_term else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` has no checked evidence term",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` has no checked evidence term",
+            binding
+        )));
     };
     let term = compilation.facts.proof.evidence_terms.get(term_handle);
     if term.name != binding.as_str() || term.owner != checked_owner || term.kind != checked_kind {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` does not match its checked evidence term",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` does not match its checked evidence term",
+            binding
+        )));
     }
     if matches!(
         projected,
         PackageReviewContractFact::PropositionParameter(_)
     ) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` uses a generic proposition endpoint without an exact checked witness interface",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` uses a generic proposition endpoint without an exact checked witness interface",
+            binding,
+        )));
     }
     let PackageReviewContractFact::Proposition(application) = projected else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` is not a proposition",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!("named contract `{}` is not a proposition", binding)));
     };
     if nominal_identity(compilation, term.proposition.declaration)? != application.declaration {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` changed proposition endpoint during checked lowering",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` changed proposition endpoint during checked lowering",
+            binding
+        )));
     }
     let PackageReviewPropositionEvidence::Witness(interface) = &application.evidence else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` does not expose witness evidence",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` does not expose witness evidence",
+            binding
+        )));
     };
     let Some(checked_interface) = term.evidence_interface.as_ref() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` has no exact checked witness interface",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` has no exact checked witness interface",
+            binding
+        )));
     };
     if nominal_identity(compilation, checked_interface.trait_symbol)? != interface.trait_identity {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` changed witness trait during checked lowering",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` changed witness trait during checked lowering",
+            binding
+        )));
     }
     let mut checked_requirements = checked_interface
         .requirements
@@ -174,18 +163,10 @@ pub(crate) fn validate_checked_contract_evidence_components(
         .map(|requirement| {
             let owner = compilation
                 .trait_definition_by_symbol(requirement.declaring_trait)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "checked witness requirement has no exact declaring trait",
-                    )]
-                })?;
+                .or_evidence("checked witness requirement has no exact declaring trait")?;
             let signature = compilation
                 .trait_machine_signature_by_symbol(owner, requirement.requirement)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "checked witness requirement has no exact overload declaration",
-                    )]
-                })?;
+                .or_evidence("checked witness requirement has no exact overload declaration")?;
             Ok((
                 nominal_identity(compilation, requirement.declaring_trait)?,
                 trait_requirement_identity(compilation, owner, signature)?,
@@ -205,10 +186,10 @@ pub(crate) fn validate_checked_contract_evidence_components(
         .collect::<Vec<_>>();
     projected_requirements.sort();
     if checked_requirements != projected_requirements {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named contract `{}` changed witness requirements during checked lowering",
-            context.subject_kind, context.subject_name, binding
-        ))]);
+        return Err(context.rejected(format!(
+            "named contract `{}` changed witness requirements during checked lowering",
+            binding
+        )));
     }
     portable_ordinal(term.lane_position).map(Some)
 }

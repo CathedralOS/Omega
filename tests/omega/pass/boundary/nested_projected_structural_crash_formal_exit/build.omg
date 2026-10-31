@@ -1,5 +1,9 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "canonical_nested_projected_structural_guard");
+    Build::select_provider<ProjectedRead, Provider>(builder, linux_x86_64);
+    Build::select_provider<ProjectedRead, Provider>(builder, linux_arm64);
+    Build::select_provider<ProjectedRead, Provider>(builder, macos_arm64);
+    Build::select_provider<ProjectedRead, Provider>(builder, windows_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);

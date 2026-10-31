@@ -101,6 +101,18 @@ pub(super) fn validate_completed_arrival(
 }
 
 impl StructuralResults<'_> {
+    /// Borrow this same roster for a shorter frame. The variant and its row
+    /// storage stay put; only the borrow shortens, so a reborrowed frame names
+    /// the same rosters its parent does.
+    pub(super) fn reborrow(&mut self) -> StructuralResults<'_> {
+        match self {
+            StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
+            StructuralResults::StateGraph { state, places } => {
+                StructuralResults::StateGraph { state, places }
+            }
+        }
+    }
+
     /// Cleanup consumes a selected carrier, so an alias retains its original
     /// home and captured path. Whole-value repair keeps its separate fence.
     pub(in crate::unit::attached_unit) fn value_storage(

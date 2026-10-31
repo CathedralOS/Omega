@@ -8,6 +8,7 @@
 //! A correspondence is derivation data, not provider admission. Execution must
 //! retain it with the checked application through the receiving installation.
 
+use crate::frozen_program::expression_table;
 use crate::type_regions::{
     ReferenceStep, TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
 };
@@ -64,9 +65,8 @@ pub fn closed_provider_region_correspondence(
     {
         return None;
     }
-    let source = program
-        .expression_table
-        .static_machine_application(capture.supplying_application);
+    let source =
+        expression_table(program).static_machine_application(capture.supplying_application);
     let regions = capture
         .conformance_application
         .lifetime_arguments

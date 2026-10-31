@@ -8,6 +8,7 @@ use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use validation::CanonicalPlace;
 
 mod bindings;
+mod case_evidence;
 mod cleanup;
 mod coverage;
 mod transport;

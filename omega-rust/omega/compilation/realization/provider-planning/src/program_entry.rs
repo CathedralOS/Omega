@@ -8,6 +8,7 @@
 //! Unrelated same-leaf traits cannot redirect selection, including when Build and
 //! product retain separate package instances.
 
+use crate::provider_planning::entry_state;
 pub use build_time_evaluation::product_entries::RootBinding;
 use build_time_evaluation::product_entries::{
     ArrivalRequirementContract, arrival_requirement_contract, core_arrival_requirement_contract,
@@ -15,6 +16,7 @@ use build_time_evaluation::product_entries::{
 };
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::product_operand::ProductEntryDeclaration;
+use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration, ServiceCatalog};
 use diagnostics::Diagnostic;
 
 mod discovery;
@@ -155,7 +157,7 @@ fn validate_selected_program_entry_shape(
         .ok_or_else(|| vec![Diagnostic::error(format!(
             "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
         ))])?;
-    let entry = typed.machine_states(machine).first().ok_or_else(|| {
+    let entry = entry_state(typed, machine).ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "entry machine `{machine_name}` has no executable entry state"
         ))]
@@ -340,10 +342,7 @@ impl SelectedCompilerProgramEntry {
                             "selected physical entry adapter is absent",
                         )]
                     })?;
-                if typed
-                    .machine_states(machine)
-                    .first()
-                    .is_none_or(|entry| !entry.symbol.is_valid())
+                if entry_state(typed, machine).is_none_or(|entry| !entry.symbol.is_valid())
                     || !typed.machine_type_parameters(machine).is_empty()
                 {
                     return Err(vec![Diagnostic::error(
@@ -450,12 +449,18 @@ fn check_unrequested_program_entry_rows(
 /// source-shape validation, which precedes optional physical/semantic calling-
 /// plan validation.
 pub fn select_compiler_program_entry(
-    typed: &TypedTrees,
+    services: ServiceCatalog<'_>,
     root_bindings: &[RootBinding],
     selected_profile: Option<target::TargetProfile>,
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
+    if services.context().scope != source::DependencyScope::Product {
+        return Err(vec![Diagnostic::error(
+            "program-entry selection requires the Product service catalog",
+        )]);
+    }
+    let typed = services.context().typed;
     let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
     check_unrequested_program_entry_rows(typed, root_bindings, selected_profile)?;
     let Some(mut selected) = selected else {
@@ -496,7 +501,7 @@ pub fn select_compiler_program_entry(
         .map(package_compilation::program_entry_semantic_binding_role)
         .and_then(|role| package_inputs.and_then(|inputs| inputs.accepted_semantic_binding(role)));
     let calling_plans = validate_selected_program_entry_calling_plan(
-        typed,
+        services,
         selected,
         realizations,
         accepted_entry_binding,
@@ -507,12 +512,13 @@ pub fn select_compiler_program_entry(
     )))
 }
 
-pub fn validate_selected_program_entry_calling_plan(
-    typed: &TypedTrees,
+fn validate_selected_program_entry_calling_plan(
+    services: ServiceCatalog<'_>,
     selected: SelectedProgramEntry<'_>,
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     accepted_entry_binding: Option<&package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
+    let typed = services.context().typed;
     let (
         Some(schema_name),
         Some(physical_requirement),
@@ -632,16 +638,14 @@ pub fn validate_selected_program_entry_calling_plan(
             expected_semantic,
         ))]);
     }
-    let service_schema = crate::service_schema::from_typed(
-        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        realizations,
-        schema,
-    )
-    .ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "target entry schema `{schema_name}` is not a boundary service schema"
-        ))]
-    })?;
+    let prepared = services
+        .declaration(ProviderSchemaDeclaration::BoundaryTrait(schema.symbol))
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "target entry schema `{schema_name}` is not a boundary service schema"
+            ))]
+        })?;
+    let service_schema = crate::service_schema::attach_calling(&prepared, realizations);
     let physical_source = target_owned_physical_contract_source(
         typed,
         selected.slot,
@@ -851,7 +855,7 @@ fn target_owned_physical_contract_source(
                 && schema_source_file.package_identity == Some(binding.package())
                 && typed.symbols.symbol_package_identity(schema) == Some(binding.package())
                 && typed.symbols.display_path(schema, "::") == binding.declaration_path()
-                && service_schema.trait_package_identity == Some(binding.package())
+                && service_schema.declaration.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(
                     binding.role(),
                     service_schema,

@@ -3,6 +3,7 @@
 //! remain flow-owned; neither aliases nor initializers are executed here.
 use super::super::call_guarantees::{arithmetic, callable::Callable};
 use super::{QueryArgument, QueryArguments};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
@@ -207,11 +208,7 @@ impl<'scope> Values<'scope> {
                 if capture.primitive != primitive {
                     continue;
                 }
-                let query_preserves = facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(flow.calls)
+                let query_preserves = crate::flow::call_flows(&facts.flow.control, flow.calls)
                     .iter()
                     .filter(|call| call.statement_index == statement)
                     .all(|call| {
@@ -574,7 +571,7 @@ fn post_binding_preserved(
         root: facts::PlaceRoot::Expression(operand.expression),
         segments: Vec::new(),
     };
-    let binding = if let Some(place) = validation::canonical_place_from_expression_in_state(
+    let binding = if let Some(place) = place_at(
         program,
         operand.state_symbol,
         operand.statement_index,
@@ -622,12 +619,10 @@ fn value_place(
     expression: ExpressionHandle,
     projection: &[facts::PlaceSegment],
 ) -> Option<CanonicalPlace> {
-    let mut place =
-        validation::canonical_place_from_expression_in_state(program, state, statement, expression)
-            .unwrap_or(CanonicalPlace {
-                root: facts::PlaceRoot::Expression(expression),
-                segments: Vec::new(),
-            });
+    let mut place = place_at(program, state, statement, expression).unwrap_or(CanonicalPlace {
+        root: facts::PlaceRoot::Expression(expression),
+        segments: Vec::new(),
+    });
     if !projection.is_empty() {
         let reference =
             validation::canonical_place_type_reference(program, state, statement, &place)?;

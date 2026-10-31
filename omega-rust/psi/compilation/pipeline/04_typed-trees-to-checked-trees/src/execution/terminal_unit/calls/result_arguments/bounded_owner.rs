@@ -19,6 +19,7 @@ use super::{
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, byte_sequence_type_identity, structural_access_for_type_reference,
 };
+use crate::flow::expressions;
 use checked_trees::CheckedByteSequenceCarrier;
 
 #[allow(clippy::too_many_arguments)]
@@ -38,9 +39,7 @@ pub(super) fn loan(
     if !place.segments.is_empty() {
         return None;
     }
-    let local = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    let local = crate::flow::state_statements(program, source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
         .as_local_data()?;
     let CheckedByteSequenceCarrier::BoundedOwned { capacity } =
@@ -81,9 +80,7 @@ pub(super) fn loan(
         ExpressionNode::Name(_) if shared_view => expression,
         _ => return None,
     };
-    if !program
-        .expression_table
-        .expression_is_valid(value_expression)
+    if !expressions(program).expression_is_valid(value_expression)
         || local.symbol != symbol
         || !names_whole_local(program, call, value_expression, symbol)
         || result.multiplicity != program.type_multiplicity(local.type_reference)

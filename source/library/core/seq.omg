@@ -38,8 +38,8 @@ public machine Bag(items: &[u64]) -> BagView
 // recursive `map<F>` / `filter<Predicate>` edges become direct calls. There is
 // no runtime callable, dictionary, or hidden capture object.
 machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
-where machine F(value: T) -> U;
-terminates by items;
+requires machine F(value: T) -> U;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -51,8 +51,8 @@ terminates by items;
 }
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
-where machine Predicate(value: &T) -> bool;
-terminates by items;
+requires machine Predicate(value: &T) -> bool;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -79,7 +79,7 @@ use omega::language::core::nat;
 // type. The structural entailment judge (N3) is parametric over
 // constructor names, so it discharges Seq lemmas exactly as it does Nat's.
 public machine length(s: Seq<u64>) -> Nat
-terminates by s;
+terminates by s
 {
     transition s {
         Seq::Empty -> Nat::Zero
@@ -105,7 +105,7 @@ ensures
 
 // Concatenation, structurally recursive on the first sequence.
 public machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
-terminates by s;
+terminates by s
 {
     transition s {
         Seq::Empty -> (t)
@@ -116,7 +116,7 @@ terminates by s;
 // append's right identity, by induction on `s`. Lean analog:
 // `List.append_nil`.
 machine append_empty_right(s: Seq<u64>) -> Seq<u64>
-terminates by s;
+terminates by s
 ensures
     (append(s, Seq::Empty)) == s
 {
@@ -129,7 +129,7 @@ ensures
 // append associates, by induction on the outermost first sequence. Lean
 // analog: `List.append_assoc`.
 machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
-terminates by s;
+terminates by s
 ensures
     (append(append(s, t), u)) == (append(s, append(t, u)))
 {
@@ -144,7 +144,7 @@ ensures
 // inside length inside add) plus the inductive hypothesis; no citations
 // needed. Lean analog: `List.length_append`.
 public machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
-terminates by s;
+terminates by s
 ensures
     (length(append(s, t))) == (add(length(s), length(t)))
 {
@@ -158,7 +158,7 @@ ensures
 // appends the head as a singleton on the right). Lean analog:
 // `List.reverse` (the non-accumulator spelling).
 machine reverse(s: Seq<u64>) -> Seq<u64>
-terminates by s;
+terminates by s
 {
     transition s {
         Seq::Empty -> Seq::Empty
@@ -176,7 +176,7 @@ terminates by s;
 // fuel budget): the backend used to crash, then hang, expanding the
 // proof machine's recursion. Lean analog: `List.length_reverse`.
 machine length_reverse(s: Seq<u64>) -> Nat
-terminates by s;
+terminates by s
 ensures
     (length(reverse(s))) == (length(s))
 {
@@ -204,7 +204,7 @@ ensures
 // its initializer and joins the arm environment). Lean analog:
 // `List.reverse_append`.
 machine reverse_append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
-terminates by s;
+terminates by s
 ensures
     (reverse(append(s, t))) == (append(reverse(t), reverse(s)))
 {
@@ -232,7 +232,7 @@ ensures
 // closes `reverse(reverse(tail)) == tail`. Lean analog:
 // `List.reverse_reverse`.
 machine reverse_reverse(s: Seq<u64>) -> Seq<u64>
-terminates by s;
+terminates by s
 ensures
     (reverse(reverse(s))) == s
 {

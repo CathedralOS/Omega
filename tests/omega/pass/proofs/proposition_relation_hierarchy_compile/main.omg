@@ -62,7 +62,7 @@ data Index {
 }
 
 data Stream<machine Sequence>
-where machine Sequence(index: Index) -> Index;
+requires machine Sequence(index: Index) -> Index;
 {
     case Empty;
     case More(tail: Stream<Sequence>);
@@ -77,7 +77,7 @@ proposition stream_related<machine Left, machine Right>(
 ) = true;
 
 machine stream_related_reflexive<machine Sequence>(value: Stream<Sequence>)
-where machine Sequence(index: Index) -> Index;
+requires machine Sequence(index: Index) -> Index;
 satisfies Reflexive<Stream, stream_related>::reflexive
 ensures stream_related<Sequence, Sequence>(value, value)
 {
@@ -87,8 +87,8 @@ machine stream_related_symmetric<machine Left, machine Right>(
     left: Stream<Left>,
     right: Stream<Right>
 )
-where machine Left(index: Index) -> Index;
-where machine Right(index: Index) -> Index;
+requires machine Left(index: Index) -> Index;
+requires machine Right(index: Index) -> Index;
 satisfies Symmetric<Stream, stream_related>::symmetric
 requires stream_related<Left, Right>(left, right)
 ensures stream_related<Right, Left>(right, left)
@@ -104,9 +104,9 @@ machine stream_related_transitive<
     middle: Stream<Middle>,
     right: Stream<Right>
 )
-where machine Left(index: Index) -> Index;
-where machine Middle(index: Index) -> Index;
-where machine Right(index: Index) -> Index;
+requires machine Left(index: Index) -> Index;
+requires machine Middle(index: Index) -> Index;
+requires machine Right(index: Index) -> Index;
 satisfies Transitive<Stream, stream_related>::transitive
 requires
     stream_related<Left, Middle>(left, middle)

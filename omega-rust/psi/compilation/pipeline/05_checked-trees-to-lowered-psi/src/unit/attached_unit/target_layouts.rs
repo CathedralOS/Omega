@@ -5,16 +5,15 @@
 //! geometry; neither native target selection nor name-based reconstruction is
 //! part of this join.
 
-use super::{BoundaryParameters, CheckedTrees, LoweringError, UnitPlans, unsupported};
+use super::{CheckedTrees, LoweringError, UnitPlans, unsupported};
 use checked_trees::{CheckedUnitRecordStorage, CheckedUnitStructuralTypeShape};
-use semantic_vocabulary::{AuthoredRecordStorage, MachineId, StructuralTypeId};
+use semantic_vocabulary::{AuthoredRecordStorage, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
-    StructuralTypeDeclaration, StructuralTypeShape, TargetLayoutApplication,
-    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
-    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind, TargetMachineCallable,
-    TargetMachineFamily, TargetMachineSupply,
+    StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
+    StructuralTypeShape, TargetLayoutApplication, TargetLayoutFieldStorage,
+    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
+    TargetLayoutSchemaFieldKind,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
@@ -23,10 +22,7 @@ pub(super) fn lower(
     plans: UnitPlans<'_>,
     types: &[StructuralTypeDeclaration],
     type_ids: &[(TypeIdentityId, StructuralTypeId)],
-    machines: &[(SymbolHandle, MachineId)],
-    boundary_parameters: &[BoundaryParameters],
-    boundaries: &[BoundaryMachineDeclaration],
-    families: &[TargetMachineFamily],
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<Vec<TargetLayoutApplication>, LoweringError> {
     let mut applications = Vec::new();
     for record in types {
@@ -48,6 +44,7 @@ pub(super) fn lower(
             storage:
                 CheckedUnitRecordStorage::TargetLayout {
                     application,
+                    application_identity,
                     schema_type_identity,
                 },
             ..
@@ -55,14 +52,18 @@ pub(super) fn lower(
         else {
             return unsupported("target layout record lost its exact checked application marker");
         };
-        let plan =
-            checked
-                .typed
-                .plan_laid_layout(*application)
-                .ok_or(LoweringError::Unsupported(
-                    "target layout application lost its typed policy result",
-                ))?;
-        let typed_trees::PlanLaidRealizations::TargetFamily(span) = plan.realizations else {
+        if checked.typed.normalized_type_identity(*application) != *application_identity {
+            return unsupported(
+                "target layout raw application differs from its canonical checked identity",
+            );
+        }
+        let plan = checked
+            .typed
+            .plan_laid_layout_for_type(*application)
+            .ok_or(LoweringError::Unsupported(
+                "target layout application lost its typed policy result",
+            ))?;
+        let typed_trees::PlanLaidRealizations::TargetInputs(span) = plan.realizations else {
             return unsupported("target layout marker names an invariant application");
         };
         let alternatives =
@@ -101,112 +102,90 @@ pub(super) fn lower(
             &plan.schema_field_symbols,
             &schema_fields,
         )?;
-        let argument = plan
-            .schema_argument
-            .as_ref()
-            .ok_or(LoweringError::Unsupported(
-                "target layout application lost its exact Schema argument",
-            ))?;
-        if argument.abi_version != 1 {
-            return unsupported("target layout application uses an unsupported Schema ABI version");
-        }
-        let argument_fields = checked
+        let policy_identity = identities.intern(
+            &checked
+                .typed
+                .package_qualified_type_identity_text(plan.application),
+        );
+        let policy_machine = checked
             .typed
-            .plan_laid_schema_fields
-            .span(argument.fields)
+            .machine_by_symbol(plan.policy_plan_machine_symbol)
             .ok_or(LoweringError::Unsupported(
-                "target layout application lost its Schema argument span",
+                "fixed representation lost its exact checked plan",
             ))?;
-        if argument_fields.len() != record_fields.len()
-            || argument_fields.len() != schema_fields.len()
-        {
-            return unsupported("unsupported target layout Schema argument field inventory");
-        }
-        let mut captured_fields = Vec::with_capacity(argument_fields.len());
-        for (position, field) in argument_fields.iter().enumerate() {
-            if field.schema_field != plan.schema_field_symbols[position] {
-                return unsupported(
-                    "target layout Schema argument changed exact field identity/order",
-                );
-            }
-            captured_fields.push(TargetLayoutSchemaField {
-                record_field: record_fields[position].id,
-                schema_field: schema_fields[position].id,
-                key: field.key,
-                identity: field.identity,
-                byte_size: field.byte_size,
-                byte_alignment: field.byte_alignment,
-                kind: match field.kind {
-                    typed_trees::PlanLaidSchemaFieldKind::Scalar => {
-                        TargetLayoutSchemaFieldKind::Scalar
-                    }
-                    typed_trees::PlanLaidSchemaFieldKind::Nested => {
-                        TargetLayoutSchemaFieldKind::Nested
-                    }
-                },
-            });
-        }
-        let typed_family = checked
-            .typed
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == plan.policy_plan_machine_symbol)
+        let plan_identity = identities.intern(
+            &validation::contract_identities::normalized_machine_identity(
+                &checked.typed,
+                policy_machine,
+            )
             .ok_or(LoweringError::Unsupported(
-                "target layout application lost its policy family",
-            ))?;
-        let canonical = super::target_families::callable(
-            typed_family.canonical,
-            machines,
-            boundary_parameters,
-        )?;
-        let family = families
-            .iter()
-            .find(|family| family.canonical == canonical)
-            .ok_or(LoweringError::Unsupported(
-                "target layout policy family was not emitted",
-            ))?;
-        let TargetMachineCallable::Boundary(head) = canonical else {
-            return unsupported("target layout family has no independent emitted contract head");
-        };
-        let policy_identity = boundaries
-            .iter()
-            .find(|boundary| boundary.id == head)
-            .map(|boundary| boundary.identity.clone())
-            .ok_or(LoweringError::Unsupported(
-                "target layout policy head lost its emitted identity",
-            ))?;
-        if alternatives.is_empty()
-            || alternatives.len() != typed_family.members.len()
-            || alternatives.len() != family.members.len()
-        {
-            return unsupported(
-                "target layout application does not cover its complete policy family",
-            );
+                "fixed representation policy has no checked callable identity",
+            ))?,
+        );
+        if alternatives.is_empty() && !plan.target_inputs.is_empty() {
+            return unsupported("fixed representation omitted its target inputs");
         }
         let mut realizations = Vec::with_capacity(alternatives.len());
-        for ((alternative, typed_member), member) in alternatives
-            .iter()
-            .zip(&typed_family.members)
-            .zip(&family.members)
-        {
-            let callable = super::target_families::callable(
-                alternative.machine,
-                machines,
-                boundary_parameters,
-            )?;
-            if alternative.target != typed_member.target
-                || alternative.machine != typed_member.machine
-                || alternative.target.as_str() != member.target
-                || callable != member.callable
-                || member.supply != TargetMachineSupply::CheckedBody
-            {
+        for alternative in alternatives {
+            let argument =
+                alternative
+                    .schema_argument
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout application lost its exact Schema argument",
+                    ))?;
+            if argument.abi_version != 3 {
                 return unsupported(
-                    "target layout alternative changed exact family member custody",
+                    "target layout application uses an unsupported Schema ABI version",
                 );
             }
-            let TargetMachineCallable::Machine(machine) = callable else {
-                return unsupported("target layout policy alternative has no emitted checked body");
-            };
+            let argument_fields = checked
+                .typed
+                .plan_laid_schema_fields
+                .span(argument.fields)
+                .ok_or(LoweringError::Unsupported(
+                    "target layout application lost its Schema argument span",
+                ))?;
+            if argument_fields.len() != record_fields.len()
+                || argument_fields.len() != schema_fields.len()
+            {
+                return unsupported("unsupported target layout Schema argument field inventory");
+            }
+            let mut captured_fields = Vec::with_capacity(argument_fields.len());
+            for field in argument_fields {
+                let position = plan
+                    .schema_field_symbols
+                    .iter()
+                    .position(|symbol| *symbol == field.schema_field)
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout Schema argument changed exact field correspondence",
+                    ))?;
+                captured_fields.push(TargetLayoutSchemaField {
+                    record_field: record_fields[position].id,
+                    schema_field: schema_fields[position].id,
+                    key: field.key,
+                    identity: field.identity,
+                    byte_size: field.byte_size,
+                    byte_alignment: field.byte_alignment,
+                    kind: match field.kind {
+                        typed_trees::PlanLaidSchemaFieldKind::Scalar => {
+                            TargetLayoutSchemaFieldKind::Scalar
+                        }
+                        typed_trees::PlanLaidSchemaFieldKind::Nested => {
+                            TargetLayoutSchemaFieldKind::Nested
+                        }
+                        typed_trees::PlanLaidSchemaFieldKind::Repeated => {
+                            TargetLayoutSchemaFieldKind::Repeated
+                        }
+                    },
+                });
+            }
+            if alternative.machine != plan.policy_plan_machine_symbol
+                || alternative.target.as_str() != alternative.target_facts.profile
+                || alternative.target_facts.validate().is_err()
+            {
+                return unsupported("fixed representation changed its exact target input custody");
+            }
             let geometry = &alternative.geometry;
             if !geometry.private_callback_demands.is_empty() {
                 return unsupported(
@@ -243,8 +222,24 @@ pub(super) fn lower(
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             realizations.push(TargetLayoutRealization {
+                schema_argument: TargetLayoutSchemaArgument {
+                    abi_version: argument.abi_version,
+                    fields: captured_fields,
+                    retired_field_identities: checked
+                        .typed
+                        .plan_laid_retired_field_identities
+                        .span(argument.retired_field_identities)
+                        .ok_or(LoweringError::Unsupported(
+                            "target layout application lost its retired Schema identities",
+                        ))?
+                        .iter()
+                        .map(|row| row.identity)
+                        .collect(),
+                },
                 target: alternative.target.as_str().to_owned(),
-                member: machine,
+                pointer_size: alternative.target_facts.pointer_size,
+                pointer_alignment: alternative.target_facts.pointer_alignment,
+                little_endian: alternative.target_facts.little_endian,
                 storage: AuthoredRecordStorage {
                     byte_size,
                     byte_alignment: geometry.validated_layout.align,
@@ -252,16 +247,26 @@ pub(super) fn lower(
                 fields,
             });
         }
+        realizations.sort_by(|a, b| a.target.cmp(&b.target));
+        let mut target_inputs = plan
+            .target_inputs
+            .iter()
+            .map(|target| terminal_psi::TargetLayoutInput {
+                target: target.profile.clone(),
+                pointer_size: target.pointer_size,
+                pointer_alignment: target.pointer_alignment,
+                little_endian: target.little_endian,
+            })
+            .collect::<Vec<_>>();
+
+        target_inputs.sort_by(|a, b| a.target.cmp(&b.target));
         applications.push(TargetLayoutApplication {
             id: *id,
             record: record.id,
             schema: schema.id,
             policy_identity,
-            family: canonical,
-            schema_argument: TargetLayoutSchemaArgument {
-                abi_version: argument.abi_version,
-                fields: captured_fields,
-            },
+            plan_identity,
+            target_inputs,
             realizations,
         });
     }

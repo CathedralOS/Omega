@@ -4,6 +4,7 @@
 //! as one first captured in a local; address preservation alone cannot erase it.
 
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
 use crate::machine_calls::calls::write_frames::call_trees::parameter_relative_expression_preserves_transparent_result;
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
@@ -24,27 +25,47 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 
+/// The frame facts every parameter-relative query reads. One value is built per
+/// caller frame and threaded through the resolvers, so each hop names the
+/// evidence once instead of restating six arguments.
+#[derive(Clone, Copy)]
+pub(crate) struct ParameterRelativeQuery<'a> {
+    program: &'a dyn crate::CheckingInput,
+    current_machine: &'a Machine,
+    parameters: &'a [StateParameter],
+    aliases: &'a [(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
+    symbols: &'a TopLevelSymbols<'a>,
+}
+
+impl<'a> ParameterRelativeQuery<'a> {
+    pub(crate) fn of(
+        program: &'a dyn crate::CheckingInput,
+        current_machine: &'a Machine,
+        parameters: &'a [StateParameter],
+        aliases: &'a [(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
+        symbols: &'a TopLevelSymbols<'a>,
+    ) -> Self {
+        Self {
+            program,
+            current_machine,
+            parameters,
+            aliases,
+            symbols,
+        }
+    }
+}
+
 /// The single proven origin of a place expression. Conditional result routes
 /// keep a finite candidate set internally; consumers holding a single
 /// parameter-relative binding still require every route to name the same
 /// place.
 pub(crate) fn parameter_relative_place_origin(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
     single_parameter_relative_origin(parameter_relative_place_origins(
-        program,
-        current_machine,
-        expression,
-        parameters,
-        aliases,
-        symbols,
-        inference,
+        query, expression, inference,
     )?)
 }
 
@@ -55,24 +76,11 @@ pub(crate) fn parameter_relative_place_origin(
 /// selecting one side. A route that cannot be named fails the whole
 /// expression closed.
 pub(crate) fn parameter_relative_place_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
-    parameter_relative_place_origins_in(
-        program,
-        current_machine,
-        expression,
-        parameters,
-        aliases,
-        symbols,
-        inference,
-        false,
-    )
+    parameter_relative_place_origins_in(query, expression, inference, false)
 }
 
 /// The same resolver with by-value carrier roots admitted: a parameter that
@@ -81,54 +89,33 @@ pub(crate) fn parameter_relative_place_origins(
 /// Only call sites that evaluate a reference-bearing result or binding use
 /// this mode — a bare carrier root must never answer a reference-typed
 /// actual position.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn parameter_relative_place_or_carrier_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
-    parameter_relative_place_origins_in(
-        program,
-        current_machine,
-        expression,
-        parameters,
-        aliases,
-        symbols,
-        inference,
-        true,
-    )
+    parameter_relative_place_origins_in(query, expression, inference, true)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn parameter_relative_place_origins_in(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
+    let ParameterRelativeQuery {
+        program,
+        current_machine,
+        parameters,
+        aliases,
+        symbols,
+    } = query;
     macro_rules! place_child {
         ($expression:expr $(,)?) => {
-            parameter_relative_place_origins_in(
-                program,
-                current_machine,
-                $expression,
-                parameters,
-                aliases,
-                symbols,
-                inference,
-                admit_carrier_roots,
-            )
+            parameter_relative_place_origins_in(query, $expression, inference, admit_carrier_roots)
         };
     }
-    let origins = match program.expression_table.expression(expression) {
+    let origins = match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => {
             let mut origins = place_child!(inner.target)?;
             for origin in &mut origins {
@@ -195,11 +182,8 @@ fn parameter_relative_place_origins_in(
             // lends the leaf's proven referents, re-rooted on this machine's
             // parameters.
             None => parameter_relative_aggregate_leaf_origins(
-                program,
-                current_machine,
+                query,
                 expression,
-                parameters,
-                symbols,
                 inference,
                 admit_carrier_roots,
             )?,
@@ -216,32 +200,18 @@ fn parameter_relative_place_origins_in(
             parameter_symbol: SymbolHandle::invalid(),
         }],
         ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_) => {
-            parameter_relative_declared_origins(
-                program,
-                current_machine,
-                expression,
-                parameters,
-                aliases,
-                admit_carrier_roots,
-            )?
+            parameter_relative_declared_origins(query, expression, admit_carrier_roots)?
         }
-        ExpressionNode::Call(call) => parameter_relative_call_result_origins(
-            program,
-            current_machine,
-            call,
-            parameters,
-            aliases,
-            symbols,
-            inference,
-            admit_carrier_roots,
-        )?,
+        ExpressionNode::Call(call) => {
+            parameter_relative_call_result_origins(query, call, inference, admit_carrier_roots)?
+        }
         ExpressionNode::Match(dispatch) => {
             // Every producing arm contributes its own candidates. Divergent
             // routes keep the exact finite union: the result may reach any
             // proven arm, and an arm that cannot resolve leaves the whole
             // expression opaque rather than selecting the provable side.
             let mut selected = Vec::new();
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
                 for origin in place_child!(arm.value)? {
                     push_unique_parameter_relative(&mut selected, origin);
                 }
@@ -275,13 +245,17 @@ fn parameter_relative_place_origins_in(
 /// reference leaf also names its own carrier place: the spelled path then
 /// describes which leaf inside the carrier the route selects.
 fn parameter_relative_declared_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
+    let ParameterRelativeQuery {
+        program,
+        current_machine,
+        parameters,
+        aliases,
+        ..
+    } = query;
     reference_origins::declared_origin_root(program, current_machine, expression)?;
     let place = frame_place_path(program, expression)?;
     let root_symbol = place.source.root;
@@ -329,30 +303,28 @@ fn parameter_relative_declared_origins(
 /// the leaf's proven referents. Each referent must re-root on a declared
 /// parameter; private or unresolvable storage stays opaque.
 fn parameter_relative_aggregate_leaf_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     let origins = reference_origins::projected_carrier_reference_origins(
-        program,
-        current_machine,
+        query.program,
+        query.current_machine,
         expression,
-        symbols,
+        query.symbols,
         inference,
     )?;
     origins
         .into_iter()
         .map(|origin| {
-            parameters
+            query
+                .parameters
                 .iter()
                 .find(|parameter| {
                     (origin.source.root == parameter.symbol)
                         && (admit_carrier_roots
-                            || type_reference_is_reference(program, parameter.type_reference))
+                            || type_reference_is_reference(query.program, parameter.type_reference))
                 })
                 .map(|parameter| ParameterRelativeFrameOrigin {
                     place: origin,
@@ -366,19 +338,21 @@ fn parameter_relative_aggregate_leaf_origins(
 /// through its own selected actual; an actual that cannot be named keeps the
 /// whole call opaque because the result could reach untracked storage.
 fn parameter_relative_call_result_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
+    query: ParameterRelativeQuery<'_>,
     call: &TableCallExpression,
-    caller_parameters: &[StateParameter],
-    caller_aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
+    let ParameterRelativeQuery {
+        program,
+        current_machine: _,
+        parameters: caller_parameters,
+        aliases: caller_aliases,
+        symbols,
+    } = query;
     if std::iter::once(call.receiver)
         .chain(
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .copied(),
@@ -443,8 +417,7 @@ fn parameter_relative_call_result_origins(
                 .iter()
                 .enumerate()
                 .find(|(_, parameter)| parameter.symbol == callee_parameter.symbol)?;
-            *program
-                .expression_table
+            *expression_table(program)
                 .expression_handles(call.arguments)
                 .get(argument_index)?
         };
@@ -453,12 +426,8 @@ fn parameter_relative_call_result_origins(
         // carrier roots stay admitted for that actual regardless of the
         // enclosing query's mode.
         let actual_origins = parameter_relative_place_origins_in(
-            program,
-            current_machine,
+            query,
             actual,
-            caller_parameters,
-            caller_aliases,
-            symbols,
             inference,
             admit_carrier_roots
                 || !type_reference_is_reference(program, callee_parameter.type_reference),

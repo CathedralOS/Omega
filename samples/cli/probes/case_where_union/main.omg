@@ -14,9 +14,11 @@
 // The machine stores Integer(7) and Boolean(true) values at their own
 // instantiations, reads each payload, and accepts on 7 == 7 && flag.
 // Compile-checked only: no standard-library dependency.
-data Value<T> {
-    case Integer(value: T) where T == i32;
-    case Boolean(value: T) where T == bool;
+data Value<T> 
+    requires ((self in Value::Integer) && (T == i32)) || ((self in Value::Boolean) && (T == bool))
+{
+    case Integer(value: T);
+    case Boolean(value: T);
 }
 
 machine case_where_union() {

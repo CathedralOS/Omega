@@ -8,6 +8,7 @@ mod descriptor_calls;
 mod directory_calls;
 mod path_calls;
 
+use super::real::real_fs;
 use crate::interpreter::evaluator::Evaluator;
 use crate::interpreter::evaluator::{
     EvalResult, FilesystemEvaluationHaltKind, FilesystemHostOperation, FilesystemHostResultKind,
@@ -137,17 +138,17 @@ impl<'program> Evaluator<'program> {
                     let kind = match &halt {
                         Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
                         Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
-                        Halt::Trap(_) | Halt::Crash(_, _) => FilesystemEvaluationHaltKind::Trap,
+                        Halt::Trap(_) | Halt::Crash(_, _) | Halt::StaticInputUnavailable(_) => {
+                            FilesystemEvaluationHaltKind::Trap
+                        }
                         Halt::Resource(_) => FilesystemEvaluationHaltKind::ResourceExhausted,
                     };
                     self.filesystem_operation_attempts[attempt_index].outcome =
                         Some(FilesystemOperationAttemptOutcome::EvaluationHalted(kind));
                     return Err(halt);
                 }
-                let post_error = self
-                    .real_fs
-                    .as_ref()
-                    .map_or(self.virtual_errno, |filesystem| filesystem.errno);
+                let post_error =
+                    real_fs(self).map_or(self.virtual_errno, |filesystem| filesystem.errno);
                 let observation_result = self.filesystem_operation_attempts[attempt_index]
                     .logical_handle_output
                     .map_or(FilesystemOperationResult::Scalar(result), |output| {
@@ -166,7 +167,9 @@ impl<'program> Evaluator<'program> {
                 let kind = match &halt {
                     Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
                     Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
-                    Halt::Trap(_) | Halt::Crash(_, _) => FilesystemEvaluationHaltKind::Trap,
+                    Halt::Trap(_) | Halt::Crash(_, _) | Halt::StaticInputUnavailable(_) => {
+                        FilesystemEvaluationHaltKind::Trap
+                    }
                     Halt::Resource(_) => FilesystemEvaluationHaltKind::ResourceExhausted,
                 };
                 self.filesystem_operation_attempts[attempt_index].outcome =

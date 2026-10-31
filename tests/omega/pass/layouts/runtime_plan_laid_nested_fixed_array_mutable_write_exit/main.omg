@@ -4,9 +4,9 @@
 use omega_language_std::console;
 use omega::language::core::layout;
 
-data SpreadArray { }
 
-machine SpreadArray::plan(schema: Schema) -> Plan {
+SpreadArray satisfies FixedLayout<MatrixRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -24,13 +24,14 @@ machine SpreadArray::plan(schema: Schema) -> Plan {
         align: 8,
     }
 }
+}
 
 data MatrixRecord {
     values: [[u16; 2]; 2];
     marker: u8;
 }
 
-data MatrixView { value: SpreadArray<MatrixRecord>; }
+data MatrixView { value: LayoutStorage<MatrixRecord, SpreadArray>; }
 
 data Main {
     bytes: [u8; 32];

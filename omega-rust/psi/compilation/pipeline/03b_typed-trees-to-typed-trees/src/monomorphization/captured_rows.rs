@@ -4,14 +4,25 @@
 //! names cannot infer a missing map application.
 
 use super::requirement_applications::selected_applications;
-use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees};
+use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees, failed};
 use crate::expression_roots::append_statement_roots;
+use crate::tables::{expressions_of, expressions_of_mut};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 macro_rules! err {
     ($message:literal) => {
         vec![Diagnostic::error($message)]
     };
+}
+
+#[derive(Clone, Copy)]
+enum CaptureSupply {
+    /// A current declaration or selected Product operand, independently
+    /// reconstructed from its live source by frozen checking.
+    AuthoredSelection,
+    /// A lexical call carries an existing capture's source receipt; it cannot
+    /// replace a missing authored selection with that same derived receipt.
+    CarriedCapture,
 }
 
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
@@ -31,7 +42,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             let mut expressions = Vec::new();
             append_statement_roots(program, state, &mut expressions);
             for handle in expressions {
-                if let Some(call) = program.expression_table.call_node(handle) {
+                if let Some(call) = expressions_of(program).call_node(handle) {
                     calls.push((
                         CallSite::Expression(handle),
                         machine.symbol,
@@ -47,6 +58,14 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         .trait_implementation_applications
         .iter()
         .map(|(_, selected)| (selected.supplying_application, selected.application.clone()))
+        .chain(
+            program
+                .data_implementation_applications
+                .iter()
+                .map(|(_, selected)| {
+                    (selected.supplying_application, selected.application.clone())
+                }),
+        )
         .collect::<Vec<_>>();
     // Source formation also retains applications in unexecuted helpers. Only
     // a reached Build choice demands its owned realization's capture tuple.
@@ -79,9 +98,13 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             .filter(|row| row.source.owns_realization())
         {
             let before = program.captured_machine_applications.len();
-            if let Some(captured) =
-                realize_capture(program, &application, supplying, row.realization_machine)?
-                && program.captured_machine_applications.len() != before
+            if let Some(captured) = realize_capture(
+                program,
+                &application,
+                supplying,
+                row.realization_machine,
+                CaptureSupply::AuthoredSelection,
+            )? && program.captured_machine_applications.len() != before
             {
                 changed.push(captured.instance);
             }
@@ -98,6 +121,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             &application,
             supplying_application,
             realization_machine,
+            CaptureSupply::CarriedCapture,
         )?
         else {
             continue;
@@ -122,7 +146,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         match site {
             CallSite::Expression(handle) => {
                 let super::ExpressionNode::Call(call) =
-                    program.expression_table.expression_mut(handle)
+                    expressions_of_mut(program).expression_mut(handle)
                 else {
                     unreachable!()
                 };
@@ -200,11 +224,7 @@ fn call_capture(
     };
     let conformance = program
         .conformance_by_symbol(application.declaration)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected capture application lost its map declaration",
-            )]
-        })?;
+        .ok_or_else(|| failed("selected capture application lost its map declaration"))?;
     let owned = conformance.rows.iter().any(|row| {
         row.source.owns_realization()
             && row.realization_machine == dispatch.realization_machine
@@ -225,11 +245,7 @@ fn call_capture(
             .machine_specialization(owner)
             .map(|receipt| receipt.binding_application)
             .filter(|application| application.is_valid())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected capture lost its supplying source invocation",
-                )]
-            })?
+            .ok_or_else(|| failed("selected capture lost its supplying source invocation"))?
     };
     Ok(Some((
         (*application).clone(),
@@ -245,6 +261,7 @@ fn realize_capture(
     application: &typed_trees::typed_trees::ClosedConformanceApplication,
     supplying_application: typed_trees::static_applications::StaticMachineApplicationHandle,
     realization_machine: SymbolHandle,
+    supply: CaptureSupply,
 ) -> Result<Option<typed_trees::typed_trees::CapturedMachineApplication>, Vec<Diagnostic>> {
     let conformance = program
         .conformance_by_symbol(application.declaration)
@@ -263,8 +280,7 @@ fn realize_capture(
     {
         return Err(err!("selected capture has no exact owned realization"));
     }
-    let supplying_owner = program
-        .expression_table
+    let supplying_owner = expressions_of(program)
         .static_machine_application(supplying_application)
         .lexical_owner;
     let retained = program
@@ -276,16 +292,28 @@ fn realize_capture(
                     &captured.conformance_application,
                     application,
                 )
-                && program
-                    .expression_table
+                && expressions_of(program)
                     .static_machine_application(captured.supplying_application)
                     .lexical_owner
                     == supplying_owner
         })
-        .map(|(_, captured)| captured.clone())
+        .map(|(handle, captured)| (handle, captured.clone()))
         .collect::<Vec<_>>();
     let captured = match retained.as_slice() {
-        [captured] => captured.clone(),
+        [(handle, captured)] => {
+            let mut captured = captured.clone();
+            if let CaptureSupply::AuthoredSelection = supply {
+                // Bodies share by their full applied meaning and supplier,
+                // not by whichever source occurrence happened to arrive first.
+                // Elaboration can replace that occurrence. Retain the current
+                // independent selection while preserving the original body and
+                // binding tuple; frozen checking must rejoin and replay both.
+                captured.supplying_application = supplying_application;
+                captured.conformance_application = application.clone();
+                *program.captured_machine_applications.get_mut(*handle) = captured.clone();
+            }
+            captured
+        }
         [] => {
             let Some(index) = program.machine_position_by_symbol(realization_machine) else {
                 return Err(err!("selected capture application lost its owned body"));
@@ -308,8 +336,7 @@ fn realize_capture(
                 })
                 .count();
             let selected_callbacks = if application.callable_application.is_valid() {
-                program
-                    .expression_table
+                expressions_of(program)
                     .static_machine_application_selected_machines(application.callable_application)
                     .to_vec()
             } else {
@@ -363,13 +390,20 @@ fn realize_capture(
                         // fresh expression recipe used by contract views.
                         let reference = match application.const_arguments.get(const_ordinal) {
                                 Some(typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
-                                    ..
+                                    value, ..
                                 }) => {
                                     // Use the shared static-operand namespace:
                                     // integers retain literal identity; aggregate
                                     // atoms retain the original carrier display.
-                                    let atom = super::const_arguments::spelling(program, argument)
-                                        .ok_or_else(|| vec![Diagnostic::error("evaluated map capture lost its canonical source operand")])?;
+                                    let canonical = language_semantics::const_value::CanonicalConstValue::new(
+                                        value.type_name.clone(), value.encoding.clone(), "",
+                                    );
+                                    let selected_value = typed_trees::expression::StaticMachineArgument {
+                                        path: vec![typed_trees::name::Identifier::generated(canonical.atom())].into_boxed_slice(),
+                                        ..Default::default()
+                                    };
+                                    let atom = super::const_arguments::spelling(program, &selected_value)
+                                        .ok_or_else(|| vec![Diagnostic::error("evaluated map capture lost its canonical value identity")])?;
                                     program.type_reference_table.insert(
                                         typed_trees::types::TypeReferenceNode::Named {
                                             symbol: SymbolHandle::invalid(),
@@ -464,19 +498,15 @@ fn realize_capture(
                         );
                 }
             }
-            let binding = program.expression_table.retain_static_machine_application(
+            let binding = expressions_of_mut(program).retain_static_machine_application(
                 conformance.symbol,
                 conformance.alias.clone().unwrap_or_default(),
                 &application.arguments,
             );
-            let retained = program
-                .expression_table
-                .static_machine_application_mut(binding);
+            let retained = expressions_of_mut(program).static_machine_application_mut(binding);
             retained.lexical_owner = supplying_owner;
             retained.binding_declaration = conformance.symbol;
-            program
-                .expression_table
-                .set_static_machine_application_bindings(binding, &bindings);
+            expressions_of_mut(program).set_static_machine_application_bindings(binding, &bindings);
             let lifetimes = conformance
                 .lifetime_parameters
                 .iter()
@@ -488,11 +518,9 @@ fn realize_capture(
                     }
                 })
                 .collect::<Vec<_>>();
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_lifetimes(binding, &lifetimes);
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);
             candidate.binding_application = binding;
             let machine = &program.machines()[index];
@@ -522,8 +550,7 @@ fn realize_capture(
                             &capture.conformance_application,
                             application,
                         )
-                        && program
-                            .expression_table
+                        && expressions_of(program)
                             .static_machine_application(capture.supplying_application)
                             .lexical_owner
                             == supplying_owner

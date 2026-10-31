@@ -12,6 +12,8 @@ use super::super::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
 use crate::execution::terminal_unit::types::terminal_field_identity;
+use crate::flow::expressions;
+use crate::places::place_at;
 
 /// The storage roots retained for source-validated stores: owned or exclusive
 /// borrowed structural parameters, established locals, and the `mut` scalar
@@ -133,12 +135,7 @@ pub(super) fn resolve<'a>(
         }
         _ => (assignment.target, None),
     };
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        ordinal,
-        target,
-    )?;
+    let place = place_at(program, state.symbol, ordinal, target)?;
     let materialized = |root: facts::PlaceRoot| {
         let Some(symbol) = root.as_symbol() else {
             return false;
@@ -903,12 +900,7 @@ fn rejoin_loan_local(
     } else {
         None
     };
-    let mut loaned = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        ordinal,
-        target,
-    )?;
+    let mut loaned = place_at(program, state.symbol, ordinal, target)?;
     loaned.segments.extend(place.segments);
     Some((loaned, recast_view))
 }
@@ -933,12 +925,7 @@ fn record_view_leaf(
     };
     let source = validation::declared_place_type_raw(program, machine, Some(state), target)?;
     let leaf = validation::recast_record_source_leaf(program, source, referee, *field)?;
-    let mut loaned = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        ordinal,
-        target,
-    )?;
+    let mut loaned = place_at(program, state.symbol, ordinal, target)?;
     for segment in leaf.path {
         loaned.segments.push(match segment {
             validation::RecastLeafSegment::Field(symbol) => facts::PlaceSegment::Field { symbol },
@@ -978,9 +965,7 @@ fn exclusive_reference_local_root<'a>(
     let (local_ordinal, local) = locals.next()?;
     if locals.next().is_some()
         || local_ordinal >= ordinal
-        || !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
+        || !expressions(program).expression_is_valid(local.initial_value)
     {
         return None;
     }

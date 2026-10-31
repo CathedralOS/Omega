@@ -20,7 +20,9 @@ data Room [copy] {
     discovered: bool;
 }
 
-data Level [copy] {
+data Level [copy]
+requires self.room_count <= 16
+{
     rooms: [Room; 16];
     room_count: u64;
     start_cell: CellId;

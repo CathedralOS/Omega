@@ -3,7 +3,8 @@
 //! Open tuples retain their exact bindings for universal checking; only closed
 //! tuples select executable instances through the shared specialization cache.
 
-use super::{CalleeState, Diagnostic, SymbolHandle, TypedTrees};
+use super::{CalleeState, Diagnostic, SymbolHandle, TypedTrees, failed};
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let requests = program
@@ -27,8 +28,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
     let mut selected = Vec::new();
     let mut created = Vec::new();
     for request in requests {
-        let application = program
-            .expression_table
+        let application = expressions_of(program)
             .static_machine_application(request.application)
             .clone();
         let Some(machine_index) =
@@ -46,8 +46,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
         };
         let mut candidate = super::candidate::from_machine(program, machine_index);
         candidate.binding_application = request.application;
-        let arguments = program
-            .expression_table
+        let arguments = expressions_of(program)
             .static_machine_application_arguments(request.application)
             .to_vec();
         let callee = CalleeState {
@@ -102,8 +101,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
             )]);
         }
         let retained = super::applications::candidate_bindings(program, &candidate);
-        program
-            .expression_table
+        expressions_of_mut(program)
             .set_static_machine_application_bindings(request.application, &retained);
         if open {
             selected.push((request.application, SymbolHandle::invalid()));
@@ -126,9 +124,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
             let identity =
                 validation::contract_identities::normalized_machine_identity(program, &machine)
                     .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "cleanup template has no normalized callable identity",
-                        )]
+                        failed("cleanup template has no normalized callable identity")
                     })?;
             let commitment = validation::contract_identities::accepted_template_commitment(
                 program,
@@ -140,18 +136,10 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
             let entry = states
                 .iter()
                 .find_map(|(source, target)| (*source == entry.symbol).then_some(*target))
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "cleanup specialization lost its entry correspondence",
-                    )]
-                })?;
+                .ok_or_else(|| failed("cleanup specialization lost its entry correspondence"))?;
             let instance = program
                 .machine_holding_state(entry)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "cleanup specialization entry lost its machine",
-                    )]
-                })?
+                .ok_or_else(|| failed("cleanup specialization entry lost its machine"))?
                 .symbol;
             created.push(instance);
             instance

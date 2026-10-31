@@ -1,5 +1,6 @@
 //! The arrival storage a structural place occupies.
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{Block, StructuralParameterDeclaration, TerminalMachine};
@@ -170,14 +171,9 @@ pub fn arrival_parameter<'machine>(
     machine: &'machine TerminalMachine,
     place: PlaceId,
 ) -> Option<&'machine StructuralParameterDeclaration> {
-    let mut place_declarations = machine
-        .structural_places
-        .iter()
-        .filter(|declaration| declaration.id == place);
-    let place_declaration = place_declarations.next()?;
-    if place_declarations.next().is_some() {
-        return None;
-    }
+    let place_declaration = exactly_one(machine.structural_places.iter(), |declaration| {
+        declaration.id == place
+    })?;
 
     match place_declaration.kind {
         StructuralPlaceKind::Parameter { position } => {
@@ -207,14 +203,7 @@ pub fn arrival_parameter<'machine>(
             {
                 return None;
             }
-            let mut owner_blocks = machine
-                .blocks
-                .iter()
-                .filter(|candidate| candidate.id == block);
-            let owner = owner_blocks.next()?;
-            if owner_blocks.next().is_some() {
-                return None;
-            }
+            let owner = exactly_one(machine.blocks.iter(), |candidate| candidate.id == block)?;
             let parameter = owner.structural_parameters.get(position as usize)?;
             (parameter.place == place
                 && parameter.position == position

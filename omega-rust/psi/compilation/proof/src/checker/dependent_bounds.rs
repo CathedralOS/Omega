@@ -4,6 +4,7 @@ use crate::checker::diagnostics::expression_display_name;
 use crate::obligations::{
     BoundedCallArgumentObligation, BoundedTransitionArgumentObligation, ProofConstraint, ProofPlan,
 };
+use crate::typed_expressions::statement_table;
 use language_core::{place_field, place_label};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::dependent_ranges::DependentBoundClass;
@@ -165,8 +166,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
         .position(|statement| {
             matches!(statement, StatementNode::Call(call)
                 if call.target_symbol == obligation.target_symbol
-                    && program
-                        .statement_table
+                    && statement_table(program)
                         .expression_handles(call.arguments)
                         .contains(&obligation.argument))
         })
@@ -412,10 +412,7 @@ fn state_preserves_place_path(
         machine,
         data_binding,
         field_path,
-        proof_plan
-            .program
-            .statement_table
-            .statements(state.statement_nodes),
+        statement_table(proof_plan.program).statements(state.statement_nodes),
     )
 }
 

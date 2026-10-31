@@ -57,7 +57,7 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8
 
 - **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership),
-  where machine/state parameters carry `requires`, results carry `ensures`, and locals take their facts
+  requires machine/state parameters carry `requires`, results carry `ensures`, and locals take their facts
   from initializers, guards and calls. This row is one customer group's nine-place transport and
   execution of that contract; the underlying numeric-policy realization is `ARITHMETIC-POLICY-REALIZATION`.
 - **Requirement established:** An 8-bit signed arithmetic right shift `val >> shift` of a

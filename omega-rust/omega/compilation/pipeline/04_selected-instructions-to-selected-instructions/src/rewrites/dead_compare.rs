@@ -96,35 +96,18 @@ pub(crate) use redundant::{
 pub(crate) use rewrite::remove_dead_compare;
 pub(crate) use validation::measured_steps;
 
-/// An accepted dead-compare removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedDeadCompare {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: DeadCompareReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted dead-compare removal with its replay receipt.
+    ValidatedDeadCompare,
+    DeadCompareReceipt
+);
 
-validated_transformed_receipt!(ValidatedDeadCompare, DeadCompareReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeadCompareReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    compare: SelectedInstructionId,
-}
-
-impl DeadCompareReceipt {
-    receipt_accessor_rows!(ref DeadCompareReceipt {
+rewrite_receipt!(DeadCompareReceipt {
     /// The transformed function index that carried the removed compare.
-        function_index: usize,
+    function_index: usize,
     /// The removed compare instruction.
-        compare: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(DeadCompareReceipt);
+    compare: SelectedInstructionId,
+});
 
 // Canonical identity of one validated dead-compare removal: every receipt
 // field — the coordinate, both plan identities, and the proof inputs — is

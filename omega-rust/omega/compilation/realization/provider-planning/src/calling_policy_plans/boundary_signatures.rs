@@ -2,33 +2,28 @@
 //! call carries, the materialized signature, and how signatures are
 //! collected from the typed program and its calling-policy machines.
 
-use crate::calling_policy_plans::build_time_decoding::PARAMETER_CAPACITY;
 use crate::calling_policy_plans::callback_bindings::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use calling_conventions::callback_nominal_report_fingerprint;
+use crate::provider_planning::type_reference_node;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
 use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
-    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, callback_requirement_id,
-    nominal_callback_native_parameter_id,
+    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
 };
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::boundary_values::{
+    BoundaryTypeBinding, BoundaryValuePreparation, substitute_boundary_type_reference,
+};
 use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use layout::{BoundaryTypeBinding, BoundaryValueLayout, substitute_boundary_type_reference};
+use layout::BoundaryValueLayout;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
-
-pub(crate) struct BoundarySignatureInstance<'a> {
-    pub(crate) signature: &'a checked_trees::typed_trees::signature::StateSignature,
-    pub(crate) requirement_identity: String,
-    pub(crate) bindings: Vec<BoundaryTypeBinding>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializedBoundarySignature {
@@ -269,14 +264,7 @@ pub struct BoundaryNativeParameter {
 
 pub use calling_conventions::BoundaryNativeParameterShape;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryDirectCallbackParameter {
-    pub(crate) name: String,
-    pub(crate) identity: NativeParameterId,
-    pub(crate) native_ordinal: u32,
-    pub(crate) binder: StaticMachineBinderId,
-    pub(crate) requirement: CallbackRequirementId,
-}
+pub use language_semantics::callback_declarations::BoundaryDirectCallbackDeclaration as BoundaryDirectCallbackParameter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallbackBinder {
@@ -288,92 +276,6 @@ pub struct BoundaryCallbackBinder {
     pub requirement_machine: symbols::SymbolHandle,
     pub requirement_identity: String,
     pub invokes_synchronously: bool,
-}
-
-/// Materialize the ABI of one explicit top-level boundary requirement.
-///
-/// Unlike a trait requirement, this declaration's `self` is the semantic
-/// carrier operated on by the selected satisfier. Conformance checking maps it
-/// to the satisfier's first explicit parameter, so it remains in the foreign
-/// signature rather than being erased as a provider receiver.
-pub(crate) fn call_signature_from_top_level_requirement(
-    typed: &TypedTrees,
-    requirement: &checked_trees::typed_trees::machine::Machine,
-    entry: &checked_trees::typed_trees::state::State,
-    owner_requirement_identity: &str,
-    native_target: NativeTarget,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
-) -> Result<MaterializedBoundarySignature, String> {
-    if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
-        || requirement.body_is_present
-        || !requirement.lifetime_parameters.is_empty()
-        || !typed.machine_type_parameters(requirement).is_empty()
-    {
-        return Err(
-            "compatibility calling plans require one nongeneric bodyless top-level boundary requirement"
-                .to_owned(),
-        );
-    }
-
-    let runtime_parameters = typed.state_parameters(entry);
-    if runtime_parameters.len() > PARAMETER_CAPACITY {
-        return Err(format!(
-            "top-level boundary requirement has {} native parameters; calling policies currently support at most {PARAMETER_CAPACITY}",
-            runtime_parameters.len(),
-        ));
-    }
-
-    let mut values =
-        BoundaryValueLayout::new(typed, native_target, &[], opaque_representation_selections);
-    let mut parameters = Vec::with_capacity(runtime_parameters.len());
-    let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
-    for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
-        let (_, root) = values.value_type(parameter.type_reference)?;
-        parameters.push(root);
-        let native_ordinal = u32::try_from(formal_ordinal)
-            .map_err(|_| "top-level boundary requirement has too many runtime parameters")?;
-        let identity = nominal_callback_native_parameter_id(
-            owner_requirement_identity,
-            parameter.name.as_str(),
-        );
-        validate_fresh_native_parameter_report_identity(
-            &native_parameters,
-            identity,
-            native_ordinal,
-        )?;
-        native_parameters.push(BoundaryNativeParameter {
-            identity,
-            native_ordinal,
-            shape: BoundaryNativeParameterShape::Semantic(root),
-            origin: BoundaryNativeParameterOrigin::SemanticFormal {
-                formal_ordinal: native_ordinal,
-            },
-            layout_data_symbol: exact_boundary_layout_root_symbol(typed, parameter.type_reference),
-        });
-    }
-
-    let result = if entry.return_type.is_valid() {
-        let (_, root) = values.value_type(entry.return_type)?;
-        Some(root)
-    } else {
-        None
-    };
-
-    let (shapes, fields, opaque_representations) = values.into_parts();
-    Ok(MaterializedBoundarySignature {
-        owner_requirement_identity: owner_requirement_identity.to_owned(),
-        native_target,
-        opaque_representations,
-        shapes,
-        fields,
-        parameters,
-        callback_binders: Vec::new(),
-        callback_demands: Vec::new(),
-        callback_layout_catalog: Vec::new(),
-        native_parameters,
-        direct_callback_parameters: Vec::new(),
-        result,
-    })
 }
 
 pub(crate) fn exact_compatibility_overload_index<'identity>(
@@ -435,260 +337,77 @@ pub(crate) fn compatibility_call_signature(
     })
 }
 
-pub(crate) fn collect_boundary_signatures<'a>(
-    typed: &'a TypedTrees,
-    definition: &'a checked_trees::typed_trees::trait_definition::TraitDefinition,
-    arguments: &[TypeReferenceHandle],
-    visited: &mut Vec<symbols::SymbolHandle>,
-    signatures: &mut Vec<BoundarySignatureInstance<'a>>,
-) {
-    if visited.contains(&definition.symbol) {
-        return;
-    }
-    visited.push(definition.symbol);
-    let bindings = trait_type_bindings(typed, definition, arguments);
-    for requirement in typed.trait_requirements(definition) {
-        if let Some(parent) = typed
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
-        {
-            let parent_arguments = typed
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-                .iter()
-                .map(|argument| substitute_boundary_type_reference(typed, *argument, &bindings))
-                .collect::<Vec<_>>();
-            collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures);
-        }
-    }
-    for signature in typed.trait_machine_signatures(definition) {
-        let requirement_identity =
-            typed.trait_requirement_callable_identity_text(definition, signature);
-        if !signatures
-            .iter()
-            .any(|candidate| candidate.requirement_identity == requirement_identity)
-        {
-            signatures.push(BoundarySignatureInstance {
-                signature,
-                requirement_identity,
-                bindings: bindings.clone(),
-            });
-        }
-    }
-    visited.pop();
-}
-
-pub(crate) fn trait_type_bindings(
-    typed: &TypedTrees,
-    definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
-    arguments: &[TypeReferenceHandle],
-) -> Vec<BoundaryTypeBinding> {
-    typed
-        .trait_type_parameters(definition)
-        .iter()
-        .zip(arguments.iter().copied())
-        .map(|(parameter, actual)| BoundaryTypeBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.as_str().to_owned(),
-            actual,
-        })
-        .collect()
-}
-
-pub(crate) fn call_signature_from_typed(
-    typed: &TypedTrees,
-    signature: &checked_trees::typed_trees::signature::StateSignature,
+/// Materialize the source owner's already-prepared declaration. Type recipes
+/// remain per-parameter work so a refused value stops before later values; the
+/// declaration telescope itself is shared across target requests.
+pub(crate) fn materialize_prepared_signature(
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+    declaration: &checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration,
     bindings: &[BoundaryTypeBinding],
-    owner_requirement_identity: &str,
-    native_target: NativeTarget,
+    layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
-    let mut values = BoundaryValueLayout::new(
-        typed,
-        native_target,
-        bindings,
-        opaque_representation_selections,
-    );
-    let mut parameters = Vec::new();
-    let mut callback_binders = Vec::new();
-    let mut static_machine_ordinal = 0u32;
-    let invocations =
-        checked_trees::typed_trees::invocations::declared_signature_invocations(typed, signature);
-    for parameter in typed.state_signature_type_parameters(signature) {
-        let checked_trees::typed_trees::data::TypeParameterKind::Machine { contract } =
-            &parameter.kind
-        else {
-            continue;
-        };
-        let ordinal = static_machine_ordinal;
-        static_machine_ordinal = static_machine_ordinal
-            .checked_add(1)
-            .ok_or_else(|| "boundary signature has too many static machine binders".to_owned())?;
-        let checked_trees::typed_trees::data::MachineParameterContract::Nominal {
-            trait_definition,
-            requirement,
-            ..
-        } = contract
-        else {
-            continue;
-        };
-        let trait_definition_row = typed
-            .trait_definition_by_symbol(*trait_definition)
-            .ok_or_else(|| "nominal callback binder lost its declaring trait".to_owned())?;
-        let requirement_row = typed
-            .trait_machine_signature_by_symbol(trait_definition_row, *requirement)
-            .ok_or_else(|| "nominal callback binder lost its exact requirement".to_owned())?;
-        let requirement_identity =
-            typed.trait_requirement_callable_identity_text(trait_definition_row, requirement_row);
-        let binder_report_fingerprint = callback_nominal_report_fingerprint(
-            b"omega.callback-binder.v1",
-            &[
-                owner_requirement_identity.as_bytes(),
-                &ordinal.to_le_bytes(),
-                parameter.name.as_str().as_bytes(),
-            ],
-        );
-        callback_binders.push(BoundaryCallbackBinder {
-            binder: StaticMachineBinderId::new(binder_report_fingerprint)
-                .expect("callback binder fingerprint is nonzero"),
-            requirement: callback_requirement_id(&requirement_identity),
-            static_machine_ordinal: ordinal,
-            parameter_symbol: parameter.symbol,
-            requirement_trait: *trait_definition,
-            requirement_machine: *requirement,
-            requirement_identity,
-            invokes_synchronously: invocations
-                .contains(&flow_effects::InvocationTarget::Service(*trait_definition)),
-        });
-    }
-
-    let runtime_parameters = typed
-        .state_signature_parameters(signature)
+    let prepared = declaration.projection.as_ref().map_err(Clone::clone)?;
+    let typed = services.context().typed;
+    let telescope = &prepared.telescope;
+    let callback_binders = telescope
+        .binders
         .iter()
-        .collect::<Vec<_>>();
-    let total_native_parameters = runtime_parameters
-        .len()
-        .checked_add(signature.native_callback_parameters.len())
-        .ok_or_else(|| "boundary native parameter telescope length overflow".to_owned())?;
-    if total_native_parameters > PARAMETER_CAPACITY {
-        return Err(format!(
-            "boundary signature has {total_native_parameters} native parameters; calling policies currently support at most {PARAMETER_CAPACITY}"
-        ));
-    }
-    let mut direct_callback_parameters = Vec::new();
-    for direct in &signature.native_callback_parameters {
-        let native_ordinal = usize::try_from(direct.native_ordinal)
-            .map_err(|_| "native callback parameter ordinal exceeds usize".to_owned())?;
-        if native_ordinal >= total_native_parameters {
-            return Err(format!(
-                "native callback parameter `{}` has telescope position {}, outside {} declared native parameters",
-                direct.name, direct.native_ordinal, total_native_parameters,
-            ));
-        }
-        if direct_callback_parameters
-            .iter()
-            .any(|prior: &BoundaryDirectCallbackParameter| {
-                prior.native_ordinal == direct.native_ordinal || prior.name == direct.name.as_str()
-            })
-            || runtime_parameters
-                .iter()
-                .any(|runtime| runtime.name.as_str() == direct.name.as_str())
-        {
-            return Err(format!(
-                "native callback parameter `{}` repeats a native telescope position or declared parameter name",
-                direct.name,
-            ));
-        }
-        let Some(machine_parameter) = typed
-            .state_signature_type_parameters(signature)
-            .iter()
-            .find(|parameter| parameter.name.as_str() == direct.binder.as_str())
-        else {
-            return Err(format!(
-                "native callback parameter `{}` names unknown machine binder `{}`",
-                direct.name, direct.binder,
-            ));
-        };
-        let Some(binder) = callback_binders
-            .iter()
-            .find(|binder| binder.parameter_symbol == machine_parameter.symbol)
-        else {
-            return Err(format!(
-                "native callback parameter `{}` binder `{}` does not have one exact nominal callback requirement",
-                direct.name, direct.binder,
-            ));
-        };
-        if direct_callback_parameters
-            .iter()
-            .any(|prior: &BoundaryDirectCallbackParameter| prior.binder == binder.binder)
-        {
-            return Err(format!(
-                "native callback binder `{}` is assigned to more than one declared native callback parameter",
-                direct.binder,
-            ));
-        }
-        direct_callback_parameters.push(BoundaryDirectCallbackParameter {
-            name: direct.name.as_str().to_owned(),
-            identity: nominal_callback_native_parameter_id(
-                owner_requirement_identity,
-                direct.name.as_str(),
-            ),
-            native_ordinal: direct.native_ordinal,
+        .zip(&prepared.callback_sources)
+        .map(|(binder, source)| BoundaryCallbackBinder {
             binder: binder.binder,
             requirement: binder.requirement,
-        });
-    }
-    direct_callback_parameters.sort_unstable_by_key(|parameter| parameter.native_ordinal);
-
-    let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
-    let mut next_native_ordinal = 0u32;
-    for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
-        while direct_callback_parameters
-            .iter()
-            .any(|direct| direct.native_ordinal == next_native_ordinal)
-        {
-            next_native_ordinal = next_native_ordinal
-                .checked_add(1)
-                .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
-        }
-        let (_, root) = values.value_type(parameter.type_reference)?;
+            static_machine_ordinal: binder.static_machine_ordinal,
+            parameter_symbol: source.parameter_symbol,
+            requirement_trait: source.requirement_trait,
+            requirement_machine: source.requirement_machine,
+            requirement_identity: binder.requirement_identity.clone(),
+            invokes_synchronously: binder.invokes_synchronously,
+        })
+        .collect();
+    let (representation_types, representation_uses) =
+        crate::boundary_value_recipes::representation_inputs(opaque_representation_selections);
+    let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
+    let mut values = BoundaryValueLayout::new(layout_target, &representation_uses);
+    let mut parameters = Vec::with_capacity(prepared.parameter_types.len());
+    let mut native_parameters = Vec::with_capacity(prepared.parameter_types.len());
+    for (formal_ordinal, (type_reference, formal)) in prepared
+        .parameter_types
+        .iter()
+        .copied()
+        .zip(&telescope.parameters)
+        .enumerate()
+    {
+        let recipe = preparation.value_type(type_reference);
+        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         parameters.push(root);
-        let type_reference =
-            substitute_boundary_type_reference(typed, parameter.type_reference, bindings);
-        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, type_reference);
+        let applied_type = substitute_boundary_type_reference(typed, type_reference, bindings);
+        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, applied_type);
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
-        let identity = nominal_callback_native_parameter_id(
-            owner_requirement_identity,
-            parameter.name.as_str(),
-        );
         validate_fresh_native_parameter_report_identity(
             &native_parameters,
-            identity,
-            next_native_ordinal,
+            formal.identity,
+            formal.native_ordinal,
         )?;
         native_parameters.push(BoundaryNativeParameter {
-            identity,
-            native_ordinal: next_native_ordinal,
+            identity: formal.identity,
+            native_ordinal: formal.native_ordinal,
             shape: BoundaryNativeParameterShape::Semantic(root),
             origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
             layout_data_symbol,
         });
-        next_native_ordinal = next_native_ordinal
-            .checked_add(1)
-            .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
     }
-    let result = if signature.return_type.is_valid() {
-        let (_, root) = values.value_type(signature.return_type)?;
-        Some(root)
+    let result = if prepared.return_type.is_valid() {
+        let recipe = preparation.value_type(prepared.return_type);
+        Some(values.value_type(preparation.recipes(), recipe)?.1)
     } else {
         None
     };
     let (shapes, fields, opaque_representations) = values.into_parts();
     Ok(MaterializedBoundarySignature {
-        owner_requirement_identity: owner_requirement_identity.to_owned(),
-        native_target,
+        owner_requirement_identity: declaration.requirement_identity.clone(),
+        native_target: layout_target.native_target(),
         opaque_representations,
         shapes,
         fields,
@@ -697,7 +416,7 @@ pub(crate) fn call_signature_from_typed(
         callback_demands: Vec::new(),
         callback_layout_catalog: Vec::new(),
         native_parameters,
-        direct_callback_parameters,
+        direct_callback_parameters: telescope.direct_callbacks.clone(),
         result,
     })
 }
@@ -707,7 +426,7 @@ pub(crate) fn exact_boundary_layout_root_symbol(
     mut type_reference: TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
     loop {
-        match typed.type_reference_table.type_reference(type_reference) {
+        match type_reference_node(typed, type_reference) {
             TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => return *symbol,

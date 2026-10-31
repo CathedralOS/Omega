@@ -87,9 +87,7 @@ pub(crate) fn encode_proposition_application(
     application: &PackageReviewPropositionApplication,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("declaration", &application.declaration, encode_nominal)?;
-    encoder.field("binders", |encoder| {
-        encoder.sequence(&application.binders, encode_proposition_binder)
-    })?;
+    encoder.sequence_field("binders", &application.binders, encode_proposition_binder)?;
     encoder.field("parameter_types", |encoder| {
         encoder.sequence(&application.parameter_types, encode_type_identity)
     })?;

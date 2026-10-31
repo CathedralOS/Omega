@@ -96,7 +96,7 @@ impl TerminalInstance<'_, '_> {
                 structural_type,
             } => {
                 if crate::structural_inputs::byte_arrays::byte_array_length(
-                    &execution.program.structural_types(),
+                    &execution.structural_types(),
                     *structural_type,
                 ) == Some(0)
                     && execution.initialized_empty_scalar_array(destination, *structural_type)?

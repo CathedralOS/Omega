@@ -6,6 +6,7 @@
 //! fingerprints exclude arena-local symbols. Runtime-scalar embedding and the
 //! conservation/backing consumers remain later P1c rungs.
 
+use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
 use language_semantics::content::{
@@ -350,7 +351,7 @@ fn normalize_projection_expression(
     algebra: &ContentAlgebraIdentity,
     expression: ExpressionHandle,
 ) -> Option<ContentProjectionExpression> {
-    let literal = program.expression_table.struct_literal_node(expression)?;
+    let literal = expression_table(program).struct_literal_node(expression)?;
     let expected_name = match algebra {
         ContentAlgebraIdentity::IntervalSet { .. } => "IntervalSet",
         ContentAlgebraIdentity::CountedQuantity { .. } => "CountedQuantity",
@@ -364,7 +365,7 @@ fn normalize_projection_expression(
     if literal_leaf != expected_name || literal.case_name.is_some() {
         return None;
     }
-    let fields = program.expression_table.struct_fields(literal.fields);
+    let fields = expression_table(program).struct_fields(literal.fields);
     match algebra {
         ContentAlgebraIdentity::IntervalSet { .. } => {
             let [start, end] = ["start", "end"].map(|name| {
@@ -402,7 +403,7 @@ fn normalize_projection_scalar_context(
     expression: ExpressionHandle,
     within_integer_coercion: bool,
 ) -> Option<ContentScalarExpression> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         // Content algebras are Nat-valued, while runtime integers and
         // addresses uniformly embed into proof Int. The explicit exact
         // conversion is semantic evidence at the source boundary; the
@@ -422,7 +423,7 @@ fn normalize_projection_scalar_context(
             (!value.is_negative()).then(|| ContentScalarExpression::Natural(value.to_string()))
         }
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             matches!(members, [first, second] if first.as_str() == "Nat" && second.as_str() == "Zero")
                 .then(|| ContentScalarExpression::Natural("0".to_owned()))
         }
@@ -431,7 +432,7 @@ fn normalize_projection_scalar_context(
         ExpressionNode::Call(call)
             if within_integer_coercion && is_content_scalar_embedding(program, call) =>
         {
-            let [argument] = program.expression_table.expression_handles(call.arguments) else {
+            let [argument] = expression_table(program).expression_handles(call.arguments) else {
                 return None;
             };
             let (path, field_type) = normalize_subject_field(program, subject, *argument)?;
@@ -470,15 +471,14 @@ fn normalize_projection_scalar_context(
         {
             match literal.case_name.as_ref().map(|name| name.as_str()) {
                 Some("Zero")
-                    if program
-                        .expression_table
+                    if expression_table(program)
                         .struct_fields(literal.fields)
                         .is_empty() =>
                 {
                     Some(ContentScalarExpression::Natural("0".to_owned()))
                 }
                 Some("Succ") => {
-                    let fields = program.expression_table.struct_fields(literal.fields);
+                    let fields = expression_table(program).struct_fields(literal.fields);
                     let [field] = fields else {
                         return None;
                     };
@@ -515,7 +515,7 @@ fn projection_arithmetic_has_integer_meaning(
     let Some(state) = program.state_by_symbol(subject.state) else {
         return false;
     };
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     let mut expression_type =
@@ -552,7 +552,7 @@ fn normalize_subject_field(
     subject: ProjectionSubject,
     expression: ExpressionHandle,
 ) -> Option<(Vec<ContentFieldSegment>, TypeReferenceHandle)> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) if path.symbol == subject.symbol => {
             Some((Vec::new(), subject.carrier))
         }

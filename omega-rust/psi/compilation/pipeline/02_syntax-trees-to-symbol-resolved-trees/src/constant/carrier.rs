@@ -1,5 +1,6 @@
 //! Numeric substitution preserves the selected declaration's landing boundary.
 
+use crate::tables::body_expressions;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{FloatFormat, FloatLiteral, IntegerLanding, LandedIntegerType};
@@ -37,11 +38,8 @@ fn retain_value_carrier(
         let elements = *elements;
         let element_type = program.child_type_reference(array.element_type).clone();
         for element_ordinal in 0..elements.count() {
-            let element = *program
-                .tables
-                .bodies
-                .expressions
-                .expression_handle_at_offset(elements, element_ordinal);
+            let element =
+                *body_expressions(&program).expression_handle_at_offset(elements, element_ordinal);
             retain_value_carrier(program, element, &element_type, reference)?;
         }
         return Ok(());

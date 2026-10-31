@@ -5,9 +5,9 @@ use omega_language_std::console;
 use omega::language::core::filesystem_authority;
 
 public machine rename_names_only(from: &[u8] in Path, to: &[u8] in Path) -> i32
-blocks;
+blocks
 reaches FilesystemNamespaceMutation
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 { block WindowsFilesystemHost::rename_file(from, to) }
 
 data Main { handle: u64; buffer: [u8; 8]; }

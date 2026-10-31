@@ -13,6 +13,7 @@ pub struct ResolvedAuthoredCallBinding {
 
 mod build_selection_origin;
 mod product_policy;
+pub mod provider_choices;
 pub use product_policy::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, AuthoredRootGrant,
 };

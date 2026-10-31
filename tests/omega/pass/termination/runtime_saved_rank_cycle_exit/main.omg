@@ -5,9 +5,8 @@ data Main {}
 data Distance { value: u32; }
 boundary machine - Distance::subtract(left: Distance, right: Distance) -> Distance;
 
-machine Main::count(remaining: u32, marker: u32)
-terminates by remaining in 0..=9;
--> u32
+machine Main::count(remaining: u32, marker: u32) -> u32
+terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition remaining > 0 {
@@ -23,9 +22,8 @@ requires remaining <= 9
     }
 }
 
-machine Main::step(remaining: u32, marker: u32)
-terminates by remaining in 0..=9;
--> u32
+machine Main::step(remaining: u32, marker: u32) -> u32
+terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition { _ -> Main::count(remaining, marker) }

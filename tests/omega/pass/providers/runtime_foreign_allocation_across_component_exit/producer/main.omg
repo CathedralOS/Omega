@@ -30,7 +30,7 @@ public RawAllocationProvider satisfies RawAllocation {
     }
 }
 public machine component_entry() reaches RawAllocation, NativeBytes
-invokes RawAllocation; invokes NativeBytes; crashes Trap {
+invokes RawAllocation invokes NativeBytes crashes Trap {
     let pointer: addr = RawAllocation::acquire();
     NativeBytes::release(pointer);
 }

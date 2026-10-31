@@ -27,6 +27,7 @@
 //! `Nest<[T; 2]>` in a growing recursive family.
 
 use crate::expression_roots::{append_statement_roots, visit_post_order};
+use crate::tables::expressions_of;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -267,6 +268,20 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     else {
         return;
     };
+    if let Some(storage) = program.layout_storage_arguments(reference) {
+        elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
+        if let Some(mut semantic) = program
+            .closed_data_field_definition(storage.semantic_type)
+            .cloned()
+        {
+            // This is a field view of the original semantic application, not a
+            // declaration or an owned wrapper. Every member keeps T's symbols,
+            // regions, predicates, relevance and cleanup disposition.
+            semantic.generic_instance = Some(reference);
+            program.retain_data_application_definition(reference, semantic, true);
+        }
+        return;
+    }
     let Some(template) = program
         .unique_data_definition_by_symbol(base_symbol)
         .cloned()
@@ -560,7 +575,7 @@ fn closed_expression(
     let mut expressions = Vec::new();
     validation::collect_expression_tree(program, expression, &mut expressions);
     !expressions.iter().any(|expression| {
-        matches!(program.expression_table.expression(*expression),
+        matches!(expressions_of(program).expression(*expression),
             typed_trees::expression::ExpressionNode::Name(path)
                 if path.symbol.is_valid() && matches!(program.symbols.get(path.symbol).kind,
                     SymbolKind::TypeParameter | SymbolKind::Parameter | SymbolKind::Local))

@@ -7,6 +7,7 @@
 //! slot or relabels derived loans as direct reborrows.
 
 use super::aliases::{self, ResolvedAlias};
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
     BorrowLoanLineage, CapturedPlace, CheckFacts, FlowConstraintRef, FlowStateFact,
@@ -67,17 +68,16 @@ pub(in crate::checks::borrows) fn resolve_all(
         }
         _ => {}
     }
-    let source = validation::canonical_place_from_expression_in_state(
+    let source = place_at(
         program,
         state.state_symbol,
         statement.statement_index,
         expression,
     )?;
     let place = CapturedPlace {
-        incoming_reference: Default::default(),
-        incoming_owner_path: Default::default(),
         root: source.root,
         segments: source.segments,
+        ..Default::default()
     };
     resolve_captured_all(
         program,
@@ -283,11 +283,7 @@ fn completed_call_established_loan(
             .completed_reference_loans
             .handles()
             .any(|candidate| candidate == handle)
-        && facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state.calls)
+        && crate::flow::call_flows(&facts.flow.control, state.calls)
             .iter()
             .any(|actual| {
                 actual.statement_index == loan.statement_index

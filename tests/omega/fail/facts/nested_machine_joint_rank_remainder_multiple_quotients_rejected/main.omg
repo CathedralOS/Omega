@@ -1,0 +1,5 @@
+machine invalid(value: u64) -> u64
+requires value >= 4 && value <= 8
+ensures result == value - 4
+{ value % 4 }
+machine main() {}

@@ -135,22 +135,19 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            let root = self
-                .structural_values
-                .get(&parameter.place)
-                .ok_or_else(malformed)?;
+            let root = self.structural_value(parameter.place)?;
             if !root.qualifications.is_empty() || root.structural_type != parameter.structural_type
             {
                 return Err(malformed());
             }
             let array_type = array_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 root.structural_type,
                 &argument.path,
             )
             .ok_or_else(malformed)?;
-            let length = byte_array_length(&self.program.structural_types(), array_type)
-                .ok_or_else(malformed)?;
+            let length =
+                byte_array_length(&self.structural_types(), array_type).ok_or_else(malformed)?;
             if argument.bytes.len() as u128 != u128::from(length) {
                 return Err(malformed());
             }
@@ -165,8 +162,7 @@ impl TerminalExecution<'_> {
             // collection operations see the same custody at either entry.
             if argument.path.is_empty()
                 && matches!(
-                    self.program
-                        .structural_types()
+                    self.structural_types()
                         .get(&array_type)
                         .map(|row| &row.shape),
                     Some(StructuralTypeShape::ByteSequence(
@@ -259,23 +255,59 @@ impl TerminalExecution<'_> {
             // A matched byte window must write that array. The runtime byte
             // store never received a copy, and manufacturing one would leave
             // the caller's elements unchanged.
-            (
-                self.structural_values
-                    .get(&place)
-                    .ok_or_else(malformed)?
-                    .clone(),
-                home,
-            )
+            (self.structural_value(place)?.clone(), home)
         } else {
             (
-                self.structural_values
-                    .get(&place)
-                    .ok_or_else(malformed)?
-                    .clone(),
+                self.structural_value(place)?.clone(),
                 ArrayStorageHome::Runtime,
             )
         };
         Ok(root)
+    }
+
+    /// Resolve the live collection before choosing its byte storage. Reference
+    /// and descriptor crossings retain the original backing, not the path in
+    /// the caller's reference carrier. Packed local roots use staged identities
+    /// so argument validation remains transactional.
+    fn byte_array_storage_staged(
+        &self,
+        source: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+        local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+    ) -> Result<(TerminalStructuralValue, ArrayStorage), TerminalInterpretError> {
+        let (selected, home) = self.element_collection_storage(source)?;
+        let referent = match selected {
+            Some(selected) => selected,
+            None => {
+                let (root, _) = self.array_storage_root_staged(
+                    source.place,
+                    identity_cursor,
+                    local_array_roots,
+                )?;
+                let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
+                resolve_single_structural_argument(&self.structural_types(), &values, source)?
+            }
+        };
+        let mut storage_referent = StructuralRuntimePlace::from(&referent);
+        let home = match home {
+            Some(home) => {
+                let (depth, place, structural_type) = home.storage.scalar_array_frame();
+                storage_referent.path = home.path;
+                ArrayStorageHome::Frame {
+                    depth,
+                    place,
+                    structural_type,
+                }
+            }
+            None => ArrayStorageHome::Runtime,
+        };
+        Ok((
+            referent,
+            ArrayStorage {
+                referent: storage_referent,
+                home,
+            },
+        ))
     }
 
     /// Whole-array loan whose payload still lives in the owner's scalar array.
@@ -285,12 +317,12 @@ impl TerminalExecution<'_> {
     ) -> Option<ArrayStorageHome> {
         let loan = self.element_view_values.get(&place)?;
         let (depth, frame_place, structural_type) =
-            loan.complete_scalar_array_frame(&self.program.structural_types())?;
+            loan.complete_scalar_array_frame(&self.structural_types())?;
         let array = self.frame_array(depth, frame_place)?;
         if array.structural_type != structural_type
             || !loan.matches_descriptor_home(self.structural_values.get(&place)?)
             || terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 structural_type,
             )?
             .1 != u64::try_from(array.len()).ok()?
@@ -307,7 +339,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn establish_byte_array_binding(
         &self,
         source: &StructuralArgument,
-        view_type: StructuralTypeId,
+        presentation: &TerminalStructuralValue,
         collection: &terminal_semantics::CollectionBacking,
         identity_cursor: &mut Option<u64>,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
@@ -321,7 +353,8 @@ impl TerminalExecution<'_> {
             let value = self.resolve_live_projection(source.place, &source.path, source.access)?;
             let binding = self.byte_descriptor_binding(source, &value)?;
             let length = self.byte_descriptor_length(&binding, &value)?;
-            if !value.qualifications.is_empty()
+            if (source.access == StructuralAccess::MutableBorrow
+                && !value.qualifications.is_empty())
                 || match collection.extent {
                     terminal_semantics::CollectionExtent::Fixed(capacity) => length != capacity,
                     terminal_semantics::CollectionExtent::StoredLength => false,
@@ -332,8 +365,17 @@ impl TerminalExecution<'_> {
             }
             let mut binding =
                 self.reborrow_byte_sequence_binding(&binding, &value, source.access)?;
+            // Authenticate the qualified source before creating the new
+            // descriptor. Its memberships stay on that source carrier;
+            // they are not qualifications of the result's different type.
+            if source.access == StructuralAccess::SharedBorrow {
+                return Ok((
+                    presentation.clone(),
+                    binding.with_descriptor_home(presentation.clone()),
+                ));
+            }
             let mut value = value;
-            value.structural_type = view_type;
+            value.structural_type = presentation.structural_type;
             match &mut binding {
                 ByteSequenceBinding::MutableArray {
                     referent,
@@ -342,7 +384,7 @@ impl TerminalExecution<'_> {
                 } => {
                     if descriptor_home.is_some() {
                         *descriptor_home = Some(value.clone());
-                        referent.structural_type = view_type;
+                        referent.structural_type = presentation.structural_type;
                     } else {
                         *referent = value.clone();
                     }
@@ -366,48 +408,28 @@ impl TerminalExecution<'_> {
                 collection.extent,
                 terminal_semantics::CollectionExtent::LiveLength { .. }
             ) {
-                let (coordinate, bytes) = self.bounded_owner_snapshot(source)?;
-                let value = TerminalStructuralValue {
-                    opaque_identity: coordinate.opaque_identity,
-                    structural_type: view_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: coordinate.path,
-                };
-                let bytes = bytes.with_descriptor_home(value.clone());
-                return Ok((value, ByteSequenceBinding::Immutable(bytes)));
+                let (_, bytes) = self.bounded_owner_snapshot(source)?;
+                let bytes = bytes.with_descriptor_home(presentation.clone());
+                return Ok((presentation.clone(), ByteSequenceBinding::Immutable(bytes)));
             }
             // Fixed-array shared descriptors use the same authenticated home
             // as mutable descriptors below. Their ordinary reads remain an
             // immutable observation; only the descriptor retains its loan.
         }
-        let (root, home) = self.array_storage_root_staged(
-            source.place,
+        let (mut referent, array) = self.byte_array_storage_staged(
+            source,
             identity_cursor,
             &mut RuntimeRows::new(self.account.as_ref()),
         )?;
-        let array_type = array_path_type(
-            &self.program.structural_types(),
-            root.structural_type,
-            &source.path,
-        )
-        .ok_or_else(malformed)?;
-        let length = byte_array_length(&self.program.structural_types(), array_type)
-            .ok_or_else(malformed)?;
-        let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
-        let mut referent =
-            resolve_single_structural_argument(&self.program.structural_types(), &values, &source)?;
-        let array = ArrayStorage {
-            referent: StructuralRuntimePlace::from(&referent),
-            home,
-        };
-        if !referent.qualifications.is_empty()
+        let array_type = referent.structural_type;
+        let length =
+            byte_array_length(&self.structural_types(), array_type).ok_or_else(malformed)?;
+        if (source.access == StructuralAccess::MutableBorrow && !referent.qualifications.is_empty())
             || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
         {
             return Err(malformed());
         }
-        referent.structural_type = view_type;
         if source.access == StructuralAccess::SharedBorrow {
             let length = usize::try_from(length).map_err(|_| malformed())?;
             let bytes = self
@@ -418,9 +440,10 @@ impl TerminalExecution<'_> {
                     offset: 0,
                     length,
                 })
-                .with_descriptor_home(referent.clone());
-            return Ok((referent, ByteSequenceBinding::Immutable(bytes)));
+                .with_descriptor_home(presentation.clone());
+            return Ok((presentation.clone(), ByteSequenceBinding::Immutable(bytes)));
         }
+        referent.structural_type = presentation.structural_type;
         let binding = ByteSequenceBinding::MutableArray {
             array,
             array_type,
@@ -445,7 +468,6 @@ impl TerminalExecution<'_> {
             parameter.access,
             terminal_psi::reading_borrow_pair_pattern!()
         ) || !self
-            .program
             .structural_types()
             .get(&parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
@@ -457,7 +479,7 @@ impl TerminalExecution<'_> {
         // descriptor lifetime as ownership of the referent.
         if !terminal_semantics::view_descriptor_parameter(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         ) || argument.access != parameter.access
             || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
@@ -467,10 +489,7 @@ impl TerminalExecution<'_> {
             && let Some(binding @ ByteSequenceBinding::Immutable(_)) =
                 self.byte_sequence_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             if parameter.access != StructuralAccess::SharedBorrow {
                 return Err(malformed());
             }
@@ -488,23 +507,17 @@ impl TerminalExecution<'_> {
                     .chain(machine.block_structural_parameters())
                     .find(|source| source.place == argument.place)
                     .ok_or_else(malformed)?;
-                let types = self.program.structural_types();
+                let types = self.structural_types();
                 if source.structural_type != value.structural_type
                     || source.access != StructuralAccess::SharedBorrow
                     || !matches!(
-                        types
-                            .get(&source.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&source.structural_type)?.shape,
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                         )
                     )
                     || !matches!(
-                        types
-                            .get(&parameter.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&parameter.structural_type)?.shape,
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
@@ -541,10 +554,7 @@ impl TerminalExecution<'_> {
             && let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
                 self.byte_sequence_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             self.check_byte_view_handback(value, argument, parameter)?;
             let borrowed = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
             if value.structural_type != parameter.structural_type {
@@ -558,7 +568,7 @@ impl TerminalExecution<'_> {
                     .chain(machine.block_structural_parameters())
                     .find(|source| source.place == argument.place)
                     .ok_or_else(malformed)?;
-                let types = self.program.structural_types();
+                let types = self.structural_types();
                 if source.structural_type != value.structural_type
                     || source.access != StructuralAccess::MutableBorrow
                     || parameter.access != StructuralAccess::SharedBorrow
@@ -627,8 +637,7 @@ impl TerminalExecution<'_> {
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.
-        let (root, home) =
-            self.array_storage_root_staged(argument.place, identity_cursor, local_array_roots)?;
+        let root_type = self.live_structural_type(argument.place)?;
         // A window changes the borrowed extent, never the backing's identity.
         // Keep the range out of the storage key so repeated and forwarded calls
         // update the same array and leave bytes outside the loan untouched.
@@ -636,14 +645,11 @@ impl TerminalExecution<'_> {
             Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
             _ => &argument.path,
         };
-        let Some(array_type) = array_path_type(
-            &self.program.structural_types(),
-            root.structural_type,
-            backing_path,
-        ) else {
+        let Some(array_type) = array_path_type(&self.structural_types(), root_type, backing_path)
+        else {
             return Ok(None);
         };
-        let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
+        let Some(length) = byte_array_length(&self.structural_types(), array_type) else {
             return Ok(None);
         };
         let machine = self.program.machine(self.current_machine)?;
@@ -686,11 +692,11 @@ impl TerminalExecution<'_> {
                 })
             })
             .ok_or_else(malformed)?;
-        if source.structural_type != root.structural_type {
+        if source.structural_type != root_type {
             return Err(malformed());
         }
         let window = terminal_semantics::fixed_byte_array_loan(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             &source,
             argument,
@@ -702,23 +708,8 @@ impl TerminalExecution<'_> {
             path: window.backing_path.to_vec(),
             access: argument.access,
         };
-        let local_values;
-        let values = if matches!(home, ArrayStorageHome::Frame { .. }) {
-            local_values =
-                RuntimeRows::from_rows(self.account.as_ref(), [(argument.place, root.clone())])?;
-            &local_values
-        } else {
-            &self.structural_values
-        };
-        let mut referent = resolve_single_structural_argument(
-            &self.program.structural_types(),
-            values,
-            &backing_argument,
-        )?;
-        let array = ArrayStorage {
-            referent: StructuralRuntimePlace::from(&referent),
-            home,
-        };
+        let (mut referent, array) =
+            self.byte_array_storage_staged(&backing_argument, identity_cursor, local_array_roots)?;
         if self.stored_byte_array_length(&array)? as u128 != u128::from(length) {
             return Err(malformed());
         }

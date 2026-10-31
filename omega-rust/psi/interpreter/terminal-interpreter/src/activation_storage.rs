@@ -256,7 +256,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             source,
         )?;
@@ -270,11 +270,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let (frame, identity, _, _) = *self
-            .activation_storage
-            .grants
-            .get(home)
-            .ok_or_else(malformed)?;
+        let (frame, identity, _, _) = *self.activation_storage.grants.require(home)?;
         if frame != (self.call_stack.len(), self.current_machine)
             || crate::custody::has_live_loan(self.reference_referents.as_map(), &selected)
         {
@@ -353,12 +349,9 @@ impl TerminalExecution<'_> {
             let parent_type = self.actual_storage_type_from_owner(&field.parent)?;
             let case = match field.namespace {
                 crate::values::StructuralFieldNamespace::Member => None,
-                crate::values::StructuralFieldNamespace::CasePayload => Some(
-                    self.structural_cases
-                        .get(&field.parent)
-                        .ok_or_else(malformed)?
-                        .case,
-                ),
+                crate::values::StructuralFieldNamespace::CasePayload => {
+                    Some(self.structural_cases.require(&field.parent)?.case)
+                }
             };
             let (fields, _) = self.active_field_declarations(parent_type, &field.parent, case)?;
             if !fields.iter().any(|row| row.id == field.field) {
@@ -429,7 +422,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         };
         let selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             source,
         )?;
@@ -448,11 +441,8 @@ impl TerminalExecution<'_> {
         let home = home.clone();
         let referent = referent.clone();
         let frame = (self.call_stack.len(), self.current_machine);
-        let (grant_frame, identity, _, claim_type) = *self
-            .activation_storage
-            .grants
-            .get(&home)
-            .ok_or_else(malformed)?;
+        let (grant_frame, identity, _, claim_type) =
+            *self.activation_storage.grants.require(&home)?;
         if grant_frame != frame {
             return Err(malformed());
         }
@@ -517,12 +507,12 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let lower_selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             lower,
         )?;
         let upper_selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             upper,
         )?;

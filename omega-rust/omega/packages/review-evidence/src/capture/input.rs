@@ -81,14 +81,26 @@ impl<'a> PackageReviewInput<'a> {
     /// in custody; source handles never cross between these namespaces.
     pub(super) fn project_service_declarations(
         &self,
-    ) -> provider_planning::service_declarations::ServiceDeclarations {
-        provider_planning::service_declarations::ServiceDeclarations::prepare(
-            provider_planning::ProviderPlanningContext::new(
-                self.checking_input,
-                source::DependencyScope::Product,
+    ) -> Result<
+        provider_planning::service_declarations::ServiceDeclarations,
+        Vec<diagnostics::Diagnostic>,
+    > {
+        let context = provider_planning::ProviderPlanningContext::new(
+            self.checking_input,
+            source::DependencyScope::Product,
+        );
+        // The supplied candidate is independent source, never the custody's
+        // source-coordinate catalog. Keep the borrowed owner unchanged here.
+        let catalog =
+            checked_trees::typed_trees::service_declarations::PreparedServiceCatalog::prepare(
+                context,
+            );
+        Ok(
+            provider_planning::service_declarations::ServiceDeclarations::prepare(
+                catalog.bind(context).map_err(|error| vec![error])?,
+                &self.custody.providers().boundary_calling_plan_realizations,
+                self.custody.sources().exact_toolchain_sources(),
             ),
-            &self.custody.providers().boundary_calling_plan_realizations,
-            self.custody.sources().exact_toolchain_sources(),
         )
     }
 
@@ -120,6 +132,22 @@ impl<'a> PackageReviewInput<'a> {
             ));
         }
         Ok(target)
+    }
+}
+
+impl<'a> PackageReviewInput<'a> {
+    /// Every retained authored selection row that settled one authored
+    /// occurrence of `expression`, in occurrence order. An occurrence the
+    /// checking ledger never settled contributes no row; callers keep their own
+    /// exactness and exposure gates over the result.
+    pub(crate) fn authored_selections(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> impl Iterator<
+        Item = &language_semantics::declaration_selection::AuthoredDeclarationSelection,
+    > + '_ {
+        self.authored_selection_occurrences(expression)
+            .filter_map(|occurrence| self.authored_declaration_selections().get(occurrence))
     }
 }
 

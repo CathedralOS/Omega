@@ -7,6 +7,8 @@
 //! operator-token bindings once every selection has settled.
 
 use crate::lowering::expression::expression_table;
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
 use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
 mod type_equations;
@@ -17,6 +19,7 @@ pub(crate) use token_bindings::{
 
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_names;
 use crate::lowering::state::{
     lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
     lower_state_body, lower_state_node,
@@ -135,8 +138,7 @@ fn lower_lexical_machine_parts(
     lowerer.current_machine_is_boundary = machine.boundary;
     lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
     lowerer.current_machine_name = Some(machine.name.as_str(syntax_trees).to_owned());
-    lowerer.current_evidence_term_names = syntax_trees
-        .items
+    lowerer.current_evidence_term_names = syntax_items(&syntax_trees)
         .capability_contracts(machine.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
@@ -158,8 +160,7 @@ fn lower_lexical_machine_parts(
                 .iter()
                 .copied()
                 .zip(
-                    syntax_trees
-                        .items
+                    syntax_items(&syntax_trees)
                         .state_handles(machine.states)
                         .iter()
                         .copied(),
@@ -253,14 +254,12 @@ fn lower_lexical_machine_parts(
     // an admission claim. Supply is decided before the
     // push so the interner borrow does not overlap the machines borrow.
     let supply_mode = {
-        let via_binding = syntax_trees
-            .items
+        let via_binding = syntax_items(&syntax_trees)
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
             .map(|value| external_binding_identity(syntax_trees, value));
-        let has_via_expression = syntax_trees
-            .items
+        let has_via_expression = syntax_items(&syntax_trees)
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
@@ -287,8 +286,7 @@ fn lower_lexical_machine_parts(
             // actually authors a fact. Claim-free symbols such as the
             // axiomatic Real package's operations assert nothing and need no
             // grant; they remain ordinary boundary supply.
-            let authors_fact = syntax_trees
-                .items
+            let authors_fact = syntax_items(&syntax_trees)
                 .capability_contracts(machine.contracts)
                 .iter()
                 .any(|contract| {
@@ -374,11 +372,7 @@ fn lower_lexical_machine_parts(
         compiler_selection_partition,
         body_status,
         storage: MachineStorage {
-            lifetime_parameters: machine
-                .lifetime_parameters
-                .iter()
-                .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                .collect(),
+            lifetime_parameters: lower_names(syntax_trees, &machine.lifetime_parameters),
             type_parameters,
             declared_type_equations,
             declared_type_predicates,
@@ -503,8 +497,7 @@ fn with_pending_machine_scope<T>(
     let previous_name = lowerer
         .current_machine_name
         .replace(pending.source.name.as_str(syntax).to_owned());
-    let evidence_names = syntax
-        .items
+    let evidence_names = syntax_items(&syntax)
         .capability_contracts(pending.source.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
@@ -623,9 +616,7 @@ fn build_termination_plan(
         TerminationInterface::InternalDerived
     };
 
-    let subjects = syntax_trees
-        .expressions
-        .expression_handles(machine.ranking_subjects);
+    let subjects = syntax_expressions(&syntax_trees).expression_handles(machine.ranking_subjects);
     let implementation_witness = (!subjects.is_empty()).then(|| {
         let (ranking_view, view_path) = elaborate_ranking_view(
             lowerer,
@@ -644,8 +635,7 @@ fn build_termination_plan(
             view_path,
             // TPR3: an argumented view's arguments, rendered source-like in
             // order (`Nat::IncreasingTo(limit)` carries `["limit"]`).
-            view_arguments: syntax_trees
-                .expressions
+            view_arguments: syntax_expressions(&syntax_trees)
                 .expression_handles(machine.ranking_view_arguments)
                 .iter()
                 .map(|argument| render_ranked_subject(syntax_trees, *argument))
@@ -684,8 +674,7 @@ fn render_ranked_subject(
     match syntax_trees.expressions.expression(subject) {
         // Range endpoints are commonly literals (`in 0..=capacity`).
         syntax::expression::ExpressionNode::Integer(literal) => literal.to_string(),
-        syntax::expression::ExpressionNode::Name(path) => syntax_trees
-            .expressions
+        syntax::expression::ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
             .identifier_path_members(*path)
             .joined_path_with_in(syntax_trees, "."),
         syntax::expression::ExpressionNode::Member(member) => format!(
@@ -727,9 +716,7 @@ fn elaborate_ranking_view(
 ) -> (language_semantics::RankingViewId, String) {
     use language_semantics::RankingViewId;
 
-    let order = syntax_trees
-        .items
-        .identifier_path_members(machine.ranking_view);
+    let order = syntax_items(&syntax_trees).identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
         let path = order.joined_path_in(syntax_trees);
         let id = RankingViewId::canonical(&path).unwrap_or(RankingViewId::NULL);
@@ -790,8 +777,7 @@ fn elaborate_single_subject_default(
     };
     let trees = &lowerer.symbol_resolved_trees;
     let pending = (RankingViewId::NULL, String::new());
-    let Some(subject_name) = syntax_trees
-        .expressions
+    let Some(subject_name) = syntax_expressions(&syntax_trees)
         .identifier_path_members(*path)
         .last()
     else {
@@ -877,10 +863,7 @@ fn lower_ranking_expressions(
 ) -> Result<HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
     let mut lowered = Vec::new();
 
-    for expression in syntax_trees
-        .expressions
-        .expression_handles(source_expressions)
-    {
+    for expression in syntax_expressions(&syntax_trees).expression_handles(source_expressions) {
         let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowered.push(expression);
     }
@@ -923,11 +906,7 @@ fn lower_machine_trait_conformances(
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
                     name: crate::lowering::name::lower_name(syntax_trees, &clause.trait_name),
-                    lifetime_arguments: clause
-                        .lifetime_arguments
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect(),
+                    lifetime_arguments: lower_names(syntax_trees, &clause.lifetime_arguments),
                     arguments,
                     requirement: clause
                         .requirement

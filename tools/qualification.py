@@ -30,7 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from recovery_state import RecoveryError, atomic_json, exclusive, read_json
 from compiler_profile import CARGO_RECEIPT_SCHEMA, CompilerProfileError, is_optimized_profile, require_optimized
 
-SCHEMA = "omega-qualification-v1"
+SCHEMA = "omega-qualification-v2"
+LEGACY_SCHEMA = "omega-qualification-v1"
+RUN_RECEIPT_FIELDS = ("source_stamps", "artifact_stamps")
+ASSESSMENT_RECEIPT_FIELDS = ("incoming_paths",)
 PROFILE_KEYS = ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
                 "CARGO_PROFILE_DEV_OPT_LEVEL", "CARGO_PROFILE_DEV_DEBUG",
                 "CARGO_PROFILE_TEST_OPT_LEVEL", "CARGO_PROFILE_TEST_DEBUG")
@@ -395,15 +398,112 @@ def work_context_prompt(packet):
 
 
 def _validated_record(record):
-    require(record.get("schema") == SCHEMA and type(record.get("revision")) is int,
+    require(record.get("schema") in {SCHEMA, LEGACY_SCHEMA} and type(record.get("revision")) is int,
             "unsupported qualification record")
     definition(record["config"])
     require(record["config_digest"] == digest(record["config"]), "qualification definition mismatch")
+    for name, fields in (("runs", RUN_RECEIPT_FIELDS), ("assessments", ASSESSMENT_RECEIPT_FIELDS)):
+        for row in record[name]:
+            if name == "assessments" and record["schema"] == SCHEMA:
+                require("receipt" in row, "v2 assessment requires its authenticated receipt")
+            if "receipt_fields" in row:
+                require(record["schema"] == SCHEMA and row["receipt_fields"] == list(fields)
+                        and not any(field in row for field in fields), "invalid receipt-backed field roster")
     return record
 
 
 def load(path):
     return _validated_record(read_json(path))
+
+
+def receipt_row(row, fields):
+    """Authenticate the exact payload we decode, including every inline field.
+
+    Only the fixed snapshot fields may be absent from the index. A forged
+    additional/missing semantic field must not disappear during hydration.
+    """
+    reference = row.get("receipt")
+    require(isinstance(reference, dict) and set(reference) == {"path", "sha256"}
+            and isinstance(reference["path"], str) and Path(reference["path"]).is_absolute(),
+            "observation_record_mismatch: invalid receipt reference")
+    payload = Path(reference["path"]).read_bytes()
+    require(hashlib.sha256(payload).hexdigest() == reference["sha256"],
+            "observation_record_mismatch: receipt digest")
+    captured = json.loads(payload.decode("utf-8"))
+    require(isinstance(captured, dict) and not {"receipt", "receipt_fields"} & captured.keys(),
+            "observation_record_mismatch: reserved receipt fields")
+    compact = "receipt_fields" in row
+    require(not compact or (row["receipt_fields"] == list(fields)
+                            and all(field in captured for field in fields)
+                            and not any(field in row for field in fields)),
+            "observation_record_mismatch: receipt-backed field roster")
+    expected = {key: value for key, value in captured.items() if not compact or key not in fields}
+    indexed = {key: value for key, value in row.items() if key not in {"receipt", "receipt_fields"}}
+    # Python equality conflates JSON booleans and numbers (False == 0).
+    # The original observation's typed values, not just loose equality, bind.
+    require(digest(indexed) == digest(expected), "observation_record_mismatch: indexed fields")
+    return dict(captured, receipt=reference)
+
+
+def observation(row):
+    return receipt_row(row, RUN_RECEIPT_FIELDS)
+
+
+def assessment(row):
+    if "receipt" in row or "receipt_fields" in row:
+        return receipt_row(row, ASSESSMENT_RECEIPT_FIELDS)
+    require({"candidate", "base", "checks", "incoming_paths", "duration_seconds", "reused", "invalidated"}
+            <= row.keys(), "complete inline legacy assessment required")
+    return row
+
+
+def expanded_record(record):
+    """Explicit full-history presentation; ordinary state operations stay indexed."""
+    return dict(record, runs=[observation(row) if "receipt_fields" in row else row for row in record["runs"]],
+                assessments=[assessment(row) for row in record["assessments"]])
+
+
+def compact_observation(row):
+    if "receipt_fields" in row or not all(field in row for field in RUN_RECEIPT_FIELDS):
+        return row
+    try:
+        observation(row)
+    except (RecoveryError, OSError, ValueError):
+        # Keep damaged/unbound legacy observations verbatim, still nonreusable.
+        # Dropping their differing fields would launder them into the receipt.
+        return row
+    return dict({key: value for key, value in row.items() if key not in RUN_RECEIPT_FIELDS},
+                receipt_fields=list(RUN_RECEIPT_FIELDS))
+
+
+def compact_assessment(path, row):
+    if "receipt_fields" in row:
+        return row
+    assessment(row)
+    if "receipt" in row:
+        reference = row["receipt"]
+    else:
+        # Assessments did not previously have receipts. Preserve their complete
+        # authored rows before replacing large path lists in the mutable index.
+        # Content-addressed names let an interrupted state save reuse its orphan.
+        sha256 = hashlib.sha256((json.dumps(row, sort_keys=True, allow_nan=False) + "\n").encode()).hexdigest()
+        destination = Path(path).with_suffix(".records") / (sha256 + ".assessment.json")
+        if destination.exists():
+            require(file_digest(destination) == sha256, "assessment receipt collision; retain and reconcile")
+        else:
+            require(atomic_json(destination, row, indent=None, with_digest=True) == sha256,
+                    "assessment receipt digest mismatch")
+        reference = dict(path=str(destination.resolve()), sha256=sha256)
+    return dict({key: value for key, value in row.items() if key not in ASSESSMENT_RECEIPT_FIELDS},
+                receipt=reference, receipt_fields=list(ASSESSMENT_RECEIPT_FIELDS))
+
+
+def compact_state(path, record):
+    """Move only authenticated snapshots out of the index; retain all history."""
+    record["runs"] = [compact_observation(row) for row in record["runs"]]
+    record["assessments"] = [compact_assessment(path, row) for row in record["assessments"]]
+    record["schema"] = SCHEMA
+    return record
 
 
 class _RunSnapshot:
@@ -437,7 +537,8 @@ class _RunSnapshot:
         prior = next((row for row in reversed(record["runs"]) if row["check"] == name), None)
         return copy.deepcopy(dict(repository=record["repository"], config=record["config"],
             qualification_revision=record["qualification_revision"],
-            assessments=record["assessments"][-1:], runs=[prior] if prior else []))
+            assessments=[assessment(record["assessments"][-1])] if record["assessments"] else [],
+            runs=[prior] if prior else []))
 
     @property
     def revision(self):
@@ -461,6 +562,7 @@ class _RunSnapshot:
             require_active(record, path)
             change(record)
             record["revision"] += 1
+            compact_state(path, record)
             sha256 = atomic_json(path, record, indent=None, with_digest=True)
             # Bind the exact successfully persisted payload while still locked,
             # rather than hashing a file another writer could replace later.
@@ -474,6 +576,7 @@ def update(path, expected, change):
         require_active(record, path)
         change(record)
         record["revision"] += 1
+        compact_state(path, record)
         atomic_json(path, record, indent=None)
         return record
 
@@ -633,7 +736,7 @@ def recover_completed(repository, path, expected, review_path, *, disposition="a
         running = record["running"]
         require(isinstance(running, dict), "no completed capture reservation")
         require(head == running["candidate"], "completed recovery requires the original candidate")
-        allowed = record["assessments"][-1]["candidate"] if record["assessments"] else record["qualification_revision"]
+        allowed = assessment(record["assessments"][-1])["candidate"] if record["assessments"] else record["qualification_revision"]
         require(head == allowed, "completed capture candidate is no longer assessed")
         operation = running.get("id")
         require(isinstance(operation, str) and re.fullmatch(r"[0-9a-f]{32}", operation),
@@ -862,7 +965,7 @@ def amend(path, expected, config, reason, base=None):
     require(reason, "amendment needs a reviewed reason")
     def change(record):
         require(not record["running"], "cannot amend while qualification command runs")
-        previous_base = record["assessments"][-1]["base"] if record["assessments"] else record["base"]
+        previous_base = assessment(record["assessments"][-1])["base"] if record["assessments"] else record["base"]
         candidate = clean_head(record["repository"])
         canonical_base = previous_base if base is None else revision(record["repository"], base)
         if base is not None:
@@ -882,10 +985,9 @@ def reasons(repository, record, check, run, candidate):
     if not run:
         return ["not_run"]
     result = []
-    receipt = run.get("receipt", {})
-    receipt_path = Path(receipt.get("path", ""))
-    if (not receipt_path.is_file() or file_digest(receipt_path) != receipt.get("sha256")
-            or read_json(receipt_path) != {key: value for key, value in run.items() if key != "receipt"}):
+    try:
+        observation(run)
+    except (RecoveryError, OSError, ValueError):
         result.append("observation_record_mismatch")
     if run.get("definition") != digest(check):
         result.append("check_definition_changed")
@@ -1067,7 +1169,7 @@ def run_check(repository, path, expected, name):
     snapshot = _RunSnapshot.read(path)
     record = snapshot.context(name)
     require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
-    allowed = record["assessments"][-1]["candidate"] if record["assessments"] else record["qualification_revision"]
+    allowed = assessment(record["assessments"][-1])["candidate"] if record["assessments"] else record["qualification_revision"]
     require(head == allowed, "HEAD moved; assess the integrated candidate before requalification")
     check = next((row for row in record["config"]["checks"] if row["id"] == name), None)
     require(check, "unknown check")
@@ -1182,8 +1284,8 @@ def _validate(repository, path, candidate, base):
     record = load(path)
     require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
     require(not record["running"] and record["assessments"], "qualification assessment unfinished")
-    assessment = record["assessments"][-1]
-    require(assessment["candidate"] == candidate and assessment["base"] == base,
+    latest = assessment(record["assessments"][-1])
+    require(latest["candidate"] == candidate and latest["base"] == base,
             "qualification assessment covers a stale candidate/base")
     require(clean_head(repository) == candidate, "qualification candidate is not clean HEAD")
     rows = plan(repository, record, candidate, base)
@@ -1195,8 +1297,8 @@ def _validate(repository, path, candidate, base):
 
 def state_output(record, path, summary):
     """Summaries present retained evidence; only the canonical state owns it."""
-    if not summary or record.get("schema") != SCHEMA:
-        return json.dumps(record, indent=2)
+    if not summary or record.get("schema") not in {SCHEMA, LEGACY_SCHEMA}:
+        return json.dumps(expanded_record(record) if record.get("schema") in {SCHEMA, LEGACY_SCHEMA} else record, indent=2)
     result = dict(schema="omega-qualification-summary-v1", state=str(Path(path).resolve()))
     for key in ("revision", "base", "qualification_revision", "running", "source_ref"):
         result[key] = record[key]
@@ -1207,7 +1309,7 @@ def state_output(record, path, summary):
         result["latest_run"] = {key: latest[key] for key in
             ("id", "check", "revision", "exit", "invalidations", "duration_seconds", "receipt")}
     if record["assessments"]:
-        result["latest_assessment"] = record["assessments"][-1]
+        result["latest_assessment"] = assessment(record["assessments"][-1])
     return json.dumps(result, indent=2)
 
 
@@ -1244,7 +1346,7 @@ def main(arguments=None):
             record = None
             if options.state:
                 record = load(Path(options.state).resolve())
-                base = options.base or (record["assessments"][-1]["base"] if record["assessments"] else record["base"])
+                base = options.base or (assessment(record["assessments"][-1])["base"] if record["assessments"] else record["base"])
                 config = record["config"]
             else:
                 require(options.base and options.config, "context needs --state or --base/--config")
@@ -1254,7 +1356,7 @@ def main(arguments=None):
                 packet = work_handoff(repository, config, base, options.role,
                                       read_json(options.previous) if options.previous else None)
                 if record and packet.get("canonical_context") is not None:
-                    packet["assessments"] = record.get("assessments", [])
+                    packet["assessments"] = [assessment(row) for row in record.get("assessments", [])]
                 print(json.dumps(packet, indent=2))
                 return 0
             context = contract_mapping(repository, config, base, git(repository, "rev-parse", "HEAD"))
@@ -1320,7 +1422,7 @@ def main(arguments=None):
             require(options.base, "assess needs the integrated --base")
             result = assess(repository, path, options.revision, options.base)
             if options.command == "run-pending":
-                for row in result["assessments"][-1]["checks"]:
+                for row in assessment(result["assessments"][-1])["checks"]:
                     if row["action"] == "rerun":
                         result, accepted = run_check(repository, path, result["revision"], row["check"])
                         if not accepted:

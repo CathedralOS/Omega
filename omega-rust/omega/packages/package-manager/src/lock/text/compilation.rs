@@ -5,6 +5,7 @@ use super::{
     budget::Budget,
     framing::{Reader, Writer},
 };
+use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 use effects::{
@@ -105,9 +106,7 @@ pub(super) fn read(
     budget.elements(count)?;
     budget.entries::<AcceptedSemanticBinding>(count)?;
     let mut bindings = Vec::new();
-    bindings
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(bindings, count, Error);
     for _ in 0..count {
         let role = [reader.count("role", u8::MAX as usize)? as u8];
         let role = recover_semantic_binding_role(&mut ObservationCursor::new(&role))
@@ -137,9 +136,7 @@ pub(super) fn read(
         budget.entries::<ServiceTerminalAuthorityPermission>(count)?;
         let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let mut permissions: Vec<ServiceTerminalAuthorityPermission> = Vec::new();
-        permissions
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(permissions, count, Error);
         for _ in 0..count {
             let permission_schema =
                 ServiceSchemaDigest::from_digest(digest(reader.field("schema")?)?);
@@ -153,9 +150,7 @@ pub(super) fn read(
             budget.elements(count)?;
             budget.entries::<TerminalAuthorityClass>(count)?;
             let mut classes = Vec::new();
-            classes
-                .try_reserve_exact(count)
-                .map_err(|_| Error::AllocationFailed)?;
+            crate::reserve!(classes, count, Error);
             for _ in 0..count {
                 let tag = reader.count("class", u8::MAX as usize)? as u8;
                 classes.push(
@@ -189,19 +184,7 @@ fn hexadecimal(digest: [u8; 32]) -> String {
 }
 
 fn digest(text: &str) -> Result<[u8; 32], Error> {
-    if text.len() != 64
-        || !text
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        return Err(Error::InvalidFraming);
-    }
-    let mut bytes = [0; 32];
-    for (index, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&text[index * 2..index * 2 + 2], 16)
-            .map_err(|_| Error::InvalidFraming)?;
-    }
-    Ok(bytes)
+    hex_digest(text).ok_or(Error::InvalidFraming)
 }
 
 #[cfg(test)]
@@ -265,6 +248,16 @@ mod tests {
         )
     }
 
+    /// A compilation record names exactly one occurrence: a different package,
+    /// purpose, target or execution profile must refuse to decode it.
+    fn refuses_occurrence(text: &str, key: PackageKeyIdentity, context: PackageCheckedContext) {
+        let mut budget = Budget::new(PackageLockRecoveryLimits::default());
+        assert_eq!(
+            read(text, key, context, &mut budget),
+            Err(Error::OccurrenceCoverage)
+        );
+    }
+
     #[test]
     fn exact_compilation_bindings_and_permissions_roundtrip() {
         let original = sample();
@@ -303,15 +296,7 @@ mod tests {
     fn compilation_inputs_cannot_move_between_occurrences_or_contexts() {
         let text = write(&sample(), package(), context()).unwrap();
         let other_package = PackageKeyIdentity::from_digest([8; 32]).unwrap();
-        assert_eq!(
-            read(
-                &text,
-                other_package,
-                context(),
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, other_package, context());
         assert_eq!(
             recover(&text.replace("purpose product", "purpose build")),
             Err(Error::OccurrenceCoverage)
@@ -321,15 +306,7 @@ mod tests {
             context().target(),
             context().build_execution_profile(),
         );
-        assert_eq!(
-            read(
-                &text,
-                package(),
-                build,
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, package(), build);
         let other_target = TargetProfile::ALL
             .into_iter()
             .find(|target| *target != context().target())
@@ -339,26 +316,10 @@ mod tests {
             other_target,
             context().build_execution_profile(),
         );
-        assert_eq!(
-            read(
-                &text,
-                package(),
-                other_target,
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, package(), other_target);
         let other_execution =
             PackageCheckedContext::new(DependencyPurpose::Product, context().target(), None);
-        assert_eq!(
-            read(
-                &text,
-                package(),
-                other_execution,
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, package(), other_execution);
     }
 
     #[test]

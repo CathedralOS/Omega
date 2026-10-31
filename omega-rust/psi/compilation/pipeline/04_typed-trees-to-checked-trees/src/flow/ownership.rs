@@ -7,9 +7,9 @@
 //! that distinction from local, store, call and result contexts through the
 //! same expression walk; a later checker must not guess it from an empty path.
 //! Exact place types stay with validation's value-custody projection owner.
-use validation::canonical_place_from_expression_in_state;
 
 use crate::flow::canonical_place_from_symbol;
+use crate::places::place_at;
 use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
@@ -67,12 +67,8 @@ pub(super) fn append_statement_ownership_events(
             // initializer. Record the production as a move into the target
             // place.
             if initializer_produces_owned_value(program, assignment.value)
-                && let Some(place) = canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    assignment.target,
-                )
+                && let Some(place) =
+                    place_at(program, state_symbol, statement_index, assignment.target)
             {
                 append_move_event_for_place(
                     sink,
@@ -195,10 +191,7 @@ pub(super) fn append_statement_ownership_events(
             statement_index,
             *expression,
             if statement_index + 1
-                == program
-                    .statement_table
-                    .statements(sink.state.statement_nodes)
-                    .len()
+                == crate::flow::state_statements(program, sink.state.statement_nodes).len()
             {
                 sink.state.return_type
             } else {

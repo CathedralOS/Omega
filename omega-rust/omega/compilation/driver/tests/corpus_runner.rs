@@ -797,21 +797,19 @@ fn interpret_checked_fixture(
             "checked fixture has no selected ProgramEntry",
         );
     };
-    let dispatch = match selected_dispatch::prepare_checked_interpreter_dispatch(
-        checked.execution(),
-        &checked.providers().boundary_calling_plan_realizations,
-    ) {
-        Ok(dispatch) => dispatch,
-        Err(errors) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:declined".to_owned()],
-                diagnostics: errors
-                    .iter()
-                    .map(|error| host_free_diagnostic_text(&error.message))
-                    .collect(),
-            };
-        }
-    };
+    let dispatch =
+        match selected_dispatch::prepare_checked_interpreter_dispatch(checked.execution()) {
+            Ok(dispatch) => dispatch,
+            Err(errors) => {
+                return terminal_execution::Observation {
+                    facts: vec!["interpreter:declined".to_owned()],
+                    diagnostics: errors
+                        .iter()
+                        .map(|error| host_free_diagnostic_text(&error.message))
+                        .collect(),
+                };
+            }
+        };
     let mut input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -825,7 +823,8 @@ fn interpret_checked_fixture(
     // the same member native realization binds.
     let machine_bodies: Vec<checked_interpreter::SelectedBuildTimeMachineBody> = checked
         .execution()
-        .program
+        .provider_source
+        .program()
         .typed
         .target_machine_families
         .iter()
@@ -851,7 +850,7 @@ fn interpret_checked_fixture(
         None
     };
     let outcome = checked_interpreter::interpret_entry(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
         &input_bytes,
         checked_interpreter::InterpretOptions {
@@ -1466,6 +1465,7 @@ fn realize_fixture(
     target_name: Option<String>,
     rollback: Option<&OptimizationRollback>,
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
+    capture: Option<&artifact_capture::Capture>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -1476,6 +1476,19 @@ fn realize_fixture(
         rollback,
         interpretation.as_ref().map(|(directory, _)| *directory),
     )?;
+    if let Some(capture) = capture {
+        capture
+            .observe_components(&cohort.primary)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+        let artifact = retained_native_terminal(&cohort.primary).ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "native artifact lost its portable Terminal product",
+            )]
+        })?;
+        capture
+            .observe("terminal.psi", &artifact.to_bytes())
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+    }
     if let Some((fixture_dir, observation)) = interpretation {
         let roots = cohort.target_roots()?;
         *observation = Some(interpret_native_report(
@@ -1776,12 +1789,26 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             (_, _, _) if terminal_target_oracle && !requests_target_cohort => {
                 shared_interpreter_request = !checked_interpreter_leg();
                 let check_target = check_leg_realization_target(&targets);
-                let leg = produce_terminal_semantic(
-                    discovered.take().expect("successful fixture discovery"),
-                    unique_build_dir(sequence),
-                    check_target.clone(),
-                    declared_rollback.as_ref(),
-                );
+                let leg = (|| {
+                    let capture = artifact_capture::Capture::from_environment(
+                        tier,
+                        &rel,
+                        check_target.as_deref().unwrap_or("terminal"),
+                    )
+                    .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+                    let leg = produce_terminal_semantic(
+                        discovered.take().expect("successful fixture discovery"),
+                        unique_build_dir(sequence),
+                        check_target.clone(),
+                        declared_rollback.as_ref(),
+                    )?;
+                    if let Some(capture) = capture {
+                        capture
+                            .observe("terminal.psi", &leg.artifact.artifact().to_bytes())
+                            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+                    }
+                    Ok(leg)
+                })();
                 match leg {
                     Ok(leg) => {
                         if let Some(receipt) = &leg.receipt {
@@ -1823,12 +1850,20 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                         shared_interpreter_request = !checked_interpreter_leg();
                         (fixture_dir.as_path(), &mut interpreter_observation)
                     });
-                let check_outcome = match (&declared_rollback, &check_target) {
+                let capture = artifact_capture::Capture::from_environment(
+                    tier,
+                    &rel,
+                    check_target.as_deref().unwrap_or("terminal"),
+                );
+                let check_outcome = match (&capture, &declared_rollback, &check_target) {
+                    (Err(message), _, _) => {
+                        Err(vec![diagnostics::Diagnostic::error(message.clone())])
+                    }
                     // A declared rollback runs the check leg as a Terminal-artifact
                     // pair whose facts pin the overlay contract, then still realizes
                     // the fixture's bound-entry roster the `Check` product never
                     // demands, under the same overlay the legs share.
-                    (Some(rollback), target) => {
+                    (Ok(capture), Some(rollback), target) => {
                         let (pair_facts, pair) = rollback_pair_facts(main, rollback, sequence);
                         facts.extend(pair_facts);
                         match (pair, target) {
@@ -1839,18 +1874,20 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                                 Some(target.clone()),
                                 Some(rollback),
                                 interpretation,
+                                capture.as_ref(),
                             ),
                             (Ok(()), None) => Ok(()),
                         }
                     }
-                    (None, Some(target)) => realize_fixture(
+                    (Ok(capture), None, Some(target)) => realize_fixture(
                         discovered.take().expect("successful fixture discovery"),
                         unique_build_dir(sequence),
                         Some(target.clone()),
                         None,
                         interpretation,
+                        capture.as_ref(),
                     ),
-                    (None, None) => check_pass_fixture(
+                    (Ok(_), None, None) => check_pass_fixture(
                         discovered.take().expect("successful fixture discovery"),
                         unique_build_dir(sequence),
                     ),

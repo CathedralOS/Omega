@@ -2,10 +2,18 @@ use super::{
     BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
     SymbolHandle, proof_nat_cast,
 };
+use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
+use typed_trees::expression::UnaryOperator;
+mod application_formation;
+pub use application_formation::IntegerApplicationFormation;
+#[cfg(test)]
+mod denotation_tests;
+mod denotations;
 #[cfg(test)]
 mod difference_constraint_tests;
 mod difference_matrix;
+pub(super) use denotations::IntegerDenotation;
 mod integer_operations;
 mod integer_policy;
 mod intervals;
@@ -352,6 +360,31 @@ impl<'program> Engine<'program> {
         engine
     }
 
+    /// The initializer of one immutable local in this machine. A dispatch
+    /// subject keeps its comparison there after the binding is renamed.
+    pub(super) fn immutable_local_initializer(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<ExpressionHandle> {
+        let machine = self.program.machine(self.machine_symbol)?;
+        for state in self.program.machine_states(machine) {
+            for statement in self
+                .program
+                .statement_table
+                .statements(state.statement_nodes)
+            {
+                if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                    && local.symbol == symbol
+                    && !local.is_mutable
+                    && local.initial_value.is_valid()
+                {
+                    return Some(local.initial_value);
+                }
+            }
+        }
+        None
+    }
+
     /// The one Engine field roster. `new` and `for_explicit_bindings` differ
     /// only in their owner symbols, declared atoms and whether unbound names
     /// stay outside the language, so the roster lives here once: a new engine
@@ -586,139 +619,6 @@ impl<'program> Engine<'program> {
         }
     }
 
-    /// Both operands mapped through the argument map together — `None` when
-    /// either substitution declines.
-    fn mapped_polynomials(
-        a: &Polynomial,
-        b: &Polynomial,
-        argument_map: &mut BTreeMap<String, Polynomial>,
-    ) -> Option<(Polynomial, Polynomial)> {
-        Some((
-            super::inductive_judgment::apply_argument_map(a, argument_map)?,
-            super::inductive_judgment::apply_argument_map(b, argument_map)?,
-        ))
-    }
-
-    /// Extend a simultaneous argument map across this engine's opaque atoms:
-    /// a remainder, quotient, or shift atom whose operands substitute
-    /// completely is re-minted under the transported inputs and mapped to
-    /// that fresh atom,
-    /// its interval registered like any minted term. An operand whose leaf
-    /// the map does not cover keeps its atom unmapped, so the consuming
-    /// substitution still fails closed on it. Mint order transports an inner
-    /// atom before every outer term that embeds it.
-    pub(super) fn extend_argument_map_over_opaque_terms(
-        &mut self,
-        argument_map: &mut BTreeMap<String, Polynomial>,
-    ) {
-        for index in 0..self.opaque_terms.len() {
-            let (atom, term) = self.opaque_terms[index].clone();
-            let (next_atom, interval) = match term {
-                OpaqueTerm::IntegerPolicy {
-                    primitive,
-                    domain,
-                    value,
-                } => {
-                    let Some(value) =
-                        super::inductive_judgment::apply_argument_map(&value, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(value) = self.integer_policy_value(primitive, domain, value) else {
-                        continue;
-                    };
-                    argument_map.insert(atom, value);
-                    continue;
-                }
-                OpaqueTerm::Remainder {
-                    operand,
-                    modulus,
-                    tight_interval,
-                } => {
-                    let Some((operand, modulus)) =
-                        Self::mapped_polynomials(&operand, &modulus, argument_map)
-                    else {
-                        continue;
-                    };
-                    let next = format!("\0integer-remainder:{operand:?}%{modulus:?}");
-                    (
-                        next,
-                        self.remainder_interval(&operand, &modulus, tight_interval),
-                    )
-                }
-                OpaqueTerm::Quotient { dividend, divisor } => {
-                    let Some((dividend, divisor)) =
-                        Self::mapped_polynomials(&dividend, &divisor, argument_map)
-                    else {
-                        continue;
-                    };
-                    (
-                        format!("\0integer-quotient:{dividend:?}/{divisor:?}"),
-                        self.quotient_interval(&dividend, &divisor),
-                    )
-                }
-                OpaqueTerm::ShiftLeft {
-                    value,
-                    count,
-                    count_bits,
-                } => {
-                    let Some((value, count)) =
-                        Self::mapped_polynomials(&value, &count, argument_map)
-                    else {
-                        continue;
-                    };
-                    (
-                        format!("\0integer-shift-left:{value:?}<<{count:?}"),
-                        self.shift_left_interval(&value, &count, count_bits),
-                    )
-                }
-                OpaqueTerm::ShiftRight {
-                    value,
-                    count,
-                    count_bits,
-                } => {
-                    let Some((value, count)) =
-                        Self::mapped_polynomials(&value, &count, argument_map)
-                    else {
-                        continue;
-                    };
-                    (
-                        format!("\0integer-shift-right:{value:?}>>{count:?}"),
-                        self.shift_right_interval(&value, &count, count_bits),
-                    )
-                }
-                OpaqueTerm::Bitwise {
-                    operator,
-                    left,
-                    right,
-                    bits,
-                    signed,
-                } => {
-                    let Some(left) =
-                        super::inductive_judgment::apply_argument_map(&left, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(right) =
-                        super::inductive_judgment::apply_argument_map(&right, argument_map)
-                    else {
-                        continue;
-                    };
-                    if let Some(value) = self.integer_bitwise(operator, left, right, bits, signed) {
-                        argument_map.insert(atom, value);
-                    }
-                    continue;
-                }
-            };
-            // An unchanged operand re-mints the same atom and keeps its
-            // already-registered interval.
-            self.arithmetic_intervals
-                .entry(next_atom.clone())
-                .or_insert(interval);
-            argument_map.insert(atom, Polynomial::atom(next_atom));
-        }
-    }
-
     pub(super) fn for_proof_integer_formation(
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
@@ -726,7 +626,7 @@ impl<'program> Engine<'program> {
         selections: &[crate::proof_contracts::arithmetic_domains::DispatchSelection],
     ) -> Self {
         let mut bindings = Vec::new();
-        for (handle, expression) in program.expression_table.iter_expressions() {
+        for (handle, expression) in expression_table(program).iter_expressions() {
             let ExpressionNode::Name(path) = expression else {
                 continue;
             };
@@ -834,7 +734,7 @@ impl<'program> Engine<'program> {
     }
 
     fn source_integer_disequality(&self, expression: ExpressionHandle) -> bool {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let ExpressionNode::Binary(binary) = expression_table(self.program).expression(expression)
         else {
             return false;
         };
@@ -1089,7 +989,7 @@ impl<'program> Engine<'program> {
     /// Judge a full ensures fact: an `&&` chain proves when every conjunct
     /// proves, and is disproved when any conjunct is.
     pub(super) fn judge(&mut self, fact: ExpressionHandle) -> Judgment {
-        match self.program.expression_table.expression(fact) {
+        match expression_table(self.program).expression(fact) {
             ExpressionNode::Boolean(true) => return Judgment::Proven,
             ExpressionNode::Boolean(false) => return Judgment::ConstantFalse,
             _ => {}
@@ -1261,10 +1161,7 @@ impl<'program> Engine<'program> {
         // Dummy expression storage is an integer zero. An authority-bearing
         // substitution must not turn a missing or stale operand into a constant.
         if self.strict_symbol_bindings.is_some()
-            && !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+            && !expression_table(self.program).expression_is_valid(expression)
         {
             return None;
         }
@@ -1388,10 +1285,7 @@ impl<'program> Engine<'program> {
                         .map(|value| Polynomial::constant(value.value));
                 }
                 if let Some(bindings) = &self.strict_symbol_bindings {
-                    let [member] = self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members)
+                    let [member] = expression_table(self.program).name_path_members(path.members)
                     else {
                         return None;
                     };
@@ -1408,10 +1302,7 @@ impl<'program> Engine<'program> {
                         .clone()
                         .filter(|_| member.as_str() == RESULT_BINDER);
                 }
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 if members.len() != 1 {
                     return None;
                 }
@@ -1421,8 +1312,15 @@ impl<'program> Engine<'program> {
                 }
                 Some(Polynomial::atom(name))
             }
-            // The typed-tree unary operator is logical-not only (negative
-            // literals fold into Integer), so unary nodes are never terms.
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
+                // Complement is a closed builtin operation. Its selected
+                // fixed carrier supplies the width; this candidate value
+                // establishes neither operand nor application formation.
+                let reference = self.source_result_type(expression)?;
+                let primitive = self.program.primitive_type_reference(reference)?;
+                let operand = self.normalize(unary.operand)?;
+                Self::integer_complement_value(primitive, &operand)
+            }
             ExpressionNode::Unary(_) => None,
             ExpressionNode::Binary(binary)
                 if matches!(
@@ -1556,9 +1454,7 @@ impl<'program> Engine<'program> {
                         return self.integer_binary_value(binary.operator, dividend, divisor);
                     }
                     let builtin_proof_integer = proof_integer_expression(self.program, expression)
-                        && self
-                            .program
-                            .expression_table
+                        && expression_table(self.program)
                             .authored_selection_occurrences(expression)
                             .all(|occurrence| {
                                 use language_semantics::declaration_selection::{
@@ -1694,9 +1590,7 @@ impl<'program> Engine<'program> {
         &mut self,
         dispatch: &typed_trees::expression::TableMatchExpression,
     ) -> Option<Polynomial> {
-        let arms = self
-            .program
-            .expression_table
+        let arms = expression_table(self.program)
             .match_arms(dispatch.arms)
             .to_vec();
         if arms.is_empty() {
@@ -1764,7 +1658,7 @@ impl<'program> Engine<'program> {
             .primitive_type_reference(cast.target_type)
             .is_some_and(|target| target.is_fixed_integer())
             && (matches!(
-                self.program.expression_table.expression(cast.value),
+                expression_table(self.program).expression(cast.value),
                 ExpressionNode::Integer(_)
             ) || crate::proof_contracts::proof_embeddings::integer_embedding(
                 self.program,
@@ -1774,8 +1668,7 @@ impl<'program> Engine<'program> {
     }
 
     fn is_mathematical_application(&self, expression: ExpressionHandle) -> bool {
-        self.program
-            .expression_table
+        expression_table(self.program)
             .call_node(expression)
             .is_some_and(|call| {
                 crate::mathematical_applications::selected_definition(self.program, call).is_some()
@@ -1808,7 +1701,7 @@ impl<'program> Engine<'program> {
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
         let embedding =
             crate::proof_contracts::proof_embeddings::integer_embedding(self.program, expression)?;
-        if let Some(literal) = self.program.expression_table.integer_node(expression) {
+        if let Some(literal) = expression_table(self.program).integer_node(expression) {
             return Some(Polynomial::constant(literal.value_bignum()?));
         }
         // Embedding projects the same selected, policy-correct value used by
@@ -1868,7 +1761,7 @@ fn member_receiver_root_symbol(
 ) -> Option<SymbolHandle> {
     let mut handle = expression;
     loop {
-        match program.expression_table.expression(handle) {
+        match expression_table(program).expression(handle) {
             ExpressionNode::Member(member) => handle = member.receiver,
             ExpressionNode::Borrow(inner) => handle = inner.target,
             ExpressionNode::Name(path) => {
@@ -1888,7 +1781,7 @@ fn integer_source_identity(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> String {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => format!("name:{:?}", path.symbol),
         ExpressionNode::Integer(literal) => format!("literal:{literal:?}"),
         ExpressionNode::Binary(binary) => format!(
@@ -1931,8 +1824,7 @@ fn integer_source_identity(
                 call.target_symbol,
                 call.machine_arguments,
                 integer_source_identity(program, call.receiver),
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .map(|argument| integer_source_identity(program, *argument))

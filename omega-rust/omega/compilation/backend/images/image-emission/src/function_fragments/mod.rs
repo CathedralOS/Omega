@@ -90,3 +90,16 @@ use FunctionFragmentObjectArtifactError as Error;
 fn host(value: u64) -> Result<usize, Error> {
     usize::try_from(value).map_err(|_| Error::Overflow)
 }
+
+/// Refuse a symbol name another row of this object already claims. The caller
+/// names the roster it is about to publish, so the refusal stays specific.
+pub(crate) fn refuse_symbol_collision(
+    object: &object_file::ObjectPlan,
+    name: &str,
+    reason: &'static str,
+) -> Result<(), Error> {
+    if object.layout.symbols.iter().any(|(_, s)| s.name == name) {
+        return Err(Error::Mismatch(reason));
+    }
+    Ok(())
+}

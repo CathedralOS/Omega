@@ -1,0 +1,206 @@
+use psi::checking::checker;
+use psi::checks::checks;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Public slot records for a trait requirement. The requirement's signature is
+// the slot: each reference parameter's declared domain is a qualification
+// precondition, and a returned reference of that same input type records that
+// parameter as its returned-borrow origin. The index counts reference
+// parameters only, in authored order.
+
+public machine Checker::project_slots(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing)
+crashes Trap
+{
+    transition { _ -> next_machine(checker, syntax, typing, 0) }
+
+    machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping) {
+        transition index < syntax.machine_count {
+            true -> one(checker, syntax, typing, index)
+            _ -> done()
+        }
+    }
+
+    machine one(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        transition item.container == MachineContainer::Trait {
+            true -> requirement(checker, syntax, typing, index, item)
+            _ -> next_machine(checker, syntax, typing, index + 1)
+        }
+    }
+
+    machine requirement(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem
+    ) {
+        transition item.has_return_type {
+            true -> typed_return(checker, syntax, typing, index, item)
+            _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
+        }
+    }
+
+    machine typed_return(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem
+    ) {
+        let handle: u64 in Trapping = Typing::reference_type(typing, item.return_type);
+        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        transition row.kind == TypeKind::Reference {
+            true -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, true, row.inner)
+            _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
+        }
+    }
+
+    machine parameters(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        structural: u64 in Trapping,
+        matched: u64 in Trapping,
+        found: bool,
+        returns_reference: bool,
+        return_inner: u64 in Trapping
+    ) {
+        transition offset < item.parameter_count {
+            true -> one_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner)
+            _ -> finish(checker, syntax, typing, index, found, matched)
+        }
+    }
+
+    machine one_parameter(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        structural: u64 in Trapping,
+        matched: u64 in Trapping,
+        found: bool,
+        returns_reference: bool,
+        return_inner: u64 in Trapping
+    ) {
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + offset);
+        let handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
+        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        transition row.kind == TypeKind::Reference {
+            true -> reference_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, row.inner)
+            _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural, matched, found, returns_reference, return_inner)
+        }
+    }
+
+    machine reference_parameter(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        structural: u64 in Trapping,
+        matched: u64 in Trapping,
+        found: bool,
+        returns_reference: bool,
+        return_inner: u64 in Trapping,
+        inner_handle: u64 in Trapping
+    ) {
+        let inner: TypeRow = TypeTable::row(&typing.types, inner_handle);
+        let same: bool = returns_reference && inner_handle == return_inner;
+        transition inner.domain == DomainBinding::Declared {
+            true -> qualify(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same, inner.domain_item)
+            _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same)
+        }
+    }
+
+    machine qualify(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        structural: u64 in Trapping,
+        matched: u64 in Trapping,
+        found: bool,
+        returns_reference: bool,
+        return_inner: u64 in Trapping,
+        same: bool,
+        domain_item: u64 in Trapping
+    ) {
+        let recorded: bool = Checks::push_slot_qualification(&mut checker.output, structural, domain_item);
+        transition { _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same && recorded) }
+    }
+
+    machine advance(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        structural: u64 in Trapping,
+        matched: u64 in Trapping,
+        found: bool,
+        returns_reference: bool,
+        return_inner: u64 in Trapping,
+        same: bool
+    ) {
+        transition same && !found {
+            true -> taken(checker, syntax, typing, index, item, offset, structural, returns_reference, return_inner)
+            _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural + 1, matched, found || same, returns_reference, return_inner)
+        }
+    }
+
+    machine taken(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        structural: u64 in Trapping,
+        returns_reference: bool,
+        return_inner: u64 in Trapping
+    ) {
+        transition { _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural + 1, structural, true, returns_reference, return_inner) }
+    }
+
+    machine finish(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        found: bool,
+        matched: u64 in Trapping
+    ) {
+        transition found {
+            true -> record_origin(checker, syntax, typing, index, matched)
+            _ -> next_machine(checker, syntax, typing, index + 1)
+        }
+    }
+
+    machine record_origin(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        index: u64 in Trapping,
+        matched: u64 in Trapping
+    ) {
+        let recorded: bool = Checks::push_slot_origin(&mut checker.output, SlotOriginKind::Parameter, matched);
+        transition recorded {
+            true -> next_machine(checker, syntax, typing, index + 1)
+            _ -> next_machine(checker, syntax, typing, index + 1)
+        }
+    }
+
+    machine done() {}
+}

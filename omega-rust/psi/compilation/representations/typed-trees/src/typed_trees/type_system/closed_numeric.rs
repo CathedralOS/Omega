@@ -301,9 +301,7 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                         // Formation proves unchanged denotation independently.
                         // The closed query still checks carrier fit and retains
                         // the completed cast's policy for surrounding operations.
-                        if !program
-                            .type_reference_table
-                            .contains_type_reference(cast.result_type)
+                        if !program.contains_type_reference(cast.result_type)
                             || !program
                                 .type_reference_table
                                 .primitive_type(cast.result_type)

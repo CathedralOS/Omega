@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -63,11 +64,10 @@ pub(super) fn edges_to_state<'program>(
 ) -> Vec<GuardedEdge<'program>> {
     let mut edges = Vec::new();
     let mut previous = Vec::new();
-    for (statement_ordinal, statement) in program
-        .statement_table
-        .statements(source.statement_nodes)
-        .iter()
-        .enumerate()
+    for (statement_ordinal, statement) in
+        crate::flow::state_statements(program, source.statement_nodes)
+            .iter()
+            .enumerate()
     {
         let Some(transition) = statement.as_transition() else {
             previous.clear();
@@ -235,8 +235,7 @@ pub(super) fn expression_is_parameter(
     };
 
     path.symbol == parameter.symbol
-        || program
-            .expression_table
+        || expressions(program)
             .name_path_members(path.members)
             .last()
             .is_some_and(|member| member.as_str() == parameter.name.as_str())

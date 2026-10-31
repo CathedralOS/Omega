@@ -5,7 +5,8 @@
 
 use crate::ExecutedBuildSelection;
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value, trap,
+    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+    expression_table, trap,
 };
 use language_semantics::declaration_selection::BuildOperation;
 
@@ -27,10 +28,7 @@ impl<'program> Evaluator<'program> {
         if call.target_symbol.is_valid() {
             return Ok(None);
         }
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.program).expression_handles(call.arguments);
         let composition_case = match operation {
             BuildOperation::ProviderSelection => {
                 self.provider_composition_case(arguments, frame)?

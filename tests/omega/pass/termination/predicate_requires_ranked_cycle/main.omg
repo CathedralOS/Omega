@@ -11,8 +11,8 @@ machine sorted(values: &[i32; 4]) -> bool {
 
 machine check_sorted(values: &[i32; 4], remaining: u64) -> bool
 requires remaining <= 3
-terminates;
-terminates by remaining in 0..=3;
+terminates
+terminates by remaining in 0..=3
 {
     transition remaining >= 1 {
         true -> inspect(values, remaining)
@@ -33,7 +33,7 @@ terminates by remaining in 0..=3;
 machine descend(values: &[i32; 4], remaining: u64) -> u64
 requires sorted(values) == true
 requires remaining <= 9
-terminates by remaining -> Nat::Descending in 0..=9;
+terminates by remaining -> Nat::Descending in 0..=9
 {
     transition remaining == 0 {
         true -> (0)

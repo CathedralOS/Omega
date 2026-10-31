@@ -465,9 +465,7 @@ fn hoist_temp_initializer(
     if !index_label.starts_with("__hoist_") {
         return None;
     }
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
             typed_trees::statement::StatementNode::LocalData(local_data)

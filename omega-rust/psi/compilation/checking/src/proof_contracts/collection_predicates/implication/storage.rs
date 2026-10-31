@@ -4,6 +4,7 @@
 //! subsequent operands. Neither kind of binding rewrites predicate snapshots.
 
 use super::*;
+use crate::frozen_program::expression_table;
 
 #[derive(Clone)]
 pub(super) struct Home {
@@ -198,12 +199,10 @@ impl Implication<'_> {
         ) {
             return None;
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(name)
                 if name.symbol == name.head_symbol
-                    && self
-                        .program
-                        .expression_table
+                    && expression_table(self.program)
                         .name_path_members(name.members)
                         .len()
                         == 1 =>

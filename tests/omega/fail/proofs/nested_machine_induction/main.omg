@@ -5,7 +5,7 @@ data Branch {
 }
 
 machine copy_branch(value: Branch) -> Branch
-terminates by value;
+terminates by value
 {
     transition value {
         Branch::End -> Branch::End
@@ -14,7 +14,7 @@ terminates by value;
 }
 
 machine copy_identity(value: Branch)
-terminates by value;
+terminates by value
 ensures copy_branch(value) == Branch::End
 {
     transition value {

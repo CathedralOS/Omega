@@ -1,6 +1,7 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::tables::{exprs, exprs_of};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableMemberExpression,
@@ -104,7 +105,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         .iter()
         .map(|pattern| match pattern {
             None => Some(None),
-            Some(handle) => match syntax_trees.expressions.expression(*handle) {
+            Some(handle) => match exprs_of(syntax_trees).expression(*handle) {
                 ExpressionNode::Boolean(value) => Some(Some(*value)),
                 _ => None,
             },
@@ -120,7 +121,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         // which is domain membership (decision 11). Desugaring to membership
         // keeps the synthesized tag test distinct from user-written equality,
         // which rejects bare payload-bearing case names.
-        let equality = match syntax_trees.expressions.expression(right) {
+        let equality = match exprs_of(syntax_trees).expression(right) {
             ExpressionNode::Name(path)
                 if syntax_trees
                     .expressions
@@ -129,12 +130,10 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                     == 2 =>
             {
                 let domain = *path;
-                syntax_trees.expressions.insert(ExpressionNode::Membership(
-                    TableMembershipExpression {
-                        value: left,
-                        domain,
-                    },
-                ))
+                exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
+                    value: left,
+                    domain,
+                }))
             }
             // A condition-shaped pattern already evaluates to a decision:
             // `transition text.len { text.len == 0 -> .. }` guards by the
@@ -150,17 +149,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                     right,
                 })),
         };
-        combined = if combined.is_valid() {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: combined,
-                    operator: BinaryOperator::And,
-                    right: equality,
-                }))
-        } else {
-            equality
-        };
+        combined = join_guard_conjunction(syntax_trees, combined, equality);
     }
 
     Ok((
@@ -181,7 +170,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 /// subject would type `subject == bool` nonsense. Everything else keeps the
 /// subject-equality desugar.
 fn arm_pattern_is_condition(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    match syntax_trees.expressions.expression(expression) {
+    match exprs_of(syntax_trees).expression(expression) {
         ExpressionNode::Binary(binary) => matches!(
             binary.operator,
             BinaryOperator::And
@@ -370,16 +359,14 @@ fn pattern_constraint(
     subject: ExpressionHandle,
     pattern: ExpressionHandle,
 ) -> ExpressionHandle {
-    match syntax_trees.expressions.expression(pattern).clone() {
+    match exprs_of(syntax_trees).expression(pattern).clone() {
         ExpressionNode::Name(path)
-            if syntax_trees.expressions.identifier_path_members(path).len() == 2 =>
+            if exprs_of(syntax_trees).identifier_path_members(path).len() == 2 =>
         {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Membership(TableMembershipExpression {
-                    value: subject,
-                    domain: path,
-                }))
+            exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
+                value: subject,
+                domain: path,
+            }))
         }
         _ => syntax_trees
             .expressions
@@ -399,13 +386,11 @@ fn join_guard_conjunction(
     if !left.is_valid() {
         return right;
     }
-    syntax_trees
-        .expressions
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left,
-            operator: BinaryOperator::And,
-            right,
-        }))
+    exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+        left,
+        operator: BinaryOperator::And,
+        right,
+    }))
 }
 
 pub(super) fn parse_transition_expression_list<'tokens, 'source>(
@@ -529,9 +514,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     };
 
     let (path, after_path) = parse_path_handle_span(pattern_input, |member| {
-        syntax_trees
-            .expressions
-            .append_identifier_path_member(member)
+        exprs(syntax_trees).append_identifier_path_member(member)
     })?;
     if !after_path.at_punctuation(PunctuationKind::LeftBrace) {
         // Without `if` this is an ordinary pattern; with `if` the arm must be a
@@ -573,7 +556,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // access must resolve to this variant's field, not a same-named field at a
     // different offset in another variant.
     let case_variant: Option<Identifier> = {
-        let members = syntax_trees.expressions.identifier_path_members(path);
+        let members = exprs_of(syntax_trees).identifier_path_members(path);
         if members.len() == 2 {
             members.last().cloned()
         } else {
@@ -613,55 +596,36 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // starts with `subject in Type::Case`. Desugaring to membership (not
     // `==`) keeps the synthesized tag test distinct from user-written
     // equality, which rejects bare payload-bearing case names.
-    let mut combined =
-        match syntax_trees.expressions.identifier_path_members(path).len() {
-            1 => ExpressionHandle::invalid(),
-            2 => syntax_trees.expressions.insert(ExpressionNode::Membership(
-                TableMembershipExpression {
-                    value: subject,
-                    domain: path,
-                },
-            )),
-            _ => {
-                return Err(pattern_input.error_here(
-                    "destructure pattern path must be `Type { .. }` or `Type::Case { .. }`",
-                ));
-            }
-        };
+    let mut combined = match exprs_of(syntax_trees).identifier_path_members(path).len() {
+        1 => ExpressionHandle::invalid(),
+        2 => exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
+            value: subject,
+            domain: path,
+        })),
+        _ => {
+            return Err(pattern_input.error_here(
+                "destructure pattern path must be `Type { .. }` or `Type::Case { .. }`",
+            ));
+        }
+    };
 
     // A value-bearing field pattern is ordinary equality over an attenuated
     // field projection.  Keeping it as a real guard means the existing proof
     // and flow machinery establishes `subject.field == expected` inside the
     // arm; no pattern-only fact channel exists.
     for (member, expected) in matched_fields {
-        let projected =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver: subject,
-                    access_source_span: Default::default(),
-                    member,
-                    case_variant: case_variant.clone(),
-                }));
-        let equality =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: projected,
-                    operator: BinaryOperator::Equal,
-                    right: expected,
-                }));
-        combined = if combined.is_valid() {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: combined,
-                    operator: BinaryOperator::And,
-                    right: equality,
-                }))
-        } else {
-            equality
-        };
+        let projected = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: subject,
+            access_source_span: Default::default(),
+            member,
+            case_variant: case_variant.clone(),
+        }));
+        let equality = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: projected,
+            operator: BinaryOperator::Equal,
+            right: expected,
+        }));
+        combined = join_guard_conjunction(syntax_trees, combined, equality);
     }
 
     if let Some(guard_input) = guard_input {
@@ -671,17 +635,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             return Err(rest.error_here("expected transition pattern guard"));
         }
         let guard = rewrite_destructure_guard_expression(syntax_trees, guard, subject, &fields);
-        combined = if combined.is_valid() {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: combined,
-                    operator: BinaryOperator::And,
-                    right: guard,
-                }))
-        } else {
-            guard
-        };
+        combined = join_guard_conjunction(syntax_trees, combined, guard);
     }
 
     let guard = if combined.is_valid() {

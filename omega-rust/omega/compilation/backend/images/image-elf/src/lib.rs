@@ -209,6 +209,63 @@ pub(crate) mod test_support {
         normalize_elf_interpreter_plan(interpreter_path.to_vec(), target).unwrap()
     }
 
+    /// The import image the load-placement and file-envelope fixtures stage:
+    /// 32 bytes of `.text`, 13 bytes of `0x5a` `.data`, a 23-byte `.bss` at
+    /// `bss_alignment`, and `symbol_capacity` symbols over one import and one
+    /// relocation slot each.
+    pub(crate) fn import_image(
+        target: TargetProfile,
+        bss_alignment: usize,
+        symbol_capacity: usize,
+    ) -> FinalImage {
+        FinalImage::with_capacity(
+            target.native_target(),
+            image::FinalImageMemory {
+                text: vec![0; 32],
+                data: vec![0x5a; 13],
+                bss_size: 23,
+                bss_alignment,
+            },
+            arena::Handle::invalid(),
+            symbol_capacity,
+            1,
+            1,
+        )
+    }
+
+    /// Install the `_start` entry the file-assembly fixtures use: a four-byte
+    /// text symbol at `offset` that becomes the image entry.
+    pub(crate) fn text_entry(image: &mut FinalImage, offset: usize) {
+        use image::{FinalImageSection, FinalImageSymbol};
+        use object_file::SymbolKind;
+
+        let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "_start".to_owned(),
+            section: FinalImageSection::Text,
+            offset,
+            size: 4,
+            kind: SymbolKind::Function,
+        });
+        image.symbol_table.entry_symbol = entry;
+    }
+
+    /// The import-bearing image the relocation fixtures stage: `text_size`
+    /// zeroed `.text` bytes over one symbol, one import and two relocation
+    /// slots.
+    pub(crate) fn relocation_image(target: target::NativeTarget, text_size: usize) -> FinalImage {
+        FinalImage::with_capacity(
+            target,
+            image::FinalImageMemory {
+                text: vec![0; text_size],
+                ..image::FinalImageMemory::default()
+            },
+            arena::Handle::invalid(),
+            1,
+            1,
+            2,
+        )
+    }
+
     /// The shared dynamic-link staging chain every dynamic-executable test
     /// drives through section planning to the procedure-linkage relocation
     /// plan.

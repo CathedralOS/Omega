@@ -16,6 +16,7 @@
 //! validated here against its requirement.
 
 use super::trait_definition_by_symbol;
+use crate::value_custody::type_references::TypeParameterScope;
 use diagnostics::Diagnostic;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::trait_definition::{AppliedTraitScope, ConformanceRowSource};
@@ -141,14 +142,13 @@ fn validate_named_implementation(
         &applied_lifetimes,
         &format!("conformance `{implementation_name} satisfies {trait_name}`"),
         symbols,
-        crate::value_custody::type_references::TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: conformance.symbol,
-            type_parameters: program
+        TypeParameterScope::authored(
+            conformance.symbol,
+            program
                 .data_type_parameters
                 .span_or_empty(conformance.type_parameters),
-            lifetime_parameters: &conformance.lifetime_parameters,
-        },
+            &conformance.lifetime_parameters,
+        ),
         diagnostics,
         formation_obligations,
     );

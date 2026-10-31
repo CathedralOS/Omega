@@ -117,6 +117,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
     }
     let methods = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| plan.schema.row_binds_method(row, method, &plan.identities))
@@ -155,7 +156,8 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         many => {
             return Err(Diagnostic::error(format!(
                 "selected checked-adapter selected schema `{}` resolves to {} exact top-level boundary requirements",
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
                 many.len(),
             )));
         }
@@ -163,8 +165,9 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 
     let receiver_trait = exact_boundary_trait(
         typed,
-        plan.schema.identity_text(plan.schema.trait_name),
-        plan.schema.trait_package_identity,
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name),
+        plan.schema.declaration.trait_package_identity,
         "selected schema",
     )?;
     let requirement_owner = exact_boundary_trait(
@@ -179,20 +182,20 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         .filter(|signature| {
             signature.name.as_str() == method.name
                 && typed.trait_requirement_callable_identity_text(requirement_owner, signature)
-                    == plan.schema.identity_text(method.requirement_identity)
+                    == method_identity(plan, method)
         })
         .collect::<Vec<_>>();
     let [signature] = signatures.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter requirement `{}` resolves to {} exact typed signatures",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
             signatures.len(),
         )));
     };
     if !signature.symbol.is_valid() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter requirement `{}` has no exact typed symbol",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
         )));
     }
     Ok(Some(SelectedAdapterTarget::TraitRequirement {
@@ -303,7 +306,7 @@ fn resolve_template_adapter_rows(
     ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
         )));
     }
 
@@ -315,10 +318,7 @@ fn resolve_template_adapter_rows(
         provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: receiver_trait.name.as_str().to_owned(),
         requirement: method.name.clone(),
-        requirement_identity: plan
-            .schema
-            .identity_text(method.requirement_identity)
-            .to_owned(),
+        requirement_identity: method_identity(plan, method).to_owned(),
         requirement_symbol: signature.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: entry.symbol,
@@ -326,6 +326,14 @@ fn resolve_template_adapter_rows(
         family_tuple_display: Box::default(),
         receiver: AdapterReceiver::Service,
     })])
+}
+
+/// Exact selected Plan text for one service method's requirement identity.
+fn method_identity<'a>(
+    plan: &'a effects::provider_plan::ProviderPlan,
+    method: &'a effects::provider_plan::ServiceMethod,
+) -> &'a str {
+    plan.schema.identity_text(method.requirement_identity)
 }
 
 fn require_parameter_count(
@@ -336,7 +344,7 @@ fn require_parameter_count(
     if actual != method.parameter_count {
         return Err(Diagnostic::error(format!(
             "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
             actual,
             method.parameter_count,
         )));
@@ -423,10 +431,7 @@ fn resolve_top_level_requirement_adapter_row(
         provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: requirement_name.to_owned(),
         requirement: method.name.clone(),
-        requirement_identity: plan
-            .schema
-            .identity_text(method.requirement_identity)
-            .to_owned(),
+        requirement_identity: method_identity(plan, method).to_owned(),
         requirement_symbol: entry.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: adapter_entry.symbol,
@@ -595,7 +600,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             "selected provider plan `{}` settles {} specialization rows for requirement template `{}` but checking retained {retained} closed requirement instances",
             plan.name,
             resolved.len(),
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
         )));
     }
     Ok(resolved)
@@ -624,10 +629,7 @@ fn resolve_family_adapter_row(
                 receiver_trait: receiver_trait.symbol,
                 provider_plan_digest: *plan.identity_digest().as_bytes(),
                 requirement_symbol: signature.symbol,
-                requirement_identity: plan
-                    .schema
-                    .identity_text(method.requirement_identity)
-                    .to_owned(),
+                requirement_identity: method_identity(plan, method).to_owned(),
                 reason,
             },
         )]
@@ -637,7 +639,7 @@ fn resolve_family_adapter_row(
         FamilyProbe::NotFinite(reason) => {
             return Ok(ineligible(format!(
                 "finite generic requirement `{}` is ineligible: {reason}",
-                plan.schema.identity_text(method.requirement_identity),
+                method_identity(plan, method),
             )));
         }
     };
@@ -660,7 +662,7 @@ fn resolve_family_adapter_row(
     if provider_value_parameters != arity {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` takes {provider_value_parameters} value binders but requirement `{}` declares a family of arity {arity}",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
         )));
     }
     if !provider_planning::provider_trait_requirement_matches(
@@ -673,7 +675,7 @@ fn resolve_family_adapter_row(
     ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
         )));
     }
 
@@ -710,7 +712,7 @@ fn resolve_family_adapter_row(
             return Err(Diagnostic::error(format!(
                 "finite family tuple `({})` of requirement `{}` resolves to multiple retained specializations of `{machine_identity}`",
                 tuple.display.join(", "),
-                plan.schema.identity_text(method.requirement_identity),
+                method_identity(plan, method),
             )));
         }
         let Some(instance) = typed.machine(specialization.instance) else {
@@ -734,10 +736,7 @@ fn resolve_family_adapter_row(
             provider_plan_digest: *plan.identity_digest().as_bytes(),
             receiver_trait_name: receiver_trait.name.as_str().to_owned(),
             requirement: method.name.clone(),
-            requirement_identity: plan
-                .schema
-                .identity_text(method.requirement_identity)
-                .to_owned(),
+            requirement_identity: method_identity(plan, method).to_owned(),
             requirement_symbol: signature.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: entry.symbol,
@@ -757,7 +756,7 @@ fn resolve_family_adapter_row(
         };
         return Ok(ineligible(format!(
             "finite generic requirement `{}` declares {} tuples but {coverage}; partial provider coverage cannot supply the dynamic family (missing: {})",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
             tuples.len(),
             missing.join(", "),
         )));
@@ -841,7 +840,7 @@ fn sole_boundary_conformance(
     if conformances != 1 {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` binds top-level boundary {spelled} `{}` through {conformances} checked conformances",
-            plan.schema.identity_text(method.requirement_identity),
+            method_identity(plan, method),
         )));
     }
     Ok(())

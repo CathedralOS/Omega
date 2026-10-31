@@ -379,6 +379,15 @@ impl RemainingCustody {
                 })
     }
 
+    /// Actual spatial exclusions, without the synthetic exit-only retirement
+    /// marker for a reserved home whose established children need no cleanup.
+    pub(super) fn excluded_paths(&self, root: PlaceRoot) -> impl Iterator<Item = &[PlaceSegment]> {
+        self.excluded
+            .iter()
+            .filter(move |entry| entry.root == root)
+            .map(|entry| entry.path.as_slice())
+    }
+
     pub(super) fn removed_paths<'a>(
         &'a self,
         program: &dyn ::validation::CheckingInput,
@@ -721,11 +730,10 @@ impl RemainingCustody {
                     && !event.obligation_live
                     && let PermissionEventSource::Statement { statement_index } = event.source
                     && let Some(state) = program.state_by_symbol(event.state_symbol)
-                    && let Some(local) = program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .get(statement_index)
-                        .and_then(|statement| statement.as_local_data())
+                    && let Some(local) =
+                        crate::flow::state_statements(program, state.statement_nodes)
+                            .get(statement_index)
+                            .and_then(|statement| statement.as_local_data())
                     && event.root == PlaceRoot::Symbol(local.symbol)
                     && !local.initial_value.is_valid()
                     && !validation::type_requires_establishment(program, local.type_reference)

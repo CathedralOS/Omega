@@ -10,6 +10,7 @@
 //! Canonical lowering carries these demands, not physical preservation receipts.
 //! CPU/thread affinity remains conservative and parking still owes stable backing.
 
+use crate::flow::indexed_statements;
 use diagnostics::Diagnostic;
 use facts::QualificationEvidence;
 use language_semantics::{CarryPolicy, CarrySuspension};
@@ -298,11 +299,7 @@ pub(super) fn check_suspension_carry(
         };
 
         for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
-            let Some(call_flow) = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(state_flow.calls)
+            let Some(call_flow) = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
                 .iter()
                 .find(|flow| {
                     flow.statement_index == call.statement_index
@@ -566,10 +563,7 @@ fn state_carry_values<'program>(
         })
         .collect::<Vec<_>>();
     let mut local_position = 0;
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         let Some(local) = statement.as_local_data() else {
             continue;
         };

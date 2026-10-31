@@ -19,6 +19,7 @@
 //! host widths.
 
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::build_time_evaluation::type_reference_table;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
@@ -124,9 +125,7 @@ pub(crate) fn evaluate_selected_array_lengths(
         if let TypeReferenceNode::FixedArray {
             length: FixedArrayLength::Literal(value),
             ..
-        } = execution
-            .type_reference_table
-            .type_reference(type_reference)
+        } = type_reference_table(&execution).type_reference(type_reference)
         {
             typed
                 .type_reference_table
@@ -299,7 +298,7 @@ impl<'selection> LengthJobs<'selection> {
         // A newly literal type can close a static application's remaining
         // tuple. Resume the same specialization owner in the same arena; it
         // appends real instances and cannot replay an evaluated leaf.
-        typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
+        typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
         let domain = EvaluationDomain::all()
             .with_accounting(self.domain.accounting.clone())
             .demanded_roots(typed, &[machine]);

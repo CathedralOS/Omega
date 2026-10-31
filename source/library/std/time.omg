@@ -923,7 +923,7 @@ public machine Time::now(time: &mut Time) -> Instant
 reaches
     TimeHost
 invokes
-    TimeHost;
+    TimeHost
 {
     let ticks: u64 = TimeHost::monotonic_ticks();
     let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
@@ -952,7 +952,7 @@ public machine Time::system_time_now(time: &mut Time) -> SystemTime
 reaches
     TimeHost
 invokes
-    TimeHost;
+    TimeHost
 {
     let raw: u64 = TimeHost::wall_clock_raw();
     let units_raw: u64 = TimeHost::wall_clock_units_per_second();
@@ -998,7 +998,7 @@ public machine Time::elapsed_since(time: &mut Time, start: Instant) -> Duration
 reaches
     TimeHost
 invokes
-    TimeHost;
+    TimeHost
 {
     let ticks: u64 = TimeHost::monotonic_ticks();
     let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
@@ -1059,8 +1059,8 @@ public machine Time::sleep_for(time: &mut Time, duration: Duration) -> u32
 reaches
     TimeHost
 invokes
-    TimeHost;
-blocks;
+    TimeHost
+blocks
 {
     let seconds_capped: u64 = clamp_u64(duration.seconds, 0, 4294968);
     let seconds_scaled: u64 in Wrapping = (seconds_capped as u64 in Wrapping) * 1000;

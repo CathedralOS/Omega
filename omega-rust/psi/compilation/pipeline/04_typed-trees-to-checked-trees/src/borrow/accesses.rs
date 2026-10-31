@@ -21,6 +21,7 @@
 //! machine; the borrow checks use it too. `collection` holds the arenas one
 //! call appends to, and `records` writes one access row.
 
+use crate::places::place_at;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;
@@ -252,14 +253,9 @@ fn collect_formal_argument_accesses(
         }
         let (referent, _) =
             crate::semantic::calls::shared_argument_referent(program, argument, formal)?;
-        validation::canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            referent,
-        )?
-        .root
-        .as_symbol()?;
+        place_at(program, state_symbol, statement_index, referent)?
+            .root
+            .as_symbol()?;
         Some(BorrowAccessKind::Read)
     })();
     if let Some(kind) = implicit_loan

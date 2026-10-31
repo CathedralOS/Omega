@@ -10,10 +10,9 @@ ensures result == value - 1
 machine ready(value: &mut u64) -> bool
 ensures result == true && value == 2
 { value = 2; true }
-machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, mut remaining: u64)
+machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, mut remaining: u64) -> Counted<'storage, Count>
 requires remaining <= 2
-terminates by remaining -> Nat::Descending in 0..=2;
--> Counted<'storage, Count>
+terminates by remaining -> Nat::Descending in 0..=2
 {
     transition ready(&mut remaining) {
         true -> retain_counted<Count>(selected, previous(remaining))

@@ -20,6 +20,7 @@ use super::{
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::places::place_at;
 use checked_trees::expression::ExpressionHandle;
 
 /// The terminator family an edge is built for. The trace names the guard
@@ -220,13 +221,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     let case_test = match transition.guard {
         TransitionGuardNode::When(guard) => crate::proof::exact_outcome_case_test(program, guard)
             .and_then(|(subject, case)| {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    source.symbol,
-                    ordinal as usize,
-                    subject,
-                )
-                .map(|place| (place, case))
+                place_at(program, source.symbol, ordinal as usize, subject)
+                    .map(|place| (place, case))
             }),
         _ => None,
     };
@@ -241,12 +237,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         {
             argument = cast.value;
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            source.symbol,
-            ordinal as usize,
-            argument,
-        )?;
+        let place = place_at(program, source.symbol, ordinal as usize, argument)?;
         let symbol = place.root.as_symbol()?;
         if !place.segments.is_empty() {
             return None;
@@ -284,16 +275,12 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         }))
             {
                 mark(SuccessorGuard::ParameterTransfer);
-                return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                return structural_transfer_plan(
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                         index: u32::try_from(source_index).ok()?,
                     },
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                    retained_loan_backing: None,
-                    incoming_loan_resources: Vec::new(),
-                    retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                });
+                    target_index,
+                );
             }
             if let Some(range_expression) = validation::subslice_expression(program, expression)
                 && let ExpressionNode::Indexed(indexed) = program.expression_table.expression(range_expression)
@@ -311,14 +298,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 if subslice.range.type_identity != target.type_identity {
                     return None;
                 }
-                return Some(CheckedStructuralControlTransferPlan {
-                    source: subslice.transfer(),
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                    retained_loan_backing: None,
-                    incoming_loan_resources: Vec::new(),
-                    retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                });
+                return structural_transfer_plan(subslice.transfer(), target_index);
             }
             // An authored string literal supplied directly to a whole
             // unrestricted shared byte view (`relay("yes")` into
@@ -353,14 +333,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
                         bytes,
                     };
-                return Some(CheckedStructuralControlTransferPlan {
-                    source,
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                    retained_loan_backing: None,
-                    incoming_loan_resources: Vec::new(),
-                    retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                });
+                return structural_transfer_plan(source, target_index);
             }
             // A whole view local forwards the view its `let` published: the
             // target re-borrows that same place exactly as a forwarded view
@@ -384,7 +357,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // result forwarding needs one; its absence leaves construction
             // to the ordinary selected-edge establishment below.
             if (target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view)
-                && let Some(place) = validation::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)
+                && let Some(place) = place_at(program, source.symbol, ordinal as usize, expression)
                 // Forward an existing descriptor here. Borrowing an owned
                 // local establishes a loan, even when its referent has the
                 // same representation as the target. The ordinary loan path
@@ -446,21 +419,17 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     .is_some_and(|view| view.access == language_core::ReferenceAccess::Mutable)
                             { return None; }
                         }
-                        return Some(CheckedStructuralControlTransferPlan {
-                            source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
-                            target_parameter_index: u32::try_from(target_index).ok()?,
-                            retained_loan_backing: None,
-                            incoming_loan_resources: Vec::new(),
-                            retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                        });
+                        return structural_transfer_plan(
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                                binding_ordinal: result.binding_ordinal,
+                            },
+                            target_index,
+                        );
                     }
                 }
             }
             if let Some((subject_place, selected_case)) = &case_test
-                && let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program, source.symbol, ordinal as usize, expression,
-                )
+                && let Some(place) = place_at(program, source.symbol, ordinal as usize, expression)
             {
                 mark(SuccessorGuard::CasePayloadTransfer);
                 if let Some(source) = case_payload_transfer(
@@ -474,14 +443,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     ordinal,
                     target,
                 ) {
-                    return Some(CheckedStructuralControlTransferPlan {
-                        source,
-                        target_parameter_index: u32::try_from(target_index).ok()?,
-                        retained_loan_backing: None,
-                        incoming_loan_resources: Vec::new(),
-                        retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                    });
+                    return structural_transfer_plan(source, target_index);
                 }
             }
             // Reuse established storage before planning a fresh value. A
@@ -502,16 +464,10 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 )
                 && subject.access == target.access
             {
-                return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
-                        subject,
-                    },
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                    retained_loan_backing: None,
-                    incoming_loan_resources: Vec::new(),
-                    retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                });
+                return structural_transfer_plan(
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject },
+                    target_index,
+                );
             }
             // Retained operand evaluation owns reference formation and its
             // selector effects. Canonical geometry may fold a proved selector
@@ -568,12 +524,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 )
             {
                 let expected_access = target.access;
-                if let Some(place) = validation::canonical_place_from_expression_in_state(
-                        program,
-                        source.symbol,
-                        ordinal as usize,
-                        expression,
-                    )
+                if let Some(place) = place_at(program, source.symbol, ordinal as usize, expression)
                     && let Some(root_symbol) = place.root.as_symbol()
                 {
                     // The root names either a source parameter — the authored
@@ -707,8 +658,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 target_parameters.get(target.position as usize)?.type_reference,
                                 &super::super::types::machine_binders(program, machine),
                             )?;
-                            return Some(CheckedStructuralControlTransferPlan {
-                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                            return structural_transfer_plan(
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     retired_carrier_backing: super::loan_backing::retired_carrier_backing(
                                         program, records, machine.symbol, source.symbol,
                                         ordinal as usize, arrival.target, arguments,
@@ -718,12 +669,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     formation_expression: expression,
                                     carrier_type_identity,
                                 },
-                                target_parameter_index: u32::try_from(target_index).ok()?,
-                                retained_loan_backing: None,
-                                incoming_loan_resources: Vec::new(),
-                                retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                            });
+                                target_index,
+                            );
                         }
                         // A mutable loan keeps the local's exact constrained
                         // type: a bounded byte owner's represented predicates
@@ -905,18 +852,14 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         operand_source: None,
                     };
                     operand_calls.push(evaluation);
-                    return Some(CheckedStructuralControlTransferPlan {
-                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal {
+                    return structural_transfer_plan(
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal {
                             operations: checked_trees::CheckedOperandSequence::new(
                                 operand_calls.split_off(operations.len()),
                             ),
                         },
-                        target_parameter_index: u32::try_from(target_index).ok()?,
-                        retained_loan_backing: None,
-                        incoming_loan_resources: Vec::new(),
-                        retained_loan_parents: Vec::new(),
-                        retained_operand_parents: Vec::new(),
-                    });
+                        target_index,
+                    );
                 }
                 mark(SuccessorGuard::EstablishedArgument);
                 let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
@@ -952,18 +895,14 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     facts, result, root.root, calls, None, false, &mut operand_calls,
                 )?;
                 let operand_calls = operand_calls.split_off(operations.len());
-                return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                return structural_transfer_plan(
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
                         operands: checked_trees::CheckedOperandSequence::new(operand_calls),
                         establishment: Box::new(establishment),
                         presentation,
                     },
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                    retained_loan_backing: None,
-                    incoming_loan_resources: Vec::new(),
-                    retained_loan_parents: Vec::new(),
-                    retained_operand_parents: Vec::new(),
-                });
+                    target_index,
+                );
             }
             None
             })();
@@ -1208,12 +1147,7 @@ fn projected_value_subject(
     if target.access != CheckedStructuralAccess::Owned {
         return None;
     }
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        source.symbol,
-        ordinal as usize,
-        expression,
-    )?;
+    let place = place_at(program, source.symbol, ordinal as usize, expression)?;
     if place.segments.is_empty() {
         return None;
     }
@@ -1334,6 +1268,25 @@ fn transition_selector(
     .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
 }
 
+/// Build a structural control-transfer plan for one admitted argument.
+///
+/// Every admitted edge supplies its own `source`; the remaining fields name
+/// the target parameter position and stay empty until a later phase assigns
+/// custody, so they are built here rather than repeated at each admission.
+fn structural_transfer_plan(
+    source: checked_trees::CheckedStructuralControlTransferSourcePlan,
+    target_index: usize,
+) -> Option<CheckedStructuralControlTransferPlan> {
+    Some(CheckedStructuralControlTransferPlan {
+        source,
+        target_parameter_index: u32::try_from(target_index).ok()?,
+        retained_loan_backing: None,
+        incoming_loan_resources: Vec::new(),
+        retained_loan_parents: Vec::new(),
+        retained_operand_parents: Vec::new(),
+    })
+}
+
 /// `subject_source` is the parameter or earlier result the loan rides on.
 ///
 /// A projected loan keeps its original storage root and exact path across
@@ -1434,8 +1387,8 @@ fn projected_loan_transfer(
             None => return None,
         }
     };
-    Some(CheckedStructuralControlTransferPlan {
-        source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+    structural_transfer_plan(
+        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             retired_carrier_backing: None,
             formation_expression,
             carrier_type_identity,
@@ -1447,12 +1400,8 @@ fn projected_loan_transfer(
                 access: expected_access,
             },
         },
-        target_parameter_index: u32::try_from(target_index).ok()?,
-        retained_loan_backing: None,
-        incoming_loan_resources: Vec::new(),
-        retained_loan_parents: Vec::new(),
-        retained_operand_parents: Vec::new(),
-    })
+        target_index,
+    )
 }
 
 /// Admit a `[copy]` case-payload subtree transfer on a case-tested edge.
@@ -1594,9 +1543,7 @@ fn case_payload_transfer(
             }
             let result = retained_structural_result(operation)
                 .filter(|result| result.statement_index < ordinal)?;
-            let local = program
-                .statement_table
-                .statements(source.statement_nodes)
+            let local = crate::flow::state_statements(program, source.statement_nodes)
                 .get(result.statement_index as usize)?
                 .as_local_data()?;
             (local.symbol == root && !local.is_mutable).then_some((result, local))

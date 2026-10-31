@@ -166,9 +166,8 @@ pub fn has_generic_carrier(program: &TypedTrees, domain: &DomainDefinition) -> b
     if !matches!(parameter.kind, crate::data::TypeParameterKind::Type) {
         return false;
     }
-    let crate::types::TypeReferenceNode::Named { symbol, name } = program
-        .type_reference_table
-        .type_reference(domain.target_type)
+    let crate::types::TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_node(domain.target_type)
     else {
         return false;
     };
@@ -500,12 +499,10 @@ pub fn required_subject_memberships<'a>(
         .map(|membership| {
             (domain_subject_reference(program, domain, membership.value)
                 && program
-                    .type_reference_table
                     .type_reference_handles(membership.domain_arguments)
                     .len()
                     == membership.domain_arguments.len()
                 && program
-                    .type_reference_table
                     .type_reference_handles(membership.domain_arguments)
                     .iter()
                     .all(|argument| index_argument_is_closed(program, *argument))
@@ -633,6 +630,38 @@ pub struct AppliedDomainApplication {
     pub declaration: SymbolHandle,
     pub arguments: Vec<TypeReferenceHandle>,
     pub theory: DomainDefinition,
+}
+
+impl TypedTrees {
+    /// Read the ordered obligations of a conjunctive fact roster without
+    /// replacing its authored expressions. Formation and operator selection
+    /// still inspect the original clauses; consumers share the exact leaves.
+    /// Disjunction, negation, membership and proposition rows remain whole.
+    pub fn conjunctive_proof_facts(
+        &self,
+        facts: HandleSpan<ProofFact>,
+    ) -> impl Iterator<Item = ProofFact> + '_ {
+        let mut pending = self
+            .proof_facts
+            .span_or_empty(facts)
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>();
+        std::iter::from_fn(move || {
+            while let Some(fact) = pending.pop() {
+                if let Some(expression) = fact.as_expression()
+                    && let Some(binary) = self.expression_table.binary_node(*expression)
+                    && binary.operator == crate::expression::BinaryOperator::And
+                {
+                    pending.extend([binary.right, binary.left].map(ProofFact::Expression));
+                } else {
+                    return Some(fact);
+                }
+            }
+            None
+        })
+    }
 }
 
 impl TypedTrees {

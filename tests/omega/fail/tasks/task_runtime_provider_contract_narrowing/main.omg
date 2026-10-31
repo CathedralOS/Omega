@@ -8,14 +8,14 @@ data NarrowTaskRuntime { }
 machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> Task<T>
-where machine Target(arguments: Arguments) -> T suspends;
+requires machine Target(arguments: Arguments) -> T suspends;
 satisfies TaskRuntime::start
 via ForeignBinding::CompilerIntrinsic;
 
 machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
-where machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends blocks;
 satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;
 

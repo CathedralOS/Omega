@@ -59,10 +59,7 @@ impl TerminalExecution<'_> {
         // An affine view owns its exclusive descriptor, not the selected
         // element. Move, claim repair and frontier repair share the same loan
         // crossing judgment; result multiplicity cannot confer backing custody.
-        let root = self
-            .structural_values
-            .get(&destination)
-            .ok_or_else(malformed)?;
+        let root = self.structural_value(destination)?;
         let Some(owned) = self.owned_window_projection(destination, root, path, hole)? else {
             return Ok(());
         };
@@ -92,15 +89,11 @@ impl TerminalExecution<'_> {
         for depth in (0..selected_path.len()).rev() {
             let parent_path = &selected_path[..depth];
             let parent_type = crate::custody::resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 root.structural_type,
                 parent_path,
             )?;
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&parent_type)
-                .ok_or_else(malformed)?;
+            let declaration = self.structural_declaration(parent_type)?;
             let children = match &declaration.shape {
                 StructuralTypeShape::Record { fields, .. } => fields
                     .iter()

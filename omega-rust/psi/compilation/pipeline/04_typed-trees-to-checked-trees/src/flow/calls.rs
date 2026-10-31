@@ -13,16 +13,18 @@ use crate::flow::apply_call_invalidations;
 use crate::flow::build_call_entry_contexts;
 use crate::flow::build_call_exit_contexts;
 use crate::flow::build_call_requires_contexts;
+use crate::flow::expressions;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
     FlowSemanticContextRef, ProofFacts,
 };
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -230,6 +232,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         invalidations: invalidation.invalidations,
         normal_return_writes,
         normal_return_writes_complete: storage_writes.is_some(),
+        normal_return_referents: HandleSpan::empty(),
         boundary_edges,
         requires: contract_call
             .map(|call| call.requires)
@@ -499,10 +502,7 @@ fn append_call_result_field_domain_facts<'plans>(
         return;
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = QualificationEvidence::from_origin(
-        language_semantics::QualificationEvidenceOrigin::Propagated,
-        borrow_call.target_symbol,
-    );
+    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
     // A call that statically realizes a boundary requirement in a checked
     // machine is a direct call to that adapter, not the admitted crossing.
     // `facts::qualification_evidence::call_contract_evidence` already refuses
@@ -639,10 +639,7 @@ fn append_call_parameter_domain_facts<'plans>(
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = QualificationEvidence::from_origin(
-        language_semantics::QualificationEvidenceOrigin::Propagated,
-        borrow_call.target_symbol,
-    );
+    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
     for (position, domain_symbol, semantic_domain) in claims.iter() {
         // Declared child obligations belong to call_phases::referents. This
         // publisher owns authored routed ensures, never input annotations.
@@ -662,14 +659,9 @@ fn append_call_parameter_domain_facts<'plans>(
         };
         // Stable copied inputs keep their observation-survival rule. Borrowed
         // guarantees use the actual captured occurrence in referents.rs.
-        let places = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            borrow_call.statement_index,
-            argument,
-        )
-        .into_iter()
-        .collect::<Vec<_>>();
+        let places = place_at(program, state.symbol, borrow_call.statement_index, argument)
+            .into_iter()
+            .collect::<Vec<_>>();
         for place in &places {
             let place =
                 crate::semantic::places::append_place(semantic, place.root, &place.segments);
@@ -690,6 +682,20 @@ fn append_call_parameter_domain_facts<'plans>(
             reference_spans::append_semantic_context(semantic, build, exit, point, refs);
         }
     }
+}
+
+/// The selected signature's own contract roster, when the call names exactly
+/// one; the caller supplies the roster to use when it names none.
+fn selected_signature_contracts<'a>(
+    program: &'a dyn ::validation::CheckingInput,
+    selected: Option<&typed_trees::signature::StateSignature>,
+) -> Option<Vec<&'a typed_trees::signature::SignatureContract>> {
+    selected.map(|signature| {
+        program
+            .state_signature_contracts(signature)
+            .iter()
+            .collect()
+    })
 }
 
 /// The signature contracts a callable's ensures/requires clauses live on: its
@@ -771,13 +777,7 @@ pub(crate) fn call_result_qualification_identities(
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| validation::call_target_parameters(program, target));
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts(program, target));
     let qualification_contract =
         validation::CallQualificationContract::prepare(program, target, selected);
@@ -812,13 +812,7 @@ pub(in crate::flow) fn call_result_qualification_identities_indexed<'plans>(
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, target));
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
     if !return_type.is_valid() {
         return Vec::new();
@@ -914,9 +908,7 @@ fn append_ensures_result_rows(
         // This occurrence is already selected from this exact callable's
         // ensures, including bodyless trait requirements. It must be the
         // reserved result form, never a same-spelled parameter.
-        if !program
-            .expression_table
-            .names_reserved_result(membership.value)
+        if !expressions(program).names_reserved_result(membership.value)
             || parameters.is_some_and(|parameters| {
                 !language_core::signature_reserves_result(
                     parameters.iter().map(|parameter| parameter.name.as_str()),
@@ -951,13 +943,7 @@ pub(crate) fn call_parameter_qualification_identities(
     else {
         return Vec::new();
     };
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts(program, target));
     let qualification_contract =
         validation::CallQualificationContract::prepare(program, target, selected);
@@ -979,13 +965,7 @@ fn call_parameter_qualification_identities_indexed<'plans>(
     else {
         return Vec::new();
     };
-    let contracts = selected
-        .map(|signature| {
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect()
-        })
+    let contracts = selected_signature_contracts(program, selected)
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
     let qualification_contract =
         validation::CallQualificationContract::prepare(program, target, selected);

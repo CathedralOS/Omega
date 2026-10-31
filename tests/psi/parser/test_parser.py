@@ -79,8 +79,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR17"
-    assert reader.u64() == 17
+    assert reader.bytes(8) == b"OMGPAR18"
+    assert reader.u64() == 18
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -483,7 +483,8 @@ def decode(payload: bytes) -> Observation:
         for _ in range(reader.u64())
     )
     # Contracts: kind (1 machine, 2 proposition), name span, generic range,
-    # parameter range, return flag and handle, clause range, span.
+    # parameter range, return flag and handle, clause range, span, direct
+    # child-contract range (descendants have their own ranges).
     contracts = tuple(
         (
             reader.byte(), reader.u64(), reader.u64(), reader.u64(),
@@ -492,6 +493,7 @@ def decode(payload: bytes) -> Observation:
             reader.byte(), reader.u64(),
             reader.u64(), reader.u64(),
             reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -835,6 +837,7 @@ def declaration_accepted(program: str, name: str, source: bytes, **tables: tuple
         "clauses": clause_rows,
         "traits": trait_rows,
         "pattern_fields": pattern_rows,
+        "contracts": lambda rows: tuple(row + (0, 0) if len(row) == 15 else row for row in rows),
     }
     for table in DECLARATION_TABLES:
         tables.setdefault(table, ())
@@ -985,14 +988,14 @@ def root_declaration_cases(program: str) -> None:
     # Domains: predicate subjects, generic families with index arguments,
     # bracketed carriers, establishment routes, transparent aliases and an
     # empty body.
-    source = b'public domain i32::Positive(value) requires value > 0;'
+    source = b'public domain i32::Positive requires self > 0;'
     declaration_accepted(
         program, "predicate-domain", source,
         roots=((DOMAIN, 0, *whole(source)),),
         type_references=(named(source, b"i32"),),
-        domains=((0, *span(source, b"Positive"), 0, 0, 0, 0, 1, *span(source, b"value"), 0, 1, 0, 0, 0, 0, 0, 1,
+        domains=((0, *span(source, b"Positive"), 0, 0, 0, 0, 0, *NONE, 0, 1, 0, 0, 0, 0, 0, 1,
                   *whole(source)),),
-        clauses=((6, 0, 0, 1, 2, *span(source, b"requires value > 0")),),
+        clauses=((6, 0, 0, 1, 2, *span(source, b"requires self > 0")),),
     )
     source = b"domain<T, const U: Unit> T::Quantity<U>;"
     declaration_accepted(
@@ -1006,7 +1009,7 @@ def root_declaration_cases(program: str) -> None:
         type_arguments=(2,),
         domains=((1, *span(source, b"Quantity"), 0, 1, 0, 2, 0, *NONE, 0, 0, 0, 0, 0, 0, 0, 0, *whole(source)),),
     )
-    source = b'public domain [u8]::Path(path) requires no_nul(path);'
+    source = b'public domain [u8]::Path requires no_nul(self);'
     declaration_accepted(
         program, "bracketed-carrier-domain", source,
         roots=((DOMAIN, 0, *whole(source)),),
@@ -1014,22 +1017,22 @@ def root_declaration_cases(program: str) -> None:
             named(source, b"u8"),
             (5, *NONE, *span(source, b"[u8]"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         ),
-        domains=((1, *span(source, b"Path"), 0, 0, 0, 0, 1, *span(source, b"path"), 0, 1, 0, 0, 0, 0, 0, 1,
+        domains=((1, *span(source, b"Path"), 0, 0, 0, 0, 0, *NONE, 0, 1, 0, 0, 0, 0, 0, 1,
                   *whole(source)),),
-        clauses=((6, 0, 0, 1, 2, *span(source, b"requires no_nul(path)")),),
+        clauses=((6, 0, 0, 1, 2, *span(source, b"requires no_nul(self)")),),
     )
     # A bodyless domain's `;` ends it when the next declaration's carrier is
     # bracketed: `domain [u8]::Text` opens a declaration, not a fact.
-    source = b"domain u64::Small(value) requires value < 8;\ndomain [u8]::Text(bytes) requires valid_utf8(bytes);"
-    first = b"domain u64::Small(value) requires value < 8;"
-    second = b"domain [u8]::Text(bytes) requires valid_utf8(bytes);"
+    source = b"domain u64::Small requires self < 8;\ndomain [u8]::Text requires valid_utf8(self);"
+    first = b"domain u64::Small requires self < 8;"
+    second = b"domain [u8]::Text requires valid_utf8(self);"
     declaration_accepted(
         program, "bodyless-domains-in-sequence", source,
         roots=((DOMAIN, 0, *span(source, first)), (DOMAIN, 1, *span(source, second))),
         domains=(
-            (0, *span(source, b"Small"), 0, 0, 0, 0, 1, *span(source, b"value"), 0, 1, 0, 0, 0, 0, 0, 0,
+            (0, *span(source, b"Small"), 0, 0, 0, 0, 0, *NONE, 0, 1, 0, 0, 0, 0, 0, 0,
              *span(source, first)),
-            (2, *span(source, b"Text"), 0, 0, 0, 0, 1, *span(source, b"bytes"), 1, 1, 0, 0, 0, 0, 0, 0,
+            (2, *span(source, b"Text"), 0, 0, 0, 0, 0, *NONE, 1, 1, 0, 0, 0, 0, 0, 0,
              *span(source, second)),
         ),
     )
@@ -1050,12 +1053,12 @@ def root_declaration_cases(program: str) -> None:
         name_paths=((0, 2, *span(source, b"Socket::Connected")), (2, 2, *span(source, b"Socket::Authenticated"))),
         domains=((0, *span(source, b"Usable"), 0, 0, 0, 0, 0, *NONE, 0, 0, 2, 0, 1, 0, 2, 1, *whole(source)),),
     )
-    source = b"domain Player::Alive(player) requires player.health > 0;"
+    source = b"domain Player::Alive requires self.health > 0;"
     declaration_accepted(
         program, "domain-predicate-semicolon", source,
         roots=((DOMAIN, 0, *whole(source)),),
         type_references=(named(source, b"Player"),),
-        domains=((0, *span(source, b"Alive"), 0, 0, 0, 0, 1, *span(source, b"player", 1), 0, 1, 0, 0, 0, 0, 0, 0,
+        domains=((0, *span(source, b"Alive"), 0, 0, 0, 0, 0, *NONE, 0, 1, 0, 0, 0, 0, 0, 0,
                   *whole(source)),),
     )
 
@@ -1083,7 +1086,7 @@ def root_declaration_cases(program: str) -> None:
     )
     # A machine's return type may follow its clauses, more clauses after it
     # continuing one run, and `terminates` may end at the body's `{`.
-    source = b"machine f(n: u64)\nterminates by n;\n-> u64\nrequires n < 9\n{ n }"
+    source = b'machine f(n: u64) -> u64\nterminates by n\nrequires n < 9\n{ n }'
     actual = declaration_accepted(program, "return-type-after-clauses", source)
     assert len(actual.clauses) == 2 and len(actual.type_references) == 2, (actual.clauses, actual.type_references)
     source = b"machine f(n: u64) -> u64 terminates { n }"
@@ -1112,12 +1115,12 @@ def root_declaration_cases(program: str) -> None:
     # A rank range `in lower..=upper` follows the subjects and view
     # (wiki/spec/language/termination.md#ranking) as a range expression on
     # the clause, inclusive or exclusive; `in` without the dots rejects.
-    source = b"machine f(n: u64) terminates by n in 0..=9; {}"
+    source = b'machine f(n: u64) terminates by n in 0..=9 {}'
     actual = declaration_accepted(program, "rank-range-inclusive", source)
     assert len(actual.clauses) == 1 and actual.clauses[0][15] == 1, actual.clauses
     inclusive_range = actual.expressions[actual.clauses[0][16]]
     assert inclusive_range[6] == 1, inclusive_range
-    source = b"machine f(n: u64) terminates by n -> Nat::Descending in 0..limit; {}"
+    source = b'machine f(n: u64) terminates by n -> Nat::Descending in 0..limit {}'
     actual = declaration_accepted(program, "rank-range-after-view", source)
     assert actual.clauses[0][8] == 1 and actual.clauses[0][15] == 1, actual.clauses
     assert actual.expressions[actual.clauses[0][16]][6] == 0, actual.expressions
@@ -1165,7 +1168,7 @@ def root_declaration_cases(program: str) -> None:
         ),
         traits=((*span(source, b"Clock"), 0, 0, 0, 0, 0, 2, 1, 1, *whole(source)),),
     )
-    source = b"linux_arm64 machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;"
+    source = b'linux_arm64 machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;'
     actual = declaration_accepted(
         program, "bodyless-declarations-before-roots", source,
         roots=(
@@ -1263,8 +1266,8 @@ def root_declaration_cases(program: str) -> None:
         ("domain-carrier", b"domain ::X;", 130, (7, 9), {}),
         ("domain-separator", b"domain i32 X;", 131, (11, 12), {"type_reference_count": 1}),
         ("domain-name", b"domain i32::;", 132, (12, 13), {"type_reference_count": 1}),
-        ("domain-subject", b"domain i32::X(;", 133, (14, 15), {"type_reference_count": 1}),
-        ("domain-subject-end", b"domain i32::X(v;", 134, (15, 16), {"type_reference_count": 1}),
+        ("domain-subject", b"domain i32::X(;", 202, (13, 14), {"type_reference_count": 1}),
+        ("domain-subject-end", b"domain i32::X(v;", 202, (13, 14), {"type_reference_count": 1}),
         ("domain-constituent", b"domain i32::X = ;", 135, (16, 17), {"type_reference_count": 1}),
         ("established-by", b"domain i32::X established Y;", 136, (26, 27), {"type_reference_count": 1}),
         ("domain-route", b"domain i32::X established by ;", 137, (29, 30), {"type_reference_count": 1}),
@@ -1349,7 +1352,7 @@ def clause_row(
 
 
 def machine_form_cases(program: str) -> None:
-    """Satisfactions, termination promises, operator tokens, `where machine`
+    """Satisfactions, termination promises, operator tokens, `requires machine`
     and `where proposition` contracts, proposition and evidence binders,
     transparent refinements and mathematical definitions."""
     NONE = (1, 0, 0)
@@ -1392,9 +1395,9 @@ def machine_form_cases(program: str) -> None:
         ),
         type_arguments=(0, 1),
     )
-    source = b"machine f() satisfies A::x; requires a {}"
+    source = b"machine f() satisfies A::x requires a {}"
     declaration_accepted(
-        program, "satisfaction-semicolon-before-clause", source,
+        program, "satisfaction-before-clause", source,
         clauses=(
             clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies A::x")),
             clause_row(REQUIRES, (0, 0), 0, span(source, b"requires a"), True),
@@ -1414,25 +1417,25 @@ def machine_form_cases(program: str) -> None:
     declaration_accepted(
         program, "termination-promise", source,
         roots=((MACHINE_ROOT, 0, *whole(source)),),
-        clauses=(clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;")),),
+        clauses=(clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates")),),
     )
-    source = b"machine f(n: u64) terminates by n; {}"
+    source = b'machine f(n: u64) terminates by n {}'
     declaration_accepted(
         program, "ranked-subject", source,
-        clauses=(clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates by n;"), arguments=(0, 1)),),
+        clauses=(clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates by n"), arguments=(0, 1)),),
         arguments=(0,),
     )
-    source = b"machine f(i: u64, n: u64) terminates by (i, n.len) -> Nat::BoundedDistance; {}"
+    source = b'machine f(i: u64, n: u64) terminates by (i, n.len) -> Nat::BoundedDistance {}'
     declaration_accepted(
         program, "ranked-subject-list-and-view", source,
-        clauses=(clause_row(TERMINATES, (0, 0), 3, through(source, b"terminates", b"Distance;"), True, (0, 2)),),
+        clauses=(clause_row(TERMINATES, (0, 0), 3, through(source, b"terminates", b"Distance"), True, (0, 2)),),
         arguments=(0, 2),
     )
-    source = b"machine f(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n); requires i < n {}"
+    source = b'machine f(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n) requires i < n {}'
     declaration_accepted(
         program, "argumented-ranking-view", source,
         clauses=(
-            clause_row(TERMINATES, (0, 0), 3, span(source, b"terminates by i -> Nat::IncreasingTo(n);"), True, (0, 1)),
+            clause_row(TERMINATES, (0, 0), 3, span(source, b"terminates by i -> Nat::IncreasingTo(n)"), True, (0, 1)),
             clause_row(REQUIRES, (0, 0), 6, span(source, b"requires i < n"), True),
         ),
         arguments=(0, 2),
@@ -1441,8 +1444,8 @@ def machine_form_cases(program: str) -> None:
     actual = declaration_accepted(
         program, "requirement-termination-promises", source,
         clauses=(
-            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;", 1)),
-            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;", 2)),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates", 1)),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates", 2)),
         ),
         traits=((*span(source, b"Semiring"), 0, 1, 0, 0, 0, 2, 0, 0, *whole(source)),),
     )
@@ -1467,41 +1470,45 @@ def machine_form_cases(program: str) -> None:
     )
     assert actual.machines[0][30:35] == (1, 1, *span(source, b"+")), actual.machines
 
-    # `where machine` contracts precede a machine's other clauses: one flat
-    # list of signatures, each named for a binder, possibly of an earlier
-    # contract's own generic parameters.
-    source = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
+    retired = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
+    rejected(program, "retired-where-machine", retired, 201,
+             span(retired, b"where")[1:], generic_parameter_count=1,
+             parameter_count=1, type_reference_count=2)
+
+    # Every callable retains its direct requirements; a nested signature
+    # owns its own binder scope and consumes its own terminator.
+    source = b"machine apply<machine F>(x: u8) -> u8 requires machine F(value: u8) -> u8; { F(x) }"
     actual = declaration_accepted(
         program, "structural-machine-contract", source,
         contracts=((1, *span(source, b"F", 2), 1, 0, 1, 1, 1, 3, 0, 0,
-                    *span(source, b"where machine F(value: u8) -> u8;")),),
+                    *span(source, b"requires machine F(value: u8) -> u8;")),),
         generic_parameters=((5, *span(source, b"F"), 0, 0, 0, *span(source, b"machine F")),),
     )
     assert actual.machines[0][7:9] == (0, 1) and actual.machines[0][35:37] == (0, 1), actual.machines
-    source = (b"machine c<machine S, machine M>(p: u8) -> u8 where machine S(i: u8) -> u8; "
-              b"where machine M(p: u8) -> u8; requires p > 0 {}")
+    source = (b"machine c<machine S, machine M>(p: u8) -> u8 requires machine S(i: u8) -> u8; "
+              b"requires machine M(p: u8) -> u8; requires p > 0 {}")
     actual = declaration_accepted(
         program, "contracts-before-clauses", source,
         contracts=(
-            (1, *span(source, b"S", 2), 2, 0, 1, 1, 1, 3, 0, 0, *span(source, b"where machine S(i: u8) -> u8;")),
-            (1, *span(source, b"M", 2), 2, 0, 2, 1, 1, 5, 0, 0, *span(source, b"where machine M(p: u8) -> u8;")),
+            (1, *span(source, b"S", 2), 2, 0, 1, 1, 1, 3, 0, 0, *span(source, b"requires machine S(i: u8) -> u8;")),
+            (1, *span(source, b"M", 2), 2, 0, 2, 1, 1, 5, 0, 0, *span(source, b"requires machine M(p: u8) -> u8;")),
         ),
         clauses=(clause_row(REQUIRES, (0, 0), 2, span(source, b"requires p > 0"), True),),
     )
     assert actual.machines[0][13:15] == (0, 1) and actual.machines[0][35:37] == (0, 2), actual.machines
     source = (b"machine forward<machine Schema, machine Selected>(value: u8) -> u8\n"
-              b"where machine Schema<machine Inner>(value: u8) -> u8\n"
-              b"where machine Inner(index: u8) -> u8;\n"
-              b"where machine Selected(index: u8) -> u8;\n{\n    value\n}")
+              b"requires machine Schema<machine Inner>(value: u8) -> u8\n"
+              b"requires machine Inner(index: u8) -> u8;;\n"
+              b"requires machine Selected(index: u8) -> u8;\n{\n    value\n}")
     actual = declaration_accepted(
         program, "nested-binder-contracts", source,
         contracts=(
-            (1, *span(source, b"Schema", 2), 2, 1, 1, 1, 1, 3, 0, 0,
-             1, source.index(b"where machine Schema"), source.index(b"\nwhere machine Inner")),
             (1, *span(source, b"Inner", 2), 3, 0, 2, 1, 1, 5, 0, 0,
-             *span(source, b"where machine Inner(index: u8) -> u8;")),
+             *span(source, b"requires machine Inner(index: u8) -> u8;"), 0, 0),
+            (1, *span(source, b"Schema", 2), 2, 1, 1, 1, 1, 3, 0, 0,
+             1, source.index(b"requires machine Schema"), source.index(b";;") + 2, 0, 1),
             (1, *span(source, b"Selected", 2), 3, 0, 3, 1, 1, 7, 0, 0,
-             *span(source, b"where machine Selected(index: u8) -> u8;")),
+             *span(source, b"requires machine Selected(index: u8) -> u8;")),
         ),
         generic_parameters=(
             (5, *span(source, b"Schema"), 0, 0, 0, *span(source, b"machine Schema")),
@@ -1509,22 +1516,21 @@ def machine_form_cases(program: str) -> None:
             (5, *span(source, b"Inner"), 0, 0, 0, *span(source, b"machine Inner")),
         ),
     )
-    assert actual.machines[0][7:9] == (0, 2) and actual.machines[0][35:37] == (0, 3), actual.machines
-    source = b"machine run<machine H>() where machine H satisfies Hook<u8>::call; {}"
+    assert actual.machines[0][7:9] == (0, 2) and actual.machines[0][35:37] == (1, 2), actual.machines
+    source = b"machine run<machine H>() requires machine H satisfies Hook<u8>::call; {}"
     actual = declaration_accepted(
         program, "nominal-machine-contract", source,
         contracts=((1, *span(source, b"H", 2), 1, 0, 0, 0, 0, 0, 0, 1,
-                    *span(source, b"where machine H satisfies Hook<u8>::call;")),),
+                    *span(source, b"requires machine H satisfies Hook<u8>::call;")),),
         clauses=(clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies Hook<u8>::call"), arguments=(0, 1)),),
         type_arguments=(0,),
     )
     assert actual.machines[0][13:15] == (1, 0), actual.machines
-    source = (b"machine e<machine Step>(v: u8) where machine Step(value: u8) requires value > 0 "
-              b"ensures value < 9; ensures v > 1; {}")
+    source = (b'machine e<machine Step>(v: u8) requires machine Step(value: u8) requires value > 0 ensures value < 9; ensures v > 1 {}')
     actual = declaration_accepted(
         program, "contract-clauses-end-at-semicolon", source,
         contracts=((1, *span(source, b"Step", 2), 1, 0, 1, 1, 0, 0, 0, 2,
-                    *span(source, b"where machine Step(value: u8) requires value > 0 ensures value < 9;")),),
+                    *span(source, b"requires machine Step(value: u8) requires value > 0 ensures value < 9;")),),
         clauses=(
             clause_row(REQUIRES, (0, 0), 2, span(source, b"requires value > 0"), True),
             clause_row(ENSURES, (0, 0), 5, span(source, b"ensures value < 9"), True),
@@ -1532,13 +1538,52 @@ def machine_form_cases(program: str) -> None:
         ),
     )
     assert actual.machines[0][13:15] == (2, 1), actual.machines
-    source = b"machine b<machine F>() where machine F(); data D {}"
+    source = b'machine b<machine F>() requires machine F();; data D {}'
     declaration_accepted(
         program, "bodyless-machine-contract", source,
-        roots=((MACHINE_ROOT, 0, *span(source, b"machine b<machine F>() where machine F();")),
+        roots=((MACHINE_ROOT, 0, *span(source, b"machine b<machine F>() requires machine F();;")),
                (DATA_ROOT, 0, *span(source, b"data D {}"))),
-        contracts=((1, *span(source, b"F", 2), 1, 0, 0, 0, 0, 0, 0, 0, *span(source, b"where machine F();")),),
+        contracts=((1, *span(source, b"F", 2), 1, 0, 0, 0, 0, 0, 0, 0, *span(source, b"requires machine F();")),),
     )
+
+    # Direct owner ranges survive a grandchild and a later nongeneric
+    # sibling. Parent clauses on both sides of a child stay contiguous.
+    source = (b"machine root<machine F, machine H>() requires root_before "
+              b"requires machine F<machine G>() requires f_before "
+              b"requires machine G() ensures g_done; ensures f_done; "
+              b"requires machine H(); ensures root_done {}")
+    status, payload = run(program, source)
+    assert status == 0, f"recursive-contract-owners: status {status}"
+    actual = decode(payload)
+    assert [source[row[2]:row[3]] for row in actual.contracts] == [b"G", b"F", b"H"], actual.contracts
+    assert [row[4:6] for row in actual.contracts] == [(3, 0), (2, 1), (3, 0)], actual.contracts
+    assert [row[10:12] for row in actual.contracts] == [(0, 1), (1, 2), (3, 0)], actual.contracts
+    assert [row[-2:] for row in actual.contracts] == [(0, 0), (0, 1), (0, 0)], actual.contracts
+    assert actual.machines[0][13:15] == (3, 2), actual.machines
+    assert actual.machines[0][35:37] == (1, 2), actual.machines
+
+    source = (b"machine first<machine F>() requires machine F(); {} "
+              b"measure Pair::Lex lexicographic { left, right }")
+    status, payload = run(program, source)
+    assert status == 0, f"measure-contract-reset: status {status}"
+    actual = decode(payload)
+    assert actual.machines[0][35:37] == (0, 1), actual.machines
+    assert actual.machines[1][35:37] == (1, 0), actual.machines
+
+    source = (b"trait T<proposition P> where proposition P(); {} "
+              b"trait R = Base { machine * blocks; }")
+    status, payload = run(program, source)
+    assert status == 0, f"trait-contract-reset: status {status}"
+    actual = decode(payload)
+    assert actual.traits[0][-4:-2] == (0, 1), actual.traits
+    assert actual.traits[1][-4:-2] == (1, 0), actual.traits
+
+    source = b"machine f<machine F>() requires a requires machine F(); {}"
+    status, payload = run(program, source)
+    assert status == 0, f"requirement-after-clause: status {status}"
+    actual = decode(payload)
+    assert actual.machines[0][13:15] == (0, 1), actual.machines
+    assert actual.machines[0][35:37] == (0, 1), actual.machines
 
     # Proposition binders take their signature from `where proposition`;
     # an evidence binder `Name satisfies Trait<...>` names an implementation.
@@ -1668,18 +1713,15 @@ def machine_form_cases(program: str) -> None:
          {"expression_count": 1}),
         ("termination-view", b"machine f() terminates by a -> 1; {}", 162, b"1", 1,
          {"expression_count": 2}),
-        ("termination-end", b"machine f() terminates by a {}", 94, b"{", 1, {"expression_count": 1}),
         ("ranked-subject-in-begins-a-rank-range", b"machine f() terminates by x in D; {}", 197, b";", 1,
          {"expression_count": 2}),
         ("unknown-operator-token", b"machine [x] f() {}", 163, b"x", 1, {}),
         ("conformance-member-token", b"C satisfies T { machine + f() {} }", 164, b"+", 1, {"type_reference_count": 1}),
         ("token-before-no-name", b"machine + () {}", 40, b"(", 1, {}),
-        ("contract-name", b"machine f<machine F>() where machine (x: u8); {}", 165, b"(", 2, {"generic_parameter_count": 1}),
-        ("contract-end", b"machine f<machine F>() where machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
-        ("nominal-contract-takes-no-binding", b"machine f<machine F>() where machine F satisfies H::c via b; {}",
+        ("contract-name", b"machine f<machine F>() requires machine (x: u8); {}", 165, b"(", 2, {"generic_parameter_count": 1}),
+        ("contract-end", b"machine f<machine F>() requires machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
+        ("nominal-contract-takes-no-binding", b"machine f<machine F>() requires machine F satisfies H::c via b; {}",
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
-        ("contract-after-clause", b"machine f() requires a where machine F(); {}", 105, b"where", 1,
-         {"expression_count": 1}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
         ("proposition-contract-end", b"trait R<proposition P> where proposition P(x: u8) {}", 166, b"{", 1,
@@ -1712,23 +1754,23 @@ def machine_form_cases(program: str) -> None:
 
     # Capacity edges: 256 contracts, 256 definitions and 8 ranked subjects
     # fill their tables; one more rejects.
-    exact = b"machine f() " + b"where machine F; " * 256 + b"{}"
+    exact = b"machine f() " + b"requires machine F; " * 256 + b"{}"
     status, payload = run(program, exact)
     assert status == 0 and len(decode(payload).contracts) == 256, "256 contracts"
-    over = b"machine f() " + b"where machine F; " * 257 + b"{}"
-    start = len(b"machine f() ") + 256 * len(b"where machine F; ")
-    rejected(program, "contract-capacity-plus-one", over, 167, (start, start + 5), root_count=0)
+    over = b"machine f() " + b"requires machine F; " * 257 + b"{}"
+    start = len(b"machine f() ") + 256 * len(b"requires machine F; ")
+    rejected(program, "contract-capacity-plus-one", over, 167, (start, start + len(b"requires")), root_count=0)
     exact = b"let x: u8 = 0;\n" * 256
     status, payload = run(program, exact)
     assert status == 0 and len(decode(payload).definitions) == 256, "256 definitions"
     over = exact + b"let x: u8 = 0;\n"
     rejected(program, "definition-capacity-plus-one", over, 190, (len(exact), len(exact) + 3),
              root_count=256, type_reference_count=256, expression_count=256, member_count=0)
-    exact = b"machine f() terminates by (" + b", ".join([b"a"] * 8) + b"); {}"
+    exact = b"machine f() terminates by (" + b", ".join([b"a"] * 8) + b") {}"
     status, payload = run(program, exact)
     assert status == 0 and decode(payload).clauses[0][9:11] == (0, 8), "8 ranked subjects"
-    over = b"machine f() terminates by (" + b", ".join([b"a"] * 9) + b"); {}"
-    rejected(program, "ranked-subject-capacity-plus-one", over, 180, (len(over) - 5, len(over) - 4),
+    over = b"machine f() terminates by (" + b", ".join([b"a"] * 9) + b") {}"
+    rejected(program, "ranked-subject-capacity-plus-one", over, 180, (over.rindex(b")"), over.rindex(b")") + 1),
              expression_count=9)
 
 
@@ -3339,13 +3381,13 @@ def main() -> None:
 
     clauses(
         "operational-clauses",
-        b"machine f() reaches Console, Clock + Log invokes Console; crashes Trap blocks; suspends; {}",
+        b'machine f() reaches Console, Clock + Log invokes Console crashes Trap blocks suspends {}',
         (
             (1, 0, 3, 1, 0, 1, 12, 40),
-            (2, 3, 1, 1, 0, 1, 41, 57),
-            (5, 0, 0, 1, 0, 1, 58, 70),
-            (4, 4, 0, 1, 0, 1, 71, 78),
-            (3, 4, 0, 1, 0, 1, 79, 88),
+            (2, 3, 1, 1, 0, 1, 41, 56),
+            (5, 0, 0, 1, 0, 1, 57, 69),
+            (4, 4, 0, 1, 0, 1, 70, 76),
+            (3, 4, 0, 1, 0, 1, 77, 85),
         ),
         ((1, 20, 27), (1, 29, 34), (1, 37, 40), (1, 49, 56)),
         0,
@@ -3365,8 +3407,6 @@ def main() -> None:
     )
     clause_rejections = (
         ("invokes-binding", b"machine f() invokes ;", 93, (20, 21), {}),
-        ("invokes-end", b"machine f() invokes A {}", 94, (22, 23), {"member_count": 1}),
-        ("blocks-end", b"machine f() blocks {}", 94, (19, 20), {}),
         ("requires-fact", b"machine f() requires {}", 95, (21, 22), {}),
         ("crashes-cause", b"machine f() crashes Halt {}", 79, (20, 24), {}),
     )
@@ -3412,19 +3452,24 @@ def main() -> None:
     for name, source, diagnostic, span, counts in admission_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
-    # Data and case `where` facts share the clause table with machines.
-    source = b"data D where a <= 4, b > 0, { a: u64; b: u64; case C(x: u8) where x < 9; }"
+    # Data default-domain facts remain admitted; retired case predicates do
+    # not produce a case-owned clause range.
+    source = b"data D where a <= 4, b > 0, { a: u64; b: u64; case C(x: u8); }"
     status, payload = run(program, source)
     assert status == 0, f"data-where: status {status}"
     actual = decode(payload)
-    assert [row[0] for row in actual.clauses] == [8, 8, 8], f"data-where:\n{actual.clauses}"
+    assert [row[0] for row in actual.clauses] == [8, 8], f"data-where:\n{actual.clauses}"
     assert actual.data_items[0][16:18] == (0, 2), f"data-where:\n{actual.data_items}"
-    assert actual.cases[0][12:14] == (2, 1), f"data-where:\n{actual.cases}"
+    assert actual.cases[0][12:14] == (2, 0), f"data-where:\n{actual.cases}"
+    for name, word in (("retired-case-where", b"where"), ("retired-case-requires", b"requires")):
+        source = b"data D { case C(x: u8) " + word + b" x < 9; }"
+        start = source.index(word)
+        rejected(program, name, source, 203, (start, start + len(word)),
+                 payload_field_count=1, type_reference_count=1)
     where_rejections = (
         ("where-fact", b"data D where {}", 95, (13, 14), {}),
         ("where-separator", b"data D where a b {}", 11, (15, 16), {"expression_count": 1}),
-        ("data-requires", b"data D requires a {}", 105, (7, 15), {}),
-        ("case-where-fact", b"data D { case C where ; }", 95, (22, 23), {}),
+        ("case-where-fact", b"data D { case C where ; }", 203, (16, 21), {}),
     )
     for name, source, diagnostic, span, counts in where_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
@@ -3898,20 +3943,20 @@ def main() -> None:
         return actual
 
     actual = contract("bodyless-operational-clause", b"machine f() blocks;", [4], [False])
-    assert actual.clauses[0][5:8] == (1, 12, 19), f"bodyless-operational-clause:\n{actual.clauses}"
+    assert actual.clauses[0][5:8] == (1, 12, 18), f"bodyless-operational-clause:\n{actual.clauses}"
     assert actual.machines[0][22:25] == (1, 0, 19), f"bodyless-operational-clause:\n{actual.machines}"
     contract("empty-reach-before-body", b"machine f() reaches {}", [1], [True])
-    contract("operational-clause-before-body", b"machine f() blocks; suspends; {}", [4, 3], [True])
-    source = b"machine f(value: u64) -> u8\nrequires\n    value <= 255;\n{\n    value as u8\n}"
-    actual = contract("requires-semicolon-before-body", source, [6], [True])
+    contract("operational-clause-before-body", b'machine f() blocks suspends {}', [4, 3], [True])
+    source = b'machine f(value: u64) -> u8\nrequires\n    value <= 255\n{\n    value as u8\n}'
+    actual = contract("requires-before-body", source, [6], [True])
     assert actual.clauses[0][5:8] == (1, source.index(b"requires"), source.index(b"255") + 3), (
         f"requires-semicolon-before-body:\n{actual.clauses}"
     )
-    contract("semicolon-separated-facts", b"machine f() requires a; (b) == c; ensures d; {}", [6, 6, 7], [True])
-    contract("bodyless-fact-lists", b"machine f() requires a; b; machine g() requires c;", [6, 6, 6], [False, False])
+    contract("comma-separated-facts", b'machine f() requires a, (b) == c ensures d {}', [6, 6, 7], [True])
+    contract("bodyless-fact-lists", b'machine f() requires a, b; machine g() requires c;', [6, 6, 6], [False, False])
     actual = contract("fact-before-declaration", b'machine f() requires a; public data D {}', [6], [False])
     assert len(actual.data_items) == 1, f"fact-before-declaration:\n{actual.data_items}"
-    contract("cast-fact-after-semicolon", b"machine f() requires a; b as u8 == 4; {}", [6, 6], [True])
+    contract("cast-fact-after-comma", b'machine f() requires a, b as u8 == 4 {}', [6, 6], [True])
     bodyless_rejections = (
         ("machine-body-or-end", b"machine f() -> u8 x", 47, (18, 19), {"type_reference_count": 1}),
         ("fact-semicolon-then-close", b"machine f() requires a; }", 2, (24, 25),

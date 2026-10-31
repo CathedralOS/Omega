@@ -11,7 +11,7 @@ PortableBoundedValue satisfies BoundedValue {
         requires value <= Cap ensures result <= Cap { value }
 }
 machine forward<const Maximum: u64>(value: u64) -> u64
-    reaches BoundedValue invokes BoundedValue;
+    reaches BoundedValue invokes BoundedValue
     requires value <= Maximum ensures result <= Maximum
 { BoundedValue::bound<Maximum>(value) }
 boundary trait BoundedSubtract {
@@ -21,7 +21,7 @@ boundary trait BoundedSubtract {
 PortableBoundedSubtract satisfies BoundedSubtract {
     machine subtract(value: u64) -> u64 requires value <= 64 { 64u64 - value }
 }
-machine main() reaches BoundedValue, BoundedSubtract invokes BoundedValue; invokes BoundedSubtract; crashes Trap {
+machine main() reaches BoundedValue, BoundedSubtract invokes BoundedValue invokes BoundedSubtract crashes Trap {
     let remaining: u64 = BoundedSubtract::subtract(forward<64>(42));
     transition remaining == 22 { true -> done() false -> bad() }
     machine done() {}

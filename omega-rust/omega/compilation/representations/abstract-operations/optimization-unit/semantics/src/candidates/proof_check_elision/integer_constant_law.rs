@@ -124,9 +124,7 @@ pub(super) fn validate_integer_constant_law_candidate(
     if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, ReplaceIntegerOperationWithConstant, candidate);
     if candidate.node_decision_point() != Some(patch.location)
         || candidate.affected_blocks() != [patch.location.block]
     {

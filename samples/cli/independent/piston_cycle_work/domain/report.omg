@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // The declared fixture inventory keeps scaled magnitudes below i32::MAX.
 public machine number(value: f64)
 reaches Console
-invokes Console;
+invokes Console
 crashes Trap
 {
     transition value < 0.0 { true -> negative(value) _ -> positive(value) }
@@ -34,7 +34,7 @@ machine digits(scaled: i32) reaches Console {
 
 public machine integer(value: i32)
 reaches Console
-invokes Console;
+invokes Console
 {
     let wrapped: i32 in Wrapping = value as i32 in Wrapping;
     transition { _ -> emit(wrapped, 1000000000, false) }

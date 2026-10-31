@@ -1,6 +1,6 @@
 # boundary_machine_opaque
 
-`boundary machine` attached to a `pub boundary data` opaque type: the type carries no fields yet hosts the crossing's contract surface — `WaitSubstrate::park(word) suspends; blocks;`, `wake_one`, `wake_all`. Dual-axis `suspends; blocks;` marks a blocking wait, not a semantic safe point.
+`boundary machine` attached to a `pub boundary data` opaque type: the type carries no fields yet hosts the crossing's contract surface — `WaitSubstrate::park(word) suspends blocks;`, `wake_one`, `wake_all`. Dual-axis `suspends blocks;` marks a blocking wait, not a semantic safe point.
 
 ## Learnings
 

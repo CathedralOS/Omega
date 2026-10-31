@@ -6,6 +6,7 @@
 //! exact storages do not: the callee may receive any of them. Expansion
 //! establishes denotation; it never evaluates a user call or assumes its purity.
 
+use crate::flow::state_statements;
 use checked_trees::{
     CheckFacts, CheckedScalarComputationKind as Computation, CheckedScalarExpressionRole,
 };
@@ -325,10 +326,7 @@ impl Denotations<'_> {
             return None;
         }
         let (machine, state) = validation::find_state(self.program, self.caller_state_symbol)?;
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         let (definition, local) = self.program.state_local_declaration(state, path.symbol)?;
         if definition >= self.statement_index
             || local.is_mutable

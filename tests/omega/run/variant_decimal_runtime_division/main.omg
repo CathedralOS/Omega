@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine finish(main: &mut Main) { Console::exit_process(0); }
 }
 public machine number(value: u64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition { _ -> digit(value, 10000000000000000000, false) }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {

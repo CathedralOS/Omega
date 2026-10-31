@@ -20,27 +20,11 @@ pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checke
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
 
 use super::ProviderPlan;
-use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;
+use language_semantics::direct_calls::DirectCallDeclarations;
+use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProviderSchemaDeclaration {
-    BoundaryTrait(symbols::SymbolHandle),
-    BoundaryRequirement(symbols::SymbolHandle),
-    BoundaryOperator(symbols::SymbolHandle),
-    SealedPlacedAccessor(symbols::SymbolHandle),
-}
-
-impl ProviderSchemaDeclaration {
-    pub const fn symbol(self) -> symbols::SymbolHandle {
-        match self {
-            Self::BoundaryTrait(symbol)
-            | Self::BoundaryRequirement(symbol)
-            | Self::BoundaryOperator(symbol)
-            | Self::SealedPlacedAccessor(symbol) => symbol,
-        }
-    }
-}
+pub use checked_trees::typed_trees::service_declarations::ProviderSchemaDeclaration;
 
 /// A row's supplying owner. Native Build rows own an evaluated intent, never
 /// an invented bodyless machine; toolchain settlement likewise has no source body.
@@ -81,11 +65,7 @@ pub struct ProviderPlanProvenance {
     pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedTargetMachineOrigin {
-    pub machine: symbols::SymbolHandle,
-    pub target: String,
-}
+pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedProviderPlan {
@@ -100,7 +80,8 @@ pub struct DerivedProviderPlan {
 /// evaluated for the same typed program and target.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
-    context: ProviderPlanningContext<'a>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
+    body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
     evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
@@ -111,12 +92,14 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// Derive from retained conformance alone, before `via` bindings are
     /// evaluated.
     pub const fn unevaluated(
-        context: ProviderPlanningContext<'a>,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
+        body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
     ) -> Self {
         Self {
-            context,
+            services,
+            body_declarations,
             calling_plans,
             selected_target,
             evaluated_bindings: None,
@@ -128,14 +111,16 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// the same typed program and target. The table is not replayed against
     /// the program it was just evaluated from.
     pub fn evaluated(
-        context: ProviderPlanningContext<'a>,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
+        body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
         evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Self {
         Self {
-            context,
+            services,
+            body_declarations,
             calling_plans,
             selected_target,
             evaluated_bindings: Some(evaluated_bindings),
@@ -150,7 +135,8 @@ pub fn derive_satisfies_plans(
     derivation: ProviderPlanDerivation<'_>,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     derive_provider_plans(
-        derivation.context,
+        derivation.services,
+        derivation.body_declarations,
         derivation.calling_plans,
         derivation.selected_target,
         derivation.evaluated_bindings,

@@ -232,9 +232,7 @@ fn type_reference_spans_match(
     allow_name_fallback: bool,
 ) -> bool {
     let actual = program.type_reference_table.type_reference_handles(actual);
-    let expected = program
-        .type_reference_table
-        .type_reference_handles(expected);
+    let expected = program.type_reference_handles(expected);
     actual.len() == expected.len()
         && actual.iter().zip(expected).all(|(actual, expected)| {
             type_reference_matches_with_policy(

@@ -22,6 +22,7 @@ use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
+use crate::places::place_at;
 
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -279,10 +280,7 @@ pub(super) fn append_statement_calls<'plans>(
         StatementNode::Expression(expression) => {
             if state.return_type.is_valid()
                 && statement_index + 1
-                    == program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .len()
+                    == crate::flow::state_statements(program, state.statement_nodes).len()
             {
                 let evaluated = execution.evaluated_operand_as(
                     *expression,
@@ -899,7 +897,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             let owned_places = if let Some(referents) = completed.referents {
                 self.captured_reference_places(referents)
             } else {
-                validation::canonical_place_from_expression_in_state(
+                place_at(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
@@ -911,6 +909,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
             let owner = self.context.control.operands.append(capture);
             capture.reference_leaves = self.capture_owned_reference_leaves(owner, &owned_places);
+            // Attaching conditional descriptor inventory does not produce new
+            // owned bytes. Retain the exact completion used by its formations,
+            // so later saved copies can identify that carrier by handle.
+            capture.value_source = owner;
         }
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {
@@ -1036,7 +1038,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             // are references. Resolve those descriptors only after projecting
             // their slots; asking for the container's reference origin would
             // lose its address or substitute a child's backing for the owner.
-            let Some(place) = validation::canonical_place_from_expression_in_state(
+            let Some(place) = place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
@@ -1329,7 +1331,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     }
 
     fn names_whole_parameter(&self, expression: ExpressionHandle) -> bool {
-        validation::canonical_place_from_expression_in_state(
+        place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -1781,6 +1783,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     constraints,
                 );
                 *invocation = completed.call;
+                self.complete_call_reference_formations(
+                    completed.call,
+                    referents,
+                    reference_leaves,
+                );
                 // Share the invocation's exact captured operands. Cloning
                 // them would manufacture second evaluation occurrences and
                 // make retained-loan correspondence ambiguous.
@@ -2188,7 +2195,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         expression: ExpressionHandle,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> Handle<checked_trees::FlowCaseAccessFact> {
-        let Some(place) = validation::canonical_place_from_expression_in_state(
+        let Some(place) = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -2206,7 +2213,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         constraints: HandleSpan<FlowConstraintRef>,
         places: HandleSpan<checked_trees::FlowOperandReferent>,
     ) -> Handle<checked_trees::FlowCaseAccessFact> {
-        let source_has_case = validation::canonical_place_from_expression_in_state(
+        let source_has_case = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,

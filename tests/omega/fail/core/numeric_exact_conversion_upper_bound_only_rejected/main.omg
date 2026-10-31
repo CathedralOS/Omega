@@ -7,7 +7,7 @@ use omega_language_std::console;
 
 machine narrow(value: i32) -> u8
 requires
-    value <= 255;
+    value <= 255
 {
     narrow_i32_to_u8_exact(value)
 }

@@ -8,6 +8,8 @@
 //! geometry retains every possible slot when an immutable actual cannot narrow
 //! the selection; recast presentations still require their own correspondence.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use facts::{PlaceRoot, PlaceSegment};
@@ -37,12 +39,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     // A later bare assignment may rebind the reference to another result.
     if prefix[binding_index + 1..].iter().any(|statement| {
         matches!(statement, StatementNode::Assignment(assignment)
-            if validation::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                assignment.target,
-            )
+            if place_at(program, state_symbol, statement_index, assignment.target)
             .is_some_and(|place| place.root == PlaceRoot::Symbol(local_symbol) && place.segments.is_empty()))
     }) {
         return None;
@@ -139,12 +136,7 @@ fn storage_places(
         }
         _ => {}
     }
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        expression,
-    )?;
+    let place = place_at(program, state, statement_index, expression)?;
     if let Some(storage) = crate::flow::rebase_exact_local_place(
         program,
         state,
@@ -226,8 +218,7 @@ pub(in crate::flow) fn call_result_captured_sources(
     if call.receiver.is_valid() != callee.attached_data.is_some()
         || !call.carries_only_positional_arguments()
         || !call.selects_only_nominal_route()
-        || program
-            .expression_table
+        || expressions(program)
             .expression_handles(call.arguments)
             .len()
             != parameters.len()

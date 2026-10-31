@@ -5,6 +5,7 @@
 //! shared judgment: those positions stay symbolic by design, and checking
 //! records what it needs from each instead of refusing them.
 
+use crate::tables::expressions_of;
 use diagnostics::Diagnostic;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
@@ -86,7 +87,7 @@ pub(super) fn require_evaluated_constants(
         .filter(|expression| !program.constant_recipe_root_for_const_application(**expression))
         .map(|expression| {
             Diagnostic::error("range endpoint has an unresolved build-time evaluation dependency")
-                .with_source_span(program.expression_table.source_span(*expression))
+                .with_source_span(expressions_of(program).source_span(*expression))
         })
         .collect::<Vec<_>>();
     if pending_endpoints.is_empty() {

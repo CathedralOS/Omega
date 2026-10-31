@@ -14,6 +14,7 @@ use super::collecting::{
 };
 use super::{is_terminal_call_occurrence, ordered_statement_call};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
+use crate::flow::indexed_statements;
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
@@ -81,10 +82,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
     let mut scalar_local_count = 0u32;
     let control_prefix =
         statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         if erased_statement(statement) {
             continue;
         }
@@ -254,10 +252,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         }
         if matches!(statement, StatementNode::Expression(_))
             && statement_index.checked_add(1)?
-                == program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len()
+                == crate::flow::state_statements(program, state.statement_nodes).len()
             && let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
                 u32::try_from(statement_index).ok()?,

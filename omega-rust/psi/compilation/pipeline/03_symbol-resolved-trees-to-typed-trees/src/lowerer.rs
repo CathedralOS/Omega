@@ -57,6 +57,7 @@ use crate::declarations::domain::lower_domain_definition;
 use crate::declarations::machine::{lower_machine, lower_token_binding_view};
 use crate::declarations::operator::lower_operator_definition;
 use crate::declarations::trait_definition::lower_trait_definition;
+use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -625,13 +626,7 @@ impl Lowerer<'_> {
                 .ok_or_else(|| {
                     Diagnostic::error("constant fold lost its exact typed declaration")
                 })?;
-            if !self
-                .source_trees
-                .tables
-                .bodies
-                .expressions
-                .expression_is_valid(materialized)
-            {
+            if !resolved_expressions(self.source_trees).expression_is_valid(materialized) {
                 return Err(Diagnostic::error(
                     "constant lost its materialized initializer",
                 ));
@@ -712,6 +707,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,
         plan_laid_schema_fields: _,
+        plan_laid_retired_field_identities: _,
         placed_view_plans: _,
         placement_lifecycle_plans: _,
         placement_policy_invocations: _,
@@ -724,6 +720,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         captured_machine_applications: _,
         captured_machine_states: _,
         trait_implementation_applications: _,
+        data_implementation_applications: _,
         // Checking instantiates selector slots after specialization.
         dynamic_slots: _,
         // Family records are produced after all typed bodies settle.

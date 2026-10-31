@@ -7,6 +7,7 @@
 //! operator which vetoes builtin arithmetic. Final replay uses original operands,
 //! not the syntax producer's interval observations or its synthetic names.
 use super::{Diagnostic, resolved, typed};
+use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
@@ -18,10 +19,7 @@ pub(crate) fn validate_range_arguments(
     typed: &typed::TypedTrees,
 ) -> Result<(), Diagnostic> {
     if source.tables.types.generic_application_origins.is_empty()
-        || !source
-            .tables
-            .types
-            .constraints
+        || !type_constraints(source)
             .iter()
             .any(|(_, constraint)| matches!(constraint, TypeConstraint::Range { .. }))
     {
@@ -565,7 +563,7 @@ impl Equality<'_, '_> {
                     && self.arguments(*left_arguments, *right_arguments)
             }
             (TypeReference::ConstExpression(left), TypeReference::ConstExpression(right)) => {
-                left.is_valid() && left == right
+                left.expression.is_valid() && left == right
             }
             (TypeReference::Unit, TypeReference::Unit) => true,
             _ => false,

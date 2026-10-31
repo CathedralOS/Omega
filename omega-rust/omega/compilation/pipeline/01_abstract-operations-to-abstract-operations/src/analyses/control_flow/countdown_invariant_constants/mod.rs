@@ -15,7 +15,7 @@ use semantic_vocabulary::{
 
 use super::{
     AnalysisRoot, AnalysisRootError, CountedLoopAnalysisError, UnsignedCountdownLoopSummary,
-    ValidatedCountedLoopAnalysis, validate_analysis_root,
+    ValidatedCountedLoopAnalysis, by_key, validate_analysis_root,
 };
 
 mod compute;

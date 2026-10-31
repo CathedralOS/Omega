@@ -1,11 +1,9 @@
 //! Whole-root operation-local pins never refresh a mutable selector.
 use super::{
     GIT_CACHE_METADATA, GitSourceRequest, LocalSourceLimits, PathBuf, SourceResolveError,
-    SourceResolver, create_git_source, git_cache_identity, local_git_request,
-    make_tree_owner_writable, resolve_git_source_from_pin_in_lane, temp_root,
-    test_system_git_executor,
+    SourceResolver, create_git_source, fixture_storage, git_cache_identity, local_git_request,
+    remove_fixture, resolve_git_source_from_pin_in_lane, temp_root,
 };
-use crate::PrimaryGitChoices;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 
 struct Fixture {
@@ -20,19 +18,7 @@ impl Fixture {
         let (repository, _) = create_git_source(name);
         let request = local_git_request(&repository, "HEAD");
         let storage_base = temp_root(name);
-        let primary_git = test_system_git_executor(request.execution_transport())
-            .expect("select local fixture Git")
-            .execution_backend
-            .executable()
-            .to_path_buf();
-        let storage = SourceResolver::for_hardened_base(
-            &storage_base,
-            PrimaryGitChoices {
-                explicit_git: Some(primary_git.as_ref()),
-                ..PrimaryGitChoices::default()
-            },
-        )
-        .expect("retain fixture storage");
+        let storage = fixture_storage(&storage_base, &request);
         Self {
             repository,
             storage_base,
@@ -75,9 +61,7 @@ impl Fixture {
 
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.repository);
-        make_tree_owner_writable(&self.storage_base);
-        let _ = std::fs::remove_dir_all(&self.storage_base);
+        remove_fixture(&self.repository, &self.storage_base);
     }
 }
 

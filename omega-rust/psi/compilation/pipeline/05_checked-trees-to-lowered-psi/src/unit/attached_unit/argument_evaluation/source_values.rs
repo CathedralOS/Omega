@@ -7,9 +7,10 @@
 use super::{
     CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedTrees, Evaluation,
     LoweringError, ScalarType, ValueDeclaration, direct_expression_contains_short_circuit,
-    emit_direct_expression, scalar_carriers, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types,
+    emit_direct_expression, scalar_carriers, scalar_source_types, terminal_scalar_type,
+    unsupported, validate_direct_parameter_types,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -66,10 +67,7 @@ impl Evaluation {
         // Stage the completed value, never its expression: destination
         // qualification cannot repeat calls or observe mutable storage again.
         values.push(value);
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         let operand = crate::scalar_lowering::computations::parameters(&source_types)
             .pop()
             .ok_or(LoweringError::Unsupported(
@@ -124,10 +122,7 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
         environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         let result_type = crate::scalar_lowering::computations::computation_value_type(
             identities,
             checked,
@@ -178,9 +173,7 @@ impl Evaluation {
         successor_reads_payloads: bool,
     ) -> Result<Option<LoweredBooleanReturnExpression>, LoweringError> {
         let role = CheckedScalarExpressionRole::Guard;
-        if checked
-            .facts
-            .values
+        if value_facts(checked)
             .scalar_computations
             .roots
             .iter()
@@ -190,9 +183,7 @@ impl Evaluation {
         {
             return Ok(None);
         }
-        let (_, value) = checked
-            .facts
-            .values
+        let (_, value) = value_facts(checked)
             .scalar_expressions
             .bound_expression_at(state, statement, role)
             .ok_or(LoweringError::Unsupported(
@@ -241,9 +232,7 @@ impl Evaluation {
         environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let role = CheckedScalarExpressionRole::Guard;
-        let mut computations = checked
-            .facts
-            .values
+        let mut computations = value_facts(checked)
             .scalar_computations
             .roots
             .iter()
@@ -257,9 +246,7 @@ impl Evaluation {
             }
             CheckedCallScalarArgument::Computation(root.root)
         } else {
-            let (_, value) = checked
-                .facts
-                .values
+            let (_, value) = value_facts(checked)
                 .scalar_expressions
                 .bound_expression_at(state, statement, role)
                 .ok_or(LoweringError::Unsupported(
@@ -329,9 +316,7 @@ impl Evaluation {
         let scalar_type = terminal_scalar_type(primitive_type)?;
         match value {
             CheckedCallScalarArgument::Pure(_) => {
-                if checked
-                    .facts
-                    .values
+                if value_facts(checked)
                     .scalar_expressions
                     .bound_expression_at(state, statement, role)
                     .is_none()
@@ -340,9 +325,7 @@ impl Evaluation {
                 }
             }
             CheckedCallScalarArgument::Computation(_) => {
-                if !checked
-                    .facts
-                    .values
+                if !value_facts(checked)
                     .scalar_computations
                     .roots
                     .iter()
@@ -358,10 +341,7 @@ impl Evaluation {
         }
         let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         let (pure_expression, result_type) = match value {
             CheckedCallScalarArgument::Pure(value) => {
                 let expression =

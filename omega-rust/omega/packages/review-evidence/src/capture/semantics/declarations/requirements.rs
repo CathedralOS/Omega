@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, nominal_owner, provider_requirement_schema,
@@ -90,21 +91,14 @@ pub(crate) fn provider_requirement_identity(
             top_level_requirement_identity(compilation, requirement)
         }
         provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
-            let machine = compilation.machine(symbol).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "placed catalog review lost its exact callable",
-                )]
-            })?;
+            let machine = compilation
+                .machine(symbol)
+                .or_evidence("placed catalog review lost its exact callable")?;
             callable_requirement_identity(compilation, machine)
         }
         provider_planning::ProviderSchemaDeclaration::BoundaryOperator(_) => {
-            let operators = compilation.operators().iter().chain(
-                compilation
-                    .domain_definitions()
-                    .iter()
-                    .flat_map(|domain| compilation.domain_operators(domain)),
-            );
-            let matches = operators
+            let matches = compilation
+                .all_operators()
                 .filter(|candidate| candidate.symbol == requirement_symbol && candidate.is_boundary)
                 .collect::<Vec<_>>();
             let [operator] = matches.as_slice() else {
@@ -144,12 +138,10 @@ fn callable_requirement_identity(
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let path = compilation
         .machine_callable_identity_text(requirement)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "top-level requirement `{}` has no normalized overload identity",
-                requirement.name
-            ))]
-        })?;
+        .or_evidence(format!(
+            "top-level requirement `{}` has no normalized overload identity",
+            requirement.name
+        ))?;
     Ok(PackageReviewNominalIdentity {
         owner: nominal_owner(compilation, requirement.symbol)?,
         path,

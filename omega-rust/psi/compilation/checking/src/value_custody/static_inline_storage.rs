@@ -5,6 +5,7 @@
 //! storage. Absence is not layout authority: ordinary shape, placement and
 //! provider checks remain responsible for complete representability.
 
+use crate::frozen_program::expression_table;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -41,6 +42,9 @@ impl Search<'_> {
         }
         self.visited.push((reference, bindings.to_vec()));
         let program = self.program;
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            return self.ty(storage.semantic_type, bindings);
+        }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => None,
             TypeReferenceNode::Constrained { base_type, .. } => self.ty(*base_type, bindings),
@@ -113,12 +117,10 @@ impl Search<'_> {
     }
 
     fn independent_storage(&self, data: SymbolHandle) -> bool {
-        self.program.plan_laid_layout(data).is_some()
-            || self
-                .program
-                .placed_view_plans
-                .iter()
-                .any(|view| view.data_symbol == data)
+        self.program
+            .placed_view_plans
+            .iter()
+            .any(|view| view.data_symbol == data)
     }
 
     fn fields(
@@ -183,15 +185,13 @@ impl Search<'_> {
     ) -> Option<SymbolHandle> {
         self.remaining = self.remaining.checked_sub(1)?;
         if !expression.is_valid()
-            || self
-                .program
-                .expression_table
+            || expression_table(self.program)
                 .constant_integer_value(expression)
                 .is_some()
         {
             return None;
         }
-        let node = self.program.expression_table.expression(expression);
+        let node = expression_table(self.program).expression(expression);
         if let ExpressionNode::Name(path) = node {
             return self.value_symbol(path.symbol, bindings);
         }

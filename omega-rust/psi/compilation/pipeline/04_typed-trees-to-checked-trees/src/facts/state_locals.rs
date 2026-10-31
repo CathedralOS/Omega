@@ -1,6 +1,7 @@
 //! Record every declared state's `let` locals for lowering
 //! (`checked_trees::StateLocalFacts`).
 
+use crate::flow::indexed_statements;
 use checked_trees::{CheckedStateLocal, StateLocalFacts};
 
 pub(crate) fn record_state_locals(program: &dyn validation::CheckingInput) -> StateLocalFacts {
@@ -8,10 +9,7 @@ pub(crate) fn record_state_locals(program: &dyn validation::CheckingInput) -> St
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut locals = Vec::new();
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };

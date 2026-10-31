@@ -10,6 +10,7 @@ mod occurrences;
 mod prefix;
 mod projection;
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::proof_only::ProofOnlyClassification;
@@ -21,7 +22,7 @@ use crate::RankingRangeMeasure;
 use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_ranking_range_call,
+    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -30,6 +31,9 @@ use projection::RankProjection;
 /// transient query results, not another executable representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeNaturalState {
+    pub application: Option<crate::IntegerApplicationFormation>,
+    /// Exact declared application, or ZII for a normalized primitive view.
+    pub measure: SymbolHandle,
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub coordinate: crate::RankSubjectCoordinate,
@@ -266,7 +270,16 @@ pub(super) fn project_component(
             .iter()
             .map(|rows| rows.as_ref().unwrap().clone())
             .collect::<Vec<_>>();
-        projection::natural_component(program, component, &ranks, &mappings, &relevance)
+        // The body owner may publish its executable observations separately
+        // (for example a declared application). Comparison evidence survives
+        // even when this optional primitive projection has no coordinate rows.
+        Some(
+            projection::natural_component(program, component, &ranks, &mappings, &relevance)
+                .unwrap_or(ValidatedRuntimeNaturalComponent {
+                    states: Vec::new(),
+                    edges: Vec::new(),
+                }),
+        )
     } else {
         None
     };
@@ -349,6 +362,13 @@ pub(super) fn project_component(
             // Whether every earlier statement in this state preserved the
             // entry-relative frame the call-site comparison reads.
             let mut entry_relative = true;
+            // A fresh invocation saves an entry value. A normalized label
+            // entry instead consumes its admitted state-inductive telescope
+            // and range regime, including the original preservation checks.
+            let captured_scalar = states
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+                && ranks[position].captured_scalar().is_some();
             for (statement_ordinal, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -357,6 +377,12 @@ pub(super) fn project_component(
                     continue;
                 }
                 let Some(transition) = statement.as_transition() else {
+                    // Captured scalar comparisons execute this complete prefix
+                    // through the ordinary value ledger. They never reuse a
+                    // retired entry-relative storage reading after a write.
+                    if captured_scalar {
+                        continue;
+                    }
                     if prefix::preserves_rank(
                         program,
                         machine,
@@ -399,7 +425,9 @@ pub(super) fn project_component(
                                 ) =>
                         {
                             entry_relative = false;
-                            natural = None;
+                            if let Some(retained) = &mut natural {
+                                retained.states.clear();
+                            }
                             continue;
                         }
                         // Do not replay an entry-relative projection or a guard
@@ -426,15 +454,17 @@ pub(super) fn project_component(
                     }
                 };
                 let mut site_guards = guards.clone();
-                if !prefix::preserves_rank(
-                    program,
-                    machine,
-                    state,
-                    member_premises[position].as_deref(),
-                    &mappings[state_position],
-                    statement,
-                    frames,
-                ) {
+                if !captured_scalar
+                    && !prefix::preserves_rank(
+                        program,
+                        machine,
+                        state,
+                        member_premises[position].as_deref(),
+                        &mappings[state_position],
+                        statement,
+                        frames,
+                    )
+                {
                     return Err("call operands invalidate the exact entry-relative ranking frame");
                 }
                 if guard.is_valid() {
@@ -458,6 +488,7 @@ pub(super) fn project_component(
                                 && !projection::retain_internal_transfer(
                                     program,
                                     retained,
+                                    &component_states,
                                     &relevance,
                                     state.symbol,
                                     target_symbol,
@@ -466,7 +497,9 @@ pub(super) fn project_component(
                                     body_witnesses[position].unwrap().edges,
                                 )
                             {
-                                natural = None;
+                                return Err(
+                                    "an internal arrival lost its exact admitted comparison",
+                                );
                             }
                             // An internal state arrival belongs to the
                             // member's own ranking judgment -- the checked
@@ -482,6 +515,49 @@ pub(super) fn project_component(
                             return Err(
                                 "a call argument has effects or non-builtin operator meaning",
                             );
+                        }
+                        if program.dynamic_slot_by_symbol(target_symbol).is_some() {
+                            let data_arguments = arguments
+                                .get(1..)
+                                .ok_or("a selector call lost its data operands")?;
+                            let implementations = dispatched_implementations(program);
+                            let Some((_, implementations)) = implementations
+                                .iter()
+                                .find(|(slot, _)| *slot == target_symbol)
+                            else {
+                                return Err(
+                                    "a selector call names a slot with no implementation roster",
+                                );
+                            };
+                            for callee in implementations {
+                                let Some(callee_position) =
+                                    component.iter().position(|index| *index == *callee)
+                                else {
+                                    continue;
+                                };
+                                admit_ranked_edge(
+                                    program,
+                                    &ranks,
+                                    &component_states,
+                                    index,
+                                    position,
+                                    machine,
+                                    state,
+                                    &mappings[state_position],
+                                    *callee,
+                                    callee_position,
+                                    data_arguments,
+                                    entry_relative,
+                                    body_witnesses[position].map(|witness| witness.edges),
+                                    statement_ordinal,
+                                    transition.target,
+                                    &site_guards,
+                                    &mut observed,
+                                    &mut weak_edges,
+                                    &mut natural,
+                                )?;
+                            }
+                            continue;
                         }
                         let Some(callee) = callee else {
                             // An abstract callable is not an executable member
@@ -514,135 +590,32 @@ pub(super) fn project_component(
                         {
                             return Err("a subordinate-state call needs its own arrival evidence");
                         }
-                        observed.push(callee);
                         let Some(callee_position) =
                             component.iter().position(|index| *index == callee)
                         else {
                             continue;
                         };
-                        let parameters = program.state_parameters(callee_entry);
-                        if arguments.len() != parameters.iter().count() {
-                            return Err("call arguments do not match the exact entry parameters");
-                        }
-                        let Some(argument) =
-                            arguments.get(ranks[callee_position].argument_position)
-                        else {
-                            return Err(
-                                "the ranked parameter has no corresponding actual argument",
-                            );
-                        };
-                        let strict;
-                        if !entry_relative {
-                            // The store before this arrival leaves no entry-
-                            // relative operand to compare. A self-invocation
-                            // keeps the strict decrease its body's source
-                            // judgment proved over current values at this
-                            // exact occurrence; nothing else is admitted.
-                            let proved = callee == index
-                                && body_witnesses[position].is_some_and(|witness| {
-                                    witness.edges.iter().any(|edge| {
-                                        edge.source == state.symbol
-                                            && edge.destination == callee_entry.symbol
-                                            && edge.target == transition.target
-                                            && edge.statement_ordinal as usize == statement_ordinal
-                                            && edge.strictly_decreases
-                                    })
-                                });
-                            if !proved {
-                                return Err(
-                                    "a write, call, or alias invalidates the entry-relative ranking",
-                                );
-                            }
-                            strict = true;
-                        } else if matches!(
-                            ranks[position].order,
-                            projection::RankOrder::Natural(_)
-                                | projection::RankOrder::IncreasingTo(_)
-                                | projection::RankOrder::BoundedDistance(_)
-                                | projection::RankOrder::SliceLength
-                                | projection::RankOrder::DeclaredIdentity { .. }
-                                | projection::RankOrder::DeclaredComputation { .. }
-                                | projection::RankOrder::CustomStructView { .. }
-                        ) {
-                            match prove_ranking_range_call(
-                                program,
-                                RankingRangeCallMember {
-                                    machine,
-                                    subject: ranks[position].subject,
-                                    paired_subject: ranks[position].paired_subject,
-                                    range: ranks[position].range,
-                                },
-                                &RankingRangeCallSite {
-                                    state,
-                                    entry_parameters: &mappings[state_position],
-                                },
-                                RankingRangeCallMember {
-                                    machine: callee_machine,
-                                    subject: ranks[callee_position].subject,
-                                    paired_subject: ranks[callee_position].paired_subject,
-                                    range: ranks[callee_position].range,
-                                },
-                                &site_guards,
-                                arguments,
-                            ) {
-                                Some(RankingRangeCallProgress::Strict) => strict = true,
-                                Some(RankingRangeCallProgress::NonIncreasing) => {
-                                    strict = false;
-                                }
-                                None => {
-                                    return Err(
-                                        "rank range membership, selected view bounds, or nonincrease is unproven at a call site",
-                                    );
-                                }
-                            }
-                        } else {
-                            // A lexicographic member carries no scalar range
-                            // judgment, but its subordinate-site formals still
-                            // telescope to their discovered entry roles: the
-                            // comparison reads the carried copy as the authored
-                            // subject it denotes at this arrival.
-                            match comparison::argument_comparison(
-                                program,
-                                machine.symbol,
-                                &ranks[position],
-                                *argument,
-                                &site_guards,
-                                &RankingRangeCallSite {
-                                    state,
-                                    entry_parameters: &mappings[state_position],
-                                },
-                            ) {
-                                Some(Comparison::Strict) => strict = true,
-                                Some(Comparison::Equal) => {
-                                    strict = false;
-                                }
-                                None => {
-                                    return Err(
-                                        "ranking preservation or strict DECREASE is unproven at a call site",
-                                    );
-                                }
-                            }
-                        }
-                        if !strict {
-                            let source = component_states
-                                .iter()
-                                .position(|symbol| *symbol == state.symbol)
-                                .ok_or("a call rank edge has no component source")?;
-                            let destination = component_states
-                                .iter()
-                                .position(|symbol| *symbol == callee_entry.symbol)
-                                .ok_or("a call rank edge has no component destination")?;
-                            weak_edges[source].push(destination);
-                        }
-                        if let Some(retained) = &mut natural {
-                            retained.edges.push(ValidatedRuntimeNaturalEdge {
-                                source: state.symbol,
-                                target: callee_entry.symbol,
-                                statement_ordinal: u32::try_from(statement_ordinal)
-                                    .map_err(|_| "a ranking statement ordinal exceeds u32")?,
-                                strict,
-                            });
-                        }
+                        admit_ranked_edge(
+                            program,
+                            &ranks,
+                            &component_states,
+                            index,
+                            position,
+                            machine,
+                            state,
+                            &mappings[state_position],
+                            callee,
+                            callee_position,
+                            arguments,
+                            entry_relative,
+                            body_witnesses[position].map(|witness| witness.edges),
+                            statement_ordinal,
+                            transition.target,
+                            &site_guards,
+                            &mut observed,
+                            &mut weak_edges,
+                            &mut natural,
+                        )?;
                     }
                     None => match target_node {
                         TransitionTargetNode::Value(value)
@@ -672,25 +645,191 @@ pub(super) fn project_component(
     // Removing all strict edges must leave an acyclic graph across exact
     // state arrivals and invocation entries. No complete weak cycle survives.
     if weak_edges_are_acyclic(&weak_edges) {
-        // Scalar emission currently identifies authored delivery by the
-        // source/target state pair. Keep mixed parallel comparisons out of
-        // this projection until emitted delivery retains the call ordinal;
-        // ordinary runtime component admission is unchanged.
-        if natural.as_ref().is_some_and(|component| {
-            component.edges.iter().enumerate().any(|(position, edge)| {
-                component.edges[..position].iter().any(|earlier| {
-                    earlier.source == edge.source
-                        && earlier.target == edge.target
-                        && earlier.strict != edge.strict
-                })
-            })
-        }) {
-            natural = None;
-        }
+        // Delivery already retains the original statement ordinal, so
+        // parallel preserving/strict edges remain separate proof observations.
         Ok(natural)
     } else {
         Err("a preserving cycle has no strict measure DECREASE")
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn admit_ranked_edge(
+    program: &dyn crate::CheckingInput,
+    ranks: &[projection::RankProjection],
+    component_states: &[SymbolHandle],
+    caller_machine_index: usize,
+    caller_rank_index: usize,
+    caller: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    caller_bindings: &crate::RankStateBindings,
+    callee: usize,
+    callee_position: usize,
+    arguments: &[ExpressionHandle],
+    entry_relative: bool,
+    witness_edges: Option<&[checked_trees::CheckedRankArrivalEdge]>,
+    statement_ordinal: usize,
+    transition_target: typed_trees::statement::TransitionTargetHandle,
+    site_guards: &[(ExpressionHandle, bool)],
+    observed: &mut Vec<usize>,
+    weak_edges: &mut [Vec<usize>],
+    natural: &mut Option<ValidatedRuntimeNaturalComponent>,
+) -> Result<(), &'static str> {
+    let callee_machine = &program.machines()[callee];
+    let Some(callee_entry) = program.machine_states(callee_machine).first() else {
+        return Err("a call target has no checked entry binding");
+    };
+    let parameters = program.state_parameters(callee_entry);
+    if arguments.len() != parameters.iter().count() {
+        return Err("call arguments do not match the exact entry parameters");
+    }
+    let Some(argument) = arguments.get(ranks[callee_position].argument_position) else {
+        return Err("the ranked parameter has no corresponding actual argument");
+    };
+    observed.push(callee);
+    let strict;
+    if let (Some(source), Some(destination)) = (
+        ranks[caller_rank_index].captured_scalar(),
+        ranks[callee_position].captured_scalar(),
+    ) && program
+        .machine_states(caller)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol)
+    {
+        let progress = prove_captured_scalar_rank_call(
+            program,
+            caller,
+            state,
+            source,
+            callee_machine,
+            destination,
+            statement_ordinal,
+            transition_target,
+            arguments,
+        )?;
+        if let (Some(component), Some(application)) =
+            (natural.as_mut(), progress.source_application)
+        {
+            if let Some(row) = component
+                .states
+                .iter_mut()
+                .find(|row| row.state == state.symbol)
+            {
+                if row.measure != application.measure()
+                    || row
+                        .application
+                        .as_ref()
+                        .is_some_and(|previous| previous != &application)
+                {
+                    return Err(
+                        "the captured rank formation does not match its exact state application",
+                    );
+                }
+                row.application = Some(application);
+            }
+        }
+        strict = match progress.progress {
+            RankingRangeCallProgress::Strict => true,
+            RankingRangeCallProgress::NonIncreasing => false,
+        };
+    } else if !entry_relative {
+        // The store before this arrival leaves no entry-relative operand to
+        // compare. A self-invocation keeps the strict decrease its body's
+        // source judgment proved over current values at this exact occurrence.
+        let proved = callee == caller_machine_index
+            && witness_edges.is_some_and(|edges| {
+                edges.iter().any(|edge| {
+                    edge.source == state.symbol
+                        && edge.destination == callee_entry.symbol
+                        && edge.target == transition_target
+                        && edge.statement_ordinal as usize == statement_ordinal
+                        && edge.strictly_decreases
+                })
+            });
+        if !proved {
+            return Err("a write, call, or alias invalidates the entry-relative ranking");
+        }
+        strict = true;
+    } else if matches!(
+        ranks[caller_rank_index].order,
+        projection::RankOrder::Natural(_)
+            | projection::RankOrder::IncreasingTo(_)
+            | projection::RankOrder::BoundedDistance(_)
+            | projection::RankOrder::SliceLength
+            | projection::RankOrder::DeclaredIdentity { .. }
+            | projection::RankOrder::DeclaredComputation { .. }
+            | projection::RankOrder::CustomStructView { .. }
+    ) {
+        let caller_rank = &ranks[caller_rank_index];
+        match prove_ranking_range_call(
+            program,
+            RankingRangeCallMember {
+                machine: caller,
+                subject: caller_rank.subject,
+                paired_subject: caller_rank.paired_subject,
+                range: caller_rank.range,
+            },
+            &RankingRangeCallSite {
+                state,
+                entry_parameters: caller_bindings,
+            },
+            RankingRangeCallMember {
+                machine: callee_machine,
+                subject: ranks[callee_position].subject,
+                paired_subject: ranks[callee_position].paired_subject,
+                range: ranks[callee_position].range,
+            },
+            site_guards,
+            arguments,
+        ) {
+            Some(RankingRangeCallProgress::Strict) => strict = true,
+            Some(RankingRangeCallProgress::NonIncreasing) => strict = false,
+            None => {
+                return Err(
+                    "rank range membership, selected view bounds, or nonincrease is unproven at a call site",
+                );
+            }
+        }
+    } else {
+        match comparison::argument_comparison(
+            program,
+            caller.symbol,
+            &ranks[caller_rank_index],
+            *argument,
+            site_guards,
+            &RankingRangeCallSite {
+                state,
+                entry_parameters: caller_bindings,
+            },
+        ) {
+            Some(Comparison::Strict) => strict = true,
+            Some(Comparison::Equal) => strict = false,
+            None => {
+                return Err("ranking preservation or strict DECREASE is unproven at a call site");
+            }
+        }
+    };
+    if !strict {
+        let source = component_states
+            .iter()
+            .position(|symbol| *symbol == state.symbol)
+            .ok_or("a call rank edge has no component source")?;
+        let destination = component_states
+            .iter()
+            .position(|symbol| *symbol == callee_entry.symbol)
+            .ok_or("a call rank edge has no component destination")?;
+        weak_edges[source].push(destination);
+    }
+    if let Some(retained) = natural {
+        retained.edges.push(ValidatedRuntimeNaturalEdge {
+            source: state.symbol,
+            target: callee_entry.symbol,
+            statement_ordinal: u32::try_from(statement_ordinal)
+                .map_err(|_| "a ranking statement ordinal exceeds u32")?,
+            strict,
+        });
+    }
+    Ok(())
 }
 
 fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
@@ -860,10 +999,10 @@ fn expression_is_inert_or_calls(
     }
     let mut inert =
         |expression| expression_is_inert_or_calls(program, machine, state, expression, admit_call);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_all(dispatch, &mut inert),
+    match expression_table(program).expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            expression_table(program).match_deep_all(dispatch, &mut inert)
+        }
         ExpressionNode::Atomic(atomic) => {
             crate::value_custody::atomic_operations::atomic_once_operands(program, atomic).is_none()
                 && inert(atomic.value)
@@ -877,13 +1016,11 @@ fn expression_is_inert_or_calls(
         }
         ExpressionNode::Unary(unary) => inert(unary.operand),
         ExpressionNode::Cast(cast) => inert(cast.value),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| inert(field.value)),
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(items) => expression_table(program)
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
@@ -905,7 +1042,7 @@ fn expression_is_inert_or_calls(
                 expression,
             ) =>
         {
-            let endpoints_inert = match program.expression_table.expression(indexed.index) {
+            let endpoints_inert = match expression_table(program).expression(indexed.index) {
                 ExpressionNode::Range(range) => [range.start, range.end]
                     .into_iter()
                     .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
@@ -926,8 +1063,7 @@ fn expression_is_inert_or_calls(
             // write frame separately.
             admit_call(call)
                 && (!call.receiver.is_valid() || inert(call.receiver))
-                && program
-                    .expression_table
+                && expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| inert(*argument))

@@ -8,6 +8,7 @@
 //! provider allocation. Both backings use ordinary reference/loan transport;
 //! event dispatch preserves their distinct geometry and authority contracts.
 
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{
@@ -15,8 +16,7 @@ use crate::values::{
 };
 use semantic_vocabulary::{MachineId, PlaceId};
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralTypeShape,
+    Operation, StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralTypeShape,
 };
 
 mod view;
@@ -231,11 +231,7 @@ impl TerminalExecution<'_> {
                 recipe.input(),
             )
             .map_err(|_| malformed())?;
-            let presentation = self
-                .structural_values
-                .get(&parameter.place)
-                .ok_or_else(malformed)?
-                .clone();
+            let presentation = self.structural_values.require(&parameter.place)?.clone();
             occurrence.ram = Some(PlacedReference {
                 storage: PlacedStorage::Ram {
                     correspondence: recipe.correspondence().clone(),
@@ -333,7 +329,7 @@ impl TerminalExecution<'_> {
             ));
         }
         let path = &source.path[allocation.path.len()..];
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let (size, alignment) = terminal_semantics::reference_storage_layout(
             types.values(),
             allocation.structural_type,
@@ -388,12 +384,8 @@ impl TerminalExecution<'_> {
         };
         // Contents belong to that captured schema, not the accessor's opaque
         // presentation. An incomplete source cannot mint initialized custody.
-        let StructuralTypeShape::Record { fields, .. } = &self
-            .program
-            .structural_types()
-            .get(&source.structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        let StructuralTypeShape::Record { fields, .. } =
+            &self.structural_declaration(source.structural_type)?.shape
         else {
             return Err(malformed());
         };
@@ -401,7 +393,7 @@ impl TerminalExecution<'_> {
             let Some(scalar) = field.field_type.scalar_type() else {
                 let root = field.field_type.as_structural().ok_or_else(malformed)?;
                 let (scalar, count) = terminal_semantics::scalar_array_leaf_shape(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     root,
                 )
                 .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -433,7 +425,7 @@ impl TerminalExecution<'_> {
                     path.truncate(prefix_length);
                     path.extend(
                         terminal_semantics::scalar_array_leaf_path(
-                            self.program.structural_types().values(),
+                            self.structural_types().values(),
                             root,
                             ordinal,
                         )
@@ -611,11 +603,8 @@ impl TerminalExecution<'_> {
             },
         )?;
         self.structural_values.insert(result.place, carrier)?;
-        self.live_affine_frontier.insert(StructuralAffineDiscard {
-            place: result.place,
-            path: Vec::new(),
-            structural_type: result.structural_type,
-        });
+        self.live_affine_frontier
+            .insert(whole_path_discard(result.place, result.structural_type));
         Ok(())
     }
     pub(crate) fn project_placed_presentation(
@@ -658,7 +647,7 @@ impl TerminalExecution<'_> {
             let mut projection = captured.projection.clone();
             projection.extend_from_slice(relative);
             let selected = terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 field.accessor,
                 &projection,
             )
@@ -822,9 +811,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let StructuralTypeShape::Record { fields, .. } = &program
-                    .structural_types()
-                    .get(&ram.source.structural_type)
-                    .ok_or_else(malformed)?
+                    .structural_declaration(ram.source.structural_type)?
                     .shape
                 else {
                     return Err(malformed());

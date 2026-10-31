@@ -2,11 +2,11 @@ use validation::CallSite;
 use validation::CanonicalPlace;
 use validation::call_site_argument_expressions;
 use validation::canonical_place_from_expression;
-use validation::canonical_place_from_expression_in_state;
 use validation::find_call_site;
 use validation::find_state_in_machine;
 
 use crate::flow::canonical_place_from_symbol;
+use crate::places::place_at;
 use crate::proof::contract_target_from_state_symbol;
 
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -125,21 +125,11 @@ fn receiver_place_for_call_site(
                 return canonical_place_from_expression(program, call.receiver);
             }
             let argument = call_data_argument(program, caller_machine_symbol, call_site)?;
-            canonical_place_from_expression_in_state(
-                program,
-                caller_state_symbol,
-                statement_index,
-                argument,
-            )
+            place_at(program, caller_state_symbol, statement_index, argument)
         }
         CallSite::TransitionNamed { .. } => {
             let argument = call_data_argument(program, caller_machine_symbol, call_site)?;
-            canonical_place_from_expression_in_state(
-                program,
-                caller_state_symbol,
-                statement_index,
-                argument,
-            )
+            place_at(program, caller_state_symbol, statement_index, argument)
         }
     }
 }

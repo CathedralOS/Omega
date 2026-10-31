@@ -6,7 +6,7 @@ machine choose_true(input: i32) -> bool { (true) }
 machine choose_true_three(input: i32, lower: i32, upper: i32) -> bool { (true) }
 
 machine absolute_callback<machine abs>(value: i32) -> i32
-where machine abs(input: i32) -> bool;
+requires machine abs(input: i32) -> bool;
 {
     transition abs(value) {
         true -> (7)
@@ -15,7 +15,7 @@ where machine abs(input: i32) -> bool;
 }
 
 machine clamp_callback<machine clamp>(value: i32) -> i32
-where machine clamp(input: i32, lower: i32, upper: i32) -> bool;
+requires machine clamp(input: i32, lower: i32, upper: i32) -> bool;
 {
     transition clamp(value, 0, 10) {
         true -> (7)

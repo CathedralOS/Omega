@@ -3,22 +3,22 @@
 machine matches(value: u64) -> bool { value == 42 }
 
 linux_arm64 machine choose<machine Selected>(value: u64) -> bool
-where machine Selected(argument: u64) -> bool requires argument <= 64;
+requires machine Selected(argument: u64) -> bool requires argument <= 64;
 requires value <= 64
 { Selected(value) }
 
 linux_x86_64 machine choose<machine Callback>(value: u64) -> bool
-where machine Callback(argument: u64) -> bool requires argument <= 128;
+requires machine Callback(argument: u64) -> bool requires argument <= 128;
 requires value <= 128
 { Callback(value) }
 
 macos_arm64 machine choose<machine Operation>(value: u64) -> bool
-where machine Operation(argument: u64) -> bool requires argument <= 256;
+requires machine Operation(argument: u64) -> bool requires argument <= 256;
 requires value <= 256
 { Operation(value) }
 
 windows_x86_64 machine choose<machine Action>(value: u64) -> bool
-where machine Action(argument: u64) -> bool requires argument <= 512;
+requires machine Action(argument: u64) -> bool requires argument <= 512;
 requires value <= 512
 { Action(value) }
 

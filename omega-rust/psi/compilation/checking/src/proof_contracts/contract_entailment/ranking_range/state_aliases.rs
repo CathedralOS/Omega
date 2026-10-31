@@ -10,6 +10,7 @@ use super::{
     ExpressionHandle, ExpressionNode, Machine, RankPremiseInput, RankPremiseObservation,
     RankingRangeMeasure, RankingRangePremises, integer_parameter,
 };
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::TableRangeExpression;
 use typed_trees::state::State;
@@ -137,9 +138,7 @@ fn collect(
     inputs: &mut Vec<RankPremiseInput>,
     depth: usize,
 ) -> Option<()> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     match node {
         // Literal spellings have no state dependency. Formation and selected
         // meaning separately decide whether a decimal can land as an integer.

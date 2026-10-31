@@ -312,23 +312,11 @@ pub(super) const TERMINATOR_PAIR_RULES: &[TerminatorPairRule] = &[
     TerminatorPairRule::COMPARE_ZERO_BRANCH_I64_LESS_THAN,
 ];
 
-/// The declared pair for one (producer, consumer) kind combination, or none
-/// when the family declares no such relationship — several rules matching
-/// one combination is a catalog defect and refuses rather than preferring
-/// table order.
-pub(super) fn terminator_pair_for(
-    producer: MachineSemanticKind,
-    consumer: MachineSemanticKind,
-) -> Option<&'static TerminatorPairRule> {
-    let mut matches = TERMINATOR_PAIR_RULES
-        .iter()
-        .filter(|rule| rule.producer() == producer && rule.consumer() == consumer);
-    let rule = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(rule)
-}
+declared_pair_lookup!(
+    terminator_pair_for,
+    TERMINATOR_PAIR_RULES,
+    TerminatorPairRule
+);
 
 /// The consumer kinds the family declares at all — for admission error
 /// reporting that distinguishes an unadmitted branch kind from an admitted

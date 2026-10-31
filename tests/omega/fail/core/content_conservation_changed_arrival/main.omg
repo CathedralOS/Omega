@@ -70,7 +70,7 @@ reaches RegionSplit
     arrived.remaining = head;
     transition { _ -> next(main, arrived, head) }
     machine next(next_main: &mut Main, next_whole: Region in Owned, next_head: u64) -> SplitResult
-    requires next_head <= next_whole.remaining;
+    requires next_head <= next_whole.remaining
     {
         RegionSplit::split(next_whole, next_head)
     }

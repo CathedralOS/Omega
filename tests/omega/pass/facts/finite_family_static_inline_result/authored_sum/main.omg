@@ -12,7 +12,7 @@ machine produce<Width: u64>() -> Choice satisfies Family::row {
 Selected satisfies Family { Family::row = produce; }
 Other satisfies Family { Family::row = produce; }
 machine dispatch(selected: dyn Family, width: u64) -> Choice
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 { Family::row<width>(selected) }
 machine valid(choice: Choice, width: u64) -> bool {
     transition choice {

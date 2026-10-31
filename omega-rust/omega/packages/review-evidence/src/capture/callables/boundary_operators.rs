@@ -18,7 +18,7 @@ fn boundary_operator_plan_singletons<'plan>(
     ),
     Vec<Diagnostic>,
 > {
-    let [method] = plan.schema.methods.as_slice() else {
+    let [method] = plan.schema.declaration.methods.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` must contain exactly one schema method",
             plan.name,
@@ -64,7 +64,7 @@ fn selected_boundary_operator_plans<'a>(
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(String, Vec<SelectedBoundaryOperatorPlan<'a>>), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
-    let plans = selected_execution.selected_provider_plan_facts.plans();
+    let plans = selected_execution.provider_source.plans().plans();
     let provenance = selected_execution.selected_provider_provenance.as_slice();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
@@ -79,7 +79,9 @@ fn selected_boundary_operator_plans<'a>(
         .iter()
         .zip(provenance)
         .filter(|(plan, retained)| {
-            plan.schema.identity_text(plan.schema.trait_name) == slot
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name)
+                == slot
                 && retained.provider.schema
                     == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,

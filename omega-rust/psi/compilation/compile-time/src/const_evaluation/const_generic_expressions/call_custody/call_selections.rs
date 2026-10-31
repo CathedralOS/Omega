@@ -4,6 +4,7 @@
 //! closed dispatch separately supplies its exact private realization; ordinary
 //! invocation checking still owns all supplying bounds, effects and permission.
 
+use crate::build_time_evaluation::type_reference_table;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::TableCallExpression;
 use typed_trees::{TypedTrees, static_applications::StaticMachineBindingValue};
@@ -72,8 +73,7 @@ pub(super) fn unsupplied_requirement(
     let implemented = format!(
         "{}<{}>",
         conformance.trait_name.as_str(),
-        program
-            .type_reference_table
+        type_reference_table(program)
             .type_reference_handles(conformance.arguments)
             .iter()
             .map(|argument| program.display_type_reference(*argument))

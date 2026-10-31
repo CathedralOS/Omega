@@ -1,4 +1,5 @@
 use super::*;
+use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,11 +113,7 @@ impl<'a> Replay<'a> {
         machine: &'a DescriptorMachine,
         root: PlaceId,
     ) -> Option<(usize, StructuralAccess, StructuralTypeId)> {
-        let mut rows = machine.places.iter().filter(|row| row.place == root);
-        let row = rows.next()?;
-        if rows.next().is_some() {
-            return None;
-        }
+        let row = exactly_one(machine.places.iter(), |row| row.place == root)?;
         match row.definition {
             DescriptorDefinition::Parameter {
                 position,
@@ -202,14 +199,8 @@ impl<'a> Replay<'a> {
             // home. Only a pointer-bearing root's stored origins name backing
             // outside that home; a record join does not alias its predecessors.
             let root_type = *machine.place_types.get(&current.root)?;
-            let mut definitions = machine
-                .places
-                .iter()
-                .filter(|row| row.place == current.root);
-            let definition = &definitions.next()?.definition;
-            if definitions.next().is_some() {
-                return None;
-            }
+            let definition =
+                &exactly_one(machine.places.iter(), |row| row.place == current.root)?.definition;
             let borrowed = match definition {
                 DescriptorDefinition::Parameter { access, .. }
                 | DescriptorDefinition::Arrival { access } => *access != StructuralAccess::Owned,

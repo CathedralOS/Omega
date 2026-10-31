@@ -1,8 +1,8 @@
 use super::byte_sequence_operand_bytes;
 use crate::interpreter::evaluator::{
     ArithmeticDomain, EvalResult, ExpressionHandle, ExpressionNode, FloatMeaning, FloatSemantics,
-    Frame, Halt, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle, Value, trap,
-    unsupported,
+    Frame, Halt, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle, Value,
+    expression_table, trap, unsupported,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::BuiltinFunction;
@@ -35,6 +35,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if let Some(value) = self.try_source_selection_call(call, frame)? {
             return Ok(value);
         }
+        if let Some(value) = self.try_layout_target_facts(call, frame)? {
+            return Ok(self.guard_subject_value(handle, frame, value));
+        }
         if call.native_code_layout.is_some() {
             return unsupported(
                 "late native code-layout metadata is unavailable to interpreted or same-product semantic constant, type, layout, or optimization evaluation",
@@ -58,9 +61,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if let Some(dispatch) = &call.static_requirement_dispatch {
             let value = self.run_selected_realization(
                 dispatch.realization_state,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expression_table(self.program).expression_handles(call.arguments),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -71,9 +72,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
             let value = self.run_dynamic_slot(
                 slot,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expression_table(self.program).expression_handles(call.arguments),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -90,9 +89,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         ) {
             let value = self.run_boundary_adapter(
                 dispatch,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expression_table(self.program).expression_handles(call.arguments),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -103,9 +100,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // above still execute before their external leaf reaches this route.
         if let Some(value) = self.try_virtual_clock_operation(
             call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
+            expression_table(self.program).expression_handles(call.arguments),
             frame,
         )? {
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -121,9 +116,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if let Some(value) = self.try_operator_application(
             call.target_symbol,
             handle,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
+            expression_table(self.program).expression_handles(call.arguments),
             frame,
         )? {
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -146,9 +139,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // same ladder also serves the discarded call statement.
         if let Some(value) = self.try_build_facet_routes(
             call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
+            expression_table(self.program).expression_handles(call.arguments),
             self.program.expression_table.source_span(handle),
             frame,
         )? {
@@ -160,10 +151,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // would trap before its exact ordinary target can execute.
         let qualified = self.expression_receiver_is_namespace(call.receiver);
         if let Some(request) = &call.private_layout_operation {
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments);
+            let arguments = expression_table(self.program).expression_handles(call.arguments);
             let [plan, offset] = arguments else {
                 return trap(
                     "compiler-known `Plan::place_private` requires one Plan and one u64 offset",
@@ -241,9 +229,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if let Some(builtin @ (BuiltinFunction::FloatMaximum | BuiltinFunction::FloatMinimum)) =
             builtin
         {
-            let arguments = self
-                .program
-                .expression_table
+            let arguments = expression_table(self.program)
                 .expression_handles(call.arguments)
                 .to_vec();
             if arguments.len() == 2 {
@@ -258,9 +244,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if call.receiver == ExpressionHandle::invalid()
             && let Some(value) = self.eval_named_float_intrinsic(
                 target,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expression_table(self.program).expression_handles(call.arguments),
                 frame,
             )?
         {
@@ -293,9 +277,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if matches!(target, "float#classify_f32" | "float#classify_f64")
             && call.receiver == ExpressionHandle::invalid()
         {
-            let arguments = self
-                .program
-                .expression_table
+            let arguments = expression_table(self.program)
                 .expression_handles(call.arguments)
                 .to_vec();
             if arguments.len() == 1 {
@@ -501,9 +483,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 if target == "is_window" || target == "window_destroy" {
                     // Liveness mirrors native IsWindow/DestroyWindow: 1 for a
                     // live handle, 0 otherwise; destroy removes it.
-                    let Some(handle_argument) = self
-                        .program
-                        .expression_table
+                    let Some(handle_argument) = expression_table(self.program)
                         .expression_handles(call.arguments)
                         .first()
                         .copied()
@@ -534,9 +514,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     // info): StretchDIBits reports the copied SOURCE scanline
                     // count (probed natively: the source height even when
                     // stretching, even into the memory DC's default 1x1 bitmap).
-                    let Some(height) = self
-                        .program
-                        .expression_table
+                    let Some(height) = expression_table(self.program)
                         .expression_handles(call.arguments)
                         .get(4)
                         .copied()
@@ -552,9 +530,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         };
         let arguments = self.eval_state_arguments(
             entry_state,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
+            expression_table(self.program).expression_handles(call.arguments),
             frame,
         )?;
         // Suspend the guard flag while the callee RUNS: distinct same-shaped calls
@@ -598,9 +574,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(None);
         }
 
-        let arguments = self
-            .program
-            .expression_table
+        let arguments = expression_table(self.program)
             .expression_handles(call.arguments)
             .to_vec();
         let Some(expected_arity) =
@@ -833,9 +807,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
     ) -> Result<Option<(Value, SemanticFloatFormat)>, Halt> {
-        let arguments = self
-            .program
-            .expression_table
+        let arguments = expression_table(self.program)
             .expression_handles(call.arguments)
             .to_vec();
         if arguments.len() != 1 {

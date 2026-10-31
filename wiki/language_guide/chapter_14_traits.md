@@ -49,7 +49,7 @@ SaturatingIncrement satisfies Incrementable<Counter>
         }
 
         machine bump(counter: &mut Counter)
-        requires counter.value < integer::max<i32>();
+        requires counter.value < integer::max<i32>()
         {
             counter.value = counter.value + 1;
         }
@@ -659,15 +659,15 @@ A transparent refinement gives a reusable name to a narrower trait contract:
 ```omega
 public trait LocalLogger<T> = Logger<T> {
     machine *
-        reaches;
-        suspends false;
-        blocks false;
+        reaches
+        suspends false
+        blocks false
         terminates;
 }
 
 public trait BufferedLogger<T> = Logger<T> {
     machine Logger::write
-        reaches;
+        reaches
         suspends false;
 
     machine Logger::flush

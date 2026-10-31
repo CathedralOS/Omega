@@ -1,5 +1,6 @@
 //! Reuse checked call occurrences and the existing structured mutation owner.
 
+use crate::places::place_at;
 use validation::CallSite;
 use validation::CanonicalPlace;
 
@@ -70,12 +71,7 @@ impl<'program> RangeCallContext<'program> {
         ) {
             return None;
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            self.state.symbol,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, self.state.symbol, statement_index, expression)?;
         crate::values::immutable_owned_place_root(program, self.state, statement_index, &place)?;
         let statement = self
             .flow_statements
@@ -113,12 +109,7 @@ impl<'program> RangeCallContext<'program> {
             .flow_statements
             .iter()
             .find(|statement| statement.statement_index == statement_index)?;
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            self.state.symbol,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, self.state.symbol, statement_index, expression)?;
         crate::checks::collection_extents::from_live_loans(
             program,
             self.state.symbol,

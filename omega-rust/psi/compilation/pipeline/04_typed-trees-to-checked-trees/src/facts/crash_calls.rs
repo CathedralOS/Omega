@@ -30,6 +30,7 @@ use crate::facts::crash_calls::summary_predicates::{
     SummaryCrashBucket, normalize_summary_buckets,
 };
 use crate::facts::crash_plan_facts::declared_parameter_names;
+use crate::flow::expressions;
 use checked_trees::CrashPredicateExpression;
 pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
@@ -194,8 +195,7 @@ fn predicate_expression(
         ExpressionNode::Call(call) => CrashPredicateExpression::Call {
             target: call.target.as_str().to_owned(),
             receiver: Box::new(lower(call.receiver)),
-            arguments: program
-                .expression_table
+            arguments: expressions(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .map(|argument| lower(*argument))
@@ -395,16 +395,6 @@ pub(super) fn attach_checked_crash_calls(
                             ) else {
                                 continue;
                             };
-                            // A selector call's operands lead with its selector, which the
-                            // requirement's formals omit; published routes would substitute
-                            // misaligned actuals, so such a call keeps no refinement row.
-                            if program
-                                .dynamic_slot_by_symbol(call_flow.target_symbol)
-                                .is_some()
-                                && !capsule.published_buckets().is_empty()
-                            {
-                                continue;
-                            }
                             let parameters = program.state_signature_parameters(signature);
                             (
                                 parameters,
@@ -430,8 +420,12 @@ pub(super) fn attach_checked_crash_calls(
                         }
                         let target_parameter_names = target_parameter_names_ref
                             .unwrap_or(target_parameter_names_owned.as_slice());
-                        let arguments =
-                            validation::call_site_argument_expressions(program, &call_site);
+                        let arguments = crate::call_formals::arguments_aligned_to_formals(
+                            program,
+                            call_flow.target_symbol,
+                            target_parameters.len(),
+                            validation::call_site_argument_expressions(program, &call_site),
+                        );
                         let mut surviving_summary = match target_routes {
                             SelectedTargetCrashRoutes::Published { buckets, contracts } => {
                                 refine_published_crash_routes(

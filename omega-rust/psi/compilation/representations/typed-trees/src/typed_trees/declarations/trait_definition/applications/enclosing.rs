@@ -35,9 +35,7 @@ impl TypedTrees {
         let mut applied = super::project_type_reference(self, reference, &substitutions, &starts);
         let mut visited = Vec::new();
         loop {
-            if !self
-                .type_reference_table
-                .contains_type_reference(applied.reference)
+            if !self.contains_type_reference(applied.reference)
                 || visited.contains(&(applied.reference, applied.scope_starts.len()))
             {
                 return None;
@@ -139,10 +137,7 @@ pub(super) fn data_application(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> Option<DataApplication<'_>> {
-    if !program
-        .type_reference_table
-        .contains_type_reference(reference)
-    {
+    if !program.contains_type_reference(reference) {
         return None;
     }
     // Prepared nominal storage retains its authored application. Following it
@@ -170,9 +165,7 @@ pub(super) fn data_application(
                 ..
             } => (
                 program.data_definition_by_symbol(*base_symbol)?,
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments),
+                program.type_reference_handles(*arguments),
                 lifetime_arguments.as_slice(),
             ),
             _ => return None,

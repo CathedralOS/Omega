@@ -13,6 +13,7 @@ use super::super::{
     place_id, unsupported, value_id,
 };
 use super::{CheckedTrees, ValueOutcome};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
@@ -20,6 +21,7 @@ use crate::emission::operation_emission::place_declarations::operation_result_pl
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
+use crate::terminal_identities::stored_structural_identity;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -127,17 +129,13 @@ pub(crate) fn emit<'source>(
         .selection
         .is_valid()
         .then(|| {
-            checked
-                .facts
-                .flow
+            flow_facts(checked)
                 .ownership
                 .owned_selections
                 .get(production.selection)
         })
         .map(|receipt| {
-            checked
-                .facts
-                .flow
+            flow_facts(checked)
                 .ownership
                 .selection_sources
                 .span(receipt.sources)
@@ -787,9 +785,7 @@ fn prepare_owners(
             .iter()
             .any(|parameter| parameter.symbol == symbol);
         let has_conflicting_selection =
-            checked
-                .facts
-                .flow
+            flow_facts(checked)
                 .ownership
                 .with_state_owned_selections(state, |handles| {
                     handles.iter().copied().any(|handle| {
@@ -803,9 +799,7 @@ fn prepare_owners(
                             )
                             && (entry || receipt.statement_ordinal > formation)
                             && receipt.statement_ordinal < statement
-                            && checked
-                                .facts
-                                .flow
+                            && flow_facts(checked)
                                 .ownership
                                 .selection_sources
                                 .span_or_empty(receipt.sources)
@@ -821,9 +815,7 @@ fn prepare_owners(
         // restoration reseats its subtree, while transfer/disposal removes it.
         // Claim identities are resolved separately at the consuming operand.
         let mut vacancies = Vec::new();
-        let state_permissions = checked
-            .facts
-            .flow
+        let state_permissions = flow_facts(checked)
             .ownership
             .with_state_permissions(state, |handles| handles.to_vec());
         for handle in state_permissions {
@@ -856,9 +848,7 @@ fn prepare_owners(
             if (!entry && ordinal <= formation as usize) || ordinal >= statement as usize {
                 continue;
             }
-            let path = checked
-                .facts
-                .flow
+            let path = flow_facts(checked)
                 .ownership
                 .segments
                 .span_or_empty(event.segments);
@@ -1010,9 +1000,7 @@ fn prepare_owners(
     if selection.is_valid() {
         let receipt = checked.facts.flow.ownership.owned_selections.get(selection);
         for (position, parameter) in source_parameters.iter().enumerate() {
-            if !checked
-                .facts
-                .flow
+            if !flow_facts(checked)
                 .ownership
                 .selection_sources
                 .span_or_empty(receipt.sources)
@@ -1227,6 +1215,19 @@ pub(super) struct ProjectionSource {
 }
 
 impl Emission<'_, '_, '_> {
+    /// A completed aggregate whose place is an operation result retires the
+    /// operands that produced it. Any other declaration retires nothing.
+    pub(super) fn retire_completed_operands(
+        &mut self,
+        declaration: &StructuralPlaceDeclaration,
+    ) -> Result<(), LoweringError> {
+        let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+            return Ok(());
+        };
+        self.evaluation
+            .retire_structural_operation_operands(producer, self.operations)
+    }
+
     fn bind_completion_claims(
         operations: &mut OperationBuffer,
         place: PlaceId,
@@ -1833,10 +1834,7 @@ impl Emission<'_, '_, '_> {
             }));
         }
         let requires_completion = self.content_transformation(&node)?.is_some()
-            || self
-                .checked
-                .facts
-                .flow
+            || flow_facts(&self.checked)
                 .terminal_unit_effects
                 .cleanup_control
                 .value_completion(self.machine, self.state, self.statement, node.expression)
@@ -1924,12 +1922,7 @@ impl Emission<'_, '_, '_> {
                 let child = self.structural_value_node(source);
                 let source_type = lookup_type_id(
                     self.type_ids,
-                    &validation::stored_structural_type_identity(
-                        &self.checked.typed,
-                        child.type_reference,
-                        &[],
-                        &[],
-                    ),
+                    &stored_structural_identity(&self.checked, child.type_reference),
                 )?;
                 let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                     identities,
@@ -2253,10 +2246,7 @@ impl Emission<'_, '_, '_> {
             } => {
                 // The planner's synthesized zero has no authored operand to
                 // replay — emit the verified literal leaf directly.
-                let computation = self
-                    .checked
-                    .facts
-                    .values
+                let computation = value_facts(&self.checked)
                     .scalar_computations
                     .nodes
                     .get(element);

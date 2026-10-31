@@ -6,6 +6,7 @@ use super::conversions::{ConversionKind, SelectedConversion};
 
 use crate::flow::FlowBuildContext;
 use crate::flow::transfers::scalar_values::CallValues;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
@@ -20,6 +21,7 @@ pub(super) struct LiveValues<'a, 'plans> {
     pub semantic: &'a FactPlan,
     pub context: &'a FlowBuildContext<'plans>,
     pub state: SymbolHandle,
+    pub statement_index: usize,
     pub active: HandleSpan<FlowSemanticContextRef>,
 }
 
@@ -27,11 +29,7 @@ impl LiveValues<'_, '_> {
     /// Each active semantic context, resolved against the plan's arena.
     fn active_contexts(&self) -> impl Iterator<Item = &facts::FactContext> + '_ {
         self.context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(self.active)
-            .iter()
-            .map(|reference| self.semantic.contexts.get(reference.context))
+            .semantic_context_views(self.semantic, self.active)
     }
 }
 
@@ -67,12 +65,7 @@ pub(super) trait CapturedValue: Sized {
         statement_index: usize,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            live.state,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, live.state, statement_index, expression)?;
         Self::at_place(&place, live)
     }
     /// Evaluate a non-call operand below authored conversions: a literal or a
@@ -218,7 +211,7 @@ impl CapturedValue for IntegerRange {
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
-        let contexts = crate::flow::active_context_handles(live.context, live.active);
+        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
         validation::selected_scalar_interval(
             expression,
             &mut crate::values::LivePlaceIntervals {
@@ -230,6 +223,14 @@ impl CapturedValue for IntegerRange {
                     .state_parameters(live.program.state_by_symbol(live.state)?),
                 symbols,
                 state: live.state,
+                contents: crate::values::CurrentIntegerBounds::at_statement(
+                    live.program,
+                    live.context.operators,
+                    live.semantic,
+                    &contexts,
+                    live.state,
+                    live.statement_index,
+                )?,
             },
         )
     }
@@ -276,12 +277,7 @@ impl CapturedValue for IntegerRange {
         if let Some(value) = Self::literal(program.expression_table.expression(expression)) {
             return Some(value);
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            live.state,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, live.state, statement_index, expression)?;
         let primitive =
             program.primitive_type_reference(validation::expression_type_reference_in_state(
                 program,
@@ -289,7 +285,7 @@ impl CapturedValue for IntegerRange {
                 statement_index,
                 expression,
             )?)?;
-        let contexts = crate::flow::active_context_handles(live.context, live.active);
+        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
         crate::values::LivePlaceIntervals {
             program,
             semantic: live.semantic,
@@ -297,6 +293,14 @@ impl CapturedValue for IntegerRange {
             parameters: program.state_parameters(program.state_by_symbol(live.state)?),
             symbols: &[],
             state: live.state,
+            contents: crate::values::CurrentIntegerBounds::at_statement(
+                program,
+                live.context.operators,
+                live.semantic,
+                &contexts,
+                live.state,
+                statement_index,
+            )?,
         }
         .interval_at_place(&place, primitive)
     }
@@ -352,11 +356,13 @@ impl validation::SelectedScalarIntervalSource for CallValues<IntegerRange> {
             .map(|(_, _, bounds)| bounds.clone())
     }
 
-    fn indexed_field(
+    fn indexed_read(
         &mut self,
-        _: u32,
+        _: checked_trees::CheckedStorageRoot,
         _: &[CheckedStructuralPredicatePathSegment],
-        _: Option<&IntegerRange>,
+        _: &checked_trees::CheckedScalarSelector,
+        _: &[checked_trees::CheckedScalarReadProjection],
+        _: typed_trees::types::PrimitiveType,
     ) -> Option<IntegerRange> {
         None
     }

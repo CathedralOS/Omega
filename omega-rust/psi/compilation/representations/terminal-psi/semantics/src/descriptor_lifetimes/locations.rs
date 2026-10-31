@@ -1,5 +1,6 @@
 //! Canonical carrier addresses authenticated against the actual type catalog.
 use super::{DescriptorLocation, DescriptorPathSegment};
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralFieldId, StructuralTypeId,
 };
@@ -57,11 +58,8 @@ pub fn descriptor_location(
             }
             StructuralPathSegment::Case(id) if case_fields.is_none() => {
                 let cases = declaration.shape.sum_cases()?;
-                let mut matching = cases.iter().filter(|case| case.id == *id);
-                case_fields = Some(matching.next()?.fields.as_slice());
-                if matching.next().is_some() {
-                    return None;
-                }
+                let case = exactly_one(cases.iter(), |case| case.id == *id)?;
+                case_fields = Some(case.fields.as_slice());
                 DescriptorPathSegment::Case(*id)
             }
             StructuralPathSegment::Field(name) => {
@@ -221,11 +219,8 @@ fn resolved_path(
             }
             DescriptorPathSegment::Case(id) if case_fields.is_none() => {
                 let cases = declaration.shape.sum_cases()?;
-                let mut matching = cases.iter().filter(|case| case.id == *id);
-                case_fields = Some(matching.next()?.fields.as_slice());
-                if matching.next().is_some() {
-                    return None;
-                }
+                let case = exactly_one(cases.iter(), |case| case.id == *id)?;
+                case_fields = Some(case.fields.as_slice());
                 StructuralPathSegment::Case(*id)
             }
             DescriptorPathSegment::Field(id) => {
@@ -233,13 +228,9 @@ fn resolved_path(
                     Some(fields) => fields,
                     None => fields(declaration)?,
                 };
-                let mut matching = fields
-                    .iter()
-                    .filter(|field| field.id == *id && !field.relevance.is_erased());
-                let field = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
+                let field = exactly_one(fields.iter(), |field| {
+                    field.id == *id && !field.relevance.is_erased()
+                })?;
                 tip = match field.field_type {
                     StructuralFieldType::Structural(id) => Some(id),
                     // An inline scalar still has its complete leaf contract.

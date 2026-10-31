@@ -309,6 +309,7 @@ pub(super) fn check_flow_call_contracts(
                 exits::check_scalar_result_domains(
                     program,
                     facts,
+                    state_flow,
                     exit_flow,
                     &mut scalar_returns,
                     &mut diagnostics,

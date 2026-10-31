@@ -394,9 +394,7 @@ pub(crate) fn trait_definition_snapshot(
             .trait_requirements(trait_definition)
             .iter()
             .map(|requirement| {
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(requirement.arguments);
+                let arguments = program.type_reference_handles(requirement.arguments);
                 if requirement.lifetime_arguments.is_empty() && arguments.is_empty() {
                     requirement.name.to_string()
                 } else {
@@ -463,7 +461,6 @@ pub(crate) fn conformance_snapshot(
         trait_symbol: conformance.trait_symbol.arena_index(),
         trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
         arguments: program
-            .type_reference_table
             .type_reference_handles(conformance.arguments)
             .iter()
             .map(|argument| type_reference_snapshot(program, *argument))
@@ -602,7 +599,7 @@ pub(crate) fn state_parameter_snapshot(
     }
 }
 
-fn conformance_bound_snapshot(
+pub(super) fn conformance_bound_snapshot(
     program: &TypedTrees,
     bound: &crate::machine::GenericConformanceBound,
 ) -> GenericConformanceBoundSnapshot {

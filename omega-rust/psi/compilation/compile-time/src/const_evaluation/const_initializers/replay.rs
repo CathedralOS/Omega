@@ -6,6 +6,8 @@
 //! give detached expressions ordinary checking context; they remain in a private
 //! clone and never add a runtime declaration or a portable representation.
 
+use crate::build_time_evaluation::{expression_table, type_reference_table};
+use crate::unique::push_unique;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -74,12 +76,8 @@ pub(crate) fn validate(
         // Every declaration retains its value root, including literal-only
         // declarations. Missing storage is invalid before deciding whether its
         // attached call roster requires replay; erasure cannot remove that duty.
-        if !typed
-            .expression_table
-            .expression_is_valid(declaration.materialized_initializer)
-            || typed
-                .expression_table
-                .source_span(declaration.materialized_initializer)
+        if !expression_table(typed).expression_is_valid(declaration.materialized_initializer)
+            || expression_table(typed).source_span(declaration.materialized_initializer)
                 != reference
         {
             return Err(super::failure(
@@ -97,8 +95,7 @@ pub(crate) fn validate(
         )
         .map_err(|reason| super::failure(reference, reason))?;
         let mut retained_call = false;
-        for occurrence in typed
-            .expression_table
+        for occurrence in expression_table(typed)
             .authored_selection_occurrences(declaration.materialized_initializer)
         {
             let selection = typed
@@ -132,9 +129,7 @@ pub(crate) fn validate(
             declaration.evaluated_value.as_ref(),
             Some(language_core::constant_value::EvaluatedConstant::UndeterminedNaN(_))
         ) || matches!(
-            typed
-                .expression_table
-                .expression(declaration.materialized_initializer),
+            expression_table(typed).expression(declaration.materialized_initializer),
             ExpressionNode::UndeterminedNaN(_)
         );
         if destination.is_some() || encoded_float || semantic_float {
@@ -226,12 +221,22 @@ pub(crate) fn validate(
         );
         // Both source roots own a prepared value exit. Scalar recipes can
         // contain generic calls too; their untouched handles are not executable.
+        // The authored invocation still owes the declaration's complete
+        // representation and policy. Its independently materialized literal
+        // spells semantic data, as materialize::literal specifies, so check
+        // that private value exit against the same authenticated payload view.
+        // Encoding below still uses leaf.destination and compares both roots
+        // independently with the declaration's retained canonical result.
+        let mut materialized_destination = leaf.destination;
+        while let Some(storage) = probe.layout_storage_arguments(materialized_destination) {
+            materialized_destination = storage.semantic_type;
+        }
         let materialized = super::invocations::append_probe(
             &mut probe,
             leaf.owner,
             format!("@const-replay-materialized-{ordinal}"),
             leaf.materialized,
-            leaf.destination,
+            materialized_destination,
         );
         owners.push((original, materialized));
     }
@@ -433,11 +438,7 @@ pub(crate) fn validate(
 fn contains_floating_component(program: &TypedTrees, root: TypeReferenceHandle) -> bool {
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
+    while let Some(reference) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if float_destination(program, reference).is_some() {
             return true;
         }
@@ -544,13 +545,11 @@ fn validate_anonymous_float(
     if matches!(
         typed.expression_table.expression(original),
         ExpressionNode::Float(_) | ExpressionNode::Integer(_)
-    ) && typed
-        .expression_table
+    ) && expression_table(typed)
         .authored_selection_occurrences(original)
         .next()
         .is_none()
-        && typed
-            .expression_table
+        && expression_table(typed)
             .authored_selection_occurrences(materialized)
             .next()
             .is_none()
@@ -650,11 +649,7 @@ fn validate_float_value(
     let mut visited = Vec::new();
     let mut pending = vec![original];
     pending.extend(dependency_roots);
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if let Some(binary) = probe.expression_table.binary_node(expression) {
             if !validation::has_builtin_binary_expression_meaning(
                 probe,
@@ -665,9 +660,7 @@ fn validate_float_value(
                 return Err("floating constant replay lost selected builtin meaning".into());
             }
             let reference = probe.expression_table.source_span(expression);
-            if !operators.contains(&reference) {
-                operators.push(reference);
-            }
+            push_unique(&mut operators, reference);
             pending.push(binary.right);
             pending.push(binary.left);
         } else if let ExpressionNode::Match(dispatch) =
@@ -685,8 +678,7 @@ fn validate_float_value(
                 pending.push(call.receiver);
             }
             pending.extend(
-                probe
-                    .expression_table
+                expression_table(probe)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied(),
@@ -694,10 +686,7 @@ fn validate_float_value(
         }
     }
     let mut retained_operators = Vec::new();
-    for occurrence in probe
-        .expression_table
-        .authored_selection_occurrences(materialized)
-    {
+    for occurrence in expression_table(probe).authored_selection_occurrences(materialized) {
         let selection = probe
             .authored_declaration_selections()
             .get(occurrence)
@@ -849,12 +838,8 @@ fn validate_dependency_values(
                 declaration.declared_type,
             )
         {
-            if !program
-                .expression_table
-                .expression_is_valid(declaration.authored_initializer)
-                || program
-                    .expression_table
-                    .source_span(declaration.authored_initializer)
+            if !expression_table(program).expression_is_valid(declaration.authored_initializer)
+                || expression_table(program).source_span(declaration.authored_initializer)
                     != declaration.initializer_source_span
             {
                 return Err("constant dependency lost its exact authored initializer".into());
@@ -876,9 +861,7 @@ fn validate_dependency_values(
                     );
                 }
             }
-            if !authored_roots.contains(&declaration.authored_initializer) {
-                authored_roots.push(declaration.authored_initializer);
-            }
+            push_unique(&mut authored_roots, declaration.authored_initializer);
             continue;
         }
         let expected = CanonicalConstIdentity {
@@ -898,12 +881,8 @@ fn validate_dependency_values(
                 declaration.declared_type,
             )
         {
-            if !program
-                .expression_table
-                .expression_is_valid(declaration.authored_initializer)
-                || program
-                    .expression_table
-                    .source_span(declaration.authored_initializer)
+            if !expression_table(program).expression_is_valid(declaration.authored_initializer)
+                || expression_table(program).source_span(declaration.authored_initializer)
                     != declaration.initializer_source_span
             {
                 return Err("constant dependency lost its exact authored initializer".into());
@@ -1085,9 +1064,7 @@ fn pair(
     match (
         table.expression(leaf.original),
         table.expression(leaf.materialized),
-        program
-            .type_reference_table
-            .type_reference(leaf.destination),
+        type_reference_table(program).type_reference(leaf.destination),
         &leaf.expected,
     ) {
         (

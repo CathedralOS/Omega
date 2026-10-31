@@ -2,7 +2,7 @@
 data Mixed { shared: &[u32]; exclusive: &mut [u32]; }
 
 machine violate(mut current: Mixed)
-requires current.shared.len > 0;
+requires current.shared.len > 0
 {
     let requested: &mut [u32] = &mut current.shared[0..1];
     transition requested.len > 0 {
@@ -10,7 +10,7 @@ requires current.shared.len > 0;
         false -> done()
     }
     machine write(values: &mut [u32])
-    requires values.len > 0;
+    requires values.len > 0
     { values[0] = 99; }
     machine done() {}
 }
@@ -28,7 +28,7 @@ machine main() crashes Trap {
         false -> bad()
     }
     machine invoke(current: Mixed, original: &[u32])
-    requires current.shared.len > 0 && original.len > 0;
+    requires current.shared.len > 0 && original.len > 0
     {
         violate(current);
         let observed: u32 = original[0];

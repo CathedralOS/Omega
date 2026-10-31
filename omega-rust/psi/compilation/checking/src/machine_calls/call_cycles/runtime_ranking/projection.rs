@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use crate::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
     find_declared_measure, measure_body_shape,
@@ -35,12 +36,10 @@ pub(super) enum RankOrder {
         measure: SymbolHandle,
         primitive: PrimitiveType,
     },
-    /// A declared measure whose `+`/`*` body validation's `declared_scalar_view`
-    /// admitted as strictly increasing on the naturals with builtin meaning --
-    /// the only reason the subject's descent stands for the produced rank's
-    /// descent. The rank is the body over the subject, judged by the scalar
-    /// range call judgment, which also proves its formation in the carrier.
-    /// Members share this order only through the same measure and carrier.
+    /// A declared scalar application compared by its produced value. Each
+    /// occurrence independently forms the body and carrier; subject descent
+    /// alone says nothing about this order. Members share the selected
+    /// measure and carrier, never an inferred global monotonicity property.
     DeclaredComputation {
         measure: SymbolHandle,
         primitive: PrimitiveType,
@@ -318,7 +317,7 @@ impl RankProjection {
             return None;
         }
 
-        let components = program.expression_table.expression_handles(measure.body);
+        let components = expression_table(program).expression_handles(measure.body);
         if components.is_empty() {
             return None;
         }
@@ -327,13 +326,10 @@ impl RankProjection {
             // Lexicographic syntax declares unqualified projections in its
             // exact owner. No arbitrary member expression or global name
             // search can contribute a ranking component.
-            let Some(component) = program.expression_table.name_path_node(*component) else {
+            let Some(component) = expression_table(program).name_path_node(*component) else {
                 return None;
             };
-            let [name] = program
-                .expression_table
-                .name_path_members(component.members)
-            else {
+            let [name] = expression_table(program).name_path_members(component.members) else {
                 return None;
             };
             let mut declarations = program
@@ -396,6 +392,26 @@ impl RankProjection {
         }
     }
 
+    pub(super) fn captured_scalar(
+        &self,
+    ) -> Option<crate::proof_contracts::contract_entailment::CapturedScalarRank> {
+        let (primitive, measure) = match self.order {
+            RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
+            RankOrder::DeclaredIdentity { measure, primitive }
+            | RankOrder::DeclaredComputation {
+                measure, primitive, ..
+            } => (primitive, measure),
+            _ => return None,
+        };
+        Some(
+            crate::proof_contracts::contract_entailment::CapturedScalarRank {
+                subject: self.subject,
+                primitive,
+                measure,
+            },
+        )
+    }
+
     pub(super) fn same_order(&self, other: &Self) -> bool {
         self.order == other.order
     }
@@ -411,7 +427,7 @@ impl RankProjection {
         expression: ExpressionHandle,
         role: &dyn Fn(SymbolHandle) -> SymbolHandle,
     ) -> bool {
-        matches!(program.expression_table.expression(unwrapped(program, expression)),
+        matches!(expression_table(program).expression(unwrapped(program, expression)),
             ExpressionNode::Name(path) if role(path.symbol) == self.parameter)
     }
 
@@ -425,9 +441,8 @@ impl RankProjection {
         let RankOrder::Lexicographic { data: owner, .. } = self.order else {
             return false;
         };
-        let ExpressionNode::Member(member) = program
-            .expression_table
-            .expression(unwrapped(program, expression))
+        let ExpressionNode::Member(member) =
+            expression_table(program).expression(unwrapped(program, expression))
         else {
             return false;
         };
@@ -464,28 +479,16 @@ fn entry_parameter<'program>(
     entry: &'program State,
     subject: ExpressionHandle,
 ) -> Option<(usize, &'program StateParameter)> {
-    let mut cursor = unwrapped(program, subject);
-    let mut visited = Vec::new();
-    while let Some(member) = program.expression_table.member_node(cursor) {
-        if !member.member_symbol.is_valid()
-            || member.case_variant.is_some()
-            || visited.contains(&cursor)
-            || visited.len() >= 128
-        {
-            return None;
-        }
-        visited.push(cursor);
-        cursor = unwrapped(program, member.receiver);
-    }
-    let path = program.expression_table.name_path_node(cursor)?;
-    if !path.symbol.is_valid() {
-        return None;
-    }
+    // This is requirement discovery, not a load judgment. The observation
+    // owner independently proves selectors, access and value identity before
+    // a coordinate can become runtime evidence.
+    let place = crate::canonical_place_from_expression_in_state(program, entry.symbol, 0, subject)?;
+    let symbol = place.root.as_symbol()?;
     let mut parameters = program
         .state_parameters(entry)
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| parameter.symbol == path.symbol);
+        .filter(|(_, parameter)| parameter.symbol == symbol);
     let found = parameters.next()?;
     if parameters.next().is_some() {
         return None;
@@ -497,10 +500,8 @@ fn entry_parameter<'program>(
 /// rooted at an entry formal rather than a bare formal name.
 fn member_subject(program: &dyn crate::CheckingInput, subject: ExpressionHandle) -> bool {
     matches!(
-        program
-            .expression_table
-            .expression(unwrapped(program, subject)),
-        ExpressionNode::Member(_)
+        expression_table(program).expression(unwrapped(program, subject)),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
     )
 }
 
@@ -617,6 +618,8 @@ pub(super) fn natural_component(
                 return None;
             }
             states.push(super::ValidatedRuntimeNaturalState {
+                application: None,
+                measure: SymbolHandle::invalid(),
                 state: state.symbol,
                 parameter: parameter.symbol,
                 coordinate,
@@ -640,6 +643,7 @@ pub(super) fn natural_component(
 pub(super) fn retain_internal_transfer(
     program: &dyn crate::CheckingInput,
     component: &mut super::ValidatedRuntimeNaturalComponent,
+    component_states: &[SymbolHandle],
     relevance: &super::super::RankRelevance,
     source: SymbolHandle,
     target: SymbolHandle,
@@ -654,9 +658,7 @@ pub(super) fn retain_internal_transfer(
     if !relevance.requires_rank(target) {
         return true;
     }
-    if !component.states.iter().any(|rank| rank.state == source)
-        || !component.states.iter().any(|rank| rank.state == target)
-    {
+    if !component_states.contains(&source) || !component_states.contains(&target) {
         return false;
     }
     let mut matching = judgments.iter().filter(|edge| {

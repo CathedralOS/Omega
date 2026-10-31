@@ -5,12 +5,15 @@ use crate::monomorphization::selection::callee_proposals::{
     enclosing_statement_ordinal, resolve_callee,
 };
 use crate::monomorphization::selection::collect_call_proposals;
-use crate::monomorphization::selection::static_bindings::same_type_identity;
+use crate::monomorphization::selection::static_bindings::{
+    same_const_identity, same_type_identity,
+};
 use crate::monomorphization::{
     CallSelection, CallSite, CalleeState, Candidate, ExpressionHandle, SpecializationKey,
     StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind, TypeReferenceHandle,
     TypeReferenceNode,
 };
+use crate::tables::expressions_of;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selection_for_call(
@@ -27,8 +30,7 @@ pub(crate) fn selection_for_call(
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
     let query = match site {
-        CallSite::Expression(handle) => program
-            .expression_table
+        CallSite::Expression(handle) => expressions_of(program)
             .call_node(handle)
             .and_then(|call| call.native_code_layout.as_ref()),
         CallSite::Statement(_) => None,
@@ -93,8 +95,7 @@ pub(crate) fn selection_for_call_with_local_prefix(
     // ordinary runtime parameters are neither supplied nor evaluated and the
     // descriptor carrier cannot infer an omitted selected-machine argument.
     let query = match site {
-        CallSite::Expression(handle) => program
-            .expression_table
+        CallSite::Expression(handle) => expressions_of(program)
             .call_node(handle)
             .and_then(|call| call.native_code_layout.as_ref()),
         CallSite::Statement(_) => None,
@@ -189,6 +190,7 @@ pub(crate) fn selection_from_proposals(
         machine_bindings: bindings.machine_bindings,
         evidence_bindings: bindings.evidence_bindings,
         conflicted: bindings.conflicted,
+        conflict_reason: bindings.conflict_reason,
     }
 }
 
@@ -203,6 +205,7 @@ pub(crate) struct ProposalBindings {
     pub(crate) machine_bindings: Vec<Option<StaticMachineArgument>>,
     pub(crate) evidence_bindings: Vec<Option<StaticMachineArgument>>,
     pub(crate) conflicted: bool,
+    pub(crate) conflict_reason: Option<String>,
 }
 
 pub(crate) fn proposal_bindings(
@@ -230,6 +233,7 @@ pub(crate) fn proposal_bindings(
         machine_bindings: vec![None; candidate.template.machine_parameters.len()],
         evidence_bindings: vec![None; candidate.template.evidence_parameters.len()],
         conflicted: false,
+        conflict_reason: None,
     };
     for (_, parameter, argument) in runtime_value_proposals {
         // Runtime code is keyed by the declared carrier, not by a value
@@ -246,7 +250,15 @@ pub(crate) fn proposal_bindings(
         match selection.type_bindings[parameter] {
             None => selection.type_bindings[parameter] = Some(binding),
             Some(existing) if !same_type_identity(program, existing, binding) => {
-                selection.conflicted = true
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "Type slot `{}` conflicts: {} versus {}",
+                        candidate.template.type_parameters[parameter].1,
+                        describe_binding(program, existing),
+                        describe_binding(program, binding),
+                    )
+                });
             }
             Some(_) => {}
         }
@@ -271,8 +283,16 @@ pub(crate) fn proposal_bindings(
         }
         match selection.const_bindings[parameter] {
             None => selection.const_bindings[parameter] = Some(binding),
-            Some(existing) if !same_type_identity(program, existing, binding) => {
-                selection.conflicted = true
+            Some(existing) if !same_const_identity(program, existing, binding) => {
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "Const slot `{}` conflicts: {} versus {}",
+                        candidate.template.const_parameters[parameter].1,
+                        describe_binding(program, existing),
+                        describe_binding(program, binding),
+                    )
+                });
             }
             Some(_) => {}
         }
@@ -289,7 +309,17 @@ pub(crate) fn proposal_bindings(
         }
         match &selection.machine_bindings[parameter] {
             None => selection.machine_bindings[parameter] = Some(binding),
-            Some(existing) if existing.symbol != binding.symbol => selection.conflicted = true,
+            Some(existing) if existing.symbol != binding.symbol => {
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "Machine slot `{}` conflicts: {} versus {}",
+                        candidate.template.machine_parameters[parameter].1,
+                        existing.display_name(),
+                        binding.display_name(),
+                    )
+                });
+            }
             Some(_) => {}
         }
     }
@@ -303,12 +333,41 @@ pub(crate) fn proposal_bindings(
                 if existing.symbol != binding.symbol
                     || existing.display_name() != binding.display_name() =>
             {
-                selection.conflicted = true
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "evidence slot `{}` conflicts: {} versus {}",
+                        candidate.template.evidence_parameters[parameter].binder_name,
+                        existing.display_name(),
+                        binding.display_name(),
+                    )
+                });
             }
             Some(_) => {}
         }
     }
     selection
+}
+
+fn describe_binding(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> String {
+    let owner = program
+        .type_reference_table
+        .operand_lifetime_owner(reference);
+    format!(
+        "{} [identity {}; supplier {}]",
+        program.display_type_reference(reference),
+        program
+            .static_const_type_reference_identity(reference)
+            .unwrap_or_else(|| program.normalized_type_identity_text(reference)),
+        if owner.is_valid() {
+            program.symbols.display_path(owner, "::")
+        } else {
+            "unretained".into()
+        },
+    )
 }
 
 pub(crate) fn type_reference_is_any_generic_parameter(
@@ -341,6 +400,12 @@ pub(crate) fn type_reference_is_any_generic_parameter(
     })
 }
 
+/// How many slots of one binding roster carry a bound value. Evidence ranking
+/// weighs each roster by how much of its telescope the selection settled.
+fn bound_count<T>(bindings: &[Option<T>]) -> usize {
+    bindings.iter().filter(|item| item.is_some()).count()
+}
+
 pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: CallSelection) {
     if let Some(existing) = selections
         .iter_mut()
@@ -348,46 +413,14 @@ pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: C
     {
         let explicit_argument_overflow =
             existing.explicit_argument_overflow || selection.explicit_argument_overflow;
-        let existing_evidence = existing
-            .type_bindings
-            .iter()
-            .filter(|item| item.is_some())
-            .count()
-            + existing
-                .const_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + existing
-                .machine_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + existing
-                .evidence_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count();
-        let new_evidence = selection
-            .type_bindings
-            .iter()
-            .filter(|item| item.is_some())
-            .count()
-            + selection
-                .const_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + selection
-                .machine_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + selection
-                .evidence_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count();
+        let existing_evidence = bound_count(&existing.type_bindings)
+            + bound_count(&existing.const_bindings)
+            + bound_count(&existing.machine_bindings)
+            + bound_count(&existing.evidence_bindings);
+        let new_evidence = bound_count(&selection.type_bindings)
+            + bound_count(&selection.const_bindings)
+            + bound_count(&selection.machine_bindings)
+            + bound_count(&selection.evidence_bindings);
         if new_evidence >= existing_evidence {
             *existing = selection;
         }

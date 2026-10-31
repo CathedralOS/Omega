@@ -25,7 +25,7 @@ data WindowsPathStep {
 // One recursive edge owns progress; decoding and emission have no independent
 // loops. The byte-length budget bounds characters without assuming ASCII.
 machine windows_path_encode(path: &[u8], output: &mut [u16; 4096], input_offset: u64, output_offset: u64, remaining: u64) -> i64
-terminates by remaining;
+terminates by remaining
 {
     let step: WindowsPathStep = windows_path_step(path, output, input_offset, output_offset);
     transition step.status == 0 && remaining > 0 {

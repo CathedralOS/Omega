@@ -4,6 +4,7 @@
 //! polarity over those original operands, independently of subsequent writes.
 //! Unknown origins and unselected arithmetic supply no entry evidence.
 use crate::facts::crash_plan_facts::declared_parameter_names;
+use crate::places::place_at;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CrashPredicateExpression as Expression,
@@ -259,12 +260,7 @@ pub(super) fn completed_operand(
     ) {
         argument
     } else {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            caller.state_symbol,
-            statement,
-            argument,
-        )?;
+        let place = place_at(program, caller.state_symbol, statement, argument)?;
         let (_, state) = validation::machine_state_by_symbols(
             program,
             caller.machine_symbol,
@@ -332,10 +328,7 @@ pub(super) fn completed_operand(
         {
             continue;
         }
-        let Some(call) = flow
-            .control
-            .calls
-            .span_or_empty(caller.calls)
+        let Some(call) = crate::flow::call_flows(&flow.control, caller.calls)
             .iter()
             .find(|call| {
                 call.statement_index == statement_index && call.call_ordinal == call_ordinal
@@ -428,17 +421,14 @@ pub(super) fn completed_operand(
             else {
                 continue;
             };
-            if let Some(actual_place) = validation::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                *actual,
-            ) && crate::facts::crash_entry_values::statement_may_overwrite_place(
-                program,
-                machine_symbol,
-                producer_statement,
-                &actual_place,
-            ) {
+            if let Some(actual_place) = place_at(program, state_symbol, statement_index, *actual)
+                && crate::facts::crash_entry_values::statement_may_overwrite_place(
+                    program,
+                    machine_symbol,
+                    producer_statement,
+                    &actual_place,
+                )
+            {
                 continue;
             }
             let Some(value) = crate::facts::crash_entry_values::entry_operand(

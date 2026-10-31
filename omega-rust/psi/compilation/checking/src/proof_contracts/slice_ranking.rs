@@ -1,5 +1,6 @@
 //! The typed decrease rule shared by runtime and proof slice recursion.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 use symbols::SymbolHandle;
 
@@ -21,14 +22,13 @@ pub fn slice_tail_strictly_decreases<'p>(
     if !parameter.symbol.is_valid() || !parameter_is_slice(program, parameter) {
         return false;
     }
-    let argument = program
-        .expression_table
+    let argument = expression_table(program)
         .borrow_expression(argument)
         .map_or(argument, |borrow| borrow.target);
-    let Some(indexed) = program.expression_table.indexed_node(argument) else {
+    let Some(indexed) = expression_table(program).indexed_node(argument) else {
         return false;
     };
-    let Some(range) = program.expression_table.range_node(indexed.index) else {
+    let Some(range) = expression_table(program).range_node(indexed.index) else {
         return false;
     };
     if !names_parameter(program, indexed.collection, parameter)
@@ -49,11 +49,11 @@ pub fn slice_tail_strictly_decreases<'p>(
     if !tail_bound_is_positive(program, start) {
         return false;
     }
-    let guard = match program.expression_table.expression(guard) {
+    let guard = match expression_table(program).expression(guard) {
         ExpressionNode::Binary(binary)
             if binary.operator == BinaryOperator::Equal
                 && matches!(
-                    program.expression_table.expression(binary.right),
+                    expression_table(program).expression(binary.right),
                     ExpressionNode::Boolean(true)
                 ) =>
         {
@@ -61,7 +61,7 @@ pub fn slice_tail_strictly_decreases<'p>(
         }
         _ => guard,
     };
-    let Some(binary) = program.expression_table.binary_node(guard) else {
+    let Some(binary) = expression_table(program).binary_node(guard) else {
         return false;
     };
     let Some(length) = crate::length_member(program, binary.left) else {
@@ -116,7 +116,7 @@ fn tail_bound(
     if let Some(leaf) =
         crate::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
     {
-        return match program.expression_table.expression(leaf) {
+        return match expression_table(program).expression(leaf) {
             ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
                 Some(TailBound::Symbol {
                     symbol: path.symbol,
@@ -222,7 +222,7 @@ fn names_parameter(
     parameter: &StateParameter,
 ) -> bool {
     matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Name(path)
             if path.symbol == parameter.symbol
                 && path.head_symbol == parameter.symbol

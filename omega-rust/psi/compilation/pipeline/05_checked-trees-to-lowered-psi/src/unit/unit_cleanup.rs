@@ -17,6 +17,7 @@ use super::{
     StructuralTypeId, StructuralTypeShape, TerminalMachine, lookup_machine_id, lookup_type_id,
     lower_unit_closure, obligation_id, unsupported,
 };
+use crate::checked_facts::value_facts;
 use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
@@ -420,9 +421,7 @@ pub(crate) fn selected_cleanups(
             .iter()
             .flat_map(|machine| &machine.states)
     };
-    checked
-        .facts
-        .values
+    value_facts(checked)
         .scalar_computations
         .temporary_cleanup_actions
         .iter()
@@ -463,16 +462,12 @@ pub(crate) fn retained_call_cleanups(
     machine: Option<SymbolHandle>,
 ) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
     let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
-    checked
-        .facts
-        .values
+    value_facts(checked)
         .structural_values
         .scheduled_calls()
         .filter(move |(_, call)| {
             machine.is_none_or(|machine| {
-                checked
-                    .facts
-                    .values
+                value_facts(checked)
                     .structural_values
                     .nodes
                     .get(call.value)

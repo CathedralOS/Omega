@@ -1,0 +1,25 @@
+// The data actual is the crashing input. Skipping the leading selector would
+// pair the selector with `value` and could erase this route.
+trait Gate {
+    machine pass(value: u64) -> u64
+    crashes Trap
+        value == 0u64;
+}
+
+Open satisfies Gate {
+    machine pass(value: u64) -> u64
+    crashes Trap
+        value == 0u64
+    {
+        transition value == 0u64 {
+            true -> bad()
+            false -> value
+        }
+        machine bad() -> u64 crashes Trap { crash Trap; }
+    }
+}
+
+public machine observe() -> u64 {
+    let selected: dyn Gate = Open as dyn Gate;
+    Gate::pass(selected, 0u64)
+}

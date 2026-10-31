@@ -9,6 +9,7 @@ use machine_code::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use target::{Architecture, NativeTarget};
 
+use super::super::instruction_bytes;
 use super::super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
     x86_terminal_register,
@@ -333,12 +334,7 @@ pub(crate) fn expected_parameter_store_bytes(
                     byte_size,
                 )?);
             }
-            Some(
-                instructions
-                    .into_iter()
-                    .flat_map(u32::to_le_bytes)
-                    .collect(),
-            )
+            Some(instruction_bytes(instructions))
         }
     }
 }
@@ -502,12 +498,7 @@ fn expected_aarch64_store(
             byte_size,
         )?);
     }
-    Some(
-        instructions
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect(),
-    )
+    Some(instruction_bytes(instructions))
 }
 
 fn aarch64_load_base(byte_size: u16) -> Option<u32> {

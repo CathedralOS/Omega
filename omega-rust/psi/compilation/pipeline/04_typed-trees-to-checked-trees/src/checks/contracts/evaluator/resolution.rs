@@ -1,3 +1,5 @@
+use crate::flow::expressions;
+use crate::flow::state_statements;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -75,8 +77,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                     .program
                     .expression_table
                     .array_literal_node(collection)?;
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .expression_handles(*values)
                     .get(index)
                     .copied()
@@ -87,8 +88,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                     .program
                     .expression_table
                     .struct_literal_node(receiver)?;
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .struct_fields(struct_literal.fields)
                     .iter()
                     .find(|field| field.name == member.member)
@@ -104,7 +104,12 @@ impl ContractExpressionEvaluator<'_, '_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<ExpressionHandle> {
-        let arguments = validation::call_site_argument_expressions(self.program, self.call_site);
+        let arguments = crate::call_formals::arguments_aligned_to_formals(
+            self.program,
+            self.call_site.target_symbol(self.program),
+            self.target_parameters.len(),
+            validation::call_site_argument_expressions(self.program, self.call_site),
+        );
         let mut argument_index = 0usize;
 
         for parameter in self.target_parameters {
@@ -137,9 +142,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             .expression_table
             .name_path_members(members)
             .last()?;
-        self.program
-            .statement_table
-            .statements(self.caller_state.statement_nodes)
+        state_statements(self.program, self.caller_state.statement_nodes)
             .iter()
             .take(self.statement_index)
             .find_map(|statement| {

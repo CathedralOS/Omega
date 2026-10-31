@@ -169,6 +169,16 @@ pub(super) fn record_node_provenance<'node>(
     Some(())
 }
 
+/// Record the in-place row of every provenance-bearing node in `block`, the
+/// whole-block epilogue the removal and merge accounting tails share.
+pub(super) fn record_block_provenance(
+    machine: MachineId,
+    block: &OptimizationBlock,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    record_node_provenance(machine, block, block.nodes.iter().enumerate(), realized)
+}
+
 /// Stamp each provenance-bearing node of the merged block at the position the
 /// merge gives it: target node `i` lands at predecessor node `predecessor.node
 /// + i`. Both merges restate their target's roster this way.

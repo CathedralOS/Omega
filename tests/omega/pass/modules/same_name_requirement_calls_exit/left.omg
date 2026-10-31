@@ -18,8 +18,8 @@ reaches
 
 public data Runner { }
 public machine Runner::run(runner: &mut Runner) reaches Sink, Console
-invokes Sink;
-invokes Console;
+invokes Sink
+invokes Console
 {
     Sink::emit(76);
     transition { _ -> deliver(runner, 65) }

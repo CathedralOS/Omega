@@ -6,9 +6,11 @@
 // and the contributed fact carries that same canonical identity. The
 // subject is NOT constructed in this state's flow, so construction-fold
 // evidence cannot supply the coupling -- only the arm can.
-data Interval {
+data Interval 
+    requires (self in Interval::Empty) || ((self in Interval::Range) && (self.lo <= self.hi))
+{
     case Empty;
-    case Range(lo: u64, hi: u64) where lo <= hi;
+    case Range(lo: u64, hi: u64);
 }
 data Main { interval: Interval; }
 machine Main::main(main: &mut Main) {

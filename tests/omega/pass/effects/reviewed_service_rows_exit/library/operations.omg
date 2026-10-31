@@ -6,12 +6,12 @@ public boundary trait Operations {
 }
 public machine read_value(value: i32) -> i32
 reaches ReadCapability
-invokes Operations;
+invokes Operations
 {
     Operations::read(value)
 }
 public machine pure_value(value: i32) -> i32
-invokes Operations;
+invokes Operations
 {
     Operations::identity(value)
 }

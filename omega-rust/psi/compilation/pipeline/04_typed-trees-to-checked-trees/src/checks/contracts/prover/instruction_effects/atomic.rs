@@ -2,6 +2,7 @@
 //! destination and scalar operand. Generic type arguments retain the exact
 //! atomic cell/value pair; a same-sized integer or another cell is not enough.
 use super::{QueryArgument, QueryArguments};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::types::PrimitiveType;
 use validation::CanonicalPlace;
@@ -38,12 +39,7 @@ fn receiver_places(
     required: QueryArgument,
 ) -> Option<Vec<CanonicalPlace>> {
     let (expression, suffix) = arguments.source_projection(program, required, &[])?;
-    let mut place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement,
-        expression,
-    )?;
+    let mut place = place_at(program, state.symbol, statement, expression)?;
     if !suffix.is_empty() {
         let reference =
             validation::canonical_place_type_reference(program, state.symbol, statement, &place)?;
@@ -128,20 +124,14 @@ fn store_matches(
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     if !order.precedes(statement_index, statement)
-        && !(statement
-            == program
-                .statement_table
-                .statements(state.statement_nodes)
-                .len()
+        && !(statement == crate::flow::state_statements(program, state.statement_nodes).len()
             && order.position(statement_index).is_some())
     {
         return None;
     }
     let machine = program.machine_by_symbol(machine_symbol)?;
-    let authored = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+    let authored =
+        crate::flow::state_statements(program, state.statement_nodes).get(statement_index)?;
     let carrier = crate::flow::atomic_effects::release_store(program, machine, state, authored)?;
     let row = facts.flow.state_statement(flow, statement_index)?;
     let destination = facts.flow.control.operands.get(row.store_target);

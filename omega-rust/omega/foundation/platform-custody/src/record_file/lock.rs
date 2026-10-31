@@ -1,5 +1,5 @@
 use super::{
-    CapabilityDirectory, OsString, Path, PathBuf, RecordFileError, RecordFileRoot, io_error,
+    CapabilityDirectory, OsString, Path, PathBuf, RecordFileError, RecordFileRoot, io_at, io_error,
     single_file_name, verify_regular_identity,
 };
 use crate::lock_file::open_or_create_lock_file;
@@ -32,10 +32,7 @@ impl RecordFileRoot {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(io_error(&display_path, error)),
         }
-        let directory = self
-            .directory
-            .try_clone()
-            .map_err(|error| io_error(&self.display_path, error))?;
+        let directory = io_at(self.directory.try_clone(), &self.display_path)?;
         let file = open_or_create_lock_file(&directory, file_name)
             .map_err(|error| io_error(&display_path, error))?
             .into_std();

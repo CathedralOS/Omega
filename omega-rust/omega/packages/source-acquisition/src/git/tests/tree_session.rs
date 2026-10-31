@@ -1,12 +1,12 @@
 //! Staged catalog reads must pin source without materializing a whole repository.
 use super::{
-    create_git_source, local_git_request, make_tree_owner_writable, run_test_git,
-    run_test_git_with_input, temp_root, test_system_git_executor,
+    create_git_source, fixture_storage, local_git_request, make_tree_owner_writable, run_test_git,
+    run_test_git_with_input, temp_root,
 };
 use crate::git::resolution::GitWorkspaceSession;
 use crate::{
-    GitWorkspaceDeclarationLimits, LocalSourceLimits, PrimaryGitChoices, SourceRelativePath,
-    SourceResolveError, SourceResolver,
+    GitWorkspaceDeclarationLimits, LocalSourceLimits, SourceRelativePath, SourceResolveError,
+    SourceResolver,
 };
 use std::path::PathBuf;
 
@@ -162,19 +162,7 @@ impl WorkspaceFixture {
         let storage_root = temp_root("staged-workspace-storage");
         std::fs::create_dir_all(&storage_root).unwrap();
         let request = local_git_request(&repository, "HEAD");
-        let git = test_system_git_executor(request.execution_transport())
-            .unwrap()
-            .execution_backend
-            .executable()
-            .to_path_buf();
-        let storage = SourceResolver::for_hardened_base(
-            &storage_root,
-            PrimaryGitChoices {
-                explicit_git: Some(&git),
-                ..PrimaryGitChoices::default()
-            },
-        )
-        .unwrap();
+        let storage = fixture_storage(&storage_root, &request);
         Self {
             repository,
             storage_root,

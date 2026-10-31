@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "same_map_dormant_layout");
+    Build::select_provider<ReadValue, OnlyMap>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_x86_64::ProgramEntry, main);
+}

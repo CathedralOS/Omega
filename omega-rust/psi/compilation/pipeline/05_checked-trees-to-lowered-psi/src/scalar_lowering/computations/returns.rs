@@ -8,6 +8,7 @@ use super::{
     Argument, CheckedScalarExpressionRole, Expansion, LoweringError, QualifiedScalarType, Site,
     storage, unsupported,
 };
+use crate::checked_facts::value_facts;
 
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -23,10 +24,7 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let statement = u32::try_from(exit.statement_index)
             .map_err(|_| LoweringError::Unsupported("scalar return statement exceeds u32"))?;
-        let mut roots = self
-            .checked
-            .facts
-            .values
+        let mut roots = value_facts(&self.checked)
             .scalar_computations
             .roots_for_statement_role(exit.state_symbol, statement, role);
         let argument = if let Some(root) = roots.next() {

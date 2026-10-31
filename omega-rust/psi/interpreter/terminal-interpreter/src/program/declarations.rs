@@ -4,6 +4,7 @@
 //! tables. Binary search preserves the old keyed lookup and iteration order;
 //! the returned references borrow the artifact, not this temporary view.
 
+use crate::errors::{TerminalInterpretError, malformed};
 use terminal_psi::{Block, BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalMachine};
 
 pub(crate) trait ProgramDeclaration {
@@ -48,6 +49,15 @@ impl<'storage, Declaration: ProgramDeclaration> ProgramDeclarations<'storage, De
             .binary_search_by(|row| row.identity().cmp(identity))
             .ok()?;
         self.declarations.get(position)
+    }
+
+    /// The declaration keyed `identity`, refusing a miss as a malformed state:
+    /// consumers address these tables only by identities admission established.
+    pub(crate) fn declaration(
+        &self,
+        identity: &Declaration::Identity,
+    ) -> Result<&'storage Declaration, TerminalInterpretError> {
+        self.get(identity).ok_or_else(malformed)
     }
 
     pub(crate) fn values(

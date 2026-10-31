@@ -65,13 +65,7 @@ impl SymbolCopy<'_, '_> {
             return source;
         }
         let source_span = self.program.proof_fact_source_span(source);
-        let fact = self
-            .program
-            .tables
-            .declarations
-            .proof_facts
-            .get(source)
-            .clone();
+        let fact = self.program.declarations().proof_facts.get(source).clone();
         let fact = match fact {
             ProofFact::Expression(expression) => ProofFact::Expression(self.expression(expression)),
             ProofFact::Membership(mut membership) => {
@@ -79,8 +73,7 @@ impl SymbolCopy<'_, '_> {
                 let names = self.program.domain_path_members(membership.domain).to_vec();
                 membership.domain = self
                     .program
-                    .tables
-                    .declarations
+                    .declarations_mut()
                     .domain_path_members
                     .insert_many(names);
                 membership.domain_symbol = self.symbol(membership.domain_symbol);
@@ -88,7 +81,7 @@ impl SymbolCopy<'_, '_> {
                 ProofFact::Membership(membership)
             }
         };
-        let copied = self.program.tables.declarations.proof_facts.insert(fact);
+        let copied = self.program.declarations_mut().proof_facts.insert(fact);
         if let Some(source_span) = source_span {
             self.program.set_proof_fact_source_span(copied, source_span);
         }
@@ -109,12 +102,7 @@ impl SymbolCopy<'_, '_> {
         if !source.is_valid() {
             return source;
         }
-        let copied = self
-            .program
-            .tables
-            .bodies
-            .expressions
-            .copy_from_self(source);
+        let copied = self.program.expression_table_mut().copy_from_self(source);
         self.expression_payloads(copied);
         copied
     }
@@ -134,21 +122,13 @@ impl SymbolCopy<'_, '_> {
                 .resize(position + 1, Handle::invalid());
         }
         self.visited_payloads[position] = copied;
-        let mut node = self
-            .program
-            .tables
-            .bodies
-            .expressions
-            .expression(copied)
-            .clone();
+        let mut node = self.program.expression_table().expression(copied).clone();
         match &mut node {
             ExpressionNode::Match(dispatch) => {
                 self.expression_payloads(dispatch.subject);
                 let arms = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .match_arms(dispatch.arms)
                     .to_vec();
                 for arm in arms {
@@ -160,9 +140,7 @@ impl SymbolCopy<'_, '_> {
                             self.expression_payloads(pattern.guard);
                             let fields = self
                                 .program
-                                .tables
-                                .bodies
-                                .expressions
+                                .expression_table()
                                 .match_fields(pattern.fields)
                                 .to_vec();
                             for (ordinal, mut field) in fields.into_iter().enumerate() {
@@ -172,9 +150,7 @@ impl SymbolCopy<'_, '_> {
                                 }
                                 *self
                                     .program
-                                    .tables
-                                    .bodies
-                                    .expressions
+                                    .expression_table_mut()
                                     .match_field_mut(pattern.fields.handle_at(ordinal as u32)) =
                                     field;
                             }
@@ -233,17 +209,13 @@ impl SymbolCopy<'_, '_> {
                 path.symbol = self.symbol(path.symbol);
                 let symbols = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .name_path_member_symbols(path.member_symbols)
                     .to_vec();
                 for (position, source) in (0..path.member_symbols.count()).zip(symbols) {
                     let replacement = self.symbol(source);
                     self.program
-                        .tables
-                        .bodies
-                        .expressions
+                        .expression_table_mut()
                         .set_name_path_member_symbol_at_offset(
                             path.member_symbols,
                             position,
@@ -260,18 +232,14 @@ impl SymbolCopy<'_, '_> {
                 literal.case_symbol = literal.case_symbol.map(|symbol| self.symbol(symbol));
                 let fields = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .struct_fields(literal.fields)
                     .to_vec();
                 for (position, mut field) in (0..literal.fields.count()).zip(fields) {
                     self.expression_payloads(field.value);
                     field.field_symbol = self.symbol(field.field_symbol);
                     self.program
-                        .tables
-                        .bodies
-                        .expressions
+                        .expression_table_mut()
                         .set_struct_field_at_offset(literal.fields, position, field);
                 }
             }
@@ -285,20 +253,13 @@ impl SymbolCopy<'_, '_> {
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_) => {}
         }
-        *self
-            .program
-            .tables
-            .bodies
-            .expressions
-            .expression_mut(copied) = node;
+        *self.program.expression_table_mut().expression_mut(copied) = node;
     }
 
     fn expression_span_payloads(&mut self, expressions: HandleSpan<ExpressionHandle>) {
         let children = self
             .program
-            .tables
-            .bodies
-            .expressions
+            .expression_table()
             .expression_handles(expressions)
             .to_vec();
         for child in children {
@@ -316,18 +277,14 @@ impl SymbolCopy<'_, '_> {
             if application.member.is_valid() {
                 let mut member = self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table()
                     .static_member(application.member)
                     .expect("copied static member belongs to the receiving expression table")
                     .clone();
                 self.static_argument(&mut member);
                 *self
                     .program
-                    .tables
-                    .bodies
-                    .expressions
+                    .expression_table_mut()
                     .static_member_mut(application.member)
                     .expect("copied static member remains present") = member;
             }
@@ -343,8 +300,7 @@ impl SymbolCopy<'_, '_> {
         }
         let reference = self
             .program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(source)
             .clone();
@@ -352,16 +308,14 @@ impl SymbolCopy<'_, '_> {
         // can lead back to the instance whose application they describe.
         let copied = self
             .program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert(TypeReference::Unit);
         self.types.push((source, copied));
         let reference = self.type_payload(reference);
         *self
             .program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .get_mut(copied) = reference;
         self.type_origins(source, copied);
@@ -393,15 +347,13 @@ impl SymbolCopy<'_, '_> {
     fn type_span(&mut self, source: HandleSpan<TypeReference>) -> HandleSpan<TypeReference> {
         let references = self
             .program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .span_or_empty(source)
             .to_vec();
         let copied = self
             .program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert_many(references.iter().map(|_| TypeReference::Unit));
         // Span rows need the same exact-handle associations as standalone
@@ -421,8 +373,7 @@ impl SymbolCopy<'_, '_> {
             let reference = self.type_payload(reference);
             *self
                 .program
-                .tables
-                .declarations
+                .declarations_mut()
                 .child_type_references
                 .get_mut(destination) = reference;
             self.type_origins(source.handle_at(position), destination);
@@ -469,7 +420,7 @@ impl SymbolCopy<'_, '_> {
                 application.arguments = self.type_span(application.arguments);
             }
             TypeReference::ConstExpression(expression) => {
-                *expression = self.expression(*expression)
+                expression.expression = self.expression(expression.expression)
             }
             TypeReference::DynamicTrait {
                 symbol, arguments, ..
@@ -523,17 +474,12 @@ mod tests {
         let mut program = SymbolResolvedTrees::default();
         let original = SymbolHandle::from_arena_index(3);
         let replacement = SymbolHandle::from_arena_index(4);
-        let domain = program
-            .tables
-            .declarations
-            .domain_path_members
-            .insert_many([
-                DiagnosticName::generated("contracts"),
-                DiagnosticName::generated("Resident"),
-            ]);
+        let domain = program.declarations_mut().domain_path_members.insert_many([
+            DiagnosticName::generated("contracts"),
+            DiagnosticName::generated("Resident"),
+        ]);
         let arguments = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert_many([TypeReference::Named {
                 supplied_operand_owner: Default::default(),
@@ -541,8 +487,7 @@ mod tests {
                 name: DiagnosticName::generated("T"),
             }]);
         let fact = program
-            .tables
-            .declarations
+            .declarations_mut()
             .proof_facts
             .insert(ProofFact::Membership(crate::domain::ProofMembershipFact {
                 domain,
@@ -554,7 +499,7 @@ mod tests {
         program.set_proof_fact_source_span(fact, source_span);
         let copied = program.copy_proof_fact_with_symbols(fact, &[(original, replacement)]);
         assert_eq!(program.proof_fact_source_span(copied), Some(source_span));
-        let ProofFact::Membership(membership) = program.tables.declarations.proof_facts.get(copied)
+        let ProofFact::Membership(membership) = program.declarations().proof_facts.get(copied)
         else {
             panic!("copy remains membership");
         };
@@ -567,16 +512,14 @@ mod tests {
         assert_ne!(membership.domain_arguments, arguments);
         assert_eq!(membership.authored_domain_selection, None);
         let TypeReference::Named { symbol, .. } = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(membership.domain_arguments.handle_at(0))
         else {
             panic!("domain argument remains named");
         };
         assert_eq!(*symbol, replacement);
-        let ProofFact::Membership(original_fact) =
-            program.tables.declarations.proof_facts.get(fact)
+        let ProofFact::Membership(original_fact) = program.declarations().proof_facts.get(fact)
         else {
             panic!("original remains membership");
         };
@@ -591,19 +534,13 @@ mod tests {
         let original = SymbolHandle::from_arena_index(3);
         let replacement = SymbolHandle::from_arena_index(4);
         let member_symbols = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .reserve_name_path_member_symbols(1);
         program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .set_name_path_member_symbol_at_offset(member_symbols, 0, original);
         let name = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(ExpressionNode::Name(TableNamePath {
                 members: HandleSpan::empty(),
                 member_symbols,
@@ -611,13 +548,13 @@ mod tests {
                 symbol: original,
             }));
         let arguments = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
-            .insert_many([TypeReference::ConstExpression(name)]);
+            .insert_many([TypeReference::ConstExpression(
+                crate::types::ConstExpressionTypeReference::new(name),
+            )]);
         let application = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert(generic(original, HandleSpan::empty()));
         program
@@ -629,20 +566,15 @@ mod tests {
                 application,
             });
         let carrier = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert(generic(original, arguments));
         let source = program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .insert(ExpressionNode::ZeroValue(carrier));
         let source_span = SourceSpan::new(SourceId(7), Span::new(11, 19));
         program
-            .tables
-            .bodies
-            .expressions
+            .expression_table_mut()
             .set_source_span(source, source_span);
         let copied = program.copy_expression_with_symbols(source, &[(original, replacement)]);
         assert_eq!(
@@ -656,8 +588,7 @@ mod tests {
         };
         assert_ne!(copied_carrier, carrier);
         let TypeReference::Generic(copied_type) = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(copied_carrier)
         else {
@@ -666,24 +597,22 @@ mod tests {
         assert_eq!(copied_type.base_symbol, replacement);
         let copied_argument = copied_type.arguments.handle_at(0);
         let TypeReference::ConstExpression(copied_name) = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(copied_argument)
         else {
             panic!("copy must retain static expression");
         };
-        let ExpressionNode::Name(copied_path) =
-            program.tables.bodies.expressions.expression(*copied_name)
+        let ExpressionNode::Name(copied_path) = program
+            .expression_table()
+            .expression(copied_name.expression)
         else {
             panic!("copy must retain name");
         };
         assert_eq!(copied_path.symbol, replacement);
         assert_eq!(
             program
-                .tables
-                .bodies
-                .expressions
+                .expression_table()
                 .name_path_member_symbols(copied_path.member_symbols),
             [replacement]
         );
@@ -695,8 +624,7 @@ mod tests {
             .find_map(|(_, origin)| (origin.instance == copied_argument).then_some(origin))
             .expect("copied span origin");
         let TypeReference::Generic(origin_application) = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(origin.application)
         else {
@@ -709,11 +637,8 @@ mod tests {
             panic!("original remains a name");
         };
         assert_eq!(original_path.symbol, original);
-        let TypeReference::Generic(original_type) = program
-            .tables
-            .declarations
-            .child_type_references
-            .get(carrier)
+        let TypeReference::Generic(original_type) =
+            program.declarations().child_type_references.get(carrier)
         else {
             panic!("original remains generic");
         };
@@ -734,29 +659,28 @@ mod tests {
             evidence_projection: None,
             symbol: original,
         };
-        let source = program
-            .tables
-            .bodies
-            .expressions
-            .insert(ExpressionNode::Call(TableCallExpression {
-                authored_call_binding: None,
-                receiver: ExpressionHandle::invalid(),
-                target_symbol: original,
-                target: DiagnosticName::generated("run"),
-                requirement_application: arena::Handle::invalid(),
-                machine_arguments: vec![StaticMachineArgument {
-                    application: Some(Box::new(StaticSymbolApplication {
-                        member: arena::Handle::invalid(),
-                        lifetime_arguments: Box::new([]),
-                        arguments: vec![argument.clone()].into_boxed_slice(),
-                    })),
-                    ..argument
-                }]
-                .into_boxed_slice(),
-                arguments: HandleSpan::empty(),
-                evidence_arguments: Box::new([]),
-                operational_acknowledgement: Default::default(),
-            }));
+        let source =
+            program
+                .expression_table_mut()
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: None,
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: original,
+                    target: DiagnosticName::generated("run"),
+                    requirement_application: arena::Handle::invalid(),
+                    machine_arguments: vec![StaticMachineArgument {
+                        application: Some(Box::new(StaticSymbolApplication {
+                            member: arena::Handle::invalid(),
+                            lifetime_arguments: Box::new([]),
+                            arguments: vec![argument.clone()].into_boxed_slice(),
+                        })),
+                        ..argument
+                    }]
+                    .into_boxed_slice(),
+                    arguments: HandleSpan::empty(),
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }));
         let copied = program.copy_expression_with_symbols(
             source,
             &[

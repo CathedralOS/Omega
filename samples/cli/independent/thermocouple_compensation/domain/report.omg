@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: &mut Reader, value: i32)
 reaches Console
-invokes Console;
+invokes Console
 {
     let widened: i64 = value as i64;
     transition widened < 0 {
@@ -46,7 +46,7 @@ invokes Console;
 }
 public machine field(reader: &mut Reader, name: &[u8], value: f64)
 reaches Console
-invokes Console;
+invokes Console
 {
     Console::write(name);
     let narrowed: i32 in Saturating = I32::from_f64(value);

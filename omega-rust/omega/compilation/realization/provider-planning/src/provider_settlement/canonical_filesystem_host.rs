@@ -41,7 +41,7 @@
 //! because the realization is a toolchain settlement table entry, not an
 //! authored machine.
 
-use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use package_compilation::AcceptedSemanticBinding;
@@ -97,7 +97,6 @@ fn toolchain_filesystem_leaves(target_name: &str) -> &'static [ToolchainFilesyst
 /// The toolchain-settled plan and the exact symbols receiver admission
 /// needs to join it: the boundary trait (fused erasure + provenance schema
 /// declaration) and the row-aligned requirement machine symbols.
-pub(crate) type MintedFilesystemHostPlan = super::ToolchainSettledMint;
 
 /// Mint the canonical `FilesystemHost` provider plan for this build, or `Ok(None)`
 /// when the build accepts no filesystem binding, selects no target,
@@ -108,16 +107,16 @@ pub(crate) type MintedFilesystemHostPlan = super::ToolchainSettledMint;
 /// post-derivation review provenance, and deliberately excludes it from
 /// candidate plans and pre-selection provenance replay.
 pub(crate) fn mint_canonical_filesystem_host_plan(
-    typed: &TypedTrees,
+    services: ServiceCatalog<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
-) -> Result<Option<MintedFilesystemHostPlan>, Vec<Diagnostic>> {
+) -> Result<Option<crate::DerivedProviderPlan>, Vec<Diagnostic>> {
     let leaves: &[super::ToolchainSettledLeaf] =
         target_name.map_or(&[], toolchain_filesystem_leaves);
     super::mint_toolchain_settled_plan(
-        typed,
+        services,
         calling_plans,
         accepted_binding,
         target_name,

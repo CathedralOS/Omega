@@ -6,18 +6,16 @@ data ProofNat {
     case Zero;
     case Succ(prev: ProofNat);
 }
-machine left(n: ProofNat)
-terminates by n;
--> ProofNat
+machine left(n: ProofNat) -> ProofNat
+terminates by n
 {
     transition n {
         ProofNat::Zero -> ProofNat::Zero
         ProofNat::Succ { prev } -> ProofNat::Succ { prev: right(prev) }
     }
 }
-machine right(n: ProofNat)
-terminates by n;
--> ProofNat
+machine right(n: ProofNat) -> ProofNat
+terminates by n
 {
     transition n {
         ProofNat::Zero -> ProofNat::Zero

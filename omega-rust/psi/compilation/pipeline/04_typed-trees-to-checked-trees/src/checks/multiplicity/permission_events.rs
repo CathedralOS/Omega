@@ -17,6 +17,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -213,12 +214,7 @@ pub(crate) fn prepare_permission_events(
         }
         // Snapshot the state's ordered calls once while permission production
         // mutates ownership arenas. Each evaluation selects from this snapshot.
-        let calls = facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
-            .to_vec();
+        let calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls).to_vec();
         let completion_regions = if !places
             .iter()
             .any(|place| place.multiplicity == Multiplicity::Linear)
@@ -334,12 +330,8 @@ pub(crate) fn prepare_permission_events(
             for (expression, _) in
                 super::linear_validation::completed_statement_values(program, statement)
             {
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    expression,
-                ) else {
+                let Some(place) = place_at(program, state.symbol, statement_index, expression)
+                else {
                     continue;
                 };
                 if place.root != facts::PlaceRoot::Expression(expression) {

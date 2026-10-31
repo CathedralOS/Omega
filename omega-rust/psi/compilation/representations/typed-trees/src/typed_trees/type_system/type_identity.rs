@@ -25,6 +25,7 @@ mod lifetime_parameters;
 mod normalized_identities;
 mod open_index_identity;
 mod result_dispatch_terms;
+mod static_operand_identity;
 mod storage_identity;
 mod substitution;
 
@@ -44,6 +45,7 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
+pub use static_operand_identity::StaticOperandIdentityRequest;
 
 use crate::TypedTrees;
 
@@ -283,6 +285,41 @@ pub fn applied_lifetime_identity(
     )
 }
 
+/// Resolve an explicit Generic region operand using the same retained supplier
+/// fence as full type identity. The ordinal names the authored argument, not a
+/// caller-selected spelling. Receiving binders and supplying operands keep
+/// distinct owners, and application operands remain simultaneous.
+pub fn applied_type_lifetime_identity_in_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    ordinal: usize,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    if !program.contains_type_reference(reference) {
+        return None;
+    }
+    let crate::types::TypeReferenceNode::Generic {
+        lifetime_arguments, ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let name = lifetime_arguments.get(ordinal)?;
+    let invalid = Cell::new(false);
+    let context = TypeIdentityContext {
+        application_scopes: scopes,
+        application_owner: receiving_owner,
+        application_argument_owner: argument_owner,
+        invalid_application: Some(&invalid),
+        ..TypeIdentityContext::default()
+    }
+    .enter_type_operand(program, reference);
+    let identity = context.lifetime(program, name.as_str());
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
+}
+
 /// Publish one resolved region through the same simultaneous scopes as its
 /// containing argument, including unused public lifetime operands.
 pub fn portable_applied_lifetime_identity(
@@ -492,6 +529,20 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
+    /// Read the retained field declaration of a qualified value carrier.
+    /// The caller retains the complete qualified type for identity, validity,
+    /// access and custody judgments; this query supplies no establishment.
+    /// References are not crossed, since their storage is a descriptor.
+    pub fn closed_data_field_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        self.closed_data_definition(
+            self.type_reference_table
+                .unconstrained_type_reference(reference),
+        )
+    }
+
     /// Resolve an unwrapped nominal carrier to its uniquely retained closed
     /// declaration. Named carriers may retain erased lifetime binders, but
     /// neither route returns a declaration with open type parameters.
@@ -583,6 +634,19 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
     ) -> Option<&crate::data::DataDefinition> {
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return None;
+        }
+        // A representation's field view keeps T's constructor authority and
+        // complete generic application. Its physical application and policy
+        // remain the value's type; they are not the origin of T's constructor.
+        if let Some(storage) = self.layout_storage_arguments(reference) {
+            return self.data_constructor_definition(
+                self.type_reference_table
+                    .unconstrained_type_reference(storage.semantic_type),
+                authored,
+            );
+        }
         let instance = self
             .data_application_definition(reference)
             .or_else(|| self.closed_data_definition(reference))?;
@@ -720,9 +784,7 @@ impl TypedTrees {
                     && original.identity == selected.identity
                     && original.relevance == selected.relevance
                     && selected.symbol.is_valid()
-                    && self
-                        .type_reference_table
-                        .contains_type_reference(selected.type_reference)
+                    && self.contains_type_reference(selected.type_reference)
             };
         for (ordinal, member) in self.data_members(source).iter().enumerate() {
             match member {
@@ -788,9 +850,7 @@ impl TypedTrees {
             return None;
         }
         if !field.symbol.is_valid()
-            || !self
-                .type_reference_table
-                .contains_type_reference(field.type_reference)
+            || !self.contains_type_reference(field.type_reference)
             || self.symbols.get(field.symbol).parent != instance.symbol
         {
             return None;
@@ -1007,9 +1067,7 @@ impl TypedTrees {
         substitution_semantics: SubstitutionSemantics,
     ) -> Option<NormalizedTypeIdentity> {
         if let crate::types::FixedArrayLength::Expression(reference) = length
-            && (!self
-                .type_reference_table
-                .contains_type_reference(*reference)
+            && (!self.contains_type_reference(*reference)
                 || !matches!(
                     self.type_reference_table.type_reference(*reference),
                     crate::types::TypeReferenceNode::ConstExpression(_)
@@ -1134,10 +1192,7 @@ impl TypedTrees {
         request: TypeIdentityRequest<'_>,
         scope_starts: &[usize],
     ) -> Option<NormalizedTypeIdentity> {
-        if !self
-            .type_reference_table
-            .contains_type_reference(request.type_reference)
-        {
+        if !self.contains_type_reference(request.type_reference) {
             return None;
         }
         let encountered_regions = Cell::new(false);

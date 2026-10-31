@@ -40,9 +40,7 @@ pub(crate) fn validate_boolean_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, ReplaceBooleanOperationWithConstant, candidate);
     if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

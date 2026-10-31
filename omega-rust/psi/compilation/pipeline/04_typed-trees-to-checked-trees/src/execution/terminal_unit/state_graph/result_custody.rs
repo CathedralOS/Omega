@@ -30,6 +30,7 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
     PermissionEventSource, StatementNode, control, local_results,
 };
+use crate::execution::permission_events;
 use checked_trees::{
     CheckedConditionalReturnArm, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
@@ -1332,19 +1333,13 @@ fn view_loan_releases(
         if claims.contains(&claim) {
             return Err("state graph: distinct view loans share one activation claim");
         }
-        let mut establishments =
-            facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .filter_map(|(_, event)| {
-                    (event.machine_symbol == machine
-                        && event.state_symbol == state
-                        && event.claim_identity == claim
-                        && event.kind == PermissionEventKind::Establish)
-                        .then_some(event)
-                });
+        let mut establishments = permission_events(facts).filter_map(|(_, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.claim_identity == claim
+                && event.kind == PermissionEventKind::Establish)
+                .then_some(event)
+        });
         let establishment = establishments
             .next()
             .ok_or("state graph: view activation has no establishment")?;
@@ -1369,18 +1364,13 @@ fn view_loan_releases(
         .iter()
         .filter(|claim| !installed_claims.contains(claim))
     {
-        let mut releases = facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter_map(|(_, event)| {
-                (event.machine_symbol == machine
-                    && event.state_symbol == state
-                    && event.claim_identity == *claim
-                    && event.kind == PermissionEventKind::Consume)
-                    .then_some(event)
-            });
+        let mut releases = permission_events(facts).filter_map(|(_, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.claim_identity == *claim
+                && event.kind == PermissionEventKind::Consume)
+                .then_some(event)
+        });
         let release = releases.next();
         if releases.next().is_some() {
             return Err("state graph: view activation has duplicate releases");
@@ -1521,16 +1511,9 @@ fn installed_view_claims(
                 && event.access == language_semantics::PermissionAccess::Exclusive
                 && event.multiplicity == Multiplicity::Affine
         };
-        let mut establishments =
-            facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .filter_map(|(_, event)| {
-                    (matching(event) && event.kind == PermissionEventKind::Establish)
-                        .then_some(event)
-                });
+        let mut establishments = permission_events(facts).filter_map(|(_, event)| {
+            (matching(event) && event.kind == PermissionEventKind::Establish).then_some(event)
+        });
         let establishment = establishments.next()?;
         if establishments.next().is_some()
             || establishment.source != source
@@ -1538,14 +1521,9 @@ fn installed_view_claims(
         {
             return None;
         }
-        let mut releases = facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter_map(|(_, event)| {
-                (matching(event) && event.kind == PermissionEventKind::Consume).then_some(event)
-            });
+        let mut releases = permission_events(facts).filter_map(|(_, event)| {
+            (matching(event) && event.kind == PermissionEventKind::Consume).then_some(event)
+        });
         let release = releases.next()?;
         let after_installation = match release.source {
             PermissionEventSource::StateExit

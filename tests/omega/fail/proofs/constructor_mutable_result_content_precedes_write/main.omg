@@ -2,8 +2,8 @@
 data Cell [copy] { value: u64; }
 data Pair { cell: &mut Cell; marker: u64; }
 machine keep(cell: &mut Cell) -> &mut Cell
-requires cell.value == 11;
-ensures result.value == 11;
+requires cell.value == 11
+ensures result.value == 11
 { cell }
 machine overwrite(cell: &mut Cell) -> u64 { cell.value = 99; 0 }
 machine demand(value: u64) requires value == 11 {}

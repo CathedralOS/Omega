@@ -28,8 +28,8 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
-/// One actual declared-field read, not a current-place or initializer lookup.
-#[derive(Clone, PartialEq)]
+/// One actual completed integer read, not a current-place or initializer lookup.
+#[derive(Clone, Debug, PartialEq)]
 pub struct CapturedScalarObservation {
     pub expression: ExpressionHandle,
     pub value: ScopedArithmeticValue,
@@ -66,8 +66,24 @@ pub struct CapturedNumericObservations {
 /// Independent outputs of one exact normal-prefix query. Selecting an output
 /// does not change its proof, effect or path-joining rules.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ScalarObservationDemand {
+    #[default]
+    None,
+    /// Values evaluated by this statement, under each operand's own epoch.
+    Statement,
+    /// Earlier completed reads remain available by their exact occurrences.
+    StatePrefix,
+}
+
+impl ScalarObservationDemand {
+    fn requested(self) -> bool {
+        self != Self::None
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NumericObservationDemand {
-    pub scalar_values: bool,
+    pub scalar_values: ScalarObservationDemand,
     pub integer_operations: bool,
     pub scalar_associations: bool,
 }
@@ -79,7 +95,51 @@ type NumericSite = (
     bool,
     NumericObservationDemand,
 );
-/// Capture the finite field-read roster once at this executed prefix. The
+// The normal-prefix owner can ask arithmetic return inference about a call;
+// arithmetic can in turn ask for this prefix's completed numeric reads. Track
+// that dynamic query edge, including one-shot inputs without memo storage.
+// This stack carries no semantic answers and is local to the executing thread.
+// Completed memo rows are read first; an unfinished state contributes unknown
+// evidence, never a provisional narrowing. Batch queries cover the whole state,
+// so a different requested statement or output must not evade the cycle fence.
+std::thread_local! {
+    static ACTIVE_NUMERIC_STATES: std::cell::RefCell<Vec<(usize, SymbolHandle, SymbolHandle)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+struct NumericStateQuery;
+
+impl NumericStateQuery {
+    fn enter(
+        program: &dyn crate::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    ) -> Option<Self> {
+        let identity = (
+            program.typed_program() as *const typed_trees::TypedTrees as usize,
+            machine,
+            state,
+        );
+        ACTIVE_NUMERIC_STATES.with(|active| {
+            let mut active = active.borrow_mut();
+            if active.contains(&identity) {
+                return None;
+            }
+            active.push(identity);
+            Some(Self)
+        })
+    }
+}
+
+impl Drop for NumericStateQuery {
+    fn drop(&mut self) {
+        ACTIVE_NUMERIC_STATES.with(|active| {
+            active.borrow_mut().pop();
+        });
+    }
+}
+
+/// Capture the finite integer-read roster once at this executed prefix. The
 /// normal-value owner supplies source ordering, branch joins and call effects;
 /// this adapter neither evaluates a second operand language nor unfolds callees.
 pub fn captured_numeric_observations(
@@ -111,13 +171,16 @@ pub fn captured_numeric_observations(
     {
         return observations.clone();
     }
+    let Some(_query) = NumericStateQuery::enter(program, machine.symbol, state.symbol) else {
+        return CapturedNumericObservations::default();
+    };
     let statement_count = program
         .statement_table
         .statements(state.statement_nodes)
         .len();
     if let Some(memos) = memos
         && !in_transition_target
-        && !demand.scalar_values
+        && demand.scalar_values != ScalarObservationDemand::StatePrefix
         && statement_index <= statement_count
     {
         let batch = collect_state_numeric_observations_batch(program, machine, state, demand);
@@ -132,9 +195,8 @@ pub fn captured_numeric_observations(
         }
         return result;
     }
-    // This query's callers are checking orchestration and scalar lowering;
-    // the normal-value owner never re-enters either adapter. Optional memos
-    // change reuse only: one-shot views retain their original selections.
+    // Optional memos change reuse only; one-shot inputs use the same cycle
+    // fence and retain the ordinary exact-prefix selection.
     let (observations, _complete) = collect_numeric_observations(
         program,
         machine,
@@ -156,7 +218,7 @@ fn finalize_visitor_observations(
     demand: NumericObservationDemand,
     visitor: Observations,
 ) -> CapturedNumericObservations {
-    let scalar_values = if demand.scalar_values {
+    let scalar_values = if demand.scalar_values.requested() {
         visitor
             .values
             .into_iter()
@@ -219,7 +281,7 @@ fn collect_state_numeric_observations_batch(
     let _scan_guard = phase_profile::guard("05.num.1_scan");
     let mut statement_has_integer_read = vec![false; statements.len()];
     for (index, statement) in statements.iter().enumerate() {
-        if !demand.scalar_values && !needs_relations {
+        if !demand.scalar_values.requested() && !needs_relations {
             continue;
         }
         for (_, root) in program.tables.expression_roots(statement) {
@@ -232,11 +294,13 @@ fn collect_state_numeric_observations_batch(
                 .is_some()
                 {
                     statement_has_integer_read[index] = true;
-                    if demand.scalar_values && !state_candidates.contains(&expression) {
+                    if demand.scalar_values == ScalarObservationDemand::StatePrefix
+                        && !state_candidates.contains(&expression)
+                    {
                         state_candidates.push(expression);
                     }
-                    if !demand.scalar_values
-                        && needs_relations
+                    if demand.scalar_values != ScalarObservationDemand::StatePrefix
+                        && (needs_relations || demand.scalar_values.requested())
                         && !statement_candidates[index].contains(&expression)
                     {
                         statement_candidates[index].push(expression);
@@ -302,9 +366,11 @@ fn collect_state_numeric_observations_batch(
     let mut visitors = Vec::new();
     let mut visitor_indices = Vec::new();
     for statement_index in 0..total_sites {
-        let candidates = if demand.scalar_values {
+        let candidates = if demand.scalar_values == ScalarObservationDemand::StatePrefix {
             state_candidates.clone()
-        } else if needs_relations && statement_index < statements.len() {
+        } else if (needs_relations || demand.scalar_values.requested())
+            && statement_index < statements.len()
+        {
             std::mem::take(&mut statement_candidates[statement_index])
         } else {
             Vec::new()
@@ -319,7 +385,7 @@ fn collect_state_numeric_observations_batch(
         } else {
             Vec::new()
         };
-        if (!demand.scalar_values || candidates.is_empty())
+        if (!demand.scalar_values.requested() || candidates.is_empty())
             && operations.is_empty()
             && results.is_empty()
         {
@@ -330,7 +396,7 @@ fn collect_state_numeric_observations_batch(
             state: state.symbol,
             statement_index,
             in_transition_target: false,
-            wants_scalar_values: demand.scalar_values,
+            wants_scalar_values: demand.scalar_values.requested(),
             candidates,
             values: Vec::new(),
             operations,
@@ -410,7 +476,9 @@ fn collect_numeric_observations(
         .iter()
         .enumerate()
     {
-        if !demand.scalar_values && !(needs_relations && index == statement_index) {
+        if demand.scalar_values != ScalarObservationDemand::StatePrefix
+            && !(index == statement_index && (needs_relations || demand.scalar_values.requested()))
+        {
             continue;
         }
         for (_, root) in program.tables.expression_roots(statement) {
@@ -426,8 +494,8 @@ fn collect_numeric_observations(
                         program, machine, state, expression,
                     )
                     .is_some()
-                } else if demand.scalar_values {
-                    super::observed_projections::declared_integer_field_read(
+                } else if demand.scalar_values.requested() {
+                    super::observed_projections::integer_storage_read(
                         program, machine, state, expression,
                     )
                     .is_some()
@@ -447,7 +515,7 @@ fn collect_numeric_observations(
             }
         }
     }
-    if (!demand.scalar_values || candidates.is_empty())
+    if (!demand.scalar_values.requested() || candidates.is_empty())
         && operations.is_empty()
         && results.is_empty()
     {
@@ -457,7 +525,7 @@ fn collect_numeric_observations(
         state: state.symbol,
         statement_index,
         in_transition_target,
-        wants_scalar_values: demand.scalar_values,
+        wants_scalar_values: demand.scalar_values.requested(),
         candidates,
         values: Vec::new(),
         operations,
@@ -469,52 +537,10 @@ fn collect_numeric_observations(
     if observe_runtime_state_prefix(program, machine, state, &mut visitor).is_none() {
         return (CapturedNumericObservations::default(), false);
     }
-    let scalar_values = if demand.scalar_values {
-        visitor
-            .values
-            .into_iter()
-            .filter_map(|(expression, value)| {
-                Some(CapturedScalarObservation {
-                    expression,
-                    value: value?,
-                })
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
-    let integer_operations = visitor
-        .orderings
-        .into_iter()
-        .map(
-            |(expression, minimum, preserves_storage)| CapturedIntegerOperation {
-                state: state.symbol,
-                expression,
-                minimum_difference: minimum,
-                preserves_storage,
-            },
-        )
-        .collect();
-    let scalar_associations = visitor
-        .associations
-        .into_iter()
-        .flat_map(|(expression, places)| {
-            places
-                .into_iter()
-                .map(move |current| CapturedScalarAssociation {
-                    state: state.symbol,
-                    expression,
-                    current,
-                })
-        })
-        .collect();
+    let complete = visitor.complete;
     (
-        CapturedNumericObservations {
-            scalar_values,
-            integer_operations,
-            scalar_associations,
-        },
-        visitor.complete,
+        finalize_visitor_observations(state.symbol, demand, visitor),
+        complete,
     )
 }
 
@@ -839,7 +865,7 @@ impl Observations {
             if !self.candidates.contains(expression) {
                 continue;
             }
-            let Some(carrier) = super::observed_projections::declared_integer_field_read(
+            let Some(carrier) = super::observed_projections::integer_storage_read(
                 program,
                 machine,
                 state,

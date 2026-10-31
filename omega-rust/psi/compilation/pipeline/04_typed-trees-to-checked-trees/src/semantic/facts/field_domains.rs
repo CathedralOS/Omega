@@ -40,6 +40,9 @@ use facts::{
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+use super::points::state_point;
+use crate::facts::{checked_validation_evidence, propagated_evidence};
+
 use validation::field_domains::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, readable_fixed_array_elements,
     readable_nominal_definition, readable_slice_element,
@@ -157,12 +160,7 @@ fn append_zero_initialized_field_domain_facts(
                 point,
                 origin,
                 evidence,
-                payload: FactPayload::DomainMembership {
-                    value: typed_trees::expression::ExpressionHandle::invalid(),
-                    domain: arena::HandleSpan::empty(),
-                    domain_symbol,
-                    semantic_domain,
-                },
+                payload: domain_membership_payload(domain_symbol, semantic_domain),
             });
             facts.append_ref(refs, fact);
         }
@@ -306,15 +304,9 @@ pub(super) fn append_state_parameter_domain_facts(
                     }
                     let fact = facts.append_fact(Fact {
                         place: FactPlace::Place(place),
-                        point: ProgramPoint::State {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                        },
+                        point: state_point(machine.symbol, state.symbol),
                         origin: obligation_origin,
-                        evidence: QualificationEvidence::from_origin(
-                            language_semantics::QualificationEvidenceOrigin::Propagated,
-                            state.symbol,
-                        ),
+                        evidence: propagated_evidence(state.symbol),
                         payload: FactPayload::FloatPredicate { predicate },
                     });
                     facts.append_ref(&mut refs, fact);
@@ -335,17 +327,11 @@ pub(super) fn append_state_parameter_domain_facts(
                     for predicate in predicates {
                         let fact = facts.append_fact(Fact {
                             place: FactPlace::Place(place),
-                            point: ProgramPoint::State {
-                                machine_symbol: machine.symbol,
-                                state_symbol: state.symbol,
-                            },
+                            point: state_point(machine.symbol, state.symbol),
                             // Numeric range admission already has its own
                             // incoming-value obligation, not a membership row.
                             origin: FactOrigin::StatementTransfer,
-                            evidence: QualificationEvidence::from_origin(
-                                language_semantics::QualificationEvidenceOrigin::Propagated,
-                                state.symbol,
-                            ),
+                            evidence: propagated_evidence(state.symbol),
                             payload: FactPayload::FloatPredicate { predicate },
                         });
                         facts.append_ref(&mut refs, fact);
@@ -401,10 +387,7 @@ pub(super) fn append_state_parameter_domain_facts(
             }
             append_independent_place_contexts(
                 facts,
-                ProgramPoint::State {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                },
+                state_point(machine.symbol, state.symbol),
                 refs,
             );
         }
@@ -441,6 +424,21 @@ fn state_parameter_domain_is_resource_claim(
             })
 }
 
+/// A domain-membership row keyed at a symbol place. No authored expression
+/// produced it and no expression span narrows its domain: the row claims the
+/// place's declared domain, so both expression fields stay empty.
+fn domain_membership_payload(
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> FactPayload {
+    FactPayload::DomainMembership {
+        value: typed_trees::expression::ExpressionHandle::invalid(),
+        domain: arena::HandleSpan::empty(),
+        domain_symbol,
+        semantic_domain,
+    }
+}
+
 /// The `Place(parameter_symbol)` + `State` point + `StateParameterDomain`
 /// origin + `Propagated` evidence scaffolding both carry facts share.
 fn append_state_parameter_carry(
@@ -454,18 +452,12 @@ fn append_state_parameter_carry(
     let place = facts.append_symbol_place(parameter_symbol);
     let fact = facts.append_fact(Fact {
         place: FactPlace::Place(place),
-        point: ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        point: state_point(machine_symbol, state_symbol),
         origin: FactOrigin::StateParameterDomain {
             machine_symbol,
             state_symbol,
         },
-        evidence: QualificationEvidence::from_origin(
-            language_semantics::QualificationEvidenceOrigin::Propagated,
-            state_symbol,
-        ),
+        evidence: propagated_evidence(state_symbol),
         payload,
     });
     facts.append_ref(refs, fact);
@@ -586,21 +578,10 @@ fn append_state_parameter_domain_fact(
     }
     let fact = facts.append_fact(Fact {
         place: FactPlace::Place(place),
-        point: ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
+        point: state_point(machine_symbol, state_symbol),
         origin,
-        evidence: QualificationEvidence::from_origin(
-            language_semantics::QualificationEvidenceOrigin::Propagated,
-            state_symbol,
-        ),
-        payload: FactPayload::DomainMembership {
-            value: typed_trees::expression::ExpressionHandle::invalid(),
-            domain: arena::HandleSpan::empty(),
-            domain_symbol,
-            semantic_domain,
-        },
+        evidence: propagated_evidence(state_symbol),
+        payload: domain_membership_payload(domain_symbol, semantic_domain),
     });
     facts.append_ref(refs, fact);
 }
@@ -633,15 +614,9 @@ pub(super) fn append_local_zii_field_domain_facts(
                 if local_data.initial_value.is_valid() {
                     continue;
                 }
-                let point = ProgramPoint::State {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                };
+                let point = state_point(machine.symbol, state.symbol);
                 let origin = FactOrigin::StatementTransfer;
-                let evidence = QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    state.symbol,
-                );
+                let evidence = checked_validation_evidence(state.symbol);
 
                 // A genuinely zero-formed owned sum has a selected first case,
                 // including inside root arrays. This is a discriminator fact,
@@ -680,12 +655,7 @@ pub(super) fn append_local_zii_field_domain_facts(
                         point,
                         origin,
                         evidence,
-                        payload: FactPayload::DomainMembership {
-                            value: typed_trees::expression::ExpressionHandle::invalid(),
-                            domain: arena::HandleSpan::empty(),
-                            domain_symbol,
-                            semantic_domain,
-                        },
+                        payload: domain_membership_payload(domain_symbol, semantic_domain),
                     });
                     facts.append_ref(&mut refs, fact);
                 }
@@ -715,10 +685,7 @@ pub(super) fn append_local_zii_field_domain_facts(
             }
             append_independent_place_contexts(
                 facts,
-                ProgramPoint::State {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                },
+                state_point(machine.symbol, state.symbol),
                 refs,
             );
         }

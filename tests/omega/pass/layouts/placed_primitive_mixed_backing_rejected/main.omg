@@ -4,11 +4,13 @@ use omega::language::core::layout;
 
 public data Value { number: u64; padding: u64; }
 data Aligned { value: Value; }
-data Wide {}
-machine Wide::plan(schema: Schema) -> Plan {
+
+Wide satisfies FixedLayout<Aligned> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     Plan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 16 }
+}
 }
 public data StablePlacement {}
 
@@ -41,7 +43,7 @@ machine update(value: &mut Value) {
 }
 
 machine main() crashes Trap {
-    let mut aligned: Wide<Aligned>;
+    let mut aligned: LayoutStorage<Aligned, Wide>;
     aligned.value.number = 17;
     aligned.value.padding = 0;
     let mut ordinary: Value = Value { number: 17, padding: 0 };

@@ -331,13 +331,18 @@ pub(crate) fn emit_carrier(
                 &source.path,
             );
             result.projected_qualifications.extend(
-                terminal_semantics::reference_source_memberships(
+                terminal_semantics::reference_carrier_memberships(
                     declarations.iter(),
                     root,
                     whole,
                     projected,
                     path,
                     source.access,
+                    structural_type,
+                    match &storage {
+                        PublishedReferenceStorage::RepresentationView(view) => Some(view),
+                        _ => None,
+                    },
                 )
                 .map_err(LoweringError::Unsupported)?,
             );

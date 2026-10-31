@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let converted: i32 in Saturating = I32::from_f64(main.fahrenheit);
     main.result = converted as i32;
 
-    transition { _ -> done(main) }
+    transition { _ -> block done(main) }
 
     machine done(main: &mut Main) {
         Console::write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");

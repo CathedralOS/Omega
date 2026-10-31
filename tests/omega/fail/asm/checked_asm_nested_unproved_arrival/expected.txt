@@ -1,1 +1,1 @@
-cannot prove requires contract for call received from left: 36 == 37
+machine `left` state `entry` value call to `received` violates required fact `value == 37`: the instantiated fact is structurally false (`36 == 37`)

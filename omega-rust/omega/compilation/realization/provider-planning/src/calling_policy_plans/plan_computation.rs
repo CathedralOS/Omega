@@ -3,8 +3,8 @@
 //! the plan the policy produced.
 
 use crate::calling_policy_plans::boundary_signatures::{
-    call_signature_from_top_level_requirement, call_signature_from_typed,
-    collect_boundary_signatures, compatibility_call_signature, exact_compatibility_overload_index,
+    compatibility_call_signature, exact_compatibility_overload_index,
+    materialize_prepared_signature,
 };
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
@@ -12,9 +12,6 @@ use crate::calling_policy_plans::build_time_decoding::{
 };
 use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, validate_retained_callback_binders,
-};
-use crate::calling_policy_plans::policy_implementations::{
-    BoundaryPolicyInstance, boundary_policy_instances, selected_policy_machine,
 };
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
@@ -30,7 +27,6 @@ use calling_conventions::{
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
-use target::NativeTarget;
 
 macro_rules! row {
     ($a:expr => $b:expr) => {
@@ -39,8 +35,8 @@ macro_rules! row {
 }
 
 pub(crate) fn evaluate_default_calling_application(
-    typed: &TypedTrees,
-    native_target: NativeTarget,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+    layout_target: layout::LayoutTarget,
     trait_name: &str,
     trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     method_name: &str,
@@ -49,96 +45,37 @@ pub(crate) fn evaluate_default_calling_application(
     dispatch_only_parameter_count: usize,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<Option<calling_conventions::BoundaryCallingApplication>, String> {
-    let trait_candidates = typed
-        .traits()
-        .iter()
-        .filter(|definition| {
-            typed.trait_declaration_path(definition) == trait_name
-                && crate::service_schema::is_product_declaration(typed, definition.symbol)
-                && typed.symbols.symbol_package_identity(definition.symbol)
-                    == trait_package_identity
+    let candidates = services
+        .signatures()
+        .declarations()
+        .filter(|declaration| {
+            declaration.default_eligible
+                && declaration.path == trait_name
+                && declaration.package == trait_package_identity
+                && declaration.method == method_name
         })
-        .flat_map(|definition| {
-            typed
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(|signature| signature.name.as_str() == method_name)
-                .map(|signature| {
-                    (
-                        signature,
-                        typed.trait_requirement_callable_identity_text(definition, signature),
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
-    let top_level_candidates = typed
-        .machines()
-        .iter()
-        .filter(|requirement| {
-            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::is_product_declaration(typed, requirement.symbol)
-                && typed.symbols.display_path(requirement.symbol, "::") == trait_name
-                && typed.symbols.symbol_package_identity(requirement.symbol)
-                    == trait_package_identity
-        })
-        .filter_map(|requirement| {
-            let [entry] = typed.machine_states(requirement) else {
-                return None;
-            };
-            (entry.name.as_str() == method_name).then(|| {
-                (
-                    requirement,
-                    entry,
-                    typed
-                        .machine_callable_identity_text(requirement)
-                        .unwrap_or_default(),
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    let candidate_identities = trait_candidates
-        .iter()
-        .map(|(_, identity)| identity.as_str())
-        .chain(
-            top_level_candidates
-                .iter()
-                .map(|(_, _, identity)| identity.as_str()),
-        )
         .collect::<Vec<_>>();
     let Some(candidate_index) = exact_compatibility_overload_index(
         trait_name,
         method_name,
         requirement_identity,
-        candidate_identities,
+        candidates
+            .iter()
+            .map(|declaration| declaration.requirement_identity.as_str()),
     )?
     else {
         return Ok(None);
     };
-    let materialized = if let Some((signature, _)) = trait_candidates.get(candidate_index) {
-        call_signature_from_typed(
-            typed,
-            signature,
-            &[],
-            requirement_identity,
-            native_target,
-            opaque_representation_selections,
-        )?
-    } else {
-        let top_level_index = candidate_index - trait_candidates.len();
-        let (requirement, entry, _) =
-            top_level_candidates.get(top_level_index).ok_or_else(|| {
-                "compatibility boundary selection index is outside its exact candidate catalog"
-                    .to_owned()
-            })?;
-        call_signature_from_top_level_requirement(
-            typed,
-            requirement,
-            entry,
-            requirement_identity,
-            native_target,
-            opaque_representation_selections,
-        )?
-    };
+    let declaration = candidates.get(candidate_index).ok_or_else(|| {
+        "compatibility boundary selection index is outside its exact candidate catalog".to_owned()
+    })?;
+    let materialized = materialize_prepared_signature(
+        services,
+        declaration,
+        &[],
+        layout_target,
+        opaque_representation_selections,
+    )?;
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
     let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
@@ -154,134 +91,82 @@ pub(crate) fn evaluate_default_calling_application(
 /// evaluated applications in the realization output. Source trees are borrowed.
 pub fn compute_boundary_calling_plans(
     checked: &checked_trees::CheckedTrees,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+    if !std::ptr::eq(&*checked.typed, services.context().typed)
+        || services.context().scope != source::DependencyScope::Product
+    {
+        return Err(vec![Diagnostic::error(
+            "calling plans require the exact Product source owner's prepared signature catalog",
+        )]);
+    }
     // Provider selection consumes the source judgment. Retain it through
     // policy admission rather than rechecking its internal call premises.
-    let native_target = target_profile.native_target();
     let typed = &checked.typed;
-    let vocabularies =
-        checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
-    if vocabularies.is_empty() {
-        // Programs that do not import std::calling cannot accidentally opt in
-        // merely by having an unrelated local trait named Calling.
-        return Ok(Vec::new());
-    }
-
+    let signatures = services.signatures();
+    let calling = signatures.calling();
     let mut pending = Vec::new();
-    for boundary in typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-    {
-        let relationships = typed
-            .trait_requirements(boundary)
-            .iter()
-            .filter(|requirement| {
-                vocabularies
-                    .iter()
-                    .any(|(calling, _)| requirement.symbol == calling.symbol)
-            })
-            .collect::<Vec<_>>();
-        if relationships.is_empty() {
-            continue;
-        }
-        if relationships.len() != 1 {
-            return Err(vec![Diagnostic::error(format!(
-                "boundary trait `{}` selects {} Calling<Policy> policies; exactly one concrete policy may define a boundary contract",
-                boundary.name,
-                relationships.len()
-            ))
-            .with_source_span(relationships[0].source_span)]);
-        }
-        let relationship = relationships[0];
-        let relationship_span = relationship.source_span;
-        let (calling_trait, calling_policy_trait) = vocabularies
-            .iter()
-            .find(|(calling, _)| calling.symbol == relationship.symbol)
-            .copied()
-            .expect("filtered above to the vocabulary owning this Calling symbol");
-        let arguments = typed
-            .type_reference_table
-            .type_reference_handles(relationship.arguments);
-        if arguments.len() != 1 {
-            return Err(vec![Diagnostic::error(format!(
-                "boundary trait `{}` has a Calling relationship with {} policy arguments; expected one",
-                boundary.name,
-                arguments.len()
-            ))
-            .with_source_span(relationship_span)]);
-        }
-        let instances = boundary_policy_instances(typed, boundary).map_err(|reason| {
-            vec![
-                Diagnostic::error(format!(
-                    "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
-                    boundary.name
-                ))
-                .with_source_span(relationship_span),
-            ]
-        })?;
-        for BoundaryPolicyInstance {
-            arguments: boundary_arguments,
-            argument_owner,
-        } in instances
-        {
-            let policy_machine = selected_policy_machine(
-                typed,
-                boundary,
-                &boundary_arguments,
-                argument_owner,
-                calling_trait,
-                calling_policy_trait,
-                target_profile,
-            )
-            .map_err(|reason| {
+    for request in calling.requests() {
+        for instance in calling.instances(request)? {
+            let policy = instance.policy.as_ref().map_err(|reason| {
                 vec![
                     Diagnostic::error(format!(
                         "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
-                        boundary.name
+                        request.name
                     ))
-                    .with_source_span(relationship_span),
+                    .with_source_span(request.span),
                 ]
             })?;
-            let mut signatures = Vec::new();
-            collect_boundary_signatures(
-                typed,
-                boundary,
-                &boundary_arguments,
-                &mut Vec::new(),
-                &mut signatures,
-            );
-            for signature_instance in signatures {
-                let signature = signature_instance.signature;
-                let boundary_signature = call_signature_from_typed(
-                    typed,
-                    signature,
-                    &signature_instance.bindings,
-                    &signature_instance.requirement_identity,
-                    native_target,
+            let policy = typed.machine(*policy).ok_or_else(|| {
+                vec![
+                    Diagnostic::error("prepared calling policy lost its exact machine")
+                        .with_source_span(request.span),
+                ]
+            })?;
+            // Psi retains the exact closed named map. Only deployment body
+            // selection remains here; a family head is not executable code.
+            let policy_machine = typed.machine_for_target(policy, target_profile.target_name())
+                .ok_or_else(|| vec![
+                    Diagnostic::error(format!(
+                        "boundary trait `{}` cannot evaluate Calling<Policy>: calling policy realization `{}` has no body for target `{}`",
+                        request.name, policy.name, target_profile.target_name(),
+                    )).with_source_span(request.span),
+                ])?;
+            for application in calling.signatures(instance) {
+                let declaration = signatures.applied_declaration(application).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "calling plan lost its exact prepared signature declaration",
+                    )]
+                })?;
+                let boundary_signature = materialize_prepared_signature(
+                    services,
+                    declaration,
+                    calling.bindings(application),
+                    layout::LayoutTarget::for_profile(target_profile)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     opaque_representation_selections,
                 )
                 .map_err(|reason| {
                     vec![
                         Diagnostic::error(format!(
                             "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                            boundary.name, signature.name, policy_machine.name
+                            request.name, declaration.method, policy_machine.name,
                         ))
-                        .with_source_span(relationship_span),
+                        .with_source_span(request.span),
                     ]
                 })?;
                 pending.push((
-                    boundary.symbol,
-                    boundary_arguments.clone(),
-                    argument_owner,
-                    signature.symbol,
+                    request.boundary,
+                    calling.arguments(instance).to_vec(),
+                    instance.argument_owner,
+                    declaration.symbol,
                     policy_machine.name.as_str().to_owned(),
                     policy_machine.symbol,
                     boundary_signature,
-                    relationship_span,
+                    request.span,
                 ));
             }
         }

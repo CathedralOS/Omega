@@ -17,6 +17,8 @@
 //! Expression-root dependencies alone do not establish referent identity.
 
 use crate::facts::boolean_predicates::{self, BoundPredicate};
+use crate::flow::expressions;
+use crate::places::place_at;
 
 use validation::CallSite;
 use validation::CanonicalPlace;
@@ -49,11 +51,7 @@ fn invocation_fact<'facts>(
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
 ) -> Option<&'facts checked_trees::FlowCallFact> {
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(caller.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, caller.calls)
         .iter()
         .filter(|call| {
             call.statement_index == invocation.statement && call.call_ordinal == invocation.ordinal
@@ -764,16 +762,12 @@ fn captured_actual_operand<'facts>(
                 && operand.expression == actual
         });
     let operand = operands.next()?;
-    let mut place = validation::canonical_place_from_expression_in_state(
-        program,
-        caller.state_symbol,
-        call.statement_index,
-        actual,
-    )
-    .unwrap_or(CanonicalPlace {
-        root: PlaceRoot::Expression(actual),
-        segments: Vec::new(),
-    });
+    let mut place = place_at(program, caller.state_symbol, call.statement_index, actual).unwrap_or(
+        CanonicalPlace {
+            root: PlaceRoot::Expression(actual),
+            segments: Vec::new(),
+        },
+    );
     place.segments.extend_from_slice(&path);
     if !operands.all(|other| {
         if post_state {
@@ -1046,8 +1040,7 @@ fn stable_value(
     let stable = if let ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
     {
-        program
-            .expression_table
+        expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| stable_value(program, field.value, pending))
@@ -1187,8 +1180,7 @@ fn predicates_match(
     // A surviving conjunction establishes each constituent proposition. This
     // is logical decomposition, not another source arrangement recognizer.
     let matched = matched
-        || program
-            .expression_table
+        || expressions(program)
             .binary_node(right)
             .filter(|binary| binary.operator == typed_trees::expression::BinaryOperator::And)
             .is_some_and(|binary| {
@@ -1292,7 +1284,7 @@ fn bound_place(
         });
     }
     let (actual, remaining) = actual_projection(program, invocation, expression)?;
-    let mut place = validation::canonical_place_from_expression_in_state(
+    let mut place = place_at(
         program,
         invocation.caller_state,
         invocation.statement,

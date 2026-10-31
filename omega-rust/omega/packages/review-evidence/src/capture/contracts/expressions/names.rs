@@ -1,6 +1,6 @@
 use super::members::{
-    checked_contract_member_path, data_subject_binder_position, is_data_subject_field_expression,
-    project_contract_member_expression,
+    checked_contract_member_path, data_predicate_subject, data_subject_binder_position,
+    is_data_subject_field_expression, project_contract_member_expression,
 };
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -58,17 +58,16 @@ pub(crate) fn project_contract_name_expression(
         })
     {
         let Some(checked_fact) = checked_fact else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` uses a data-invariant field without an exact checked place join",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(
+                context.rejected("uses a data-invariant field without an exact checked place join")
+            );
         };
         return checked_contract_member_path(
             compilation,
             context,
             checked_fact,
             facts::PlaceRoot::Symbol(context.data_symbol.expect("guarded data subject")),
-            members,
+            &[path.symbol],
         )?
         .into_iter()
         .try_fold(
@@ -100,6 +99,9 @@ pub(crate) fn project_contract_name_expression(
             root_name.is_some_and(|name| name == &parameter.name)
         }
     });
+    let data_subject = context
+        .data_symbol
+        .and_then(|data_symbol| data_predicate_subject(compilation, data_symbol, expression));
     let is_domain_subject = context.domain_symbol.is_some()
         && root_name.is_some_and(|name| language_core::is_self_receiver(name.as_str()));
     let binder_position = binders
@@ -108,7 +110,7 @@ pub(crate) fn project_contract_name_expression(
         .or(data_binder_position);
     let root = if let Some(substitution) = substitution_root {
         Some(substitution)
-    } else if is_domain_subject {
+    } else if is_domain_subject || data_subject.is_some() {
         Some(PackageReviewContractExpression::DomainSubject)
     } else if let Some(position) = parameter_position {
         Some(PackageReviewContractExpression::Parameter(
@@ -133,16 +135,11 @@ pub(crate) fn project_contract_name_expression(
                     .any(|parameter| name == &parameter.name)
             })
         {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract parameter spelling does not match its exact resolved symbol",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context
+                .rejected("contract parameter spelling does not match its exact resolved symbol"));
         }
         if !path.symbol.is_valid() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract contains an unresolved name expression",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("contract contains an unresolved name expression"));
         }
         // Compiler carrier members have closed semantic identity, not package
         // provenance. Exact symbol lookup keeps authored same-spelled names
@@ -157,10 +154,9 @@ pub(crate) fn project_contract_name_expression(
         return Ok(projected);
     }
     let Some(checked_fact) = checked_fact else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` uses a proposition-argument name-path member without an exact checked place join",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected(
+            "uses a proposition-argument name-path member without an exact checked place join",
+        ));
     };
     let semantic_root = is_domain_subject
         .then_some(facts::PlaceRoot::Expression(expression))
@@ -173,18 +169,19 @@ pub(crate) fn project_contract_name_expression(
                 .is_valid()
                 .then_some(facts::PlaceRoot::Symbol(root_symbol))
         })
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract name-path member has no exact semantic root",
-                context.subject_kind, context.subject_name
-            ))]
-        })?;
+        .ok_or_else(|| context.rejected("contract name-path member has no exact semantic root"))?;
+    let member_symbols = compilation
+        .expression_table
+        .name_path_member_symbols(path.member_symbols);
+    if member_symbols.len() != members.len() {
+        return Err(context.rejected("contract name path lacks exact member identities"));
+    }
     checked_contract_member_path(
         compilation,
         context,
         checked_fact,
         semantic_root,
-        &members[1..],
+        &member_symbols[1..],
     )?
     .into_iter()
     .try_fold(projected, |receiver, (case_variant, member_symbol)| {

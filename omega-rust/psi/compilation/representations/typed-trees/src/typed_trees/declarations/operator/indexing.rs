@@ -173,10 +173,7 @@ pub fn unconstrained_type_reference(
     // Normal trees terminate before this count; cycles/stale references cannot
     // acquire an adaptation through a dummy type or an unbounded traversal.
     for _ in 0..program.type_reference_table.type_reference_count() {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
+        if !program.contains_type_reference(reference) {
             return None;
         }
         match program.type_reference_table.type_reference(reference) {

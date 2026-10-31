@@ -7,6 +7,7 @@
 
 use super::super::{Diagnostic, SymbolHandle, TypeReferenceHandle, TypedTrees};
 use super::invocations::{MachineDemand, machine_demands};
+use crate::tables::expressions_of;
 use typed_trees::name::Identifier;
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineLifetimeBinding,
@@ -104,16 +105,13 @@ pub(super) fn retain(
         // refinement; they have no determined provider tuple to apply here.
         return Ok(());
     };
-    let caller_lifetimes = program
-        .expression_table
+    let caller_lifetimes = expressions_of(program)
         .static_machine_application_lifetimes(invocation)
         .to_vec();
-    let provider_bindings = program
-        .expression_table
+    let provider_bindings = expressions_of(program)
         .static_machine_application_bindings(provider)
         .to_vec();
-    let provider_lifetimes = program
-        .expression_table
+    let provider_lifetimes = expressions_of(program)
         .static_machine_application_lifetimes(provider)
         .to_vec();
     for member in members {

@@ -8,8 +8,8 @@ use std::borrow::Cow;
 use terminal_semantics::borrowed_storage::{Projection, Region};
 use terminal_semantics::descriptor_lifetimes::{DescriptorPosition, descriptor_path};
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, DescriptorCallOrigin, DescriptorSourceOrigin, descriptor_machine,
-    descriptor_slot_inventory,
+    DescriptorAnalysis, DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin,
+    descriptor_machine, descriptor_slot_inventory,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -187,6 +187,23 @@ pub(super) fn prepare(
                 let Some(ty) = current.place_types.get(&input.root) else {
                     continue;
                 };
+                // A whole aggregate input also demands case judgments for
+                // ordinary pointer leaves. The backing-source catalog below
+                // still describes views only; an inactive pointer payload
+                // never gains a resident origin merely because its type exists.
+                if let Some(inventory) =
+                    DescriptorSlotKind::BorrowedStorage.inventory(types, input.root, *ty)
+                {
+                    for location in inventory.slots {
+                        capture_case_feasibility(
+                            &mut observations,
+                            &mut analysis,
+                            function.machine,
+                            position,
+                            &location,
+                        );
+                    }
+                }
                 // Snapshot materialized slots; opaque siblings remain unknown
                 // in the shared analysis, not a reason to erase this input.
                 slots.extend(

@@ -1,37 +1,10 @@
+use omega::language::core::layout;
 // A slice selector must retain partial-width IntegerAt descendants.
 // An opaque mutable call cannot establish the fit of its intermediate writes.
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField
-where
-    size <= 4096,
-    1 <= align,
-    align <= 16,
-{
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema
-where
-    field_count <= 32,
-{ fields: [SchemaField; 32]; field_count: u64; }
-data IntegerInterpretation { case Signed; case Unsigned; }
-data FieldPlan {
-    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
 
-public data SignedByte { }
-machine SignedByte::plan(schema: Schema) -> Plan {
+
+public SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -49,9 +22,10 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 
 public data PortableByte [copy] { value: i64; }
-public data RawView { value: SignedByte<PortableByte>; }
+public data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 public boundary trait EncodedWriter { machine write(value: &mut RawView) reaches; }
 machine write_first(bytes: &mut [RawView]) reaches EncodedWriter {
     transition bytes.len > 0 { true -> change(bytes) _ -> done() }

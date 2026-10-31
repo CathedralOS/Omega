@@ -13,6 +13,7 @@
 //! write frames).
 
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::expression_types::declared_reference_access;
 use crate::value_custody::expression_types::{
@@ -362,10 +363,8 @@ pub fn call_result_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let call = program.expression_table.call_node(expression)?;
-    let applied = program
-        .expression_table
-        .constructed_value_type_reference(expression);
+    let call = expression_table(program).call_node(expression)?;
+    let applied = expression_table(program).constructed_value_type_reference(expression);
     applied
         .is_valid()
         .then_some(applied)
@@ -912,7 +911,7 @@ pub use topology::{
     expression_normal_completion_possible, find_machine, find_machine_by_entry_state,
     find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
     find_state_on_machine, machine_state_by_symbols, machine_state_count,
-    normal_completion_possible, terminal_callable_target,
+    normal_completion_possible, terminal_callable_target, unique_dispatched_entry,
 };
 mod receiver_topology;
 pub(crate) use receiver_topology::placed_accessor_target;

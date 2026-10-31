@@ -574,7 +574,7 @@ def main() -> None:
         ),
         selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(&b)", "machine", 1)),
     )
-    # A `where machine` contract types a call through its binder; a static
+    # A `requires machine` contract types a call through its binder; a static
     # machine argument selects a machine whose signature refines the
     # contract, and a type binder the contract alone names is inferred from
     # the selected machine.
@@ -583,10 +583,10 @@ def main() -> None:
         "machine-binders-call-through-contracts",
         b"machine double(x: u8) -> u8 { x }\n"
         b"machine zero() -> u8 { 0 }\n"
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
-        b"machine again<machine G>(x: u8) -> u8\nwhere machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
-        b"machine pick<T, machine K>(x: T) -> T\nwhere machine K(value: T) -> T;\n{ K(x) }\n"
-        b"machine make<U, machine M>() -> U\nwhere machine M() -> U;\n{ M() }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine again<machine G>(x: u8) -> u8\nrequires machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
+        b"machine pick<T, machine K>(x: T) -> T\nrequires machine K(value: T) -> T;\n{ K(x) }\n"
+        b"machine make<U, machine M>() -> U\nrequires machine M() -> U;\n{ M() }\n"
         b"machine g() -> u8 {\n"
         b"    let a: u8 = apply<double>(3);\n"
         b"    let b: u8 = again<double>(a);\n"
@@ -905,7 +905,7 @@ def main() -> None:
     accepted(
         program,
         "increasing-to-limit-is-typed",
-        b"machine g(index: u64, limit: u64) terminates by index -> Nat::IncreasingTo(limit); {}",
+        b'machine g(index: u64, limit: u64) terminates by index -> Nat::IncreasingTo(limit) {}',
         ((b"index!2", "u64"), (b"limit!2", "u64")),
     )
     rejected(
@@ -940,7 +940,7 @@ def main() -> None:
     rejected(
         program,
         "binder-calls-match-their-contract",
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x, x) }",
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x, x) }",
         "NoMatchingMachine",
         b"F(x, x)",
     )
@@ -948,7 +948,7 @@ def main() -> None:
         program,
         "static-machine-arguments-refine-the-contract",
         b"machine widen(x: u8) -> u16 { x as u16 }\n"
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x) }\n"
         b"machine g() -> u8 { apply<widen>(3) }",
         "NoMatchingMachine",
         b"apply<widen>(3)",
@@ -1346,13 +1346,13 @@ def main() -> None:
     accepted(
         program,
         "rank-range-endpoints-are-integers",
-        b"machine f(n: u64, limit: u64) -> u64 terminates by n in 0..=limit; { 0 }",
+        b'machine f(n: u64, limit: u64) -> u64 terminates by n in 0..=limit { 0 }',
         ((b"0", "u64"), (b"limit!2", "u64")),
     )
     rejected(
         program,
         "a-rank-range-endpoint-of-another-type",
-        b"machine f(n: u64, flag: bool) -> u64 terminates by n in 0..=flag; { 0 }",
+        b'machine f(n: u64, flag: bool) -> u64 terminates by n in 0..=flag { 0 }',
         "NonIntegerIndex",
         b"flag!2",
     )
@@ -1362,27 +1362,20 @@ def main() -> None:
     accepted(
         program,
         "measure-subjects-meet-their-measures",
-        b"data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\n"
-        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine f(card: Card, progress: Progress) -> u64\n"
-        b"terminates by card -> Card::PowerOrder;\nterminates by progress -> Progress::Steps;\n{ 0 }",
+        b'data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine f(card: Card, progress: Progress) -> u64\nterminates by card -> Card::PowerOrder\nterminates by progress -> Progress::Steps\n{ 0 }',
         ((b"card.power", "u64"),),
     )
     rejected(
         program,
         "a-measure-subject-of-another-type",
-        b"data Card { power: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"machine f(value: u64) -> u64 terminates by value -> Card::PowerOrder; { 0 }",
+        b'data Card { power: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmachine f(value: u64) -> u64 terminates by value -> Card::PowerOrder { 0 }',
         "MismatchedTypes",
         b"value!2",
     )
     rejected(
         program,
         "a-lexicographic-subject-of-another-data",
-        b"data Progress { outer: u64; inner: u64; }\ndata Other { outer: u64; inner: u64; }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine f(other: Other) -> u64 terminates by other -> Progress::Steps; { 0 }",
+        b'data Progress { outer: u64; inner: u64; }\ndata Other { outer: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine f(other: Other) -> u64 terminates by other -> Progress::Steps { 0 }',
         "MismatchedTypes",
         b"other!2",
     )
@@ -1841,6 +1834,25 @@ def main() -> None:
         "fact-rooted-at-the-first-expression",
         b"machine f(b: bool)\nrequires b\n{}",
         ((b"b!3", "bool"),),
+    )
+
+    # `self` in a data `requires` is that declaration applied to its own
+    # generic parameters. A bare `D0` would make `Value<T>` and `Value` the
+    # same subject.
+    accepted(
+        program,
+        "generic-data-requires-self-applies-its-parameters",
+        b"data Value<T> requires self.value == self.value { value: T; }\n"
+        b"machine use(v: Value<u8>) -> u8 { v.value }",
+        ((b"self", "D0<G0>"), (b"self.value", "G0"), (b"v.value", "u8")),
+    )
+    rejected(
+        program,
+        "generic-data-requires-unknown-field",
+        b"data Value<T> requires self.missing == self.missing { value: T; }\n"
+        b"machine use(v: Value<u8>) -> u8 { v.value }",
+        "UnknownField",
+        b"self.missing",
     )
 
     # A non-Unit result is dropped only through `_ = call();`.

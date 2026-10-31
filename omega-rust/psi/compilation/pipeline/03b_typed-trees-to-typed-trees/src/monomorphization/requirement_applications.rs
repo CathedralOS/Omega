@@ -6,6 +6,8 @@
 //! only their exact admitted tuple; this pass neither grants membership nor
 //! chooses a provider. Invalid or open source tuples remain source obligations.
 
+use super::failed;
+use crate::tables::expressions_of_mut;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 mod calls;
@@ -65,11 +67,7 @@ pub(crate) fn instantiate_requirement_applications(
             })?;
         let (_, signature) = program
             .trait_machine_signature(requirement)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "boundary family lost its source requirement",
-                )]
-            })?;
+            .ok_or_else(|| failed("boundary family lost its source requirement"))?;
         let name = signature.name.clone();
         let parameters = program.state_signature_type_parameters(signature).to_vec();
         let tuples = if parameters.is_empty() {
@@ -149,25 +147,21 @@ pub(crate) fn instantiate_requirement_applications(
                 continue;
             }
             let bindings = invocation_bindings(program, &parameters, &arguments)?;
-            let application = program.expression_table.retain_static_machine_application(
+            let application = expressions_of_mut(program).retain_static_machine_application(
                 requirement,
                 name.clone(),
                 &arguments,
             );
-            let source = program
-                .expression_table
-                .static_machine_application_mut(application);
+            let source = expressions_of_mut(program).static_machine_application_mut(application);
             source.lexical_owner = if invocation.owner.is_valid() {
                 invocation.owner
             } else {
                 requirement
             };
             source.binding_declaration = requirement;
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_lifetimes(application, &invocation.lifetimes);
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_bindings(application, &bindings);
             let instance = program
                 .instantiate_requirement_application(
@@ -182,11 +176,7 @@ pub(crate) fn instantiate_requirement_applications(
             // the earlier template normalization cannot describe this tuple.
             let signature = program
                 .closed_requirement_application(instance)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "closed requirement lost its produced callable signature",
-                    )]
-                })?
+                .ok_or_else(|| failed("closed requirement lost its produced callable signature"))?
                 .signature;
             let references =
                 typed_trees::references::collect_signature_references(program, signature);

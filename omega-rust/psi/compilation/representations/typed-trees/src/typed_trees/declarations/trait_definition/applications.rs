@@ -322,9 +322,7 @@ impl<'program> AppliedTraitScope<'program> {
                 TraitApplicationArguments {
                     lexical_owner,
                     enclosing_data_applications: &[],
-                    arguments: program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
+                    arguments: program.type_reference_handles(*arguments),
                     lifetimes: lifetime_arguments,
                 },
             ),
@@ -336,9 +334,7 @@ impl<'program> AppliedTraitScope<'program> {
                 TraitApplicationArguments {
                     lexical_owner,
                     enclosing_data_applications: &[],
-                    arguments: program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
+                    arguments: program.type_reference_handles(*arguments),
                     lifetimes: &[],
                 },
             ),
@@ -407,9 +403,7 @@ impl<'program> AppliedTraitScope<'program> {
             TraitApplicationArguments {
                 lexical_owner: conformance.symbol,
                 enclosing_data_applications: &[],
-                arguments: program
-                    .type_reference_table
-                    .type_reference_handles(conformance.arguments),
+                arguments: program.type_reference_handles(conformance.arguments),
                 lifetimes: &lifetimes,
             },
         )
@@ -441,9 +435,7 @@ impl<'program> AppliedTraitScope<'program> {
             TraitApplicationArguments {
                 lexical_owner: owner,
                 enclosing_data_applications: &[],
-                arguments: program
-                    .type_reference_table
-                    .type_reference_handles(conformance.arguments),
+                arguments: program.type_reference_handles(conformance.arguments),
                 lifetimes: &lifetimes,
             },
         )
@@ -710,9 +702,7 @@ impl<'program> AppliedTraitScope<'program> {
                 TraitApplicationArguments {
                     lexical_owner: self.argument_owner,
                     enclosing_data_applications: &[],
-                    arguments: program
-                        .type_reference_table
-                        .type_reference_handles(parent.arguments),
+                    arguments: program.type_reference_handles(parent.arguments),
                     lifetimes: &parent.lifetime_arguments,
                 },
             ) else {

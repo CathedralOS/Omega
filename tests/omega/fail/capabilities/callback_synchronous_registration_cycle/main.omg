@@ -4,10 +4,14 @@ use omega::language::core::external_binding;
 
 public data CallbackPolicies { }
 public InitializerCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CallbackPolicies::initializer;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CallbackPolicies::initializer(signature)
+    }
 }
 public RegistrationCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CallbackPolicies::registration;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CallbackPolicies::registration(signature)
+    }
 }
 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
 satisfies CallingPolicy::plan
@@ -130,7 +134,7 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
 
 public boundary trait Initializer: Calling<InitializerCalling> {
     machine call(context: u64) reaches Initializer + Registration + Console
-    invokes Registration;
+    invokes Registration
     invokes Console;
 }
 
@@ -139,7 +143,7 @@ public boundary trait Initializer: Calling<InitializerCalling> {
 public data ThreadKey { token: u64; }
 public boundary trait Registration: Calling<RegistrationCalling> {
     machine register<machine Handler>(key: &mut ThreadKey, native callback initialize from Handler) -> i32
-    where machine Handler satisfies Initializer::call;
+    requires machine Handler satisfies Initializer::call;
     reaches
     invokes Initializer;
 }
@@ -153,15 +157,15 @@ macos_arm64 machine registration_binding() -> ForeignBinding<26, 19, 0> {
     }
 }
 macos_arm64 machine registration_leaf<machine Handler>(key: &mut ThreadKey) -> i32
-where machine Handler satisfies Initializer::call;
+requires machine Handler satisfies Initializer::call;
 satisfies Registration::register
 via registration_binding();
 
 public data Initialization { }
 public machine Initialization::call(context: u64) satisfies Initializer::call
 reaches Initializer + Registration + Console
-invokes Registration;
-invokes Console;
+invokes Registration
+invokes Console
 {
     let mut key: ThreadKey = ThreadKey { token: 0 };
     let status: i32 = Registration::register<Initialization::call>(&mut key);
@@ -175,8 +179,8 @@ invokes Console;
 
 data Main { key: ThreadKey; status: i32; }
 machine Main::main(main: &mut Main) reaches Registration + Initializer + Console
-invokes Registration;
-invokes Console;
+invokes Registration
+invokes Console
 {
     main.key.token = 0;
     main.status = Registration::register<Initialization::call>(&mut main.key);
@@ -192,8 +196,8 @@ invokes Console;
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Registration + Initializer + Console
-invokes Registration;
-invokes Console;
+invokes Registration
+invokes Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

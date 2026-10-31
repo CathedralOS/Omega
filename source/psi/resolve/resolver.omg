@@ -1611,7 +1611,7 @@ crashes Trap
 }
 
 // Machine signatures: each machine's generic annotations, its parameter and
-// return types and its `where machine` contracts, all in
+// return types and its `requires machine` contracts, all in
 // the machine's scope (a trait or conformance member's includes its
 // container's generic parameters).
 machine Resolver::bind_machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
@@ -1653,7 +1653,7 @@ crashes Trap
         }
     }
 
-    // Each `where machine` contract's signature, in the machine's scope.
+    // Each `requires machine` contract's signature, in the machine's scope.
     machine contract_signature(
         resolver: &mut Resolver,
         sources: &SourceSet,

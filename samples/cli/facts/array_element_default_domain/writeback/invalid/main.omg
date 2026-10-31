@@ -1,0 +1,28 @@
+// Expected exit: 0
+public data Tallies [copy]
+requires self.values[0] >= 0 && self.values[0] <= 16,
+    self.values[1] >= 0 && self.values[1] <= 16,
+    self.values[2] >= 0 && self.values[2] <= 16,
+    self.values[3] >= 0 && self.values[3] <= 16
+{ values: [i32; 4]; }
+
+
+public machine replace_and_increment(tallies: &mut Tallies, index: u64)
+requires index < 4
+{
+    tallies.values[index] = 16;
+    let observed: i32 = tallies.values[index];
+    tallies.values[index] = observed + 1;
+}
+
+machine main() crashes Trap {
+    let mut tallies: Tallies = Tallies { values: [0, 15, 16, 8] };
+    replace_and_increment(&mut tallies, 2);
+    transition tallies.values[0] == 0 && tallies.values[1] == 15
+        && tallies.values[2] == 6 && tallies.values[3] == 8 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() crashes Trap { crash Trap; }
+}

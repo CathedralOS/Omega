@@ -4,8 +4,8 @@
 // Expected rejection: not provably representable
 
 machine multiply_local(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 21i32;
-    requires rhs >= 5i32 && rhs <= 10i32;
+    requires lhs >= 10i32 && lhs <= 21i32
+    requires rhs >= 5i32 && rhs <= 10i32
 {
     let a: i32 in Saturating = lhs as i32 in Saturating;
     let b: i32 in Saturating = rhs as i32 in Saturating;

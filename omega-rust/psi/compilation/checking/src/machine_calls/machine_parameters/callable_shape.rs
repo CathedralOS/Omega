@@ -6,6 +6,7 @@ use super::{
     MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
     machine_parameter_contract, machine_parameter_signature,
 };
+use crate::frozen_program::expression_table;
 use crate::machine_calls::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -387,6 +388,7 @@ fn validate_callable_formation(
         required_parameters,
         actual_parameters,
         actual.contract_owner,
+        &substitutions,
         diagnostics,
     );
 }
@@ -439,9 +441,7 @@ fn validate_callable_regions(
     if let Some(applied) = applied {
         // Applied carriers serve full formation. Region proof instead uses
         // the source declarations and separately scoped simultaneous operands.
-        let source = program
-            .expression_table
-            .static_machine_application(applied.provider);
+        let source = expression_table(program).static_machine_application(applied.provider);
         let machine = program
             .machine_by_symbol(source.binding_declaration)
             .ok_or("applied callable lost its original machine declaration")?;
@@ -455,8 +455,7 @@ fn validate_callable_regions(
             .iter()
             .map(|operand| (operand.parameter, operand.actual))
             .collect::<Vec<_>>();
-        provider_substitutions = program
-            .expression_table
+        provider_substitutions = expression_table(program)
             .static_machine_application_bindings(applied.provider)
             .iter()
             .filter_map(|binding| match binding.value {
@@ -492,8 +491,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_bindings: program
-                .expression_table
+            lifetime_bindings: expression_table(program)
                 .static_machine_application_lifetimes(applied.provider),
             argument_owner: applied.lexical_owner,
             supplied_telescope: true,
@@ -689,13 +687,13 @@ fn validate_callable_effects(
 
     if may_suspend && !operational.may_suspend {
         diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends;`",
+            "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends`",
             parameter.name
         )));
     }
     if may_block && !operational.may_block {
         diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: it may block, but the requirement omits `blocks;`",
+            "{label} does not refine `{}`: it may block, but the requirement omits `blocks`",
             parameter.name
         )));
     }

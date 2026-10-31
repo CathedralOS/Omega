@@ -1,4 +1,5 @@
 //! Declaration queries over typed-owned indexes and invocation-owned field rows.
+use crate::frozen_program::expression_table;
 
 /// The declaration-table answer for a symbol: absent, exactly one
 /// definition at a position, or a duplicate.
@@ -108,8 +109,7 @@ pub(crate) fn data_field_is_where_independent(
             let expressions = match fact {
                 ProofFact::Expression(expression) => vec![*expression],
                 ProofFact::Membership(membership) => vec![membership.value],
-                ProofFact::Proposition(application) => program
-                    .expression_table
+                ProofFact::Proposition(application) => expression_table(program)
                     .expression_handles(application.arguments)
                     .to_vec(),
             };
@@ -121,8 +121,7 @@ pub(crate) fn data_field_is_where_independent(
                         let root = if path.head_symbol.is_valid() {
                             path.head_symbol
                         } else {
-                            program
-                                .expression_table
+                            expression_table(program)
                                 .name_path_member_symbols(path.member_symbols)
                                 .first()
                                 .copied()

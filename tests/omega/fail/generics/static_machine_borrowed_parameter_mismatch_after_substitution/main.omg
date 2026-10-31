@@ -8,8 +8,8 @@ data Seq<T> {
 }
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
-where machine Predicate(value: &T) -> bool;
-terminates by items;
+requires machine Predicate(value: &T) -> bool;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty

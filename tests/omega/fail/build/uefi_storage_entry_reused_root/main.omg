@@ -9,8 +9,8 @@ TestRoots satisfies ExtentRootProvider {
 FirmwareBootstrap satisfies UefiPhysicalEntry {
     machine enter(image_handle: EfiImageHandle, system_table: &EfiSystemTable) -> EfiStatus
     reaches ExtentRootProvider + ProgramStorageEntry
-    invokes ExtentRootProvider;
-    invokes ProgramStorageEntry;
+    invokes ExtentRootProvider
+    invokes ProgramStorageEntry
     requires addr::Bound == 18446744073709551616
     {
         let image: Extent = ExtentRootProvider::grant(Extent { base: 4096, length: 4096 });
@@ -23,7 +23,7 @@ FirmwareBootstrap satisfies UefiPhysicalEntry {
 
 machine forward_roots(image: Extent in Granted, storage: Extent in Granted)
 reaches ProgramStorageEntry
-invokes ProgramStorageEntry;
+invokes ProgramStorageEntry
 {
     ProgramStorageEntry::enter(image, storage);
 }

@@ -4,6 +4,7 @@
 //! statement's live contexts, never a historical fact or a later restoration.
 //! Finite reference choices require that judgment for every captured backing,
 //! independently of whether one candidate already had the desired byte class.
+use crate::places::place_at;
 use checked_trees::CheckFacts;
 use facts::{FactOrigin, FactPayload};
 
@@ -33,7 +34,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             let Some(indexed) = program.expression_table.indexed_node(assignment.target) else {
                 continue;
             };
-            let Some(carrier) = validation::canonical_place_from_expression_in_state(
+            let Some(carrier) = place_at(
                 program,
                 state.symbol,
                 statement_flow.statement_index,

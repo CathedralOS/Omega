@@ -33,7 +33,7 @@ machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) 
 
 machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
 requires fuel >= 1 && fuel <= 96
-terminates by fuel;
+terminates by fuel
 {
     compact_binary.index = 0;
     transition { _ -> fill(compact_binary, schema, fuel) }

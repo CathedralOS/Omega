@@ -47,18 +47,18 @@ public boundary trait WorkerProvider {
     machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(
         arguments: Arguments
     ) -> T
-    where machine Target(arguments: Arguments) -> T suspends; blocks;
+    requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true
     reaches
-    suspends; blocks;
+    suspends blocks;
 }
 
 data CanaryWorkerProvider { }
 
 machine CanaryWorkerProvider::execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T
-where machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends blocks;
 satisfies WorkerProvider::execute
-suspends; blocks;
+suspends blocks
 {
     suspend block Target(arguments)
 }
@@ -67,7 +67,7 @@ suspends; blocks;
 // `park` suspends the calling activation at a canonical crossing; wake
 // operations are ordinary boundary calls on the same word identity.
 public boundary data WaitSubstrate;
-boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
+boundary machine WaitSubstrate::park(word: u64) suspends blocks;
 boundary machine WaitSubstrate::wake_one(word: u64);
 boundary machine WaitSubstrate::wake_all(word: u64);
 
@@ -146,10 +146,10 @@ boundary trait IsolatedWorkerProvider: WorkerProvider {}
 
 // Terminal consumption of the completion claim: parks on the wait word
 // while the worker is in flight, then reports the lifecycle outcome.
-// Declared `suspends; blocks` because settlement is a blocking wait, not a
+// Declared `suspends blocks` because settlement is a blocking wait, not a
 // semantic safe point. The boundary contract owns the park and consumes the
 // ticket exactly once at the call edge.
-boundary requirement Ticket::settle(ticket: Ticket, wait_word: u64) -> ExecutorOutcome suspends; blocks;
+boundary requirement Ticket::settle(ticket: Ticket, wait_word: u64) -> ExecutorOutcome suspends blocks;
 
 // Terminal consumption of the executor itself.
 boundary requirement Executor::close(executor: Executor);
@@ -205,7 +205,7 @@ data Main {
     executor: Executor;
 }
 
-machine Main::probe(main: &mut Main) reaches WorkerProvider suspends; blocks; {
+machine Main::probe(main: &mut Main) reaches WorkerProvider suspends blocks {
     // Moved custody: `arguments` moves into the submission by value.
     let submission: Submission = Submission {
         arguments: Token { id: 7 },
@@ -252,7 +252,7 @@ machine worker(arguments: Token) -> Token { arguments }
 // Close the selected provider with an actual authored worker invocation. The
 // custody/claim probes above remain checked contract controls, not a fabricated
 // executor implementation.
-machine Main::main() reaches WorkerProvider suspends; blocks; crashes Trap {
+machine Main::main() reaches WorkerProvider suspends blocks crashes Trap {
     let result: Token = suspend block WorkerProvider::execute<Token, Token, worker>(Token { id: 7 });
     transition result.id == 7 {
         true -> done()

@@ -3,8 +3,8 @@ use super::{
     GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path, PathBuf,
     SourceResolveError, SourceResolver, create_git_source, git_cache_entry_root, local_git_request,
     make_tree_owner_writable, primed_git_cache, publish_git_member_snapshot,
-    read_git_blobs_batch_from_path, resolve_git_source_from_hardened_base, run_test_git,
-    run_test_git_with_input, temp_root, test_system_git_executor,
+    read_git_blobs_batch_from_path, remove_fixture, resolve_git_source_from_hardened_base,
+    run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
 };
 #[cfg(unix)]
 use super::{
@@ -89,9 +89,7 @@ fn authenticated_member_snapshot_reuse_rejects_tampered_publication() {
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
     drop(storage);
-    let _ = std::fs::remove_dir_all(&repository);
-    make_tree_owner_writable(&storage_base);
-    let _ = std::fs::remove_dir_all(&storage_base);
+    remove_fixture(&repository, &storage_base);
 }
 
 #[test]
@@ -132,9 +130,7 @@ fn authenticated_member_snapshot_rejects_replaced_workspace_member_lane() {
 
     drop(storage);
     let _ = std::fs::remove_dir_all(&repository);
-    let _ = std::fs::remove_dir_all(&lane_path);
-    make_tree_owner_writable(&storage_base);
-    let _ = std::fs::remove_dir_all(&storage_base);
+    remove_fixture(&lane_path, &storage_base);
 }
 
 #[cfg(unix)]
@@ -195,9 +191,7 @@ fn git_snapshot_preserves_paths_executable_modes_and_symlink_spelling() {
             .expect("verify nested snapshot reuse");
     assert_eq!(resolved.local, verified.local);
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[cfg(unix)]
@@ -243,9 +237,7 @@ fn git_snapshot_reuse_rejects_content_with_forged_matching_metadata() {
     let entry = git_cache_entry_root(&cache, &request);
     assert!(!entry.join(GIT_CACHE_METADATA).exists());
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -291,9 +283,7 @@ fn git_batch_failure_precedes_snapshot_staging() {
             .exists()
     );
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]

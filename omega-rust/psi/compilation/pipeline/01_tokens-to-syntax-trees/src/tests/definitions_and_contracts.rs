@@ -45,13 +45,7 @@ fn parses_domain_definition_surface() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domains = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let domains = super::root_domains(&parsed);
 
     assert_eq!(domains.len(), 1);
     assert_eq!(domains[0].name.as_str(&parsed), "Player::Alive");
@@ -290,13 +284,7 @@ fn parses_domain_predicate_absence_distinct_from_true_predicate() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domains = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let domains = super::root_domains(&parsed);
 
     assert_eq!(domains.len(), 3);
     for domain in &domains[..2] {
@@ -603,10 +591,10 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
 }
 
 #[test]
-fn tail_self_call_rewrite_retains_the_authored_target_span() {
+fn tail_self_call_retains_authored_call_until_resolution() {
     let source = r#"
         machine repeat(remaining: u64) -> u64
-        terminates by remaining -> Nat::Descending;
+        terminates by remaining -> Nat::Descending
         {
             repeat(remaining - 1)
         }
@@ -616,17 +604,16 @@ fn tail_self_call_rewrite_retains_the_authored_target_span() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let StatementNode::Transition(transition) = parsed
+    let StatementNode::Expression(expression) = parsed
         .statements
         .statement(parsed.items.statements(state.statements)[0])
     else {
-        panic!("tail self call should rewrite to a transition");
+        panic!("parsing retains the authored expression; resolution owns tail normalization");
     };
-    let syntax_trees::statement::TransitionTargetNode::Named { source_span, .. } =
-        parsed.statements.transition_target(transition.target)
-    else {
-        panic!("tail self call should retain a named target");
+    let ExpressionNode::Call(call) = parsed.expressions.expression(*expression) else {
+        panic!("the terminal expression retains its exact authored call");
     };
+    let source_span = call.target.source_span();
     assert_eq!(
         &source[source_span.span.start..source_span.span.end],
         "repeat"
@@ -653,9 +640,9 @@ fn parses_machine_parameter_with_mandatory_contract() {
         data Deck {}
 
         machine Deck::best<machine Key>(deck: &Deck, card: &Card) -> u64
-        where machine Key(value: &Card) -> u64
+        requires machine Key(value: &Card) -> u64
         reaches Console
-        requires value in Card::Scorable
+        requires value in Card::Scorable;
         {
             0
         }
@@ -692,7 +679,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
 fn parses_nominal_machine_parameter_requirement() {
     let source = r#"
         machine register<machine Selected>()
-        where machine Selected satisfies platform::WindowProcedure::call;
+        requires machine Selected satisfies platform::WindowProcedure::call;
         {
             Selected()
         }
@@ -722,10 +709,10 @@ fn parses_nominal_machine_parameter_requirement() {
 }
 
 #[test]
-fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
+fn parses_bodyless_nominal_parameter_with_one_terminator_per_declaration() {
     let source = r#"
         boundary machine register<machine Selected>()
-        where machine Selected satisfies WindowProcedure::call;
+        requires machine Selected satisfies WindowProcedure::call;;
         "#;
 
     let parsed = super::parse_source(source, "bodyless nominal binder should parse");
@@ -778,8 +765,8 @@ fn parses_target_scoped_bodyless_boundary_machine() {
 fn parses_structural_and_nominal_machine_parameter_contracts_together() {
     let source = r#"
         machine apply<machine Schema, machine Selected>()
-        where machine Schema(value: u64) -> u64;
-        where machine Selected satisfies WindowProcedure::call;
+        requires machine Schema(value: u64) -> u64;
+        requires machine Selected satisfies WindowProcedure::call;
         {
         }
         "#;
@@ -808,7 +795,7 @@ fn retains_nominal_machine_parameter_trait_application() {
             machine visit(context: &mut Context);
         }
         machine walk<Context, machine Step>(context: &mut Context)
-        where machine Step satisfies Visitor<Context>::visit;
+        requires machine Step satisfies Visitor<Context>::visit;
         {
             Step(context);
         }
@@ -857,19 +844,19 @@ fn retains_nominal_machine_parameter_trait_application() {
 fn rejects_malformed_nominal_machine_parameter_requirements() {
     let cases = [
         (
-            "where machine Selected satisfies WindowProcedure;",
+            "requires machine Selected satisfies WindowProcedure;",
             "must name an exact `Trait::requirement`",
         ),
         (
-            "where machine Selected satisfies WindowProcedure::call as Choice;",
+            "requires machine Selected satisfies WindowProcedure::call as Choice;",
             "do not accept `as Name`",
         ),
         (
-            "where machine Selected satisfies WindowProcedure::call via Native;",
+            "requires machine Selected satisfies WindowProcedure::call via Native;",
             "cannot use `via`",
         ),
         (
-            "where machine Selected satisfies WindowProcedure<u64>;",
+            "requires machine Selected satisfies WindowProcedure<u64>;",
             "must be followed by `::requirement`",
         ),
     ];
@@ -887,7 +874,7 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
         data Device {}
 
         machine poll_once<T>(device: &mut T)
-        where machine T::poll(value: &mut T)
+        requires machine T::poll(value: &mut T)
         {
         }
         "#;
@@ -900,7 +887,7 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
     assert!(
         error
             .message
-            .contains("one-off `where machine T::member(...)` requirements are unsupported"),
+            .contains("one-off `requires machine T::member(...)` requirements are unsupported"),
         "unexpected diagnostic: {}",
         error.message
     );
@@ -910,9 +897,10 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
 fn parses_higher_order_machine_parameter_contract() {
     let source = r#"
         machine apply<machine Schema, machine Sample>(value: u64) -> u64
-        where machine Schema<machine Inner>(value: u64) -> u64
-        where machine Inner(value: u64) -> u64;
-        where machine Sample(value: u64) -> u64;
+        requires machine Schema<machine Inner>(value: u64) -> u64
+        requires machine Inner(value: u64) -> u64;
+        ;
+        requires machine Sample(value: u64) -> u64;
         {
             Schema<Sample>(value)
         }
@@ -944,7 +932,7 @@ fn parses_higher_order_machine_parameter_contract() {
 fn rejects_higher_order_parameter_without_nested_contract() {
     let source = r#"
         machine apply<machine Schema>()
-        where machine Schema<machine Inner>()
+        requires machine Schema<machine Inner>()
         {
         }
         "#;
@@ -970,7 +958,7 @@ fn rejects_machine_parameter_without_authored_contract() {
 fn parses_machine_parameter_on_proof_data_declaration() {
     let source = r#"
         data Stream<machine S>
-        where machine S(index: u64) -> u64;
+        requires machine S(index: u64) -> u64;
         {
             case More(tail: Stream<S>);
         }
@@ -1029,7 +1017,7 @@ fn parses_static_machine_symbol_call_argument() {
         data Card {}
 
         machine map<T, machine F>(value: &T)
-        where machine F(value: &T)
+        requires machine F(value: &T);
         {
         }
 
@@ -1052,11 +1040,7 @@ fn parses_static_machine_symbol_call_argument() {
         .expect("generic call expression");
     assert_eq!(call.machine_arguments.len(), 1);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         vec!["Card", "power"]
     );
 }
@@ -1132,7 +1116,7 @@ fn parses_nested_static_conformance_application() {
 fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
     let source = r#"
         machine consume<machine Witness>()
-        where machine Witness();
+        requires machine Witness();
         {}
 
         machine caller() {
@@ -1439,7 +1423,7 @@ fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_r
     let nested = r#"
         boundary trait Mark {
             machine relay<machine Step>() -> u64
-            where machine Step() -> u64 reaches Mark;
+            requires machine Step() -> u64 reaches Mark;
             ensures true;
         }
     "#;

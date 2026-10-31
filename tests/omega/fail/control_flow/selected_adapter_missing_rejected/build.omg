@@ -1,0 +1,16 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "selected_adapter_missing_rejected");
+    Build::select_provider<Selection, Selector>(builder, linux_arm64);
+    Build::select_provider<Selection, Selector>(builder, linux_x86_64);
+    Build::select_provider<Selection, Selector>(builder, macos_arm64);
+    Build::select_provider<Selection, Selector>(builder, macos_x86_64);
+    Build::select_provider<Selection, Selector>(builder, windows_x86_64);
+    Build::select_provider<Selection, Selector>(builder, uefi_x86_64);
+    Build::select_provider<Selection, Selector>(builder, cross_platform_cli);
+    Build::select_provider<Selection, Selector>(builder, local_unchecked);
+    Build::select_provider<Selection, Selector>(builder, alpha_bootstrap);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+}

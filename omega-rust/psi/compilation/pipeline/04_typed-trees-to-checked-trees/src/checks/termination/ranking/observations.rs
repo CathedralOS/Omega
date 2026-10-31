@@ -6,6 +6,7 @@ use super::{
     OrderResolution, RankingOrder, resolve_machine_witness_subjects,
     resolve_machine_witness_view_arguments,
 };
+use crate::places::place_at;
 use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
@@ -14,6 +15,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CheckedStateNaturalRank>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -28,12 +30,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     let body_states = admitted.for_body(machine.symbol, machine.states)?.states;
     let relevance = validation::rank_relevance(program, &[machine.symbol])?;
     let coordinate = |expression| {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            root.symbol,
-            0,
-            expression,
-        )?;
+        let place = place_at(program, root.symbol, 0, expression)?;
         let facts::PlaceRoot::Symbol(parameter) = place.root else {
             return None;
         };
@@ -43,7 +40,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         })
     };
     let subject = *subjects.first()?;
-    let mut entry = coordinate(subject)?;
+    let input = coordinate(subject)?;
+    let mut entry = input.clone();
     if let RankingOrder::CustomStructView {
         path, field_symbol, ..
     } = &order
@@ -74,6 +72,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         if rows.next().is_some() {
             return None;
         }
+        let application_facts = row.application;
         let selected = validation::RankStateBindings::from_checked(admitted, row)?;
         let destination = selected.destination(&entry)?;
         let parameter_position = typed_trees::signature::state_parameter_position(
@@ -98,8 +97,69 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     .measures()
                     .iter()
                     .find(|definition| definition.symbol == *measure)?;
+                let formal = declaration.parameter.as_ref()?;
+                let inputs = selected.declaration_bindings(formal.symbol, &input);
+                if inputs.is_empty() {
+                    return None;
+                }
+                // Named/aggregate prefixes need no selector receipt. Only an
+                // indexed destination asks the entry projection owner for its
+                // exact state-local bounds, before executable observation.
+                let values = if inputs.iter().any(|input| has_index(&input.destination)) {
+                    let paths = inputs
+                        .iter()
+                        .map(|input| input.destination.path.clone())
+                        .collect::<Vec<_>>();
+                    Some(super::super::rank_inputs::at_entry(
+                        program, machine, state, frames, &paths,
+                    )?)
+                } else {
+                    None
+                };
+                let bindings = inputs
+                    .into_iter()
+                    .map(|binding| {
+                        // The entry is a measure-formal template, while its
+                        // destination is an executable state-local observation.
+                        let entry = retain_coordinate(admitted, binding.entry, Vec::new());
+                        let destination = retain_observed_coordinate(
+                            admitted,
+                            binding.destination,
+                            values.as_ref(),
+                        )?;
+                        Some(checked_trees::CheckedRankCoordinateBinding {
+                            entry,
+                            destination,
+                            ..Default::default()
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let bindings = admitted.bindings.insert_many(bindings);
+                let formation = if application_facts.definition_body.is_valid() {
+                    if application_facts.measure != *measure
+                        || program
+                            .expression_table
+                            .expression_handles(declaration.body)
+                            != [application_facts.definition_body]
+                    {
+                        return None;
+                    }
+                    admitted.application_formations.insert(
+                        checked_trees::CheckedRankApplicationFormation {
+                            machine: machine.symbol,
+                            machine_body: machine.states,
+                            state: state.symbol,
+                            application: application_facts,
+                            bindings,
+                        },
+                    )
+                } else {
+                    Default::default()
+                };
                 CheckedNaturalRankMeasure::DeclaredMeasure {
+                    formation,
                     measure: *measure,
+                    bindings,
                     primitive_type: program.primitive_type_reference(declaration.return_type)?,
                 }
             }
@@ -120,15 +180,19 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 if !primitive_type.is_fixed_integer() {
                     return None;
                 }
-                let path = admitted.path_segments.insert_many(destination.path.clone());
+                let inputs = if has_index(&destination) {
+                    Some(super::super::rank_inputs::at_entry(
+                        program,
+                        machine,
+                        state,
+                        frames,
+                        std::slice::from_ref(&destination.path),
+                    )?)
+                } else {
+                    None
+                };
                 let coordinate =
-                    admitted
-                        .coordinates
-                        .insert(checked_trees::CheckedRankCoordinate {
-                            parameter: destination.parameter,
-                            path,
-                            entry_indexes: Default::default(),
-                        });
+                    retain_observed_coordinate(admitted, destination.clone(), inputs.as_ref())?;
                 CheckedNaturalRankMeasure::IntegerValue {
                     coordinate,
                     primitive_type,
@@ -164,4 +228,55 @@ fn distance_measure(
         primitive_type,
         upper,
     })
+}
+
+fn has_index(coordinate: &validation::RankSubjectCoordinate) -> bool {
+    coordinate
+        .path
+        .iter()
+        .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
+}
+
+fn retain_observed_coordinate(
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    coordinate: validation::RankSubjectCoordinate,
+    inputs: Option<&super::super::rank_inputs::EntryInputs<'_>>,
+) -> Option<checked_trees::CheckedRankCoordinateHandle> {
+    if !has_index(&coordinate) {
+        return Some(retain_coordinate(admitted, coordinate, Vec::new()));
+    }
+    let prepared = inputs?;
+    // Copied selector expressions need not share AST handles. Retain the
+    // captured path with its own bounds; never retarget an index receipt.
+    let captured = prepared.coordinates.iter().find(|captured| {
+        captured.parameter == coordinate.parameter
+            && captured.observation == validation::RankPremiseObservation::Value
+            && prepared
+                .values
+                .same_scalar_projection(&captured.path, &coordinate.path)
+    })?;
+    Some(retain_coordinate(
+        admitted,
+        validation::RankSubjectCoordinate {
+            parameter: captured.parameter,
+            path: captured.path.clone(),
+        },
+        captured.entry_indexes.clone(),
+    ))
+}
+
+fn retain_coordinate(
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    coordinate: validation::RankSubjectCoordinate,
+    entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
+) -> checked_trees::CheckedRankCoordinateHandle {
+    let path = admitted.path_segments.insert_many(coordinate.path);
+    let entry_indexes = admitted.entry_indexes.insert_many(entry_indexes);
+    admitted
+        .coordinates
+        .insert(checked_trees::CheckedRankCoordinate {
+            parameter: coordinate.parameter,
+            path,
+            entry_indexes,
+        })
 }

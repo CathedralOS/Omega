@@ -36,11 +36,8 @@ impl<'input> ReadByteImport<'input> {
         declaration: &BoundaryMachineDeclaration,
         input: Arc<Mutex<Box<dyn Read + Send + 'input>>>,
     ) -> Result<Self, TerminalRuntimeError> {
-        let invalid = || {
-            TerminalRuntimeError::InvalidProvision(
-                "stdin realization differs from its admitted sum contract",
-            )
-        };
+        let invalid =
+            super::unprovisioned("stdin realization differs from its admitted sum contract");
         let signature = TerminalImportSignature::from(declaration);
         let BoundaryMachineResult::Structural(result) = &signature.result else {
             return Err(invalid());
@@ -99,27 +96,16 @@ impl<'input> ReadByteImport<'input> {
 import_signature_via_clone!(ReadByteImport<'_>);
 
 impl TerminalEffectHandler for ReadByteImport<'_> {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "stdin import requires result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("stdin import requires result-aware dispatch");
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            ..
-        } = effect
-        else {
-            return Err(TerminalEffectRejection::new(
-                "stdin import received a non-boundary effect",
-            ));
-        };
-        if !arguments.is_empty() || !structural_arguments.is_empty() {
+        let call = super::call_operands(effect, || {
+            TerminalEffectRejection::new("stdin import received a non-boundary effect")
+        })?;
+        if !call.arguments.is_empty() || !call.structural_arguments.is_empty() {
             return Err(TerminalEffectRejection::new(
                 "stdin operands differ from the bound contract",
             ));

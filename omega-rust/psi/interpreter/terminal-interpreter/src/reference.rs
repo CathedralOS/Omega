@@ -9,6 +9,7 @@
 //! the next storage root and, for windows, the selected index offset.
 use crate::custody::project_structural_value;
 use crate::custody::resolve_structural_path_type;
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
@@ -69,6 +70,11 @@ pub(crate) enum AggregateViewTip {
         view: terminal_semantics::ReferenceStorageProjection,
         backing: terminal_semantics::ReferenceStorageProjection,
     },
+    /// A scalar observes a byte window cutting across original scalar cells.
+    ScalarRegion {
+        view: terminal_semantics::ReferenceStorageProjection,
+        byte_length: u64,
+    },
 }
 
 /// One resolved endpoint in its actual backing declaration. A byte snapshot
@@ -79,7 +85,7 @@ pub(crate) struct ResolvedStructuralProjection {
     pub(crate) array_loan: Option<crate::element_views::ElementView>,
     placed: Option<PlacedReference>,
     pub(crate) value: TerminalStructuralValue,
-    view_tip: Option<AggregateViewTip>,
+    pub(crate) view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
     pub(crate) primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
     pub(crate) collection_home: Option<crate::element_views::ElementViewHome>,
@@ -105,8 +111,8 @@ mod aggregate_views;
 mod origin_backings;
 pub(crate) mod placed;
 pub(crate) use aggregate_views::{
-    AggregateBacking, AggregateViewRegion, backing_scalar_path, translate_aggregate_view_field,
-    translate_aggregate_view_path,
+    AggregateBacking, AggregateViewRegion, backing_scalar_path, scalar_storage_fragments,
+    translate_aggregate_view_field, translate_aggregate_view_path,
 };
 pub(crate) use placed::PlacedReference;
 
@@ -240,7 +246,7 @@ impl TerminalExecution<'_> {
         root_type: StructuralTypeId,
         prefix: &[StructuralPathSegment],
     ) -> Result<bool, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         crate::structural_inputs::case_membership::validate_case_projection(
             &types,
             &self.structural_values,
@@ -343,10 +349,7 @@ impl TerminalExecution<'_> {
                 return Ok(());
             }
         }
-        let root = self
-            .structural_values
-            .get(&source.place)
-            .ok_or_else(malformed)?;
+        let root = self.structural_value(source.place)?;
         self.reference_carrier_access(source.place, root.structural_type, &source.path)?;
         Ok(())
     }
@@ -356,7 +359,6 @@ impl TerminalExecution<'_> {
         reference_type: StructuralTypeId,
     ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
         let Some(StructuralTypeShape::Reference { referent, access }) = self
-            .program
             .structural_types()
             .get(&reference_type)
             .map(|declaration| &declaration.shape)
@@ -367,9 +369,7 @@ impl TerminalExecution<'_> {
         };
         // A descriptor retains the loan's access; it need not permit reads.
         // Individual observations and stores still check that authority.
-        if !self.program.structural_types().contains_key(referent)
-            || *access == StructuralAccess::Owned
-        {
+        if !self.structural_types().contains_key(referent) || *access == StructuralAccess::Owned {
             return Err(malformed());
         }
         Ok((*referent, *access))
@@ -390,7 +390,7 @@ impl TerminalExecution<'_> {
         let (referent_type, access) = self.reference_contract(reference_type)?;
         let mut normalized_source = source.clone();
         normalized_source.path = terminal_semantics::reference_source_storage_path(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.live_structural_type(source.place)?,
             &source.path,
         )
@@ -402,7 +402,7 @@ impl TerminalExecution<'_> {
         let mut byte_region = None;
         let mut region_referent = None;
         let mut aggregate_view = None;
-        let collection_loan = if storage.is_none() && access_covers(source.access, access) {
+        let mut collection_loan = if storage.is_none() && access_covers(source.access, access) {
             let argument = StructuralArgument {
                 access,
                 ..source.clone()
@@ -418,7 +418,7 @@ impl TerminalExecution<'_> {
         };
         let field_compatible = storage.is_none()
             && terminal_semantics::reference_byte_field_compatible(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 self.program.catalogs.structural_domains.iter(),
                 self.live_structural_type(source.place)?,
                 &source.path,
@@ -430,7 +430,6 @@ impl TerminalExecution<'_> {
         // Capturing a reference never mints an independent owned byte cell.
         let byte_owner_loan = if storage.is_none()
             && self
-                .program
                 .structural_types()
                 .get(&referent_type)
                 .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
@@ -463,11 +462,7 @@ impl TerminalExecution<'_> {
             None
         };
         let primitive_loan = if matches!(
-            self.program
-                .structural_types()
-                .get(&referent_type)
-                .ok_or_else(malformed)?
-                .shape,
+            self.structural_declaration(referent_type)?.shape,
             StructuralTypeShape::PrimitiveScalar(_)
         ) {
             // Retain the actual projected carrier, including shared total views
@@ -477,7 +472,7 @@ impl TerminalExecution<'_> {
             let observed = (source.access == StructuralAccess::SharedBorrow)
                 .then(|| {
                     terminal_semantics::borrowed_primitive_projection_declaration(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         root_type,
                         &source.path,
                         None,
@@ -487,13 +482,13 @@ impl TerminalExecution<'_> {
             let original_type = if let Some(observed) = observed {
                 observed
             } else if let Some(tip) = terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 root_type,
                 &source.path,
             ) {
                 tip.id
             } else if let Some(byte) = terminal_semantics::primitive_projection_declaration(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 root_type,
                 &source.path,
             ) {
@@ -521,19 +516,15 @@ impl TerminalExecution<'_> {
                 else {
                     return Err(malformed());
                 };
-                let StructuralTypeShape::PrimitiveScalar(logical_scalar) = self
-                    .program
-                    .structural_types()
-                    .get(&referent_type)
-                    .ok_or_else(malformed)?
-                    .shape
+                let StructuralTypeShape::PrimitiveScalar(logical_scalar) =
+                    self.structural_declaration(referent_type)?.shape
                 else {
                     return Err(malformed());
                 };
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !terminal_semantics::reference_storage_source_compatible(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         original_type,
                         reference_type,
                         Some(stored_scalar),
@@ -583,7 +574,7 @@ impl TerminalExecution<'_> {
                 };
                 let root_type = self.live_structural_type(source.place)?;
                 let tip = terminal_semantics::runtime_structural_path_tip(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     root_type,
                     &source.path,
                 )
@@ -593,7 +584,7 @@ impl TerminalExecution<'_> {
                 let inline_byte = match tip {
                     Some(_) => None,
                     None => terminal_semantics::primitive_projection_declaration(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         root_type,
                         &source.path,
                     ),
@@ -602,7 +593,7 @@ impl TerminalExecution<'_> {
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !terminal_semantics::reference_storage_source_compatible(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         original_type,
                         reference_type,
                         None,
@@ -612,7 +603,7 @@ impl TerminalExecution<'_> {
                 }
                 let byte_length = usize::try_from(
                     terminal_semantics::reference_storage_size(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         referent_type,
                     )
                     .ok_or(
@@ -623,11 +614,7 @@ impl TerminalExecution<'_> {
                 )
                 .map_err(|_| malformed())?;
                 let byte_endpoint = matches!(
-                    self.program
-                        .structural_types()
-                        .get(&original_type)
-                        .ok_or_else(malformed)?
-                        .shape,
+                    self.structural_declaration(original_type)?.shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 );
                 // Primitive capture owns the actual byte endpoint across
@@ -648,13 +635,37 @@ impl TerminalExecution<'_> {
                 } else {
                     None
                 };
+                // Physical storage belongs to the original collection. Capture
+                // its own declaration/count before introducing the logical view;
+                // a u64 array never becomes a longer u8 loan by relabeling.
+                if collection_loan.is_none() && !byte_endpoint {
+                    let argument = StructuralArgument {
+                        access,
+                        ..source.clone()
+                    };
+                    collection_loan = self.prepare_scalar_array_reference(
+                        original_type,
+                        &argument,
+                        identity_cursor,
+                        &mut RuntimeRows::new(self.account.as_ref()),
+                    )?;
+                }
                 let (projected, projected_view) = match &byte_loan {
                     Some(loan) => (loan.referent.clone(), None),
-                    None => self.resolve_live_view_projection(
-                        source.place,
-                        &source.path,
-                        source.access,
-                    )?,
+                    None => {
+                        let projected = self.resolve_live_storage_projection(
+                            source.place,
+                            &source.path,
+                            source.access,
+                        )?;
+                        if collection_loan.is_none() {
+                            collection_loan = projected
+                                .array_loan
+                                .clone()
+                                .map(|loan| (projected.value.clone(), loan));
+                        }
+                        (projected.value, projected.view_tip)
+                    }
                 };
                 let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
                 let captured = self.reference_byte_region(&projected)?;
@@ -663,7 +674,7 @@ impl TerminalExecution<'_> {
                     // typed cells: the view names that whole backing under
                     // its declaration, and crossings retain the selected window.
                     let source_length = terminal_semantics::reference_storage_size(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         original_type,
                     )
                     .and_then(|length| usize::try_from(length).ok());
@@ -671,7 +682,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     let mut region =
-                        AggregateViewRegion::whole(&self.program.structural_types(), referent_type)
+                        AggregateViewRegion::whole(&self.structural_types(), referent_type)
                             .ok_or_else(malformed)?;
                     if let Some(AggregateViewTip::Aggregate { view, backing }) = projected_view {
                         if backing != projected.structural_type
@@ -769,13 +780,13 @@ impl TerminalExecution<'_> {
                             && domain.has_no_required_memberships()
                             && match &domain.predicate {
                                 Some(predicate) => terminal_semantics::domain_predicate_is_closed(
-                                    self.program.structural_types().values(),
+                                    self.structural_types().values(),
                                     domain.carrier,
                                     predicate,
                                 ),
                                 None => {
                                     terminal_semantics::byte_predicate_carrier(
-                                        self.program.structural_types().values(),
+                                        self.structural_types().values(),
                                         domain.carrier,
                                     ) && terminal_semantics::byte_qualification_predicates_in(
                                         self.program.catalogs.structural_domains.iter(),
@@ -819,7 +830,7 @@ impl TerminalExecution<'_> {
         );
         let required_paths =
             crate::structural_inputs::case_membership::active_projected_qualifications(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &referent,
                 self.structural_cases.as_map(),
                 &required_paths,
@@ -830,7 +841,7 @@ impl TerminalExecution<'_> {
         for domain in &required_whole {
             if !referent.qualifications.contains(domain)
                 && terminal_semantics::scalar_projection_entails_membership(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     self.program.catalogs.structural_domains.iter(),
                     referent.structural_type,
                     &[],
@@ -843,7 +854,7 @@ impl TerminalExecution<'_> {
         for row in &required_paths {
             if !referent.projected_qualifications.contains(row)
                 && terminal_semantics::scalar_projection_entails_membership(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     self.program.catalogs.structural_domains.iter(),
                     referent.structural_type,
                     &row.path,
@@ -866,7 +877,7 @@ impl TerminalExecution<'_> {
         );
         referent.projected_qualifications =
             crate::structural_inputs::case_membership::active_projected_qualifications(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &referent,
                 self.structural_cases.as_map(),
                 &referent.projected_qualifications,
@@ -890,7 +901,7 @@ impl TerminalExecution<'_> {
             // The storage judgment above admitted an aggregate re-view.
             || (aggregate_view.is_none() && !field_compatible
                 && !terminal_semantics::reference_source_compatible(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     referent.structural_type,
                     reference_type,
                 ))
@@ -955,11 +966,8 @@ impl TerminalExecution<'_> {
         self.reference_referents
             .insert(StructuralRuntimePlace::from(&carrier), prepared.referent)?;
         self.structural_values.insert(result.place, carrier)?;
-        self.live_affine_frontier.insert(StructuralAffineDiscard {
-            place: result.place,
-            path: Vec::new(),
-            structural_type: result.structural_type,
-        });
+        self.live_affine_frontier
+            .insert(whole_path_discard(result.place, result.structural_type));
         Ok(())
     }
 
@@ -969,8 +977,8 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
-        let owner = self.structural_values.get(&source).ok_or_else(malformed)?;
-        let carrier = project_structural_value(&self.program.structural_types(), owner, path)?;
+        let owner = self.structural_value(source)?;
+        let carrier = project_structural_value(&self.structural_types(), owner, path)?;
         self.reference_contract(carrier.structural_type)?;
         let key = StructuralRuntimePlace::from(&carrier);
         if operation.result != OperationResult::Unit || !self.reference_referents.contains_key(&key)
@@ -1153,6 +1161,8 @@ impl TerminalExecution<'_> {
                 placed,
                 region,
                 byte_region,
+                collection_home: projected.collection_home,
+                array_loan: projected.array_loan,
             }
         });
         if let Some(region) = region {
@@ -1163,12 +1173,11 @@ impl TerminalExecution<'_> {
         // path; the companion view still owns backing permission and extent.
         if argument.access != StructuralAccess::Owned
             && self
-                .program
                 .structural_types()
                 .get(&expected)
                 .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             && terminal_semantics::borrowed_referent_matches(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 value.structural_type,
                 expected,
             )
@@ -1190,7 +1199,7 @@ impl TerminalExecution<'_> {
             return Ok(value);
         }
         if !terminal_semantics::descriptor_value_transfer_matches(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             value.structural_type,
             expected,
             multiplicity,
@@ -1198,7 +1207,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         terminal_semantics::present_structural_memberships(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             expected,
             &mut value.qualifications,
@@ -1218,7 +1227,6 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType> {
         let preserve_restriction = self
-            .program
             .structural_types()
             .get(&expected)
             .is_some_and(|declaration| declaration.scalar_restriction.is_some());
@@ -1276,11 +1284,7 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
-        let expected = self
-            .program
-            .structural_types()
-            .get(&expected)
-            .ok_or_else(malformed)?;
+        let expected = self.structural_declaration(expected)?;
         self.resolve_live_projection_with_leaf_type(
             place,
             path,
@@ -1300,7 +1304,7 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>
         + Copy,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
-        let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let owner = self.structural_value(place)?;
         self.resolve_storage_projection_with_leaf_type(place, owner, path, access, leaf_type)
     }
 
@@ -1336,7 +1340,10 @@ impl TerminalExecution<'_> {
             leaf_type,
             view,
             placed,
-            self.element_view_values.get(&place).cloned(),
+            self.aggregate_argument_backings
+                .get(&place)
+                .and_then(|backing| backing.array_loan.clone())
+                .or_else(|| self.element_view_values.get(&place).cloned()),
         )?
         .ok_or_else(malformed)
     }
@@ -1389,7 +1396,7 @@ impl TerminalExecution<'_> {
         place: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let owner = self.structural_value(place)?;
         let (backing, view, placed) = match self.aggregate_argument_backings.get(&place) {
             Some(backing) => (&backing.value, backing.region, backing.placed.clone()),
             None => (owner, None, None),
@@ -1401,7 +1408,10 @@ impl TerminalExecution<'_> {
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             view,
             placed,
-            self.element_view_values.get(&place).cloned(),
+            self.aggregate_argument_backings
+                .get(&place)
+                .and_then(|backing| backing.array_loan.clone())
+                .or_else(|| self.element_view_values.get(&place).cloned()),
         )?
         .map(|projection| projection.value)
         .ok_or_else(malformed)
@@ -1420,12 +1430,15 @@ impl TerminalExecution<'_> {
         initial_placed: Option<PlacedReference>,
         initial_array: Option<crate::element_views::ElementView>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let mut value = owner.clone();
         let mut remaining = path;
         let mut aggregate_view = initial_view;
         let mut primitive_storage = None;
-        let mut collection_home = None;
+        let mut collection_home: Option<(
+            &crate::element_views::ElementView,
+            &[StructuralPathSegment],
+        )> = None;
         let mut array_loan = initial_array;
         let mut placed = initial_placed.or_else(|| {
             self.placed_view_occurrences
@@ -1450,7 +1463,7 @@ impl TerminalExecution<'_> {
                         &remaining[..position],
                     )?;
                     if matches!(
-                        types.get(&prefix_type).ok_or_else(malformed)?.shape,
+                        types.declaration(&prefix_type)?.shape,
                         StructuralTypeShape::ElementView { .. }
                     ) {
                         boundary = Some(position);
@@ -1511,8 +1524,18 @@ impl TerminalExecution<'_> {
             // An aggregate re-view is a window in this backing root, not an
             // eagerly paired child. Keep its coordinate for subsequent reads,
             // reborrows and ingress; scalar endpoints have a real backing path.
-            value = if let Some(AggregateViewTip::Scalar { .. }) = tip {
+            value = if let Some(
+                AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. },
+            ) = tip
+            {
                 let view = active_view.ok_or_else(malformed)?;
+                let projection_home = match collection_home {
+                    Some((loan, selected)) => loan.captured_storage_home(&types, selected)?,
+                    None => match supplying_array.as_ref() {
+                        Some(loan) => loan.captured_storage_home(&types, &[])?,
+                        None => None,
+                    },
+                };
                 let (storage, _, _) = self.aggregate_view_primitive_access(
                     &value,
                     AggregateViewTip::Aggregate {
@@ -1520,6 +1543,8 @@ impl TerminalExecution<'_> {
                         backing: value.structural_type,
                     },
                     logical_prefix,
+                    projection_home.as_ref(),
+                    access.is_some_and(|access| access != StructuralAccess::SharedBorrow),
                 )?;
                 primitive_storage = Some(storage);
                 // This is a logical loan descriptor, not a relabelled cell.
@@ -1603,10 +1628,8 @@ impl TerminalExecution<'_> {
                     // a re-view must not become an untyped backing path.
                     aggregate_view = match tip {
                         Some(AggregateViewTip::Aggregate { view, .. }) => {
-                            let StructuralTypeShape::ElementView { element, .. } = types
-                                .get(&view.structural_type)
-                                .ok_or_else(malformed)?
-                                .shape
+                            let StructuralTypeShape::ElementView { element, .. } =
+                                types.declaration(&view.structural_type)?.shape
                             else {
                                 return Err(malformed());
                             };
@@ -1616,7 +1639,9 @@ impl TerminalExecution<'_> {
                             )
                         }
                         None => None,
-                        Some(AggregateViewTip::Scalar { .. }) => return Err(malformed()),
+                        Some(
+                            AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. },
+                        ) => return Err(malformed()),
                     };
                     value = if access == Some(StructuralAccess::SharedBorrow) {
                         crate::custody::project_shared_structural_observation(
@@ -1728,10 +1753,7 @@ impl TerminalExecution<'_> {
                 if primitive_storage.is_none()
                     && endpoint_field.is_none()
                     && matches!(
-                        types
-                            .get(&value.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&value.structural_type)?.shape,
                         StructuralTypeShape::PrimitiveScalar(_)
                     )
                     && let Some((view, selected_prefix)) = collection_home
@@ -1757,29 +1779,38 @@ impl TerminalExecution<'_> {
                         backing: value.structural_type,
                     })
                 });
+                let collection_home = if matches!(
+                    types
+                        .get(&value.structural_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::FixedArray { .. })
+                ) {
+                    let selected = collection_home
+                        .map(|(view, selected_prefix)| {
+                            let mut selected = selected_prefix.to_vec();
+                            selected.extend_from_slice(prefix);
+                            view.captured_storage_home(&types, &selected)
+                        })
+                        .transpose()?
+                        .flatten();
+                    match selected {
+                        Some(home) => Some(home),
+                        None => array_loan
+                            .as_ref()
+                            .map(|loan| loan.captured_storage_home(&types, &[]))
+                            .transpose()?
+                            .flatten(),
+                    }
+                } else {
+                    None
+                };
                 return Ok(Some(ResolvedStructuralProjection {
                     array_loan,
                     placed,
                     view_tip: tip,
                     endpoint_field,
                     primitive_storage,
-                    collection_home: if matches!(
-                        types
-                            .get(&value.structural_type)
-                            .map(|declaration| &declaration.shape),
-                        Some(StructuralTypeShape::FixedArray { .. })
-                    ) {
-                        collection_home
-                            .map(|(view, selected_prefix)| {
-                                let mut selected = selected_prefix.to_vec();
-                                selected.extend_from_slice(prefix);
-                                view.captured_storage_home(&types, &selected)
-                            })
-                            .transpose()?
-                            .flatten()
-                    } else {
-                        None
-                    },
+                    collection_home,
                     value,
                 }));
             }
@@ -1797,8 +1828,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
         let value = crate::custody::verified_structural_place(&self.structural_values, source)?;
         if !matches!(
-            self.program
-                .structural_types()
+            self.structural_types()
                 .get(&value.structural_type)
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::Reference { .. })
@@ -1833,7 +1863,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let leaf_type = resolve_structural_path_type(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     signature.structural_type,
                     &origin.path,
                 )?;
@@ -1860,7 +1890,7 @@ impl TerminalExecution<'_> {
                     // marker rule to the backing's different nesting would
                     // mistake a view field for an absent descriptor crossing.
                     let binding = terminal_semantics::bind_reference_origin(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         owner.structural_type,
                         source,
                     )
@@ -1913,7 +1943,7 @@ impl TerminalExecution<'_> {
                     // against this origin, endpoint, window and access.
                     let logical = projected.value;
                     let endpoint = terminal_semantics::reference_origin_type(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         view.map_or(logical.structural_type, |view| view.structural_type),
                         binding.suffix,
                     );
@@ -1956,8 +1986,7 @@ impl TerminalExecution<'_> {
                             || binding.extent
                                 == semantic_vocabulary::ReferenceOriginExtent::WithinRegion)
                             && matches!(
-                                self.program
-                                    .structural_types()
+                                self.structural_types()
                                     .get(&expected.structural_type)
                                     .map(|declaration| &declaration.shape),
                                 Some(StructuralTypeShape::ElementView { .. })
@@ -2017,8 +2046,7 @@ impl TerminalExecution<'_> {
         if signature.reference_sources.is_empty() {
             return if resident_count != 0
                 || matches!(
-                    self.program
-                        .structural_types()
+                    self.structural_types()
                         .get(&signature.structural_type)
                         .map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Reference { .. })
@@ -2064,7 +2092,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 carrier,
                 self.structural_cases.as_map(),
                 &origin.path,
@@ -2073,14 +2101,14 @@ impl TerminalExecution<'_> {
             }
             active_count += 1;
             let leaf_type = resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 signature.structural_type,
                 &origin.path,
             )?;
             let (referent_type, access) = self.reference_contract(leaf_type)?;
             let expected = &expected_reference_backings[ordinal];
             let descriptor =
-                project_structural_value(&self.program.structural_types(), carrier, &origin.path)?;
+                project_structural_value(&self.structural_types(), carrier, &origin.path)?;
             let key = StructuralRuntimePlace::from(&descriptor);
             let actual = self.reference_referents.get(&key).ok_or(
                 TerminalInterpretError::ContentTransformationMismatch(

@@ -45,7 +45,7 @@ machine show_player_field<Value>(
     field: FieldInfo,
     value: &Value
 )
-requires Value == u32 || Value == f32;
+requires Value == u32 || Value == f32
 {
     transition {
         Value == u32 -> output.show_u32(field.name, value)
@@ -160,7 +160,7 @@ object graphs additionally need an authored reference-identity and visit policy.
 
 Ordinary RAM uses ordinary borrows. Packed fields without addressable references
 need an independently specified copied-read route; an inspector cannot fabricate
-a temporary reference with a false lifetime. Placed inspection uses the exact
+a temporary reference with a false lifetime. Access-view inspection uses the exact
 authorized accessor operations. Descriptions perform no device read, and a
 destructive MMIO Take is not an ordinary shared observation.
 

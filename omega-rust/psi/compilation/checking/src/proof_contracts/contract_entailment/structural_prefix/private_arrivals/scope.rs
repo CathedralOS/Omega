@@ -38,12 +38,35 @@ pub(super) fn is_root(
     authored_machine(program, machine.symbol) == Some(root.symbol)
 }
 
+/// Extracted regions retain their source activation as explicit custody.
+/// Ordinary declarations use semantic containment, never a generated name.
+fn enclosing_declaration(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> SymbolHandle {
+    program
+        .machine_by_symbol(symbol)
+        .and_then(|machine| machine.lexical_region_origin)
+        .map_or_else(
+            || program.declaration_scope_parent(symbol),
+            |origin| origin.machine,
+        )
+}
+
+/// Whether caller-derived entry facts have a complete private use roster.
+/// This is graph custody only: it supplies no runtime value or proof premise.
+/// Open ancestors remain independent entries under their own contracts.
+pub fn private_invocation_entry_is_closed(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> bool {
+    lexical_root(program, machine)
+        .is_some_and(|root| closed_arrivals(program, root, machine).is_ok())
+}
+
 pub(super) fn lexical_root<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<&'program Machine> {
     let declaration = authored_machine(program, machine.symbol)?;
-    let mut current = program.symbols.get(declaration).parent;
+    let mut current = enclosing_declaration(program, declaration);
     let mut root = None;
     let mut seen = Vec::new();
     while current.is_valid() {
@@ -54,7 +77,7 @@ pub(super) fn lexical_root<'program>(
         if let Some(owner) = program.machine_by_symbol(current) {
             root = Some(owner);
         }
-        current = program.symbols.get(current).parent;
+        current = enclosing_declaration(program, current);
     }
     root
 }
@@ -79,7 +102,7 @@ fn belongs_to(
         if symbol == root {
             return true;
         }
-        symbol = program.symbols.get(symbol).parent;
+        symbol = enclosing_declaration(program, symbol);
     }
     false
 }
@@ -107,7 +130,7 @@ fn enclosing_machine_roots(
         {
             roots.push(symbol);
         }
-        symbol = program.symbols.get(symbol).parent;
+        symbol = enclosing_declaration(program, symbol);
     }
     roots
 }
@@ -485,6 +508,14 @@ fn compute_closed_arrivals(
             .into_iter()
             .map(|index| members[index].symbol)
             .collect();
+    // A caller frontier is already an arbitrary-input cut. Only actual open
+    // entries must join every such cut; DFS backedge targets are traversal
+    // choices for the fallback, not additional externally callable entries.
+    // Adding them here discards guards on all the actual incoming calls.
+    let open_boundaries: Vec<_> = open_entries
+        .iter()
+        .map(|&index| members[index].symbol)
+        .collect();
     let mut caller_frontiers = progressive_caller_frontiers(
         program,
         root,
@@ -494,7 +525,7 @@ fn compute_closed_arrivals(
             .map(Vec::as_slice)
             .unwrap_or(&[]),
         caller_machine_indices.clone(),
-        &entry_boundaries,
+        &open_boundaries,
     );
     if contracted_entry_boundaries != entry_boundaries {
         let sites = index

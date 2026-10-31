@@ -158,8 +158,10 @@ use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
 use context::{
-    FlowBuildContext, SharedFlowTables, active_context_facts, active_context_handles,
-    source_transfer_cases_selected,
+    FlowBuildContext, SharedFlowTables, active_context_facts, source_transfer_cases_selected,
+};
+pub(crate) use context::{
+    active_context_handles, call_flows, expressions, indexed_statements, state_statements,
 };
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
@@ -217,6 +219,21 @@ pub(crate) fn resolved_operator_statement_symbol(
 ) -> Option<symbols::SymbolHandle> {
     operator_calls::resolve_operator_statement_call(program, call)
         .map(|resolved| resolved.operator.symbol)
+}
+
+/// Whether any arm of a match dispatch satisfies `predicate`, on either its
+/// pattern operands or its value. Every expression consumer that walks a
+/// `Match` node asks exactly this question; the arm/pattern traversal is the
+/// same one `TableMatchArm` documents, so it is stated once.
+pub(crate) fn match_arm_satisfies(
+    program: &dyn ::validation::CheckingInput,
+    arms: arena::HandleSpan<typed_trees::expression::TableMatchArm>,
+    predicate: impl Fn(checked_trees::expression::ExpressionHandle) -> bool,
+) -> bool {
+    let table = &program.expression_table;
+    table.match_arms(arms).iter().any(|arm| {
+        table.match_pattern_operands(arm.pattern).any(&predicate) || predicate(arm.value)
+    })
 }
 
 /// The `CallEnsures` point a call's flow facts carry: the call's machine,

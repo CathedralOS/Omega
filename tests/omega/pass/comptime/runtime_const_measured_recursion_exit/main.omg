@@ -15,13 +15,13 @@ use omega_language_std::console;
 // violates the intended bound. The recursive step preserves this total exactly.
 machine triangle(n: u64, acc: u64) -> u64
 requires n <= 100, acc <= 5050,
-    2 * acc + n * (n + 1) <= 10100;
-terminates by n;
+    2 * acc + n * (n + 1) <= 10100
+terminates by n
 {
     transition n == 0 { true -> acc false -> step(n, acc) }
     machine step(n: u64, acc: u64) -> u64
     requires n >= 1, n <= 100, acc <= 5050,
-        2 * acc + n * (n + 1) <= 10100;
+        2 * acc + n * (n + 1) <= 10100
     {
         triangle(n - 1, acc + n)
     }

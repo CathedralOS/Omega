@@ -4,6 +4,7 @@
 //! Conditional success always carries ordinary target range obligations. A
 //! strict construction probe without a collector cannot accept these debts.
 
+use crate::frozen_program::expression_table;
 use numerics::bignum::BigInt;
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, TableStructLiteral},
@@ -26,7 +27,7 @@ pub(super) fn construction_conditions(
     let mut pending = vec![predicate];
     let mut conditions = Vec::new();
     while let Some(predicate) = pending.pop() {
-        let binary = program.expression_table.binary_node(predicate)?;
+        let binary = expression_table(program).binary_node(predicate)?;
         if binary.operator == BinaryOperator::And {
             // Logical conjunction has no authored operator spelling. Each
             // comparison leaf still authenticates its exact selected meaning.
@@ -73,8 +74,7 @@ pub(super) fn construction_conditions(
         ) {
             return None;
         }
-        let mut supplied = program
-            .expression_table
+        let mut supplied = expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .filter(|supplied| {

@@ -46,8 +46,10 @@ data DarwinTimestampRecord {
     modified_seconds: i64;
     modified_nanoseconds: i64;
 }
-data DarwinTimestampAlignment { }
-macos_arm64 machine DarwinTimestampAlignment::plan(schema: Schema) -> Plan {
+DarwinTimestampAlignment satisfies FixedLayout<DarwinTimestampRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
@@ -55,12 +57,13 @@ macos_arm64 machine DarwinTimestampAlignment::plan(schema: Schema) -> Plan {
     entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
     Plan { entries: entries, entry_count: 4, size_fixed: 32, size_is_dynamic: false, align: 8 }
 }
+}
 
 // Decode the caller's packed little-endian bytes without forming an aligned
 // native reference to them. All signed bit patterns, including UTIME sentinels,
 // survive unchanged; semantic timestamp validation remains the OS's operation.
 macos_arm64 machine darwin_timestamp_word(bytes: &[u8]) -> i64
-requires bytes.len == 8;
+requires bytes.len == 8
 {
     let word: u64 in Wrapping = (widen_u8_to_u64(bytes[0]) as u64 in Wrapping)
         | ((widen_u8_to_u64(bytes[1]) as u64 in Wrapping) << 8)
@@ -420,7 +423,7 @@ boundary requirement PosixFilesystemDarwin::c_read_metadata_at(directory_descrip
 reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
 reaches FilesystemContentWrite + FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>) -> i32
 reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_sync(fd: i32) -> i32
 ;
@@ -498,7 +501,7 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata_at(directory_d
     satisfies PosixFilesystemDarwin::c_read_metadata_at via posix_darwin_fstatat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemDarwin::c_set_len via posix_darwin_ftruncate_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>) -> i32
     satisfies PosixFilesystemDarwin::c_set_file_times via posix_darwin_futimens_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_sync(fd: i32) -> i32
     satisfies PosixFilesystemDarwin::c_sync via posix_darwin_fsync_binding();
@@ -915,7 +918,7 @@ reaches DirectoryEnumeration
         PosixFilesystemDarwin::normalize_i64(outcome)
     }
     machine extended(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
-    requires buffer.len >= 1024;
+    requires buffer.len >= 1024
     {
         // ___getdirentries64 reserves four suffix bytes for private EOF flags
         // at this threshold. Records occupy at most capacity - 4. Preserve the
@@ -991,7 +994,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, b
 reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
-    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144; {
+    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144 {
         let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, &mut buffer[0] as &mut [u8; 144]);
         transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
     }
@@ -1012,14 +1015,14 @@ reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
     machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 144;
+    requires buffer.len >= 144
     {
         let mut terminated: [u8; 4096];
         let fits: bool = posix_terminated_path(name, &mut terminated);
         transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -63 }
     }
     machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 144;
+    requires buffer.len >= 144
     {
         let outcome: i32 = PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor, &terminated, &mut buffer[0] as &mut [u8; 144], flags);
         transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
@@ -1042,8 +1045,8 @@ macos_arm64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times
 reaches FilesystemMetadataMutation
 {
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
-    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
-        let mut native: DarwinTimestampAlignment<DarwinTimestampRecord>;
+    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32 {
+        let mut native: LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>;
         native.accessed_seconds = darwin_timestamp_word(times[0..8]);
         native.accessed_nanoseconds = darwin_timestamp_word(times[8..16]);
         native.modified_seconds = darwin_timestamp_word(times[16..24]);

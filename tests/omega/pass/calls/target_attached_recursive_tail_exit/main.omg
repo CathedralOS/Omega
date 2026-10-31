@@ -1,13 +1,13 @@
 // Expected exit: 0. Exact declaration-qualified target recursion is a
 // constant-stack transfer. Another method's private state named walk does not
 // make the entry overload set ambiguous.
-public machine tick() -> bool blocks; terminates; { true }
+public machine tick() -> bool blocks terminates { true }
 data Walker {}
 
 windows_x86_64 machine Walker::walk(remaining: u64) -> u64
-requires remaining <= 4;
-ensures result == 0;
-terminates by remaining;
+requires remaining <= 4
+ensures result == 0
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
@@ -17,9 +17,9 @@ terminates by remaining;
 }
 
 linux_x86_64 machine Walker::walk(remaining: u64) -> u64
-requires remaining <= 4;
-ensures result == 0;
-terminates by remaining;
+requires remaining <= 4
+ensures result == 0
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
@@ -29,9 +29,9 @@ terminates by remaining;
 }
 
 macos_arm64 machine Walker::walk(remaining: u64) -> u64
-requires remaining <= 4;
-ensures result == 0;
-terminates by remaining;
+requires remaining <= 4
+ensures result == 0
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
@@ -41,9 +41,9 @@ terminates by remaining;
 }
 
 linux_arm64 machine Walker::walk(remaining: u64) -> u64
-requires remaining <= 4;
-ensures result == 0;
-terminates by remaining;
+requires remaining <= 4
+ensures result == 0
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {

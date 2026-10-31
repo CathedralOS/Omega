@@ -27,9 +27,7 @@ pub fn capture_static_environment(
             "Build helper specialization lost its original static binding application".into(),
         );
     }
-    let application = program
-        .expression_table
-        .static_machine_application(specialization.binding_application);
+    let application = program.static_machine_application(specialization.binding_application);
     if application.binding_declaration != specialization.template {
         return Err(
             "Build helper specialization binding belongs to a different exact template".into(),
@@ -54,10 +52,7 @@ pub fn capture_static_environment(
         expressions: Vec::new(),
         active_expressions: Vec::new(),
     };
-    for binding in program
-        .expression_table
-        .static_machine_application_bindings(specialization.binding_application)
-    {
+    for binding in program.static_machine_application_bindings(specialization.binding_application) {
         let parameter = program
             .symbols
             .symbol_provenance_source_span(binding.parameter)
@@ -99,9 +94,7 @@ pub fn capture_static_environment(
     let template = program
         .machine_by_symbol(specialization.template)
         .ok_or("Build helper lost its source template")?;
-    for binding in program
-        .expression_table
-        .static_machine_application_lifetimes(specialization.binding_application)
+    for binding in program.static_machine_application_lifetimes(specialization.binding_application)
     {
         let ordinal = template
             .lifetime_parameters
@@ -159,9 +152,7 @@ pub fn capture_static_environment(
     for application in &specialization.conformance_applications {
         identity.extend_from_slice(&application.commitment.as_bytes());
     }
-    for binding in program
-        .expression_table
-        .static_machine_application_lifetimes(specialization.binding_application)
+    for binding in program.static_machine_application_lifetimes(specialization.binding_application)
     {
         let actual = crate::type_identity::portable_applied_lifetime_identity(
             program,
@@ -358,7 +349,6 @@ impl Capture<'_> {
     ) -> Result<HandleSpan<Handle<ProductOperandType>>, String> {
         let program = self.program;
         let values = program
-            .type_reference_table
             .type_reference_handles(arguments)
             .iter()
             .map(|reference| self.ty(*reference))
@@ -695,7 +685,6 @@ impl Capture<'_> {
             },
             expr::ExpressionNode::Cast(cast) => {
                 let arguments = program
-                    .type_reference_table
                     .type_reference_handles(cast.semantic_domain_arguments)
                     .iter()
                     .map(|reference| self.ty(*reference))

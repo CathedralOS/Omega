@@ -106,9 +106,7 @@ pub(in crate::encoding) fn encode_callable(
             },
         )
     })?;
-    encoder.field("contracts", |encoder| {
-        encoder.sequence(&callable.contracts, encode_callable_contract)
-    })?;
+    encoder.sequence_field("contracts", &callable.contracts, encode_callable_contract)?;
     encoder.field("declared_service_reach", |encoder| {
         encoder.option(
             callable.declared_service_reach.as_deref(),
@@ -134,12 +132,8 @@ pub(in crate::encoding) fn encode_callable(
             PackageReviewCheckedServiceReach::NoCheckedBody => encoder.tag("no_checked_body", 0),
             PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } => {
                 encoder.tag("checked_body", 1);
-                encoder.field("realized", |encoder| {
-                    encoder.sequence(realized, encode_nominal)
-                })?;
-                encoder.field("concrete", |encoder| {
-                    encoder.sequence(concrete, encode_nominal)
-                })?;
+                encoder.sequence_field("realized", realized, encode_nominal)?;
+                encoder.sequence_field("concrete", concrete, encode_nominal)?;
             }
         }
         Ok(())

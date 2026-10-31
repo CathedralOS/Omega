@@ -1,0 +1,55 @@
+// Selected satisfies Sum and its inline combine calls shared helper add, preserving result == left + right.
+trait Sum<Value> {
+    machine combine(left: Value, right: Value) -> Value
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures result == left + right
+    blocks;
+}
+
+machine add(left: i32, right: i32) -> i32
+requires 0 <= left && left <= 50
+requires 0 <= right && right <= 50
+ensures result == left + right
+{
+    left + right
+}
+
+Selected satisfies Sum<i32> {
+    machine combine(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures result == left + right
+    blocks
+    {
+        add(left, right)
+    }
+}
+
+machine apply<Operations satisfies Sum<i32>>(left: i32, right: i32) -> i32
+blocks
+requires 0 <= left && left <= 50
+requires 0 <= right && right <= 50
+ensures result == left + right
+{
+    block Operations::combine(left, right)
+}
+
+// Place: const name. The named ceiling is wider than combine's right operand bound.
+const CEILING: i32 = 100;
+
+machine probe(a: i32, b: i32) -> i32
+blocks
+requires 0 <= a && a <= CEILING
+requires 0 <= b && b <= CEILING
+{
+    block apply<Selected>(a, b)
+}
+
+machine main() blocks crashes Trap {
+    let result: i32 = block probe(20, 22);
+    transition result == 42 { true -> done() _ -> bad() }
+
+    machine done() {}
+    machine bad() { crash Trap; }
+}

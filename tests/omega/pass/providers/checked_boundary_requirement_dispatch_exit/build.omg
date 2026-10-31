@@ -3,6 +3,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "checked_boundary_requirement_dispatch_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, linux_arm64);
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, linux_x86_64);
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, macos_arm64);
+    Build::select_provider<CheckedMath, CheckedMathProvider>(builder, windows_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

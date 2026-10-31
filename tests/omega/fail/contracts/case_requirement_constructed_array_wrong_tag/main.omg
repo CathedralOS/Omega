@@ -1,0 +1,9 @@
+// Intended invalid: the alternate selector chooses an Empty element.
+data Item { case Ready(value: u64); case Empty; }
+machine consume(items: &[Item; 2], slot: u64) -> u64
+requires slot < 2, items[slot] in Item::Ready { items[slot].value }
+machine exercise(second: bool) -> u64 {
+    let items: [Item; 2] = [Item::Ready { value: 3 }, Item::Empty {}];
+    let slot: u64 = match second { true -> 1 false -> 0 };
+    consume(&items, slot)
+}

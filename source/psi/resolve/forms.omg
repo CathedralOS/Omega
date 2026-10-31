@@ -6,7 +6,7 @@ use psi::syntax::syntax;
 // Forms whose bindings resolution does not record yet. A mathematical
 // definition (`let` root) or a transparent trait refinement rejects at its
 // root; a trait's `where proposition` contract at that contract. A machine,
-// whatever contains it, that gives a static machine binder a `where machine`
+// whatever contains it, that gives a static machine binder a `requires machine`
 // contract, or declares a proposition binder, rejects at that form rather
 // than resolving as if it were absent: a contract's binder needs a binding
 // table this resolver does not keep yet. An evidence binder
@@ -166,7 +166,7 @@ crashes Trap
         _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedOperatorToken, item.token.source_span)
     }
 
-    // A structural callable contract (`where machine F(...) -> T` with
+    // A structural callable contract (`requires machine F(...) -> T` with
     // `requires`, `crashes`, `suspends` and `blocks` clauses) binds; a
     // nominal one (`satisfies`), one with its own binders, a proposition
     // contract, and `ensures`, `reaches` or `invokes` clauses reject as
@@ -186,7 +186,7 @@ crashes Trap
     machine shaped(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         let written: Contract = SyntaxTrees::contract(syntax, item.first_contract + offset);
         let clauses: bool = Resolver::callable_contract_clauses(syntax, written.first_clause, written.clause_count);
-        transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && clauses {
+        transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && written.contract_count == 0 && clauses {
             true -> contract(resolver, syntax, item, offset + 1)
             _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, written.source_span)
         }

@@ -64,6 +64,9 @@ impl<'program> CarryDerivation<'program> {
     ) -> language_semantics::CarryPolicy {
         use language_semantics::CarryPolicy;
 
+        if let Some(storage) = self.program.layout_storage_arguments(type_reference) {
+            return self.derive(storage.semantic_type);
+        }
         if self
             .program
             .type_reference_table

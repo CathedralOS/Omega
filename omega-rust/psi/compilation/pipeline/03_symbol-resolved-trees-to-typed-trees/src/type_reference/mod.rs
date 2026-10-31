@@ -43,7 +43,14 @@ pub(super) fn retain_supplied_operand_owner(
     typed_trees: &mut typed::TypedTrees,
     reference: typed::types::TypeReferenceHandle,
     owner: resolved::types::OperandLifetimeOwnerHandle,
+    lexical_owner: symbols::SymbolHandle,
 ) -> Result<(), Diagnostic> {
+    if lexical_owner.is_valid() {
+        typed_trees
+            .type_reference_table
+            .retain_operand_lifetime_owner(reference, lexical_owner)
+            .map_err(Diagnostic::error)?;
+    }
     if !owner.is_valid() {
         return Ok(());
     }
@@ -82,6 +89,18 @@ pub(crate) fn lower_type_reference_into_table(
         type_reference,
         lowerer.type_reference_exposure,
     )
+}
+
+/// An authored return type is optional in source and mandatory in typed trees:
+/// an unwritten one types as the invalid handle rather than as an absent one.
+pub(crate) fn lower_return_type(
+    lowerer: &mut Lowerer,
+    written: &Option<resolved::types::TypeReference>,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    match written {
+        Some(type_reference) => lower_type_reference_into_table(lowerer, type_reference),
+        None => Ok(typed::types::TypeReferenceHandle::invalid()),
+    }
 }
 
 pub(super) fn lower_type_reference_into_trees_with_exposure(

@@ -1,16 +1,16 @@
 // A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
 // Expected exit: 0
 machine count<const Ceiling: u64>(counter: &mut u64, remaining: u64)
-terminates;
-terminates by remaining in 0..=Ceiling;
-requires remaining <= Ceiling;
+terminates
+terminates by remaining in 0..=Ceiling
+requires remaining <= Ceiling
 {
     transition remaining > 0 {
         true -> forward(remaining, counter)
         false -> done()
     }
     machine forward(pending: u64, counter: &mut u64)
-    requires pending > 0 && pending <= Ceiling;
+    requires pending > 0 && pending <= Ceiling
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         transition { _ -> count<Ceiling>(counter, pending) }

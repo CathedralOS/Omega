@@ -6,7 +6,7 @@
 //
 //   * `data Seq<T> { case Empty; case Cons(head: T,
 //     tail: Seq<T>); }` — self-referential generic sum.
-//   * `where machine Predicate(value: &T) -> bool` —
+//   * `requires machine Predicate(value: &T) -> bool` —
 //     machine-param constraint over borrowed subject.
 //   * `map<F>(tail)` partial-application recursive call +
 //     `choose(...)` state routing the predicate result.
@@ -28,8 +28,8 @@ machine positive(value: &i32) -> bool {
 }
 
 machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
-where machine F(value: T) -> U;
-terminates by items;
+requires machine F(value: T) -> U;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -41,8 +41,8 @@ terminates by items;
 }
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
-where machine Predicate(value: &T) -> bool;
-terminates by items;
+requires machine Predicate(value: &T) -> bool;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty

@@ -31,7 +31,7 @@ requires
 
 machine forward(socket: Socket)
 requires
-    socket in Socket::Connected;
+    socket in Socket::Connected,
     socket in Socket::Authenticated
 {
     consume(socket);

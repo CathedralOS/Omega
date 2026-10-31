@@ -13,6 +13,7 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     byte_subslices, unsupported,
 };
+use crate::checked_facts::value_facts;
 pub(crate) enum Step {
     CaptureBefore(u32),
     Ordinary(usize),
@@ -411,9 +412,7 @@ pub(crate) fn recorded_window_endpoint_roots(
     ]
     .into_iter()
     .filter_map(|role| {
-        let root = checked
-            .facts
-            .values
+        let root = value_facts(checked)
             .scalar_computations
             .roots
             .iter()

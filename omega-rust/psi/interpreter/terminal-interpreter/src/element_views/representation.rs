@@ -93,13 +93,13 @@ impl TerminalExecution<'_> {
         end: usize,
     ) -> Result<RepresentationView, TerminalInterpretError> {
         let extent = terminal_semantics::representation_byte_extent(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             collection,
         )
         .and_then(|extent| usize::try_from(extent).ok())
         .ok_or_else(malformed)?;
         let layout = terminal_semantics::representation_element_layout(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             element,
         )
         .ok_or_else(malformed)?;
@@ -108,8 +108,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let storage = if matches!(
-            self.program
-                .structural_types()
+            self.structural_types()
                 .get(&collection)
                 .map(|row| &row.shape),
             Some(StructuralTypeShape::ByteSequence(_))
@@ -117,20 +116,13 @@ impl TerminalExecution<'_> {
             if !source.path.is_empty() {
                 return Err(malformed());
             }
-            let value = self
-                .structural_values
-                .get(&source.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(source.place)?;
             if !value.qualifications.is_empty()
                 || self.byte_sequence_length(source.place)? != extent as u64
             {
                 return Err(malformed());
             }
-            match self
-                .byte_sequence_values
-                .get(&source.place)
-                .ok_or_else(malformed)?
-            {
+            match self.byte_sequence_values.require(&source.place)? {
                 binding @ ByteSequenceBinding::MutableArray { array, offset, .. } => {
                     binding.validate_mutable_referent(self, value)?;
                     ByteStorage::Array {
@@ -154,7 +146,7 @@ impl TerminalExecution<'_> {
             )?;
             let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
             let referent = crate::custody::resolve_single_structural_argument(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &values,
                 &source,
             )?;

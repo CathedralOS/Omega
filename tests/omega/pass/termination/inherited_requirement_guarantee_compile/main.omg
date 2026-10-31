@@ -10,7 +10,7 @@ machine main() {
 
 machine countdown(remaining: u64) -> u64
 satisfies Countdown::countdown
-terminates by remaining;
+terminates by remaining
 {
     transition remaining > 0 {
         true -> countdown(remaining - 1)

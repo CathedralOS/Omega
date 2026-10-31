@@ -1,5 +1,6 @@
 //! The original machine owner resolves operands before a standalone value probe.
 
+use crate::unique::push_unique;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use source::SourceSpan;
 use symbols::SymbolKind;
@@ -42,11 +43,7 @@ fn enqueue_expression_children(
 pub(crate) fn needs_resolution(syntax: &SyntaxTrees, root: ExpressionHandle) -> bool {
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if matches!(
             syntax.expressions.expression(expression),
             ExpressionNode::Name(_) | ExpressionNode::Call(_)
@@ -66,11 +63,7 @@ pub(crate) fn retain(
     let mut pending = vec![root];
     let mut visited = Vec::new();
     let mut origins = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         match syntax.expressions.expression(expression) {
             ExpressionNode::Name(path) => {
                 let members = syntax.expressions.identifier_path_members(*path);
@@ -96,9 +89,7 @@ pub(crate) fn retain(
                         }
                     }
                 }
-                if !origins.contains(&origin) {
-                    origins.push(origin);
-                }
+                push_unique(&mut origins, origin);
             }
             ExpressionNode::Call(call) => {
                 push_selected_call_children(&mut pending, syntax, resolved, call)?;
@@ -120,11 +111,7 @@ pub(crate) fn retain_calls(
     let mut pending = vec![root];
     let mut visited = Vec::new();
     let mut calls = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         match syntax.expressions.expression(expression) {
             ExpressionNode::Call(call) => {
                 let (selected, target) = selected_call(syntax, resolved, call)?;
@@ -172,9 +159,7 @@ pub(crate) fn retain_calls(
                     })
                     .ok_or("machine index call lost its exact selected declaration source")?;
                 let selection = (reference, declaration);
-                if !calls.contains(&selection) {
-                    calls.push(selection);
-                }
+                push_unique(&mut calls, selection);
                 push_selected_call_children(&mut pending, syntax, resolved, call)?;
             }
             _ => {}

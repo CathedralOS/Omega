@@ -2,8 +2,8 @@
 // Expected exit: 0
 
 machine add_saturating(lhs: u8, rhs: u8) -> i32
-    requires lhs >= 40u8 && lhs <= 80u8;
-    requires rhs >= 10u8 && rhs <= 20u8;
+    requires lhs >= 40u8 && lhs <= 80u8
+    requires rhs >= 10u8 && rhs <= 20u8
 {
     let a: u8 in Saturating = lhs as u8 in Saturating;
     let b: u8 in Saturating = rhs as u8 in Saturating;

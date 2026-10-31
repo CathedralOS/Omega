@@ -38,6 +38,7 @@ use crate::custody::bind_active_structural_arguments;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
 use crate::custody::resolve_single_structural_argument;
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -212,7 +213,7 @@ impl BlockBindings {
                 && self.projected_sources.contains(&argument.place)
         }) {
             crate::custody::consume_projected_ownership(
-                &execution.program.structural_types(),
+                &execution.structural_types(),
                 &values,
                 execution.structural_cases.as_map(),
                 &mut frontier,
@@ -250,11 +251,7 @@ impl BlockBindings {
                         || frontier
                             .iter()
                             .filter(|entry| entry.place == place)
-                            .ne(std::iter::once(&StructuralAffineDiscard {
-                                place,
-                                path: Vec::new(),
-                                structural_type,
-                            }))
+                            .ne(std::iter::once(&whole_path_discard(place, structural_type)))
                     {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
@@ -263,7 +260,7 @@ impl BlockBindings {
                 }
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                     crate::custody::validate_nominal_cleanup_action(
-                        &execution.program.structural_types(),
+                        &execution.structural_types(),
                         execution.structural_cases.as_map(),
                         &execution.program.machines(),
                         &values,
@@ -272,7 +269,7 @@ impl BlockBindings {
                         cleanup,
                     )?;
                     crate::custody::begin_nominal_cleanup(
-                        &execution.program.structural_types(),
+                        &execution.structural_types(),
                         &values,
                         execution.structural_cases.as_map(),
                         &mut frontier,
@@ -289,7 +286,7 @@ impl BlockBindings {
                 }
                 TerminalAffineCleanupAction::DiscardResidual(discard) => {
                     crate::custody::consume_affine_discard(
-                        &execution.program.structural_types(),
+                        &execution.structural_types(),
                         &values,
                         execution.structural_cases.as_map(),
                         &mut frontier,
@@ -386,10 +383,7 @@ impl TerminalExecution<'_> {
             }
             if parameter.access != StructuralAccess::Owned
                 && matches!(
-                    self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                    self.structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
@@ -436,10 +430,7 @@ impl TerminalExecution<'_> {
             // an array presented as a view, a bounded owner, a view field.
             if parameter.access != StructuralAccess::Owned
                 && matches!(
-                    self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                    self.structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::ByteSequence(_)
                 )
@@ -514,7 +505,7 @@ impl TerminalExecution<'_> {
                         || parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     {
                         let selected = resolve_single_structural_argument(
-                            &self.program.structural_types(),
+                            &self.structural_types(),
                             &self.structural_values,
                             argument,
                         )?;
@@ -532,7 +523,7 @@ impl TerminalExecution<'_> {
                             return Err(malformed());
                         }
                         let carried = crate::custody::whole_value_frontier(
-                            &self.program.structural_types(),
+                            &self.structural_types(),
                             argument.place,
                             parameter.structural_type,
                             parameter.multiplicity,
@@ -577,7 +568,7 @@ impl TerminalExecution<'_> {
                     } else {
                         let root = value;
                         let view = resolve_single_structural_argument(
-                            &self.program.structural_types(),
+                            &self.structural_types(),
                             &self.structural_values,
                             &argument,
                         )?;
@@ -630,7 +621,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::reading_borrow_pair_pattern!()
                     if terminal_semantics::view_descriptor_parameter(
                         parameter,
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                     ) =>
                 {
                     // A descriptor lends its window, not its affine storage.
@@ -639,7 +630,7 @@ impl TerminalExecution<'_> {
                     // the independently verified cleanup frontier discharges it.
                     if !terminal_semantics::view_descriptor_parameter(
                         parameter,
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                     ) || !self.block_parameter_is_declared(target, parameter)
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == parameter.place
@@ -667,7 +658,7 @@ impl TerminalExecution<'_> {
                 | StructuralAccess::WriteOnlyBorrow
                     if terminal_semantics::borrowed_storage_parameter(
                         parameter,
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                     ) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -697,7 +688,7 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    if matches!(self.program.structural_types().get(&parameter.structural_type), Some(declaration)
+                    if matches!(self.structural_types().get(&parameter.structural_type), Some(declaration)
                                             if declaration.shape.is_borrowed_byte_carrier())
                     {
                         // Borrowed byte views join whole: the argument names
@@ -713,7 +704,7 @@ impl TerminalExecution<'_> {
                 }
                 StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        || !matches!(self.program.structural_types().get(&parameter.structural_type), Some(declaration)
+                        || !matches!(self.structural_types().get(&parameter.structural_type), Some(declaration)
                                                     if declaration.shape.is_borrowed_byte_carrier())
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == argument.place || entry.place == parameter.place
@@ -809,7 +800,7 @@ impl TerminalExecution<'_> {
             descriptor_arguments,
             &resolved_arguments,
             &source_parameters,
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.structural_cases.as_map(),
             self.account.as_ref(),
         )
@@ -824,7 +815,7 @@ impl TerminalExecution<'_> {
             let mut active = Vec::new();
             for binding in &catalogue {
                 if crate::structural_inputs::case_membership::case_projection_is_active(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     &structural,
                     self.structural_cases.as_map(),
                     parameter.place,
@@ -864,15 +855,12 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         let claims = bound_claims;
-        let mut affine_destinations = bind_affine_frontier(
-            descriptor_parameters,
-            &structural,
-            &self.program.structural_types(),
-        )?;
+        let mut affine_destinations =
+            bind_affine_frontier(descriptor_parameters, &structural, &self.structural_types())?;
         // A whole affine value arrives with the claims it carried; its new
         // debt is the same complement of those linear regions.
         crate::custody::exclude_linear_regions(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &mut affine_destinations,
             claims
                 .values()
@@ -928,7 +916,7 @@ impl TerminalExecution<'_> {
             let admitted = bind_active_structural_arguments(
                 std::slice::from_ref(parameter),
                 std::slice::from_ref(&captured),
-                &self.program.structural_types(),
+                &self.structural_types(),
                 self.structural_cases.as_map(),
                 self.account.as_ref(),
             )?;

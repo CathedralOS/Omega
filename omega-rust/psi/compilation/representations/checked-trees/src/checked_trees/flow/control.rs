@@ -86,6 +86,11 @@ pub struct FlowCallFact {
     /// writes preserve values; unavailable writes establish no preservation.
     pub normal_return_writes: HandleSpan<super::FlowOperandReferent>,
     pub normal_return_writes_complete: bool,
+    /// Descriptor origins constructed from this invocation's complete normal
+    /// return relation, before later projections. The formation evidence on
+    /// each row names this call; presence conveys neither loan authority nor
+    /// current pointee contents.
+    pub normal_return_referents: HandleSpan<super::FlowOperandReferent>,
     pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,

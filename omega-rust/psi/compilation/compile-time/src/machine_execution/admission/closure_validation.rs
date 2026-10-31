@@ -1,3 +1,4 @@
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use language_semantics::{MachineSupplyMode, TerminationGuarantee};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -144,9 +145,7 @@ fn is_parameter_domain_premise(
             };
             if !membership.domain_symbol.is_valid()
                 || !membership.domain_arguments.is_empty()
-                || !program
-                    .expression_table
-                    .expression_is_valid(membership.value)
+                || !expression_table(program).expression_is_valid(membership.value)
             {
                 return false;
             }
@@ -171,8 +170,7 @@ fn is_parameter_domain_premise(
                     return false;
                 }
                 visited.push(reference);
-                if program
-                    .type_reference_table
+                if type_reference_table(program)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| {
@@ -245,14 +243,23 @@ fn machine_termination_violation(
     }
     active.push(machine_symbol);
 
-    let locally_terminates = machine.supply_mode == MachineSupplyMode::CheckedBody
-        && matches!(
-            typed_trees_to_checked_trees::infer_machine_termination_summary(
-                program,
-                machine_symbol
-            ),
-            Some(TerminationGuarantee::Terminates { .. })
-        );
+    let target_snapshot = match program.layout_target_facts_result(machine_symbol) {
+        Ok(snapshot) => snapshot.is_some(),
+        Err(reason) => {
+            active.pop();
+            path.pop();
+            return Some(reason.to_owned());
+        }
+    };
+    let locally_terminates = target_snapshot
+        || (machine.supply_mode == MachineSupplyMode::CheckedBody
+            && matches!(
+                typed_trees_to_checked_trees::infer_machine_termination_summary(
+                    program,
+                    machine_symbol
+                ),
+                Some(TerminationGuarantee::Terminates { .. })
+            ));
     if !locally_terminates {
         // A requirement slot has no body by design: reaching it without a
         // selected provider is a missing selection, not a termination defect.

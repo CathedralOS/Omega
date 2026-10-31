@@ -4,7 +4,7 @@
 // Expected rejection: cannot prove index
 
 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64;
+    requires idx <= 16u64
 {
     let local_values: [u64; 16] = values;
     let local_idx: u64 = idx;

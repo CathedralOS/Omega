@@ -164,12 +164,8 @@ impl TerminalExecution<'_> {
         if !supplied || footprint.end() > content_bytes || footprint.end() > binding.length {
             return Err(malformed());
         }
-        let StructuralTypeShape::Record { fields, .. } = &self
-            .program
-            .structural_types()
-            .get(&plan.schema)
-            .ok_or_else(malformed)?
-            .shape
+        let StructuralTypeShape::Record { fields, .. } =
+            &self.structural_declaration(plan.schema)?.shape
         else {
             return Err(malformed());
         };

@@ -472,6 +472,21 @@ impl ImmutableSourceParseCheckpoint {
             )?,
             None => Vec::new(),
         };
+        // Every exact-target load shares this storage, queue, root, package
+        // roster, timing sink and catalogue; only the phase differs.
+        macro_rules! load_phase {
+            ($phase:expr) => {
+                load_imports(
+                    &mut source_storage,
+                    &mut imports,
+                    &self.root_path,
+                    package_inputs,
+                    $phase,
+                    timings,
+                    catalogue,
+                )
+            };
+        }
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
                 let resolved = request.resolve_for_exact_target(package_inputs)?;
@@ -483,15 +498,7 @@ impl ImmutableSourceParseCheckpoint {
                 source_storage.resolved_imports.push(resolved);
             }
         }
-        load_imports(
-            &mut source_storage,
-            &mut imports,
-            &self.root_path,
-            package_inputs,
-            PackageImportPhase::ExactTarget(None),
-            timings,
-            catalogue,
-        )?;
+        load_phase!(PackageImportPhase::ExactTarget(None))?;
         // Core query results are ordinary source-backed data. Load their
         // canonical declarations even for an import-free query occurrence;
         // source discovery neither evaluates the query nor selects a machine.
@@ -515,15 +522,7 @@ impl ImmutableSourceParseCheckpoint {
                 imports.seed(core_root.join("float_operations.omg"), scope);
             }
         }
-        load_imports(
-            &mut source_storage,
-            &mut imports,
-            &self.root_path,
-            package_inputs,
-            PackageImportPhase::ExactTarget(None),
-            timings,
-            catalogue,
-        )?;
+        load_phase!(PackageImportPhase::ExactTarget(None))?;
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
         // Build bindings carry inert paths. Target entry contracts and Product
@@ -540,15 +539,7 @@ impl ImmutableSourceParseCheckpoint {
                     source::DependencyScope::Product,
                 );
             }
-            load_imports(
-                &mut source_storage,
-                &mut imports,
-                &self.root_path,
-                package_inputs,
-                PackageImportPhase::ExactTarget(None),
-                timings,
-                catalogue,
-            )?;
+            load_phase!(PackageImportPhase::ExactTarget(None))?;
         }
         // A Product preparation follows the completed dependency join, whether
         // Build was implicit or authored. Retaining an authored Build source
@@ -593,15 +584,7 @@ impl ImmutableSourceParseCheckpoint {
         };
         source_storage.attach_parsed(parsed);
         imports.enqueue(discovered)?;
-        load_imports(
-            &mut source_storage,
-            &mut imports,
-            &self.root_path,
-            package_inputs,
-            PackageImportPhase::ExactTarget(None),
-            timings,
-            catalogue,
-        )?;
+        load_phase!(PackageImportPhase::ExactTarget(None))?;
         if let Some(original) = self.build_source_id {
             let file = source_storage.sources.get(original).ok_or_else(|| {
                 vec![Diagnostic::error(

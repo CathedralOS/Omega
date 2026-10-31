@@ -10,7 +10,7 @@ use omega_language_std::console;
 data Main { }
 
 machine parse_digits(text: &[u8], index: u64, value: u64) -> u64
-terminates by (index, text.len) -> Nat::BoundedDistance;
+terminates by (index, text.len) -> Nat::BoundedDistance
 {
     transition {
         index >= text.len -> (value)

@@ -26,6 +26,7 @@ pub(crate) use result_locals::require_complete_dispatch_subjects;
 
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
@@ -46,6 +47,7 @@ mod cleanup_applications;
 mod contextual_calls;
 mod domain_applications;
 mod explicit_arguments;
+mod layout_storage_policies;
 mod native_query_lifetimes;
 mod placed_primitives;
 mod provider_tuple_closure;
@@ -159,8 +161,7 @@ impl CallSite {
     ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
         Some(match self {
             CallSite::Expression(handle) => {
-                program
-                    .expression_table
+                expressions_of(program)
                     .call_node(handle)?
                     .authored_machine_application
             }
@@ -194,6 +195,8 @@ struct CallSelection {
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
+    /// First failed proposal, retained only for the owning refusal diagnostic.
+    conflict_reason: Option<String>,
     /// An authored argument exceeded its binder-kind capacity before inference.
     explicit_argument_overflow: bool,
 }
@@ -292,6 +295,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
+        layout_storage_policies::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -299,6 +303,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let captured_owners = captured_rows::close(program)?;
         let captures_changed = !captured_owners.is_empty();
         changed_owners.extend(captured_owners);
+        // Projected receivers and captured results can complete operands after
+        // the initial inference pass. Settle their dependent subjects before
+        // collecting consumers or declaring the round unchanged.
+        let subjects = result_locals::materialize_dispatch_subjects(program);
+        if !subjects.is_empty() {
+            changed_owners.extend(subjects);
+            continue;
+        }
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
@@ -513,7 +525,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 
     let mut literals = Vec::new();
     let mut types = Vec::new();
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (_, expression) in expressions_of(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             collect(program, &call.machine_arguments, &mut literals, &mut types);
             if let Some(query) = &call.native_code_layout {
@@ -536,12 +548,10 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
         }
     }
     // Declaration-owned cleanup applications have no ordinary source-call node.
-    for (handle, _) in program.expression_table.static_machine_applications() {
+    for (handle, _) in expressions_of(program).static_machine_applications() {
         collect(
             program,
-            program
-                .expression_table
-                .static_machine_application_arguments(handle),
+            expressions_of(program).static_machine_application_arguments(handle),
             &mut literals,
             &mut types,
         );
@@ -602,7 +612,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
     // Typed lowering retains integer landings; intern the remaining literal
     // carriers here so every literal family is proposable on every route.
     let mut atoms = Vec::new();
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (_, expression) in expressions_of(program).iter_expressions() {
         let atom = match expression {
             ExpressionNode::Integer(literal) => literal
                 .landing()
@@ -653,6 +663,19 @@ mod operator_candidates;
 use crate::monomorphization::selection::unique_complete_selections;
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
+/// One failure, as the errors these passes hand back carry it.
+pub(super) fn failed(message: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(message)]
+}
+
+/// The exact runtime subjects a retained binding roster supplies, in order; an
+/// open slot contributes nothing and the caller keeps the roster's positions.
+pub(super) fn runtime_value_subjects(
+    bindings: &[Option<RuntimeValueBinding>],
+) -> Vec<RuntimeValueBinding> {
+    bindings.iter().flatten().cloned().collect()
+}
+
 /// Keep the failed occurrence's source context; the callee alone cannot identify
 /// which of several forwarded applications failed to close.
 fn incomplete_selection_diagnostic(
@@ -669,13 +692,72 @@ fn incomplete_selection_diagnostic(
     } else {
         String::new()
     };
+    let mut details = Vec::new();
+    if let Some(reason) = &selection.conflict_reason {
+        details.push(reason.clone());
+    }
+    for ((_, name), binding) in candidate
+        .template
+        .type_parameters
+        .iter()
+        .zip(&selection.type_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Type slot `{name}` has no proposal"));
+        }
+    }
+    for ((_, name, _), binding) in candidate
+        .template
+        .const_parameters
+        .iter()
+        .zip(&selection.const_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Const slot `{name}` has no proposal"));
+        }
+    }
+    for ((_, name, _), binding) in candidate
+        .template
+        .machine_parameters
+        .iter()
+        .zip(&selection.machine_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Machine slot `{name}` has no proposal"));
+        }
+    }
+    for (ordinal, binding) in selection.evidence_bindings.iter().enumerate() {
+        if binding.is_none() {
+            details.push(format!(
+                "evidence slot `{}` has no proposal",
+                candidate.template.evidence_parameters[ordinal].binder_name
+            ));
+        }
+    }
+    for (kind, unresolved) in [
+        ("Type", selection.unresolved_type_parameters),
+        ("Const", selection.unresolved_const_parameters),
+        ("Machine", selection.unresolved_machine_parameters),
+        ("evidence", selection.unresolved_evidence_parameters),
+    ] {
+        if unresolved {
+            details.push(format!(
+                "{kind} proposals retain an open supplying parameter"
+            ));
+        }
+    }
+    let detail = if details.is_empty() {
+        String::new()
+    } else {
+        format!(": {}", details.join("; "))
+    };
     let diagnostic = Diagnostic::error(format!(
-        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}",
+        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}{detail}",
         candidate.template.template_name,
     ));
     match selection.site {
         CallSite::Expression(expression) => {
-            diagnostic.with_source_span(program.expression_table.source_span(expression))
+            diagnostic.with_source_span(expressions_of(program).source_span(expression))
         }
         CallSite::Statement(statement) => match program.statement_table.statement(statement) {
             StatementNode::Call(call) => diagnostic.with_source_span(call.source_span),
@@ -775,12 +857,7 @@ fn apply_call_specializations(
             };
             // Each site keeps its own exact runtime subjects: the shared
             // carrier-keyed instance receives them as appended arguments.
-            let arguments = selection
-                .runtime_value_bindings
-                .iter()
-                .flatten()
-                .cloned()
-                .collect::<Vec<_>>();
+            let arguments = runtime_value_subjects(&selection.runtime_value_bindings);
             let subjects = crate::monomorphization::body_rewriting::runtime_value_operands(
                 program,
                 selection.lexical_state,
@@ -937,7 +1014,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     let cast_sites = expressions
         .into_iter()
         .filter_map(|handle| {
-            let expression = program.expression_table.expression(handle);
+            let expression = expressions_of(program).expression(handle);
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
@@ -968,7 +1045,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     }
     for (handle, identity) in cast_updates {
         let semantic_id = program.semantic_domains.intern(&identity);
-        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
+        let ExpressionNode::Cast(cast) = expressions_of_mut(program).expression_mut(handle) else {
             unreachable!("collected cast changed kind")
         };
         cast.semantic_domain_id = semantic_id;

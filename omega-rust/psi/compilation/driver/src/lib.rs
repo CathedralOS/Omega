@@ -30,10 +30,13 @@ mod source_parsing;
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductRepresentationInput,
     ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
+    whole_program_reuse_hits,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
 };
+pub use typed_trees_to_checked_trees::declaration_page_fork_totals;
+pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 
 pub use source_compilation::{
     AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,
@@ -42,15 +45,16 @@ pub use source_compilation::{
 
 pub use psi_terminal_production::{
     BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
-    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalProgram,
-    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
-    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalArtifactProductionError,
-    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
-    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
-    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
-    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
-    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueCase,
-    TerminalBuildValueField, TerminalBuildValueShape, TerminalCompositionAdmission,
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
-    TerminalProgramRoots, UnmeasuredProduction, lower_task_activation_demands,
+    PreparedProviderInventory, PreparedTerminalRoots, ProducedBuildProvider,
+    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
+    PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
+    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
+    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
+    TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalCompositionAdmission, TerminalMachineSelection, TerminalProductionCustody,
+    TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
+    lower_task_activation_demands,
 };

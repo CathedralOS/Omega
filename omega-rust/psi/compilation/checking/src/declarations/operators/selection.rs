@@ -10,6 +10,7 @@
 //! one exists (unique root candidate or a primitive operand's builtin), and is
 //! rejected otherwise. Two or more admissible domain meanings are ambiguous.
 
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
     CheckedOperatorUseFact, CheckedValueOrigin,
@@ -98,7 +99,7 @@ fn expression_mint_selects_domain(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             expression_mint_selects_domain(program, origin, atomic.value, domain_symbol)
         }
@@ -110,7 +111,7 @@ fn expression_mint_selects_domain(
             program,
             origin,
             path.symbol,
-            &program.expression_table.display_name(expression),
+            &expression_table(program).display_name(expression),
             domain_symbol,
         ),
         _ => false,
@@ -130,8 +131,7 @@ fn cast_selects_domain(
     else {
         return false;
     };
-    let authored = program
-        .expression_table
+    let authored = expression_table(program)
         .name_path_members(cast.semantic_domain)
         .joined_path();
     domain.name.as_str() == authored
@@ -214,7 +214,7 @@ pub(super) fn scoped_mint_selects_domain(
     if let Some(origin) = origin {
         return expression_mint_selects_domain(program, origin, expression, domain);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Cast(cast) => cast_selects_domain(program, cast, domain),
         ExpressionNode::Borrow(borrow) => {
             scoped_mint_selects_domain(program, None, borrow.target, domain)
@@ -276,7 +276,7 @@ fn direct_binding_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => direct_binding_symbol(program, atomic.value),
         ExpressionNode::Borrow(inner) => direct_binding_symbol(program, inner.target),
         ExpressionNode::Name(path) => path

@@ -34,12 +34,12 @@ domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
-requires start <= 32; bytes.len <= 32 - start
+requires start <= 32, bytes.len <= 32 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
-    requires start <= 32; index <= 32
+    requires start <= 32, index <= 32
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 32 {
@@ -48,7 +48,7 @@ ensures buffer in Ascii
         }
     }
     machine writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
-    requires start <= 32; index < 32; index < bytes.len; start + index < 32
+    requires start <= 32, index < 32, index < bytes.len, start + index < 32
     ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];

@@ -384,10 +384,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             service_reach: state_flow.service_reach,
             operations,
             statement_count: u32::try_from(
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len(),
+                crate::flow::state_statements(program, state.statement_nodes).len(),
             )
             .ok()?,
             place_loans,

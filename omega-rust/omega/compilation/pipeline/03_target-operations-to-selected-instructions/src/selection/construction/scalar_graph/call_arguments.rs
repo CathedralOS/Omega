@@ -698,13 +698,7 @@ pub(super) fn emit_call(
     operands: &[VirtualRegisterId],
     provenance: SelectedInstructionProvenance,
 ) -> Result<(), SelectedInstructionError> {
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
+    let instruction = SelectedInstructionId(super::next_index(builder.instructions.len())?);
     builder.transport.calls.push(SelectedCallContract {
         instruction,
         owner,

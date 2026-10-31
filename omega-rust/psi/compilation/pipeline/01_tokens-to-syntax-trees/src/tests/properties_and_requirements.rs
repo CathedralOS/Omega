@@ -228,13 +228,7 @@ fn carry_property_parses_all_four_axes_on_data_and_bounds() {
         "tokenize",
         "four-axis carry properties should parse",
     );
-    let data = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let data = super::root_data_items(&parsed);
 
     assert_eq!(
         data[0].properties.carry,
@@ -341,15 +335,15 @@ fn parses_trait_owned_fixed_operator_requirements() {
 #[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
-        machine run() reaches Console suspends; blocks; {
+        machine run() reaches Console suspends blocks {
         }
 
         trait Worker {
-            machine wait() reaches Clock suspends; blocks; ensures true;
+            machine wait() reaches Clock suspends blocks ensures true;
         }
 
         machine schedule<machine Callback>()
-        where machine Callback() suspends; blocks;
+        requires machine Callback() suspends blocks;
         {
         }
         "#;
@@ -485,7 +479,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
 
         machine App::reaches_then_requires(app: &mut App) reaches Console requires app.a <= app.b {
         }
-        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b; reaches Console {
+        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b reaches Console {
         }
         machine App::requires_newline_reaches(app: &mut App)
             requires app.a <= app.b
@@ -690,13 +684,7 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
         operator named(left: i32, right: i32) -> i32;
     "#;
     let parsed = super::parse_source(source, "fixed-token heads should parse");
-    let operators = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Operator(operator) => Some(operator),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let operators = super::root_operators(&parsed);
 
     assert_eq!(operators.len(), 4);
     assert!(operators[0].is_public);
@@ -747,13 +735,7 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
         machine ordinary(value: u64) -> u64 { value }
     "#;
     let parsed = super::parse_source(source, "machine token heads should parse");
-    let machines = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let machines = super::root_machines(&parsed);
 
     assert_eq!(machines.len(), 6);
     assert_eq!(
@@ -941,9 +923,9 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
 
 #[test]
 fn rejects_duplicate_operational_clauses() {
-    let source = "machine run() suspends; suspends; {}";
+    let source = "machine run() suspends suspends {}";
     let error = super::parse_tokenized_error(source, "duplicate clause must fail");
-    super::expect_error(&error, "duplicate `suspends;`");
+    super::expect_error(&error, "duplicate `suspends`");
 }
 
 #[test]
@@ -985,13 +967,7 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
         boundary machine Transitional::claim();
     "#;
     let parsed = super::parse_source(source, "top-level boundary requirements should parse");
-    let machines = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let machines = super::root_machines(&parsed);
     assert_eq!(machines.len(), 3);
 
     let requirement = machines[0];
@@ -1058,13 +1034,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
         .expect("tokenize consecutive requirements");
     let parsed = parse_syntax_trees(&tokens)
         .expect("a contract-final semicolon must also terminate the first requirement");
-    let requirements = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let requirements = super::root_machines(&parsed);
     assert_eq!(requirements.len(), 2);
     assert_eq!(
         requirements[0].name.as_str(&parsed),
@@ -1085,7 +1055,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
 fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     let source = r#"
         public boundary requirement Task::finish<T>(task: Task<T>) -> T
-        suspends; blocks;
+        suspends blocks;
 
         boundary trait TaskRuntime {}
     "#;
@@ -1163,7 +1133,7 @@ fn rejects_installation_bound_reach_outside_bodyless_boundary_requirement() {
     for source in [
         "trait Completion { machine complete() reaches <= MachineControl; }",
         "boundary trait Completion { machine complete() reaches <= MachineControl {} }",
-        "machine run<machine Op>() where machine Op() reaches <= MachineControl; {}",
+        "machine run<machine Op>() requires machine Op() reaches <= MachineControl; {}",
     ] {
         let error = super::parse_source_error(
             source,
@@ -1192,9 +1162,9 @@ fn rejects_empty_or_mixed_installation_bound_reach_rows() {
 #[test]
 fn rejects_operational_members_in_service_reach_rows() {
     for (retired, replacement) in [
-        ("Suspend", "suspends;"),
-        ("Block", "blocks;"),
-        ("thread_block", "blocks;"),
+        ("Suspend", "suspends"),
+        ("Block", "blocks"),
+        ("thread_block", "blocks"),
     ] {
         let source = format!("machine run() reaches Console, {retired} {{}}");
         let error = super::parse_tokenized_error(&source, "retired effect member must fail");
@@ -1327,7 +1297,7 @@ fn rejects_ambiguous_and_duplicate_outcome_specific_ensures_surfaces() {
             "duplicate outcome-specific ensures group",
         ),
         (
-            "machine choose() -> Outcome ensures selected: true; ensures Outcome::Success -> { selected: true; } {}",
+            "machine choose() -> Outcome ensures selected: true ensures Outcome::Success -> { selected: true; } {}",
             "duplicate machine-wide public ensures selector",
         ),
     ] {
@@ -1345,7 +1315,7 @@ fn rejects_named_contract_with_multiple_propositions() {
     let source = r#"
         proposition carries(value: i32);
         machine invalid(value: i32)
-        requires proof: carries(value); carries(value)
+        requires proof: carries(value), carries(value)
         {
         }
     "#;
@@ -1455,13 +1425,7 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
         }
     "#;
     let parsed = super::parse_source(source, "bodyless crash bucket should parse");
-    let machines = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let machines = super::root_machines(&parsed);
     let [equal, compare] = machines.as_slice() else {
         panic!("two machine items");
     };
@@ -1507,10 +1471,10 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
 fn contextual_clause_names_retain_their_first_contract_proposition() {
     let parsed = super::parse_source_verbose(
         r#"machine check(blocks: i64, suspends: bool)
-            requires blocks >= 0;
-            requires suspends;
-            blocks;
-            ensures blocks >= 0;
+            requires blocks >= 0
+            requires suspends
+            blocks
+            ensures blocks >= 0
             {}"#,
         "tokenize contextual contract subjects",
         "contextual subjects must not become empty contracts or effect clauses",

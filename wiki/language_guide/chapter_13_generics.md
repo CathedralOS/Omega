@@ -333,6 +333,19 @@ The semicolon ends `Key`'s callable contract before the enclosing machine body.
 Its own `requires` or `ensures`, when present, belong before that terminator;
 clauses following it belong to the enclosing machine.
 
+Operational clauses stay inside that same callable until its declaration ends:
+
+```omega
+requires machine Key(card: &Card) -> u64
+    suspends
+    blocks
+    terminates;
+```
+
+There are no semicolons between these clauses. The one after the last clause
+ends `Key`; it is not a termination-clause delimiter. Higher-order requirements
+retain one declaration terminator for each nested callable.
+
 There are three distinct binder categories:
 
 | Binder | What the declaration provides |

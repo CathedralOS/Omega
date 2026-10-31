@@ -6,6 +6,7 @@
 //! build-time evaluation probe). Nothing here grants a selection: the build
 //! layer harvests only the realized target's declaration.
 
+use crate::tables::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic as Intrinsic, BuildOperation,
@@ -81,10 +82,7 @@ fn provider_default_call_occurrences(
                         && !call.target_symbol.is_valid()
                     {
                         occurrences.extend(
-                            typed
-                                .expression_table
-                                .authored_selection_occurrences(*expression)
-                                .filter(|occurrence| {
+                            expression_table(typed).authored_selection_occurrences(*expression).filter(|occurrence| {
                                     typed
                                         .authored_declaration_selections()
                                         .get(*occurrence)

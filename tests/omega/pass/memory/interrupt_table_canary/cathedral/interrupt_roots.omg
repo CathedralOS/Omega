@@ -60,7 +60,9 @@ public CriticalAcknowledgementRepresentation satisfies OpaqueRepresentation<
 public data CriticalStackPolicy {
 }
 public CriticalStackPolicyCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CriticalStackPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CriticalStackPolicy::plan(signature)
+    }
 }
 
 machine CriticalStackPolicy::plan(
@@ -176,7 +178,9 @@ machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement 
 public data TimerStackPolicy {
 }
 public TimerStackPolicyCalling satisfies CallingPolicy {
-    CallingPolicy::plan = TimerStackPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        TimerStackPolicy::plan(signature)
+    }
 }
 
 machine TimerStackPolicy::plan(
@@ -319,8 +323,8 @@ AcknowledgementCompletion satisfies InterruptAcknowledgementCompletion {
 machine complete_acknowledgement(acknowledgement: InterruptAcknowledgement)
 satisfies InterruptAcknowledgementCompletion::complete
 reaches MachineControl
-requires acknowledgement in InterruptAcknowledgement::Pending;
-ensures acknowledgement_completed(acknowledgement);
+requires acknowledgement in InterruptAcknowledgement::Pending
+ensures acknowledgement_completed(acknowledgement)
 {
     let index: u32 = 2059;
     let value: u64 = 0;

@@ -18,6 +18,7 @@
 //! domains and wire.
 
 pub(crate) use optimization::codec_bytes;
+pub mod boundary_values;
 pub mod callback_declarations;
 
 mod boundary_bodies;
@@ -28,6 +29,7 @@ pub mod byte_predicates;
 pub mod const_value;
 pub mod content;
 pub mod declaration_selection;
+pub mod direct_calls;
 mod external_bindings;
 mod machine_termination;
 pub mod numeric_intrinsics;
@@ -37,6 +39,7 @@ pub mod quotient_correspondence;
 mod semantic_domains;
 mod semantic_identities;
 mod service_reach;
+pub mod service_surface;
 #[cfg(test)]
 mod tests;
 pub mod type_identity;

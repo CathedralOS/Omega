@@ -4,7 +4,7 @@
 
 use super::{DerivationStore, DerivationStoreFull};
 use crate::obligations::{ProofObligationKey, ProofPlan, proof_obligation_key};
-use crate::test_program::{bounded_value, program};
+use crate::test_program::{bounded_value, main_owned_value, program};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -16,18 +16,8 @@ fn key_for(
     data: SymbolHandle,
     base: TypeReferenceHandle,
 ) -> ProofObligationKey {
-    proof_obligation_key(
-        plan,
-        &bounded_value(
-            machine,
-            "Main",
-            data,
-            "count",
-            base,
-            arena::HandleSpan::empty(),
-        ),
-    )
-    .expect("formed bounded obligation has a canonical key")
+    proof_obligation_key(plan, &main_owned_value(machine, data, "count", base))
+        .expect("formed bounded obligation has a canonical key")
 }
 
 #[test]
@@ -39,14 +29,7 @@ fn lookup_uses_semantic_identity_not_spelling() {
     let plan = ProofPlan::new(&program.typed_trees);
 
     let mut store = DerivationStore::new();
-    let obligation = bounded_value(
-        machine,
-        "Main",
-        count,
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let obligation = main_owned_value(machine, count, "count", base);
     let id = store
         .store_for(&plan, &obligation, "derivation")
         .expect("unbounded store accepts")
@@ -68,14 +51,7 @@ fn lookup_uses_semantic_identity_not_spelling() {
 
     // A different resolved owner is a different obligation: a miss, not a
     // collision.
-    let other = bounded_value(
-        machine,
-        "Main",
-        program.data[1],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let other = main_owned_value(machine, program.data[1], "count", base);
     assert_eq!(store.candidates_for(&plan, &other).count(), 0);
 }
 
@@ -142,18 +118,7 @@ fn clear_drops_everything() {
 
     let mut store = DerivationStore::new();
     let id = store
-        .store_for(
-            &plan,
-            &bounded_value(
-                machine,
-                "Main",
-                count,
-                "count",
-                base,
-                arena::HandleSpan::empty(),
-            ),
-            1,
-        )
+        .store_for(&plan, &main_owned_value(machine, count, "count", base), 1)
         .expect("stored")
         .expect("formed obligation is indexable");
     store.clear();

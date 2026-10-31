@@ -11,6 +11,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::value_successor;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
@@ -45,9 +46,7 @@ pub(super) fn emit(
         return Ok(None);
     };
     let guards =
-        checked
-            .facts
-            .flow
+        flow_facts(checked)
             .guarded_exits
             .exits
             .span(*arms)
@@ -69,23 +68,7 @@ pub(super) fn emit(
                 next_edge,
                 operations,
             },
-            |frame| {
-                let (mut environment, emission) = frame.split();
-                emission.evaluation.guard_value(
-                    identities,
-                    checked,
-                    owner,
-                    state.state,
-                    guard.guard_statement_ordinal,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            },
+            |mut frame| frame.guard_value(identities, guard.guard_statement_ordinal),
         )?;
         if condition.scalar_type != ScalarType::Boolean {
             return unsupported("ordered return guard is not Boolean");

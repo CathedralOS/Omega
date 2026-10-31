@@ -4,6 +4,7 @@ use crate::checks::content::content_paths::{
     content_path, content_segments_to_fact_path, projection_observations,
 };
 use crate::flow::{SelectionCondition, SelectionConditions};
+use crate::places::place_at;
 use checked_trees::{
     CheckFacts, ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite,
@@ -177,10 +178,7 @@ pub(super) fn returned_partition_invocations(
                 order.position(call.statement_index),
                 order.position(outgoing.statement_index).or_else(|| {
                     (outgoing.statement_index
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len())
+                        == crate::flow::state_statements(program, state.statement_nodes).len())
                     .then_some(order.indices().len())
                 }),
             ) else {
@@ -213,16 +211,13 @@ pub(super) fn returned_partition_invocations(
                 validation::CallSite::Expression { expression, .. } => {
                     // A syntax handle alone is not an invocation identity.
                     // Retain the uniquely bound flow occurrence and its lane.
-                    let mut producers = facts
-                        .flow
-                        .control
-                        .calls
-                        .span_or_empty(state_flow.calls)
-                        .iter()
-                        .filter(|producer| {
-                            producer.statement_index == call.statement_index
-                                && producer.authored_expression == expression
-                        });
+                    let mut producers =
+                        crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+                            .iter()
+                            .filter(|producer| {
+                                producer.statement_index == call.statement_index
+                                    && producer.authored_expression == expression
+                            });
                     if !producers
                         .next()
                         .is_some_and(|producer| std::ptr::eq(producer, call))
@@ -599,11 +594,7 @@ fn partition_entry_binding(
 ) -> Option<(PermissionClaimIdentity, ContentStructuralPlace)> {
     let state_flow = facts.flow.control.state_by_symbol(state.symbol)?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
-    let call = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let call = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .find(|call| {
             call.statement_index == invocation.statement_index
@@ -846,7 +837,7 @@ fn instantiate_partition_result_subject(
             operand.type_reference,
             &selected,
         )?;
-        let mut expected = validation::canonical_place_from_expression_in_state(
+        let mut expected = place_at(
             program,
             caller_state.symbol,
             invocation.statement_index,

@@ -3,6 +3,14 @@
 //! Psi publishes facts and deferred source failures. Omega chooses bindings,
 //! settles reach and attaches its selected-plan identities.
 
+/// Authored target membership. Source scope owns formation; Omega chooses which
+/// declarations match a realization target. This is not execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTargetMachineOrigin {
+    pub machine: symbols::SymbolHandle,
+    pub target: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderReachDeclaration {
     pub requirement_identity: String,

@@ -4,8 +4,8 @@
 // Expected rejection: may overflow `u32`
 
 machine divide_match_join(dividend: u32, divisor: u32, choose: bool) -> i32
-    requires dividend >= 200u32 && dividend <= 200u32;
-    requires divisor >= 4u32 && divisor <= 5u32;
+    requires dividend >= 200u32 && dividend <= 200u32
+    requires divisor >= 4u32 && divisor <= 5u32
 {
     let quotient: u32 = match choose {
         true -> dividend / divisor,

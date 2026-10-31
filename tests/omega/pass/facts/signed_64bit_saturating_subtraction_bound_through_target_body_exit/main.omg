@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 linux_x86_64 machine subtract_target(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 120i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 120i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;
@@ -23,8 +23,8 @@ linux_x86_64 machine subtract_target(lhs: i64, rhs: i64) -> i32
 }
 
 linux_arm64 machine subtract_target(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 120i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 120i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;
@@ -43,8 +43,8 @@ linux_arm64 machine subtract_target(lhs: i64, rhs: i64) -> i32
 }
 
 macos_arm64 machine subtract_target(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 120i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 120i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;
@@ -63,8 +63,8 @@ macos_arm64 machine subtract_target(lhs: i64, rhs: i64) -> i32
 }
 
 windows_x86_64 machine subtract_target(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 120i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 120i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;

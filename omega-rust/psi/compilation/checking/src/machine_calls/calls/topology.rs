@@ -1,5 +1,6 @@
 //! Exact callable topology: machine heads, entry-only calls, named states and requirements.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 
 /// Conservative normal-completion reachability over admitted state control.
@@ -164,7 +165,7 @@ pub fn expression_normal_completion_possible(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
     let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         return Some(true);
     };
@@ -211,7 +212,7 @@ fn expression_completion_target(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> CompletionTarget<'_> {
     let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         return CompletionTarget::Unknown;
     };
@@ -616,11 +617,11 @@ fn completing_call_invocation(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CompletingInvocation<'_>> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
         return None;
     }
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     (arguments.len() == call_target_parameters(program, call.target_symbol)?.len()).then_some(
         CompletingInvocation {
             target: call.target_symbol,
@@ -682,11 +683,10 @@ pub fn completing_transition_invocations(
             continue;
         }
         visited.push(expression);
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 pending.extend(
-                    program
-                        .expression_table
+                    expression_table(program)
                         .match_arms(dispatch.arms)
                         .iter()
                         .rev()
@@ -706,12 +706,54 @@ fn concrete_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
     invocation: CompletingInvocation<'program>,
 ) -> Option<CompletingTransfer<'program>> {
+    if let Some(slot) = program.dynamic_slot_by_symbol(invocation.target) {
+        // A tail selector call enters one of the slot's implementations.
+        // One implementation has one entry, so the transfer is that entry
+        // and the data operands after the selector. Several implementations
+        // stay a runtime dispatch, not a single jump.
+        let state = unique_dispatched_entry(program, slot)?;
+        let arguments = invocation.arguments.get(1..)?;
+        if arguments.len() != program.state_parameters(state).len() {
+            return None;
+        }
+        return Some(CompletingTransfer {
+            state,
+            target: state.symbol,
+            arguments,
+            expression: invocation.expression,
+        });
+    }
     Some(CompletingTransfer {
         state: call_target_state(program, invocation.target)?,
         target: invocation.target,
         arguments: invocation.arguments,
         expression: invocation.expression,
     })
+}
+
+/// The entry a selector call reaches when exactly one implementation is
+/// selected for the slot. Zero or several implementations are not a jump.
+pub fn unique_dispatched_entry<'program>(
+    program: &'program dyn crate::CheckingInput,
+    slot: &typed_trees::dynamic_traits::DynamicSlotSignature,
+) -> Option<&'program typed_trees::state::State> {
+    let selections = crate::collect_dynamic_implementation_selections(program).ok()?;
+    let mut entries = selections
+        .iter()
+        .filter(|selection| {
+            program.normalized_type_identity(selection.selector_type) == slot.interface_identity
+        })
+        .filter_map(|selection| {
+            let row = program
+                .conformance_by_symbol(selection.implementation)?
+                .rows
+                .iter()
+                .find(|row| row.requirement == slot.requirement)?;
+            let machine = program.machine_by_symbol(row.realization_machine)?;
+            program.machine_states(machine).first()
+        });
+    let entry = entries.next()?;
+    entries.next().is_none().then_some(entry)
 }
 
 pub fn completing_call_transfer(

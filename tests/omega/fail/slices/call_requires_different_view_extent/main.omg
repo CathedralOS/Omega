@@ -1,5 +1,5 @@
 machine read(values: &[u32], position: u64) -> u32
-requires position < values.len;
+requires position < values.len
 {
     values[position]
 }

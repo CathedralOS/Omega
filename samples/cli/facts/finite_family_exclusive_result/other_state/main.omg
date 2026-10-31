@@ -21,11 +21,11 @@ Second satisfies Family {
 }
 data Stored { ticket: Ticket; }
 machine dispatch(selected: dyn Family, ticket: Ticket, width: u32) -> Ticket
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 { Family::row<width>(selected, ticket) }
 machine forward(ticket: Ticket) -> Ticket { ticket }
 machine observe(selected: dyn Family, drops: &mut [u64; 1], width: u32) -> bool
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 {
     let stored: Stored = Stored { ticket: dispatch(selected, Ticket { token: Token { drops: drops }, marker: 0 }, width) };
     transition { _ -> finish(forward(stored.ticket), width) }

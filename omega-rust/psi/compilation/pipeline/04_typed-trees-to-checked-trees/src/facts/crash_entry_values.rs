@@ -30,6 +30,7 @@
 //! distinct. This is source provenance, not a Terminal certificate.
 
 use super::crash_calls::{field_entry_name, member_entry_name};
+use crate::flow::expressions;
 use checked_trees::CrashPredicateExpression;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -1125,8 +1126,7 @@ fn state_parameter_entry_operand(
             && let ExpressionNode::Name(forwarded) = program.expression_table.expression(argument)
             && forwarded.symbol == parameter_symbol
             && forwarded.head_symbol == parameter_symbol
-            && program
-                .expression_table
+            && expressions(program)
                 .name_path_members(forwarded.members)
                 .len()
                 == 1
@@ -1186,9 +1186,7 @@ fn named_transition_arguments(
 ) -> Vec<(SymbolHandle, usize, ExpressionHandle)> {
     let mut incoming = Vec::new();
     for source in program.machine_states(machine) {
-        for (ordinal, statement) in program
-            .statement_table
-            .statements(source.statement_nodes)
+        for (ordinal, statement) in crate::flow::state_statements(program, source.statement_nodes)
             .iter()
             .enumerate()
         {

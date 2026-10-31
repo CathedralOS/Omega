@@ -1,7 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
-    scalar_abi_cases, units_for_names, validate_effects,
+    assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
+    declaration_mut, declared_pairs, encoded_mut, flags_view, produced_effects,
+    row_and_declaration, scalar_abi_cases, stack_pointer_view, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
@@ -227,6 +228,50 @@ struct AlternativeContract {
     writes: &'static [u16],
 }
 
+/// The four alias windows a two-input, one-result form can realize: both
+/// inputs share the result view, one input shares it while the other stays
+/// distinct, or neither does.
+const RESULT_ALIASES_BOTH: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultAliasesOperands {
+        result: 2,
+        left: 0,
+        right: 1,
+    };
+const RESULT_ALIASES_LEFT: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+        result: 2,
+        aliased_operand: 0,
+        distinct_operand: 1,
+    };
+const RESULT_ALIASES_RIGHT: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+        result: 2,
+        aliased_operand: 1,
+        distinct_operand: 0,
+    };
+const RESULT_ALIASES_NEITHER: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultDistinctFromOperands {
+        result: 2,
+        left: 0,
+        right: 1,
+    };
+
+/// One alias-dependent alternative in one of those windows: the encoded size it
+/// resolves to, and the operand positions it reads. Every member of the
+/// alias-safe realization family writes the result operand and nothing else.
+fn result_alternative(
+    applicability: MachineAlternativeApplicability,
+    size: u16,
+    reads: &'static [u16],
+) -> AlternativeContract {
+    AlternativeContract {
+        applicability,
+        size: MachineSizeKnowledge::ExactBytes(size),
+        reads,
+        writes: &[2],
+    }
+}
+
 /// The declared size knowledge for one selected arithmetic semantic on each
 /// ISA: the x86-64 encoder-resolved envelopes and multi-instruction forms,
 /// and the fixed-width AArch64 encodings.
@@ -333,6 +378,17 @@ fn expected_size(
     }
 }
 
+/// Flag custody on one rule's ISA: every x86-64 form in this table clobbers
+/// the condition codes, and the AArch64 form states its own custody.
+const fn flag_custody(x86: bool, aarch64: FlagsCustody) -> FlagsCustody {
+    if x86 { FlagsCustody::Clobber } else { aarch64 }
+}
+
+/// The value one ISA states where the two arms differ only in that value.
+fn either<T>(x86: bool, x86_value: T, aarch64_value: T) -> T {
+    if x86 { x86_value } else { aarch64_value }
+}
+
 /// The declared arithmetic contract one selected semantic must carry on each
 /// ISA. The two ISAs share operand shapes but own different flag custody:
 /// x86-64 realizes flag-writing forms as clobbers and pins the divide and
@@ -380,67 +436,20 @@ fn arithmetic_contract(
             ArithmeticContract::plain(&[Use, Def], one(&[0], &[1]))
         }
         BitwiseAndI64 | BitwiseXorI64 => ArithmeticContract {
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             ..ArithmeticContract::plain(&[Use, Use, Def], one(&[0, 1], &[2]))
         },
         ExactSubtractI64 => ArithmeticContract {
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
                 vec![
                     // The alias-safe realization family: `xor` when both
                     // inputs share the result view, `sub` against the left or
                     // right input, and `mov; sub` when the result is distinct.
-                    AlternativeContract {
-                        applicability: MachineAlternativeApplicability::ResultAliasesOperands {
-                            result: 2,
-                            left: 0,
-                            right: 1,
-                        },
-                        size: MachineSizeKnowledge::ExactBytes(3),
-                        reads: &[],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 0,
-                                distinct_operand: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(3),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 1,
-                                distinct_operand: 0,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(6),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultDistinctFromOperands {
-                                result: 2,
-                                left: 0,
-                                right: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(6),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
+                    result_alternative(RESULT_ALIASES_BOTH, 3, &[]),
+                    result_alternative(RESULT_ALIASES_LEFT, 3, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_RIGHT, 6, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_NEITHER, 6, &[0, 1]),
                 ]
             } else {
                 one(&[0, 1], &[2])
@@ -451,56 +460,13 @@ fn arithmetic_contract(
         // shares one view, so the fully-aliased variant still reads both
         // logical operands — unlike the `xor`-realized subtract.
         ExactMultiplyI64 => ArithmeticContract {
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
                 vec![
-                    AlternativeContract {
-                        applicability: MachineAlternativeApplicability::ResultAliasesOperands {
-                            result: 2,
-                            left: 0,
-                            right: 1,
-                        },
-                        size: MachineSizeKnowledge::ExactBytes(4),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 0,
-                                distinct_operand: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(4),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 1,
-                                distinct_operand: 0,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(4),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultDistinctFromOperands {
-                                result: 2,
-                                left: 0,
-                                right: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(7),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
+                    result_alternative(RESULT_ALIASES_BOTH, 4, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_LEFT, 4, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_RIGHT, 4, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_NEITHER, 7, &[0, 1]),
                 ]
             } else {
                 one(&[0, 1], &[2])
@@ -515,11 +481,7 @@ fn arithmetic_contract(
             | SaturatingCarrier::U64,
         ) => ArithmeticContract {
             early_clobbers: if x86 { &[2] } else { &[] },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def], one(&[0, 1], &[2]))
         },
         ExactDivideU64
@@ -529,29 +491,13 @@ fn arithmetic_contract(
             | SaturatingCarrier::U32
             | SaturatingCarrier::U64,
         ) => ArithmeticContract {
-            fixed_views: if x86 {
-                &[(0, "rax"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            fixed_views: either(x86, &[(0, "rax"), (2, "rax"), (3, "rdx")], &[]),
+            flags: flag_custody(x86, FlagsCustody::None),
             extra_clobbers: if x86 { &["rdx"] } else { &[] },
             faulting: x86,
-            alternatives: if x86 {
-                one(&[0, 1, 3], &[2])
-            } else {
-                one(&[0, 1], &[2])
-            },
+            alternatives: either(x86, one(&[0, 1, 3], &[2]), one(&[0, 1], &[2])),
             ..ArithmeticContract::plain(
-                if x86 {
-                    &[Use, Use, Def, Use]
-                } else {
-                    &[Use, Use, Def]
-                },
+                either(x86, &[Use, Use, Def, Use], &[Use, Use, Def]),
                 Vec::new(),
             )
         },
@@ -561,28 +507,12 @@ fn arithmetic_contract(
         // early clobber.
         WrappingRemainderI64 => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2] },
-            fixed_views: if x86 {
-                &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            fixed_views: either(x86, &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")], &[]),
+            flags: flag_custody(x86, FlagsCustody::None),
             faulting: x86,
-            alternatives: if x86 {
-                one(&[0, 1], &[2, 3])
-            } else {
-                one(&[0, 1], &[2])
-            },
+            alternatives: either(x86, one(&[0, 1], &[2, 3]), one(&[0, 1], &[2])),
             ..ArithmeticContract::plain(
-                if x86 {
-                    &[Use, Use, Def, Def]
-                } else {
-                    &[Use, Use, Def]
-                },
+                either(x86, &[Use, Use, Def, Def], &[Use, Use, Def]),
                 Vec::new(),
             )
         },
@@ -592,28 +522,12 @@ fn arithmetic_contract(
         // early-clobber result.
         SaturatingRemainder(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2] },
-            fixed_views: if x86 {
-                &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::None
-            },
+            fixed_views: either(x86, &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")], &[]),
+            flags: flag_custody(x86, FlagsCustody::None),
             faulting: x86,
-            alternatives: if x86 {
-                one(&[0, 1], &[2, 3])
-            } else {
-                one(&[0, 1], &[2])
-            },
+            alternatives: either(x86, one(&[0, 1], &[2, 3]), one(&[0, 1], &[2])),
             ..ArithmeticContract::plain(
-                if x86 {
-                    &[Use, Use, Def, Def]
-                } else {
-                    &[Use, Use, Def]
-                },
+                either(x86, &[Use, Use, Def, Def], &[Use, Use, Def]),
                 Vec::new(),
             )
         },
@@ -622,11 +536,7 @@ fn arithmetic_contract(
         // additionally accumulates in an early-clobber result.
         SaturatingAdd(_) | SaturatingSubtract(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
         },
         // x86-64 keeps the unsigned-division operand shape (an explicit RDX
@@ -636,16 +546,8 @@ fn arithmetic_contract(
         // division; AArch64 clamps or guards through the bound scratch.
         SaturatingDivide(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2, 3] },
-            fixed_views: if x86 {
-                &[(0, "rax"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            fixed_views: either(x86, &[(0, "rax"), (2, "rax"), (3, "rdx")], &[]),
+            flags: flag_custody(x86, FlagsCustody::Def),
             extra_clobbers: if x86 { &["rdx"] } else { &[] },
             faulting: x86,
             alternatives: if x86 {
@@ -674,11 +576,7 @@ fn arithmetic_contract(
         // an early-clobber scratch, like the clamped add.
         SaturatingMultiply(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
-            flags: if x86 {
-                FlagsCustody::Clobber
-            } else {
-                FlagsCustody::Def
-            },
+            flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
         },
         CompareI64Zero | CompareI64Immediate => ArithmeticContract {
@@ -713,40 +611,21 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         // arithmetic rules: every declaration carrying an arithmetic semantic
         // names its selected constraint key, and no selected rule may lack
         // its declared semantic set.
-        let declared_arithmetic = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                arithmetic_rules
-                    .iter()
-                    .any(|(_, semantic)| *semantic == declaration.semantic)
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            arithmetic_rules
+                .iter()
+                .any(|(_, semantic)| *semantic == declaration.semantic)
+        });
         assert_eq!(
-            declared_arithmetic,
+            declared,
             arithmetic_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention
         );
 
-        // The catalog is bound to this exact validated constraint catalog,
-        // target, and key selection — provenance, not a re-derived roster.
-        assert_eq!(catalog.catalog().target, case.target);
-        assert_eq!(
-            catalog.catalog().register_constraints,
-            environment.constraints().identity()
-        );
-        assert_eq!(catalog.catalog().selected_keys, keys);
+        binds_catalog_provenance(&catalog, case, &environment, keys);
 
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "arithmetic matrix names a condition-codes view",
-        );
+        let flags = flags_view(model, case);
         let integer_class = model.view_named(case.arguments[0]).unwrap().class;
         let float_class = model.view_named(case.float_result).unwrap().class;
         // The ABI leaves the condition codes volatile on every pair: an
@@ -764,13 +643,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
 
         for (key, semantic) in &arithmetic_rules {
             let contract = arithmetic_contract(*semantic, case.target.architecture);
-            let row = environment
-                .constraint(*key)
-                .unwrap_or_else(|| panic!("environment missing selected arithmetic row {key:?}"));
-            let declaration = catalog
-                .catalog()
-                .declaration(*key)
-                .unwrap_or_else(|| panic!("effect catalog missing arithmetic declaration {key:?}"));
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
@@ -887,16 +760,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
                 assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
                 assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
                 assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
-                assert_eq!(
-                    encoded.memory,
-                    MachineEncodedMemoryEffect::NoneV1,
-                    "{key:?}"
-                );
-                assert_eq!(
-                    encoded.stack,
-                    MachineEncodedStackEffect::UnchangedV1,
-                    "{key:?}"
-                );
+                assert_storage_free(encoded, *key);
                 assert_eq!(
                     encoded.trap,
                     if contract.faulting {
@@ -926,15 +790,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view");
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "target names no such view",
-        );
+        let stack_pointer = stack_pointer_view(model, case);
+        let flags = flags_view(model, case);
         for (key, semantic) in selected_arithmetic_rules(&environment) {
             let contract = arithmetic_contract(semantic, case.target.architecture);
             macro_rules! reject_encoded {
@@ -974,9 +831,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     MachineEncodedControlEffect::HostedExitOrTrapV1,
                 ] {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
-                        .control = control;
+                    encoded_mut(&mut corrupted, key, semantic, index).control = control;
                     reject_encoded!(
                         corrupted,
                         "{key:?} foreign control shape {control:?} must reject"
@@ -986,29 +841,25 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // An arithmetic rule cannot grow a memory footprint or a
                 // stack lifecycle.
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .memory = MachineEncodedMemoryEffect::ReadPointerV1 {
-                    pointer_operand: 0,
-                    byte_count: 8,
-                };
+                encoded_mut(&mut corrupted, key, semantic, index).memory =
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: 0,
+                        byte_count: 8,
+                    };
                 reject_encoded!(corrupted, "{key:?} forged memory footprint must reject");
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .stack = MachineEncodedStackEffect::PopBytesV1 {
-                    stack_pointer: stack_pointer.id,
-                    byte_count: 8,
-                };
+                encoded_mut(&mut corrupted, key, semantic, index).stack =
+                    MachineEncodedStackEffect::PopBytesV1 {
+                        stack_pointer: stack_pointer.id,
+                        byte_count: 8,
+                    };
                 reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
                 // Trap drift stays inside the admitted fallthrough surface
                 // for both admitted values, so only canonical ISA replay
                 // rejects it; a hosted trap shape is outside that surface.
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .trap = if contract.faulting {
+                encoded_mut(&mut corrupted, key, semantic, index).trap = if contract.faulting {
                     MachineEncodedTrapBehavior::NeverV1
                 } else {
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1
@@ -1019,9 +870,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} encoded trap drift must reject"
                 );
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
+                encoded_mut(&mut corrupted, key, semantic, index).trap =
+                    MachineEncodedTrapBehavior::HostedWriteFailureV1;
                 reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
                 // Encoded operand custody: losing a declared read or write
@@ -1066,9 +916,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     reject_encoded!(corrupted, "{key:?} invented operand read must reject");
                 }
                 let mut corrupted = catalog.clone();
-                let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
-                    .external_operand_reads;
+                let reads =
+                    &mut encoded_mut(&mut corrupted, key, semantic, index).external_operand_reads;
                 reads.push(row.operands.len() as u16);
                 reject_encoded!(corrupted, "{key:?} out-of-row operand read must reject");
                 if let Some(write_operand) = row
@@ -1114,35 +963,30 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // fails structural admission, and so does losing a declared
                 // one — the encoded lists restate the row exactly.
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_uses
                     .push(stack_pointer.units[0]);
                 reject_encoded!(corrupted, "{key:?} forged implicit use must reject");
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_defs
                     .push(stack_pointer.units[0]);
                 reject_encoded!(corrupted, "{key:?} forged implicit definition must reject");
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_clobbers
                     .push(stack_pointer.units[0]);
                 reject_encoded!(corrupted, "{key:?} forged implicit clobber must reject");
                 if contract.flags == FlagsCustody::Use {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
+                    encoded_mut(&mut corrupted, key, semantic, index)
                         .implicit_unit_uses
                         .retain(|unit| !flags.units.contains(unit));
                     reject_encoded!(corrupted, "{key:?} lost condition-code use must reject");
                 }
                 if contract.flags == FlagsCustody::Def {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
+                    encoded_mut(&mut corrupted, key, semantic, index)
                         .implicit_unit_defs
                         .retain(|unit| !flags.units.contains(unit));
                     reject_encoded!(
@@ -1152,8 +996,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 }
                 if contract.flags == FlagsCustody::Clobber || !contract.extra_clobbers.is_empty() {
                     let mut corrupted = catalog.clone();
-                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                        .encoded
+                    encoded_mut(&mut corrupted, key, semantic, index)
                         .implicit_unit_clobbers
                         .remove(0);
                     reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");

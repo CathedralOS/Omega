@@ -1,5 +1,6 @@
 use crate::expressions::context::ExpressionContext;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{exprs, exprs_of};
 use numerics::literals::IntegerLiteral;
 use syntax_trees::FloatSpelling;
 use syntax_trees::SyntaxTrees;
@@ -209,15 +210,12 @@ fn insert_binary_expression(
     right: ExpressionHandle,
     span: source::SourceSpan,
 ) -> ExpressionHandle {
-    let expression =
-        syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left,
-                operator,
-                right,
-            }));
-    syntax_trees.expressions.set_source_span(expression, span);
+    let expression = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+        left,
+        operator,
+        right,
+    }));
+    exprs(syntax_trees).set_source_span(expression, span);
     expression
 }
 
@@ -375,7 +373,7 @@ fn apply_unary_prefix(
     prefix: UnaryPrefix<'_, '_>,
 ) -> Result<ExpressionHandle, crate::ParseError> {
     match prefix {
-        UnaryPrefix::Borrow(access) => Ok(syntax_trees.expressions.insert(ExpressionNode::Borrow(
+        UnaryPrefix::Borrow(access) => Ok(exprs(syntax_trees).insert(ExpressionNode::Borrow(
             syntax_trees::expression::TableBorrowExpression {
                 target: expression,
                 access,
@@ -383,18 +381,16 @@ fn apply_unary_prefix(
         ))),
         UnaryPrefix::Operator(operator, span) => {
             let expression =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Unary(TableUnaryExpression {
-                        operator,
-                        operand: expression,
-                    }));
-            syntax_trees.expressions.set_source_span(expression, span);
+                exprs(syntax_trees).insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator,
+                    operand: expression,
+                }));
+            exprs(syntax_trees).set_source_span(expression, span);
             Ok(expression)
         }
         UnaryPrefix::Negate(span) => {
             // Preserve literal folding and the existing 0 - value representation.
-            let negated = match syntax_trees.expressions.expression(expression) {
+            let negated = match exprs_of(syntax_trees).expression(expression) {
                 ExpressionNode::Integer(literal) => ExpressionNode::Integer(literal.negated()),
                 ExpressionNode::Float(text) => ExpressionNode::Float(FloatSpelling::generated(
                     format!("-{}", text.as_str(syntax_trees)),
@@ -410,8 +406,8 @@ fn apply_unary_prefix(
                     })
                 }
             };
-            let expression = syntax_trees.expressions.insert(negated);
-            syntax_trees.expressions.set_source_span(expression, span);
+            let expression = exprs(syntax_trees).insert(negated);
+            exprs(syntax_trees).set_source_span(expression, span);
             Ok(expression)
         }
         UnaryPrefix::Acknowledge {
@@ -419,7 +415,7 @@ fn apply_unary_prefix(
             suspend,
             block,
         } => {
-            if !syntax_trees.expressions.set_call_acknowledgement(
+            if !exprs(syntax_trees).set_call_acknowledgement(
                 expression,
                 language_core::CallOperationalAcknowledgement {
                     acknowledges_suspend: suspend,

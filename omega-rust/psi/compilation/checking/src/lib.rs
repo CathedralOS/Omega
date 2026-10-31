@@ -128,13 +128,14 @@ pub use proof_contracts::contract_entailment::content_conservation::{
 pub(crate) use proof_contracts::contract_entailment::immutable_entry_boolean_projection;
 pub use proof_contracts::contract_entailment::numeric_observations::{
     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
-    NumericObservationDemand, captured_numeric_observations,
+    NumericObservationDemand, ScalarObservationDemand, captured_numeric_observations,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
     captured_collection_length, captured_integer_value, closed_collection_length,
     closed_collection_length_at_place, closed_collection_length_under_matches,
     unique_literal_field,
 };
+pub use proof_contracts::contract_entailment::structural_prefix::private_invocation_entry_is_closed;
 pub use proof_contracts::contract_entailment::{
     ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
@@ -321,8 +322,9 @@ pub use declarations::operators::{
 };
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
-    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
-    dynamic_expression_call_demand, generic_bound_operator_requirement, qualified_trait_scope,
+    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, describe_dynamic_conformances,
+    dynamic_call_demand, dynamic_expression_call_demand, generic_bound_operator_requirement,
+    normalized_dynamic_row_identities, qualified_trait_scope,
     resolve_closed_requirement_application, resolve_dynamic_call_targets,
     resolve_selected_dynamic_call_targets, revalidate_machine_trait_conformances,
     revalidate_named_implementation, revalidate_top_level_requirement_realization,
@@ -479,19 +481,21 @@ pub use proof_contracts::contract_entailment::proof_integer::{
     anonymous_integer_math_literal, proof_integer_expression,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
-    ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
-    RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
-    RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation, RankProtectedPath,
-    RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate, RankValueDerivation,
-    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
-    StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
-    discover_rank_arrival_correspondence, frame_preserves_rank_premises, protect_rank_premise,
-    prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
-    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
-    rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
-    ranking_range_premise_symbols, ranking_range_required_coordinates,
-    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
-    select_rank_arrival_correspondence,
+    ArithmeticCallObservation, CapturedRankEntry, RankArrivalCompatibility,
+    RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport,
+    RankLocalCapture, RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation,
+    RankProtectedPath, RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate,
+    RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof, RankingRangeMeasure,
+    RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
+    arithmetic_entry_requirement_is_covered, discover_rank_arrival_correspondence,
+    frame_preserves_rank_premises, protect_rank_premise, prove_arithmetic_call_requirement,
+    prove_captured_arithmetic_call_requirement, prove_captured_ranking_range_entry,
+    prove_captured_ranking_range_entry_with_formation, prove_ranking_range_edge,
+    prove_ranking_range_entry, prove_ranking_range_entry_with_formation,
+    prove_ranking_range_transition, rank_protected_path, ranking_coordinate_type,
+    ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
+    ranking_range_required_coordinates, ranking_range_state_premise_coordinates,
+    ranking_slice_length_observation, select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
@@ -505,7 +509,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     ScopedCallCompletion, ScopedCallResultObservation, scoped_arithmetic_comparisons_unsatisfiable,
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_call_result_observations,
-    scoped_completed_call_guarantees,
+    scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
@@ -543,7 +547,9 @@ pub(crate) use optimization::digest_encoder;
 pub mod expression_traversal;
 mod frozen_program;
 mod layout_checking;
-pub use layout_checking::{LayoutCheckingContext, layout_checking_targets};
+pub use layout_checking::{
+    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
+};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -560,12 +566,14 @@ pub use frozen_program::{
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
-    DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, OpaquePropertyValidation,
-    ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
-    admit_prepared_program_effects, checking_thread_pool, expression_interval,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, FrozenDependencyBody,
+    OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
+    admit_prepared_program_effects, checking_thread_pool, dependency_body_read_totals,
+    dependency_entailment_totals, expression_interval, prepare_specialized_program,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
+pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
 
@@ -590,7 +598,7 @@ pub use machine_calls::calls::{
     resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
-    transition_call_target,
+    transition_call_target, unique_dispatched_entry,
 };
 pub use value_custody::places::{
     CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,
@@ -673,3 +681,5 @@ pub use proof_contracts::bound_expression_meaning::static_type_boolean_equalitie
 pub mod native_locators;
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;
+
+pub use proof_contracts::contract_entailment::IntegerApplicationFormation;

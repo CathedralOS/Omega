@@ -1,3 +1,4 @@
+use omega::language::core::layout;
 // RUNTIME DATA-LAYOUT QUERIES (wiki/spec/layouts/, DATA-LAYOUT-QUERIES):
 // `size_of<T>()` and `align_of<T>()` are authored as ordinary calls, not
 // keywords. Their portable query must consume the selected validated layout
@@ -10,7 +11,7 @@
 //                 from the unresolved-array fallback that shares (0, 1)
 //   &Row       -- reference storage (8/8 on every bound 64-bit target), not
 //                 the referent's 16
-//   CompactBits<PackedFlags> -- the installed plan places three logical
+//   LayoutStorage<PackedFlags, CompactBits> -- the installed plan places three logical
 //                 fields in one byte, so the custom layout answers 1/1 where
 //                 the native rule would give 3/1
 use omega_language_std::console;
@@ -19,41 +20,9 @@ data Row { a: u64; b: u32; }
 data Pair { a: u8; b: u8; }
 data Empty {}
 
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField where size <= 4096, 1 <= align, align <= 16 {
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema where field_count <= 32 {
-    fields: [SchemaField; 32];
-    field_count: u64;
-}
-data FieldPlan {
-    case At(offset: u64);
-    case Bits(
-        container: u64,
-        container_width: u64,
-        destination_lsb: u64,
-        source_lsb: u64,
-        width: u64
-    );
-    case Varint(tag: u64);
-    case LengthPrefixed(tag: u64);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
 
-data CompactBits { }
-machine CompactBits::plan(schema: Schema) -> Plan {
+CompactBits satisfies FixedLayout<PackedFlags> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -103,6 +72,7 @@ machine CompactBits::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 
 data PackedFlags where mode <= 7, code <= 15 {
     present: bool;
@@ -117,15 +87,15 @@ const REF_BYTES: u64 = size_of<&Row>();
 
 data Main {
     row: Row;
-    packed: CompactBits<PackedFlags>;
+    packed: LayoutStorage<PackedFlags, CompactBits>;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     // Runtime and const observations must agree under the exact selected layout.
     let row_bytes: u64 = size_of<Row>();
     let pair_bytes: u64 = size_of<Pair>();
-    let packed_bytes: u64 = size_of<CompactBits<PackedFlags>>();
-    let packed_align: u64 = align_of<CompactBits<PackedFlags>>();
+    let packed_bytes: u64 = size_of<LayoutStorage<PackedFlags, CompactBits> >();
+    let packed_align: u64 = align_of<LayoutStorage<PackedFlags, CompactBits> >();
     main.row = Row { a: row_bytes, b: 7 };
 
     transition row_bytes == ROW_BYTES && ROW_ALIGN == 8 && pair_bytes == 2

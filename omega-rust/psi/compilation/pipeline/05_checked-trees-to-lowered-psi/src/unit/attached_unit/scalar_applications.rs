@@ -5,6 +5,7 @@
 //! declaration namespaces. A nested helper is never a substitute for the root
 //! expression, and an absent checked entry cannot become an executable recipe.
 
+use crate::checked_facts::flow_facts;
 use crate::lowering_error::LoweringError;
 use checked_trees::{CheckedScalarComputationKind, CheckedTrees};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
@@ -319,9 +320,7 @@ impl SourceScalarApplications {
             checked.typed.expression_table.expression(expression)
             && let Some(query) = &call.layout_query
         {
-            let mut observations = checked
-                .facts
-                .flow
+            let mut observations = flow_facts(checked)
                 .terminal_unit_effects
                 .layout_observations
                 .iter()

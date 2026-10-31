@@ -4,6 +4,7 @@
 //! Catalog membership names a theory; it never substitutes for a cast's checked
 //! introduction evidence. Preparation freezes identities before any machine emits.
 
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -344,26 +345,13 @@ impl PreparedScalarQualifications {
             .iter()
             .enumerate()
             .map(|(position, parameter)| {
-                let mut domains = boundary
+                let domains = boundary
                     .scalar_domain_requirements
                     .iter()
                     .filter(|row| row.argument_index as usize == position)
                     .map(|row| self.boundary_domain_id(row))
                     .collect::<Result<Vec<_>, _>>()?;
-                domains.sort();
-                domains.dedup();
-                let qualifications = if domains.is_empty() {
-                    ScalarQualificationSetId::ZERO
-                } else {
-                    self.catalog
-                        .sets
-                        .iter()
-                        .find(|set| set.domains == domains)
-                        .map(|set| set.id)
-                        .ok_or(LoweringError::Unsupported(
-                            "boundary scalar signature lost its prepared qualification set",
-                        ))?
-                };
+                let qualifications = qualification_set(&self.catalog, domains)?;
                 Ok(QualifiedScalarType {
                     scalar_type: terminal_scalar_type(parameter.primitive_type)?,
                     qualifications,
@@ -642,6 +630,27 @@ pub(crate) fn signature_value_type(
     Ok(terminal_scalar_type(primitive)?.into())
 }
 
+/// The prepared set admitting exactly `domains`, once they are in canonical
+/// order. An empty membership is the unqualified set.
+fn qualification_set(
+    catalog: &ScalarQualificationCatalog,
+    mut domains: Vec<semantic_vocabulary::ScalarDomainId>,
+) -> Result<ScalarQualificationSetId, LoweringError> {
+    domains.sort();
+    domains.dedup();
+    if domains.is_empty() {
+        return Ok(ScalarQualificationSetId::ZERO);
+    }
+    catalog
+        .sets
+        .iter()
+        .find(|set| set.domains == domains)
+        .map(|set| set.id)
+        .ok_or(LoweringError::Unsupported(
+            "scalar qualification set is absent from the prepared closure",
+        ))
+}
+
 fn scalar_value_type(
     checked: &CheckedTrees,
     catalog: &ScalarQualificationCatalog,
@@ -663,20 +672,7 @@ fn scalar_value_type(
             ))?;
         domains.push(domain.id);
     }
-    domains.sort();
-    domains.dedup();
-    let qualifications = if domains.is_empty() {
-        ScalarQualificationSetId::ZERO
-    } else {
-        catalog
-            .sets
-            .iter()
-            .find(|set| set.domains == domains)
-            .map(|set| set.id)
-            .ok_or(LoweringError::Unsupported(
-                "scalar qualification set is absent from the prepared closure",
-            ))?
-    };
+    let qualifications = qualification_set(catalog, domains)?;
     Ok(QualifiedScalarType {
         scalar_type,
         qualifications,
@@ -867,9 +863,7 @@ pub(crate) fn type_atoms(
                         | TypeConstraintNode::Range { .. } => {}
                         TypeConstraintNode::Domain(domain)
                             if !domain.establishment_routes.is_empty()
-                                && checked
-                                    .facts
-                                    .values
+                                && value_facts(checked)
                                     .scalar_type_refinement_predicates(current)
                                     .is_some() =>
                         {
@@ -901,9 +895,7 @@ pub(crate) fn type_atoms(
                         // predicate-free membership atom in this catalog.
                         TypeConstraintNode::Domain(domain)
                             if domain.predicate_presence.is_present()
-                                && checked
-                                    .facts
-                                    .values
+                                && value_facts(checked)
                                     .scalar_type_refinement_predicates(current)
                                     .is_some() => {}
                         TypeConstraintNode::Domain(domain)
@@ -989,9 +981,7 @@ pub(crate) fn retained_scalar_restriction(
 ) -> Option<&checked_trees::CheckedUnitStructuralFieldType> {
     let primitive = checked.primitive_type_reference(reference)?;
     let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-    checked
-        .facts
-        .flow
+    flow_facts(checked)
         .terminal_unit_effects
         .structural_types
         .iter()

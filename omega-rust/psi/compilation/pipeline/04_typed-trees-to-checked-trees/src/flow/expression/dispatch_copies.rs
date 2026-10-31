@@ -4,6 +4,8 @@
 //! at this boundary and retain ordinary live-memory semantics after it.
 
 use super::{Execution, ReadPurpose};
+use crate::flow::expressions;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
     FlowConstraintKind, FlowConstraintRef, FlowOperandCompletion, FlowOperandFact,
@@ -22,7 +24,7 @@ impl Execution<'_, '_, '_> {
         expression: ExpressionHandle,
     ) -> Option<validation::CanonicalPlace> {
         if self.read_purpose == ReadPurpose::Address {
-            return validation::canonical_place_from_expression_in_state(
+            return place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
@@ -36,7 +38,7 @@ impl Execution<'_, '_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<validation::CanonicalPlace> {
-        let place = validation::canonical_place_from_expression_in_state(
+        let place = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -108,7 +110,7 @@ impl Execution<'_, '_, '_> {
         if subjects.is_empty() {
             return HandleSpan::empty();
         }
-        let expressions = match self.program.statement_table.transition_target(target) {
+        let target_expressions = match self.program.statement_table.transition_target(target) {
             TransitionTargetNode::Named { arguments, .. } => self
                 .program
                 .statement_table
@@ -126,7 +128,7 @@ impl Execution<'_, '_, '_> {
             });
         let value_reads = crate::borrow::accesses::dispatch_target_value_reads(
             self.program,
-            &expressions,
+            &target_expressions,
             self.state.symbol,
             self.statement_index,
             self.machine.symbol,
@@ -158,9 +160,7 @@ impl Execution<'_, '_, '_> {
                     })
                 })
                 && !payloads.iter().any(|previous| {
-                    self.program
-                        .expression_table
-                        .expressions_structurally_equal(*previous, payload)
+                    expressions(self.program).expressions_structurally_equal(*previous, payload)
                 })
             {
                 payloads.push(payload);
@@ -173,8 +173,7 @@ impl Execution<'_, '_, '_> {
             };
             let mut matching = subjects.iter().filter(|subject| {
                 let source = self.context.control.operands.get(subject.source);
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .expressions_structurally_equal(source.expression, member.receiver)
             });
             let Some(subject) = matching.next() else {
@@ -273,7 +272,7 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
-        let Some(mut source) = validation::canonical_place_from_expression_in_state(
+        let Some(mut source) = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -281,7 +280,7 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let active = super::super::active_context_handles(self.context, *contexts);
+        let active = super::super::active_context_handles(&self.context.contexts, *contexts);
         super::super::narrow_pinned_index_segments(
             self.program,
             self.semantic,
@@ -331,7 +330,7 @@ impl Execution<'_, '_, '_> {
         source: &FlowOperandFact,
         entry: &FlowOperandFact,
     ) -> bool {
-        let Some(coordinate) = validation::canonical_place_from_expression_in_state(
+        let Some(coordinate) = place_at(
             self.program,
             self.state.symbol,
             source.statement_index,
@@ -354,7 +353,7 @@ impl Execution<'_, '_, '_> {
                 let PlaceSegment::Index { expression } = segment else {
                     return true;
                 };
-                validation::canonical_place_from_expression_in_state(
+                place_at(
                     self.program,
                     self.state.symbol,
                     source.statement_index,
@@ -415,7 +414,7 @@ impl Execution<'_, '_, '_> {
         if self.read_purpose != ReadPurpose::Value {
             return None;
         }
-        let place = validation::canonical_place_from_expression_in_state(
+        let place = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -436,7 +435,7 @@ impl Execution<'_, '_, '_> {
             ) {
                 continue;
             }
-            let prefix = validation::canonical_place_from_expression_in_state(
+            let prefix = place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,

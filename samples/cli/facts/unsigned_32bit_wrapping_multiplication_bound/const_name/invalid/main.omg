@@ -11,8 +11,8 @@ const PROD_MIN: u32 = 50u32;
 const PROD_MAX: u32 = 200u32;
 
 machine multiply_const(lhs: u32, rhs: u32) -> i32
-    requires lhs >= LHS_MIN && lhs <= LHS_MAX;
-    requires rhs >= RHS_MIN && rhs <= RHS_MAX;
+    requires lhs >= LHS_MIN && lhs <= LHS_MAX
+    requires rhs >= RHS_MIN && rhs <= RHS_MAX
 {
     let a: u32 in Wrapping = lhs as u32 in Wrapping;
     let b: u32 in Wrapping = rhs as u32 in Wrapping;

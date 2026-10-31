@@ -8,6 +8,9 @@ use crate::typed_trees::{
 };
 use crate::{expression, name, types};
 
+mod application_indices;
+pub use application_indices::ApplicationValueIndices;
+
 #[cfg(test)]
 mod static_const_binding_tests;
 
@@ -129,9 +132,13 @@ impl TypedTrees {
                     path: vec![name.clone()].into_boxed_slice(),
                     ..expression::StaticMachineArgument::default()
                 }),
-            types::TypeReferenceNode::Named { .. } => {
-                Some(self.normalized_type_identity_text(reference))
-            }
+            types::TypeReferenceNode::Named { symbol, name } => self
+                .static_const_argument_identity(&expression::StaticMachineArgument {
+                    symbol: *symbol,
+                    path: vec![name.clone()].into_boxed_slice(),
+                    ..expression::StaticMachineArgument::default()
+                })
+                .or_else(|| Some(self.normalized_type_identity_text(reference))),
             _ => None,
         }
     }
@@ -223,7 +230,8 @@ impl TypedTrees {
                     ))
                     .is_some_and(|(expected, actual)| expected == actual)
             }
-            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual)) => {
+            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual))
+            | (TypeParameterKind::Implementation, StaticMachineBindingValue::Conformance(actual)) => {
                 argument == actual
             }
             _ => false,
@@ -335,6 +343,9 @@ impl TypedTrees {
 
         if !type_reference.is_valid() {
             return Multiplicity::Affine;
+        }
+        if let Some(storage) = self.layout_storage_arguments(type_reference) {
+            return self.type_multiplicity(storage.semantic_type);
         }
         match self.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { .. }

@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 
@@ -23,9 +24,7 @@ pub(super) fn state_has_proven_self_loop(
         return false;
     };
 
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
         .any(|self_loop| {
@@ -45,9 +44,7 @@ fn argument_decreases_lexicographically(
     let Some(struct_literal) = program.expression_table.struct_literal_node(argument) else {
         return false;
     };
-    let literal_fields = program
-        .expression_table
-        .struct_fields(struct_literal.fields);
+    let literal_fields = expressions(program).struct_fields(struct_literal.fields);
 
     for field in fields.iter() {
         let Some(value) = literal_fields

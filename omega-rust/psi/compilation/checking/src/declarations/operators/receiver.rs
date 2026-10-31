@@ -6,11 +6,12 @@
 //! Computed cast and selected operator policy belong to the shared result-type
 //! owner; candidate lookup never manufactures an adapted result from a peer.
 
+use crate::frozen_program::expression_table;
+use crate::value_custody::type_references::substituted_identity;
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recover an existing operand type handle in its executable statement context.
@@ -43,14 +44,13 @@ fn expression_type_reference_in_state(
         return None;
     }
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             program.saved_value_source(saved).and_then(|subject| {
                 expression_type_reference_in_state(program, state_symbol, statement_index, subject)
             })
         }
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
+        ExpressionNode::Match(dispatch) => expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .find_map(|arm| {
@@ -65,8 +65,7 @@ fn expression_type_reference_in_state(
             expression_type_reference_in_state(program, state_symbol, statement_index, atomic.value)
         }
         ExpressionNode::Name(path) => {
-            let name = program
-                .expression_table
+            let name = expression_table(program)
                 .name_path_members(path.members)
                 .first()
                 .map(|name| name.as_str());
@@ -130,7 +129,7 @@ fn expression_type_reference_in_state(
                     program,
                     spelling,
                     &operands,
-                    program.expression_table.source_span(expression),
+                    expression_table(program).source_span(expression),
                 );
                 if let [candidate] = candidates.as_slice() {
                     if candidate.domain.is_none() {
@@ -263,12 +262,12 @@ fn data_binding_field_type_reference(
     state_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
-    let path = program.expression_table.name_path_node(member.receiver)?;
+    let path = expression_table(program).name_path_node(member.receiver)?;
     let (machine, state) = program
         .machine_holding_state(state_symbol)
         .zip(program.state_by_symbol(state_symbol))?;
     let data_binding = program.data_binding_parameter(machine, program.state_parameters(state))?;
-    let path_members = program.expression_table.name_path_members(path.members);
+    let path_members = expression_table(program).name_path_members(path.members);
     // The binding is an ordinary parameter, so resolution carries its symbol;
     // the head is consulted for a path whose leaf symbol names the field.
     let names_data_binding = path_members.len() == 1
@@ -328,10 +327,7 @@ fn field_type_reference(
             // view. A raw telescope field cannot stand in for its substituted
             // type and exclude a genuinely applicable operator candidate.
             (program.normalized_type_identity(field)
-                == program.type_identity(TypeIdentityRequest {
-                    substitutions: &substitutions,
-                    ..TypeIdentityRequest::ordinary(field)
-                }))
+                == substituted_identity(program, field, &substitutions))
             .then_some(field)
         }
         TypeReferenceNode::Named {

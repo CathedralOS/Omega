@@ -11,7 +11,6 @@
 //! that ownership rule; the closed-requirement roster retains and joins every
 //! executable tuple separately, without inflating original schema coverage.
 
-use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
     external_provider_binding, inferred_compiler_leaf_binding, realization_machine_identity,
@@ -23,16 +22,21 @@ use crate::provider_planning::provenance_replay::{
 use crate::provider_planning::source_provider_selections::{
     provider_type_package_identity, provider_type_symbol,
 };
+use crate::provider_planning::trait_name_text;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
+use language_semantics::direct_calls::DirectCallDeclarations;
+use symbols::SymbolHandle;
 
 pub(crate) fn derive_provider_plans(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+    body_declarations: &DirectCallDeclarations<SymbolHandle>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
+    let context = services.context();
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Typed trees retain every authored body and its conformances. This
@@ -123,7 +127,7 @@ pub(crate) fn derive_provider_plans(
             );
             let requirement_symbol = clause.requirement_symbol;
             if let Some((schema_declaration, schema_trait, schema)) =
-                provider_plan_schema_target(context, calling_plans, clause.symbol)
+                provider_plan_schema_target(services, calling_plans, clause.symbol)
             {
                 let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
                 let position = derived_plan_position(
@@ -174,41 +178,47 @@ pub(crate) fn derive_provider_plans(
         }
     }
     plans.extend(derive_boundary_operator_plans(
-        context,
+        services,
         selected_target,
         evaluated_bindings,
     ));
     plans.extend(derive_top_level_requirement_plans(
-        context,
+        services,
         selected_target,
         evaluated_bindings,
     ));
     let named =
-        super::named_provider_plans::derive(context, calling_plans, selected_target, &plans);
+        super::named_provider_plans::derive(services, calling_plans, selected_target, &plans);
     plans.extend(named);
-    derive_placed_accessor_plans(context, selected_target, &mut plans)?;
+    derive_placed_accessor_plans(services, selected_target, &mut plans)?;
     // Coverage includes the selected target's direct body closure, not only
     // the portable adapter's own declaration. Keep every authored source body,
     // but exclude a whole map when one of its rows reaches a known absent
     // target body. Completion, provider dependencies and admission remain
     // separate obligations on the candidates that selection actually chooses.
-    let absent = crate::target_machines::DirectTargetBodyAbsences::derive(context, selected_target);
+    let absent = provider_selection::DirectTargetBodyAbsences::derive(
+        body_declarations,
+        selected_target
+            .filter(|target| !target.is_empty())
+            .unwrap_or_else(|| target::TargetProfile::host().target_name()),
+    );
     plans.retain(|candidate| {
         !candidate
             .provenance
             .row_realizations
             .iter()
             .filter_map(ProviderRowRealization::authored)
-            .any(|machine| absent.contains(typed, machine))
+            .any(|machine| absent.contains(&machine))
     });
     Ok(plans)
 }
 
 fn derive_top_level_requirement_plans(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
+    let context = services.context();
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
@@ -252,15 +262,16 @@ fn derive_top_level_requirement_plans(
             }) else {
                 continue;
             };
-            let Some(schema) =
-                crate::service_schema::from_typed_boundary_requirement(context, requirement)
-            else {
+            let Some(prepared) = services.declaration(
+                ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol),
+            ) else {
                 continue;
             };
+            let schema = ServiceSchema::from_declaration(prepared.declaration.clone());
             let requirement_identity = typed
                 .machine_callable_identity_text(requirement)
                 .unwrap_or_default();
-            let [schema_method] = schema.methods.as_slice() else {
+            let [schema_method] = schema.declaration.methods.as_slice() else {
                 continue;
             };
             if requirement_identity.is_empty()
@@ -289,11 +300,7 @@ fn derive_top_level_requirement_plans(
                 _ => continue,
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let plan_name = satisfies_plan_name(
-                &target,
-                schema.identity_text(schema.trait_name),
-                &provider_type,
-            );
+            let plan_name = satisfies_plan_name(&target, trait_name_text(&schema), &provider_type);
             let position = derived_plan_position(
                 &mut plans,
                 plan_name,
@@ -340,28 +347,22 @@ fn derive_top_level_requirement_plans(
 /// derives from its explicit rows; an exact edge never claims a descendant
 /// schema on behalf of the data that owns its machine.
 fn provider_plan_schema_target(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     satisfied_trait_symbol: symbols::SymbolHandle,
 ) -> Option<(ProviderSchemaDeclaration, String, ServiceSchema)> {
-    let definition =
-        context.typed.traits().iter().find(|definition| {
-            definition.is_boundary && definition.symbol == satisfied_trait_symbol
-        })?;
-    let schema =
-        crate::service_schema::from_typed_instance(context, calling_plans, definition, &[])?;
-    Some((
-        ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-        schema.identity_text(schema.trait_name).to_owned(),
-        schema,
-    ))
+    let source = ProviderSchemaDeclaration::BoundaryTrait(satisfied_trait_symbol);
+    let prepared = services.declaration(source)?;
+    let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
+    Some((source, trait_name_text(&schema).to_owned(), schema))
 }
 
 fn derive_boundary_operator_plans(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
+    let context = services.context();
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
@@ -409,16 +410,15 @@ fn derive_boundary_operator_plans(
                     binding
                 }
             };
-            let Some(schema) = crate::service_schema::from_typed_operator(context, operator) else {
+            let Some(prepared) =
+                services.declaration(ProviderSchemaDeclaration::BoundaryOperator(operator.symbol))
+            else {
                 continue;
             };
+            let schema = ServiceSchema::from_declaration(prepared.declaration.clone());
             let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = typed.attached_data_path(machine).unwrap_or_default();
-            let plan_name = satisfies_plan_name(
-                &target,
-                schema.identity_text(schema.trait_name),
-                &provider_type,
-            );
+            let plan_name = satisfies_plan_name(&target, trait_name_text(&schema), &provider_type);
             let position = derived_plan_position(
                 &mut plans,
                 plan_name,
@@ -441,7 +441,7 @@ fn derive_boundary_operator_plans(
             let binding = binding.resolve(&mut plans[position].plan.identities);
             let requirement_identity = mint_plan_row_identity(
                 &mut plans[position].plan,
-                schema.identity_text(schema.methods[0].requirement_identity),
+                schema.identity_text(schema.declaration.methods[0].requirement_identity),
             );
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
@@ -658,10 +658,11 @@ fn derived_plan_position(
 /// Compiler-owned semantic primitives use the same candidate plan/selection
 /// route as authored providers, with a separate exact declaration-custody role.
 fn derive_placed_accessor_plans(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     selected_target: Option<&str>,
     plans: &mut Vec<DerivedProviderPlan>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let context = services.context();
     let Some(target) = selected_target else {
         return Ok(());
     };
@@ -673,12 +674,13 @@ fn derive_placed_accessor_plans(
                     continue;
                 }
                 let Some(accessor) =
-                    crate::SealedPlacedAccessor::authenticate(context, operation.machine_symbol)
+                    crate::SealedPlacedAccessor::prepared(services, operation.machine_symbol)
                         .map_err(|error| vec![error])?
                 else {
                     continue;
                 };
-                let schema = crate::service_schema::from_sealed_placed_accessor(context, &accessor)
+                let schema = accessor
+                    .prepared_schema(services)
                     .map_err(|error| vec![error])?;
                 let machine = typed.machine(accessor.machine()).ok_or_else(|| {
                     vec![diagnostics::Diagnostic::error(
@@ -718,7 +720,7 @@ fn derive_placed_accessor_plans(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding: ProviderBinding::CompilerIntrinsic {
                         machine: accessor
-                            .binding_identity(context)
+                            .prepared_binding_identity(services)
                             .map_err(|error| vec![error])?,
                     },
                 });

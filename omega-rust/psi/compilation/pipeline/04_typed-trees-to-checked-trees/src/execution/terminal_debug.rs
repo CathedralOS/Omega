@@ -104,9 +104,7 @@ fn source_transition_spans(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Vec<source::SourceSpan> {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
             StatementNode::Transition(transition) => Some(transition.source_span),

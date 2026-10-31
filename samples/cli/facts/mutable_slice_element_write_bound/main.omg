@@ -4,13 +4,13 @@
 data Backing { guard: u64; items: [u64; 3]; }
 
 machine storage_view<'input>(backing: &'input mut Backing) -> &'input mut [u64]
-    ensures result.len == 3;
+    ensures result.len == 3
 {
     &mut backing.items
 }
 
 machine mutate_guarded(view: &mut [u64]) -> u64
-    requires view.len >= 2;
+    requires view.len >= 2
 {
     view[1] = 45u64;
     let diff: u64 = view.len - 2u64;

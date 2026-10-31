@@ -5,7 +5,7 @@
 const LIMIT: u64 = 16u64;
 
 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx < LIMIT;
+    requires idx < LIMIT
 {
     values[idx]
 }

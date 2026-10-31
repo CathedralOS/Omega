@@ -6,6 +6,7 @@
 mod boundary_correspondence;
 
 use super::{Emission, LoweringError, StructuralArgument, unsupported};
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace};
 use terminal_psi::{
@@ -334,10 +335,7 @@ impl Emission<'_, '_, '_> {
         use checked_trees::facts::ContentClaimTransformationSource;
         let content = &self.checked.facts.qualifications.content;
         let equation = content.body_conservations.get(conservation);
-        let completed = self
-            .checked
-            .facts
-            .flow
+        let completed = flow_facts(&self.checked)
             .control
             .operands
             .get(equation.completed_value);

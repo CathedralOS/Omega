@@ -6,6 +6,7 @@
 //! callee's declared signature, instead of walking the authored statement
 //! again.
 
+use crate::checked_facts::flow_facts;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::types::PrimitiveType;
@@ -189,9 +190,7 @@ fn planned_result(
     state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> FlowCallResult {
-    checked
-        .facts
-        .flow
+    flow_facts(checked)
         .control
         .call_at(
             state,

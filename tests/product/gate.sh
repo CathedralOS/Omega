@@ -49,8 +49,23 @@ if [ -f "$review" ] && grep -Eq '^decision row [0-9a-f]+ pending$' "$review"; th
     "$omega_cli" update --project "$gate" --resume
 fi
 
-build_dir=$(mktemp -d "${TMPDIR:-/tmp}/omega-gate-$gate_name.XXXXXX")
-trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
+gate_outputs="$gate/build/product-gates"
+mkdir -p "$gate_outputs"
+build_dir=$(mktemp -d "$gate_outputs/$gate_name.XXXXXX")
+cleanup_gate() {
+    gate_status=$?
+    trap - EXIT HUP INT TERM
+    if [ "$gate_status" -eq 0 ]; then
+        rm -rf "$build_dir"
+    else
+        printf '%s-gate failed; build directory retained: %s\n' "$gate_name" "$build_dir" >&2
+    fi
+    exit "$gate_status"
+}
+trap cleanup_gate EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 "$omega_cli" --target "$target" --build-dir "$build_dir" "$gate/main.omg"
 cli_identity=$(shasum -a 256 "$omega_cli" | awk '{print $1}')
 artifact_identity=$(shasum -a 256 "$build_dir/omega-program" | awk '{print $1}')

@@ -8,6 +8,7 @@
 //! provider evidence, and this projection never reconstructs the rest of a
 //! package review.
 
+use crate::capture::EvidenceOption;
 use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowLimits};
 use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -35,20 +36,19 @@ impl TerminalPermissionAcceptance {
     /// A later locked compile does not reuse this value; it must present its
     /// own retained rows.
     pub fn from_public_build(checked: &CheckedCompilation) -> Result<Self, Vec<Diagnostic>> {
-        let package = checked.sources().package_identity().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "assumed binding risk rows require the consuming root package",
-            )]
-        })?;
-        let target = checked.execution().selected_target_profile.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "assumed binding risk rows require an exact product target",
-            )]
-        })?;
+        let package = checked
+            .sources()
+            .package_identity()
+            .or_evidence("assumed binding risk rows require the consuming root package")?;
+        let target = checked
+            .execution()
+            .selected_target_profile
+            .or_evidence("assumed binding risk rows require an exact product target")?;
         let evaluated = checked.build().config.assumed_bindings.len();
         let installed = checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings()
             .len();
         if evaluated == 0 || evaluated != installed {
@@ -103,7 +103,8 @@ impl TerminalPermissionAcceptance {
         }
         let (rows, _) = if checked
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings()
             .is_empty()
         {

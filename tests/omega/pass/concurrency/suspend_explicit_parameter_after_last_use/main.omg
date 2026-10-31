@@ -9,7 +9,7 @@ public boundary trait Scheduler { machine park() reaches suspends; }
 
 // The same explicit parameter stops contributing after its last field read.
 machine inspect(message: Message)
-suspends; reaches Scheduler {
+suspends reaches Scheduler {
     let value: i32 = message.value;
     suspend Scheduler::park();
 }

@@ -5,6 +5,7 @@
 //! bounded values, addresses and reference/descriptor storage require authority
 //! this byte-region contract does not supply. The original loan still owns access
 //! and lifetime. Ordinary exact-element collections do not use this layout.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, StructuralTypeId,
     ValueId,
@@ -62,11 +63,7 @@ pub fn representation_byte_extent<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     collection: StructuralTypeId,
 ) -> Option<u64> {
-    let mut matches = types.clone().filter(|row| row.id == collection);
-    let row = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
+    let row = exactly_one(types.clone(), |row| row.id == collection)?;
     representation_shape_byte_extent(types, &row.shape)
 }
 
@@ -79,11 +76,7 @@ fn representation_shape_byte_extent<'a>(
             element,
             length: terminal_psi::ArrayExtent::Literal(length),
         } => {
-            let mut elements = types.filter(|row| row.id == *element);
-            let element = elements.next()?;
-            if elements.next().is_some() {
-                return None;
-            }
+            let element = exactly_one(types, |row| row.id == *element)?;
             matches!(element.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) if !integer.is_address() && integer.sign() == IntegerSign::Unsigned && integer.bits()==8).then_some(*length)
         }
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
@@ -108,11 +101,7 @@ pub fn element_view_region_geometry<'a>(
     region: ElementViewRegion,
     access: terminal_psi::StructuralAccess,
 ) -> Option<ElementViewRegionGeometry> {
-    let mut declarations = types.clone().filter(|row| row.id == collection);
-    let declaration = declarations.next()?;
-    if declarations.next().is_some() {
-        return None;
-    }
+    let declaration = exactly_one(types.clone(), |row| row.id == collection)?;
     element_view_shape_region_geometry(types, &declaration.shape, element, region, access)
 }
 

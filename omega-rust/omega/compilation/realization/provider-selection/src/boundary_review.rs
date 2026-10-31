@@ -214,6 +214,8 @@ fn selected_plan<'plans>(
 }
 
 fn requirement_binds(requirement: BoundaryRequirementReview<'_>, plan: &ProviderPlan) -> bool {
-    plan.schema.identity_text(plan.schema.trait_name) == requirement.schema_identity
-        && plan.schema.trait_package_identity == requirement.package_identity
+    plan.schema
+        .identity_text(plan.schema.declaration.trait_name)
+        == requirement.schema_identity
+        && plan.schema.declaration.trait_package_identity == requirement.package_identity
 }

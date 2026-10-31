@@ -6,6 +6,7 @@
 //! Retain those leaves against the input owner even when no local store has
 //! produced a capture; selecting a case payload cannot erase that dependency.
 use super::Execution;
+use crate::places::place_at;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
 use facts::{PlaceRoot, PlaceSegment};
@@ -26,7 +27,7 @@ impl Execution<'_, '_, '_> {
         completed
             .or_else(|| self.stored_operand_retention(capture.expression))
             .or_else(|| {
-                let source = validation::canonical_place_from_expression_in_state(
+                let source = place_at(
                     self.program,
                     self.state.symbol,
                     capture.statement_index,
@@ -289,11 +290,21 @@ impl Execution<'_, '_, '_> {
     }
 
     pub(super) fn append_retention(&mut self, roots: &[PlaceRoot]) -> Handle<FlowOperandRetention> {
+        self.insert_retention(roots.iter().copied(), Handle::invalid())
+    }
+
+    /// One retention over exact `roots` and one stored value, with no
+    /// alternative or leaf roster: the profile covers that value alone.
+    fn insert_retention(
+        &mut self,
+        roots: impl IntoIterator<Item = PlaceRoot>,
+        stored_value: Handle<FlowOperandFact>,
+    ) -> Handle<FlowOperandRetention> {
         let roots = self
             .context
             .control
             .operand_retained_roots
-            .insert_many(roots.iter().copied());
+            .insert_many(roots);
         self.context
             .control
             .operand_retentions
@@ -301,7 +312,7 @@ impl Execution<'_, '_, '_> {
                 roots,
                 alternatives: HandleSpan::empty(),
                 leaves: HandleSpan::empty(),
-                stored_value: Handle::invalid(),
+                stored_value,
                 stored_projection: HandleSpan::empty(),
                 ..Default::default()
             })
@@ -385,7 +396,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<Handle<FlowOperandRetention>> {
-        let source = validation::canonical_place_from_expression_in_state(
+        let source = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -583,7 +594,7 @@ impl Execution<'_, '_, '_> {
             capture.completion,
             checked_trees::FlowOperandCompletion::Observation
         ) && value_retention.is_none()
-            && let Some(source) = validation::canonical_place_from_expression_in_state(
+            && let Some(source) = place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
@@ -620,22 +631,7 @@ impl Execution<'_, '_, '_> {
             }
         }
         let stored_value = self.context.control.operands.insert(value);
-        let roots = self
-            .context
-            .control
-            .operand_retained_roots
-            .insert_many(roots);
-        self.context
-            .control
-            .operand_retentions
-            .insert(FlowOperandRetention {
-                roots,
-                alternatives: HandleSpan::empty(),
-                leaves: HandleSpan::empty(),
-                stored_value,
-                stored_projection: HandleSpan::empty(),
-                ..Default::default()
-            })
+        self.insert_retention(roots, stored_value)
     }
 
     pub(super) fn capture_value_retention(
@@ -653,7 +649,7 @@ impl Execution<'_, '_, '_> {
         }
         let mut value = *capture;
         if capture.constructed_children().is_empty() {
-            let Some(source) = validation::canonical_place_from_expression_in_state(
+            let Some(source) = place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
@@ -723,23 +719,8 @@ impl Execution<'_, '_, '_> {
         ) else {
             return Handle::invalid();
         };
-        let roots = self
-            .context
-            .control
-            .operand_retained_roots
-            .insert_many(roots);
         let stored_value = self.context.control.operands.insert(value);
-        self.context
-            .control
-            .operand_retentions
-            .insert(FlowOperandRetention {
-                roots,
-                alternatives: HandleSpan::empty(),
-                leaves: HandleSpan::empty(),
-                stored_value,
-                stored_projection: HandleSpan::empty(),
-                ..Default::default()
-            })
+        self.insert_retention(roots, stored_value)
     }
 
     fn updated_value_retention(

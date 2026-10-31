@@ -7,9 +7,11 @@
 
 use super::super::view_ranges::ViewRangeSite;
 use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralDomainId,
@@ -74,26 +76,7 @@ impl OperationFrame<'_, '_> {
                     .scalar_locals_before(self.state, result.statement_index),
             }
         };
-        let lowered = {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.source_value(
-                identities,
-                environment.checked,
-                environment.machine,
-                environment.state,
-                result.statement_index,
-                role,
-                value,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
+        let lowered = self.source_value(identities, result.statement_index, role, value)?;
         if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
@@ -169,10 +152,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             local.declared_type,
         )?;
-        let predicates = self
-            .checked
-            .facts
-            .values
+        let predicates = value_facts(&self.checked)
             .scalar_type_refinement_predicates(local.declared_type)
             .ok_or(LoweringError::Unsupported(
                 "scalar local has no complete checked value refinement",
@@ -233,29 +213,11 @@ impl OperationFrame<'_, '_> {
         for (ordinal, element) in elements.iter().enumerate() {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
-            let value = {
-                let (mut environment, emission) = self.reborrow().split();
-                emission.evaluation.source_value(
-                    identities,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
-                    result.statement_index,
-                    CheckedScalarExpressionRole::ArrayElement {
-                        source: *source,
-                        element_ordinal,
-                    },
-                    element,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
+            let role = CheckedScalarExpressionRole::ArrayElement {
+                source: *source,
+                element_ordinal,
+            };
+            let value = self.source_value(identities, result.statement_index, role, element)?;
             self.values.push(value);
         }
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
@@ -1104,12 +1066,7 @@ impl OperationFrame<'_, '_> {
                         local.statement_index < statement_index
                             // Rebinding replaces the stored carrier, not the
                             // borrowed referent exposed by argument presentation.
-                            && validation::stored_structural_type_identity(
-                                &self.checked.typed,
-                                local.declared_type,
-                                &[],
-                                &[],
-                            ) == type_identity
+                            && stored_structural_identity(&self.checked, local.declared_type) == type_identity
                     })
                 {
                     return unsupported(
@@ -1144,12 +1101,8 @@ impl OperationFrame<'_, '_> {
                         .is_some_and(|shell| {
                             shell.access == language_semantics::ReferenceAccess::Shared
                         })
-                    && validation::stored_structural_type_identity(
-                        &self.checked.typed,
-                        formal.type_reference,
-                        &[],
-                        &[],
-                    ) == type_identity
+                    && stored_structural_identity(&self.checked, formal.type_reference)
+                        == type_identity
                 {
                     // The signature keeps its borrowed ingress. Only the
                     // body's current binding adopts the completed descriptor
@@ -1417,10 +1370,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             cleanup_actions,
             selected_regions,
-            &self
-                .checked
-                .facts
-                .flow
+            &flow_facts(&self.checked)
                 .terminal_unit_effects
                 .cleanup_control,
             self.structural_types.declarations(),

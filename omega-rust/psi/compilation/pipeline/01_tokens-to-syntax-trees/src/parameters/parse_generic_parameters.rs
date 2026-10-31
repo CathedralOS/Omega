@@ -43,7 +43,7 @@ pub(crate) enum GenericParameterSyntax {
     MathematicalDefinition,
 }
 
-/// The `>` terminator shared by every exit from the parameter-list loop:
+/// The `>` terminator that closes the parameter list after its loop ends:
 /// take the close punctuation, then wrap the accumulated span.
 fn close_generic_parameter_list<'tokens, 'source>(
     input: Input<'tokens, 'source>,
@@ -74,9 +74,14 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     let allow_proposition_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
     let allow_conformance_binders = matches!(
         syntax,
-        GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::MachineDeclaration
+        GenericParameterSyntax::TraitRequirements
+            | GenericParameterSyntax::MachineDeclaration
+            | GenericParameterSyntax::DataDeclaration
     );
-    let trait_requirement_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
+    let trait_requirement_parameters = matches!(
+        syntax,
+        GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
+    );
     let allow_value_parameters = matches!(
         syntax,
         GenericParameterSyntax::RequirementSignature
@@ -133,13 +138,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 input = input.take_punctuation(PunctuationKind::Comma, ",")?;
                 continue;
             }
-
-            return close_generic_parameter_list(
-                input,
-                lifetime_parameters,
-                type_parameters,
-                conformance_bounds,
-            );
+            break;
         }
 
         let (name, mut kind, next) = if input.at_contextual("const") {
@@ -230,12 +229,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 input = input.take_punctuation(PunctuationKind::Comma, ",")?;
                 continue;
             }
-            return close_generic_parameter_list(
-                input,
-                lifetime_parameters,
-                type_parameters,
-                conformance_bounds,
-            );
+            break;
         }
         if matches!(kind, TypeParameterKind::Type)
             && input.at_punctuation(PunctuationKind::Colon)
@@ -298,7 +292,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             && input.at_punctuation(PunctuationKind::LeftBracket)
         {
             return Err(input.error_here(
-                "a machine parameter takes its callable contract in a mandatory `where machine M(...) -> Result` clause, not property brackets",
+                "a machine parameter takes its callable contract in a mandatory `requires machine M(...) -> Result` clause, not property brackets",
             ));
         }
         if matches!(kind, TypeParameterKind::Proposition { .. })
@@ -321,16 +315,16 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             .append_type_parameter(TypeParameter { name, kind, bounds });
         type_parameters.push(handle);
 
-        if input.at_punctuation(PunctuationKind::Comma) {
-            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            continue;
-        }
-
-        return close_generic_parameter_list(
-            input,
-            lifetime_parameters,
-            type_parameters,
-            conformance_bounds,
-        );
+        let Some(next) = input.take_comma()? else {
+            break;
+        };
+        input = next;
     }
+
+    close_generic_parameter_list(
+        input,
+        lifetime_parameters,
+        type_parameters,
+        conformance_bounds,
+    )
 }

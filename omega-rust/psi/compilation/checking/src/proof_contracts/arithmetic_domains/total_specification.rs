@@ -15,6 +15,7 @@ use super::{
     TypeReferenceNode, ValueEnvironment, abstract_shift_count, division_definedness, is_arithmetic,
     literal_i64, place_path, range_constraint_interval,
 };
+use crate::frozen_program::expression_table;
 use crate::machine_calls::machine_parameters::contract_facts::contract_kind_name;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
@@ -151,7 +152,7 @@ fn validate_total_specification_arithmetic_for_domains(
                 visited,
             );
         };
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Binary(binary) => {
                 recurse(binary.left, diagnostics, visited);
                 recurse(binary.right, diagnostics, visited);
@@ -212,12 +213,12 @@ fn validate_total_specification_arithmetic_for_domains(
             }
             ExpressionNode::Call(call) => {
                 recurse(call.receiver, diagnostics, visited);
-                for argument in program.expression_table.expression_handles(call.arguments) {
+                for argument in expression_table(program).expression_handles(call.arguments) {
                     recurse(*argument, diagnostics, visited);
                 }
                 if !integer_formation_prevalidated
                     && call.exact_coercion_target.is_valid()
-                    && let [operand] = program.expression_table.expression_handles(call.arguments)
+                    && let [operand] = expression_table(program).expression_handles(call.arguments)
                 {
                     numeric_coercion(*operand, call.exact_coercion_target, diagnostics);
                 }
@@ -405,7 +406,7 @@ pub(super) fn abstract_specification_builtin_arithmetic(
     bindings: AbstractSpecificationBindings<'_>,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return false;
     };
     crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_for_operand_types(
@@ -441,11 +442,10 @@ pub(super) fn abstract_specification_place_type(
         expression: ExpressionHandle,
         output: &mut Vec<String>,
     ) -> Option<()> {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => {
                 output.extend(
-                    program
-                        .expression_table
+                    expression_table(program)
                         .name_path_members(path.members)
                         .iter()
                         .map(ToString::to_string),
@@ -508,7 +508,7 @@ pub(super) fn abstract_specification_place_type(
             if let Some(reference) = crate::exact_domain_subject_type(program, domain, expression) {
                 return Some(reference);
             }
-            match program.expression_table.expression(expression) {
+            match expression_table(program).expression(expression) {
                 ExpressionNode::Borrow(borrow) => domain_place_type(program, domain, borrow.target),
                 ExpressionNode::Member(member) => {
                     let reference = domain_place_type(program, domain, member.receiver)?;
@@ -545,7 +545,7 @@ pub(super) fn abstract_specification_place_type(
             if let Some(parameter) = bindings.parameters.iter().find(|parameter| {
                 parameter.name.as_str() == name.as_str()
                     || (parameter.symbol.is_valid()
-                        && matches!(program.expression_table.expression(expression),
+                        && matches!(expression_table(program).expression(expression),
                             ExpressionNode::Name(path) if path.symbol == parameter.symbol))
             }) {
                 (parameter.type_reference, 1)
@@ -661,7 +661,7 @@ fn validate_abstract_numeric_coercion(
                 "Exact numeric cast in {owner} to `{}` is not provably denotation preserving; \
                  prove source integrality and exact representability independently or use a named numeric conversion",
                 primitive_name(target),
-            )).with_source_span(program.expression_table.source_span(operand)));
+            )).with_source_span(expression_table(program).source_span(operand)));
         }
         return;
     }
@@ -678,7 +678,7 @@ fn validate_abstract_numeric_coercion(
             "Exact integer cast in {owner} to `{}` is not provably representable; \
              constrain the source with an independently accepted prior fact or use a named numeric conversion",
             primitive_name(target),
-        )).with_source_span(program.expression_table.source_span(operand)));
+        )).with_source_span(expression_table(program).source_span(operand)));
     }
 }
 
@@ -706,7 +706,7 @@ fn validate_abstract_exact_policy_erasure_formation(
         {
             return Some((None, Interval::constant(literal), false));
         }
-        let (type_reference, place, erased) = match program.expression_table.expression(expression)
+        let (type_reference, place, erased) = match expression_table(program).expression(expression)
         {
             ExpressionNode::Cast(cast)
                 if !cast.form.is_recast()
@@ -1112,9 +1112,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                     validate_term(*expression);
                 }
                 PropositionFormula::Application(application) => {
-                    for argument in program
-                        .expression_table
-                        .expression_handles(application.arguments)
+                    for argument in
+                        expression_table(program).expression_handles(application.arguments)
                     {
                         validate_term(*argument);
                     }

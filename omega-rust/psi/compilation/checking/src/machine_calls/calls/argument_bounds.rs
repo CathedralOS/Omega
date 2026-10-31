@@ -1,5 +1,6 @@
 //! Numeric parameter delivery consumes the caller's evaluated argument bounds.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -184,8 +185,7 @@ pub(super) fn report_referent_handbacks(
                 return None;
             }
             let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
-            let target = program
-                .expression_table
+            let target = expression_table(program)
                 .borrow_expression(*argument)
                 .map_or(*argument, |borrow| borrow.target);
             let mut place = crate::canonical_place_from_expression_in_state(

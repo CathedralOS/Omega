@@ -30,6 +30,7 @@ use typed_trees::TypedTrees;
 #[derive(Clone, Copy)]
 pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
+    deferred_layout_applications: &'request [typed_trees::types::TypeReferenceHandle],
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
     opaque_representation_selections: &'request [OpaqueRepresentationSelection],
@@ -41,6 +42,7 @@ impl<'request> PreparationRequest<'request> {
     pub const fn settled() -> Self {
         Self {
             admits_pending_inputs: false,
+            deferred_layout_applications: &[],
             asm_authority: None,
             opaque_property_receipts: &[],
             opaque_representation_selections: &[],
@@ -54,6 +56,16 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: true,
             ..Self::settled()
         }
+    }
+
+    /// Exact applications whose physical judgments belong to the retained
+    /// target-value continuation. All other source checks remain settled.
+    pub fn with_deferred_layout_applications(
+        mut self,
+        applications: &'request [typed_trees::types::TypeReferenceHandle],
+    ) -> Self {
+        self.deferred_layout_applications = applications;
+        self
     }
 
     /// Admit privileged instructions against this invocation's evaluated Build.
@@ -101,6 +113,7 @@ impl<'request> PreparationRequest<'request> {
 #[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
+    deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
@@ -114,6 +127,7 @@ impl PreparationRequest<'_> {
     pub fn admission(&self) -> PreparationAdmission {
         PreparationAdmission {
             admits_pending_inputs: self.admits_pending_inputs,
+            deferred_layout_applications: self.deferred_layout_applications.to_vec(),
             asm_authority: self.asm_authority,
             opaque_property_receipts: self.opaque_property_receipts.to_vec(),
             opaque_representation_selections: self.opaque_representation_selections.to_vec(),
@@ -122,10 +136,30 @@ impl PreparationRequest<'_> {
     }
 }
 
+impl PreparationAdmission {
+    /// Require validated geometry while preserving the source continuation's
+    /// pending constants. Their predicates discharge per target afterwards.
+    pub fn layout_settled_request(&self) -> PreparationRequest<'_> {
+        PreparationRequest {
+            admits_pending_inputs: self.admits_pending_inputs,
+            deferred_layout_applications: &[],
+            asm_authority: self.asm_authority,
+            opaque_property_receipts: &self.opaque_property_receipts,
+            opaque_representation_selections: &self.opaque_representation_selections,
+            wire_compatibility_demands: &self.wire_compatibility_demands,
+        }
+    }
+
+    pub fn deferred_layout_applications(&self) -> &[typed_trees::types::TypeReferenceHandle] {
+        &self.deferred_layout_applications
+    }
+}
+
 /// Judgments retained while closing the typed program. Its ordinary TypedTrees
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
     admits_pending_inputs: bool,
+    deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
@@ -140,12 +174,14 @@ impl TypedPreparation {
         self,
     ) -> (
         bool,
+        Vec<typed_trees::types::TypeReferenceHandle>,
         proof::mathematical_declarations::CheckedMathematics,
         Vec<validation::OpaqueDataPropertyReceipt>,
         Vec<OpaqueRepresentationSelection>,
     ) {
         (
             self.admits_pending_inputs,
+            self.deferred_layout_applications,
             self.mathematics,
             self.opaque_property_receipts,
             self.opaque_representation_selections,
@@ -356,6 +392,7 @@ pub fn prepare_typed_trees(
         program.into(),
         TypedPreparation {
             admits_pending_inputs: request.admits_pending_inputs,
+            deferred_layout_applications: request.deferred_layout_applications.to_vec(),
             mathematics,
             opaque_property_receipts,
             opaque_representation_selections,
@@ -408,8 +445,9 @@ fn normalize_open_index_identities(
     .map_err(|diagnostic| vec![diagnostic])
 }
 
-/// Resume canonical constant dependencies by closing complete static tuples.
-/// This does not form numeric destinations: pending evaluation is not authority
+/// Prepare the append-only ordinary and finite dynamic execution applications.
+/// Existing instance keys make repeated consumers idempotent. This does not
+/// form numeric destinations: pending evaluation is not authority
 /// to round the caller's canonical program. Private execution instead enters
 /// [`prepare_constant_execution`]; final source admission uses the full stage.
 ///
@@ -417,11 +455,26 @@ fn normalize_open_index_identities(
 /// preparation runs while const endpoint folds are still outstanding, so an
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
-pub fn specialize_static_machine_calls(
+pub fn prepare_execution_applications(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     selections::retain_static_argument_contexts(program);
-    specialize_machine_calls(program, false)?;
+    loop {
+        let signatures = program.closed_requirement_applications().count();
+        specialize_machine_calls(program, false)?;
+        // Both declared dynamic families and ordinary public requirement
+        // applications own complete specialized provider bodies. Run the same
+        // append-only producers used by full preparation before describing
+        // physical work; a new body can expose another ordinary application.
+        let mut materialized =
+            crate::monomorphization::generate_dynamic_family_specializations(program)?;
+        crate::monomorphization::instantiate_requirement_applications(program)?;
+        materialized +=
+            crate::monomorphization::generate_requirement_provider_specializations(program)?;
+        if materialized == 0 && program.closed_requirement_applications().count() == signatures {
+            break;
+        }
+    }
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
@@ -441,11 +494,12 @@ pub fn specialize_static_machine_calls(
 pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
+    data_applications::elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     selections::retain_static_argument_contexts(&mut program);
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
-    specialize_static_machine_calls(&mut program)?;
+    prepare_execution_applications(&mut program)?;
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);

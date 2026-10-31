@@ -5,7 +5,7 @@
 use omega::language::core::option;
 
 machine find<'input, T, Context, machine Predicate>(values: &'input [T], context: &Context) -> Optional<&'input T>
-where machine Predicate(value: &T, context: &Context) -> bool;
+requires machine Predicate(value: &T, context: &Context) -> bool;
 {
     transition { _ -> next(values, context, 0) }
     machine next(values: &'input [T], context: &Context, position: u64) -> Optional<&'input T>
@@ -27,7 +27,7 @@ where machine Predicate(value: &T, context: &Context) -> bool;
 }
 
 machine count<T, machine Predicate>(values: &[T]) -> u64
-where machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: &T) -> bool;
 {
     transition { _ -> next(values, 0, 0) }
     machine next(values: &[T], position: u64, matched: u64) -> u64
@@ -57,13 +57,13 @@ machine selected(value: &Record) -> bool { value.selected }
 data Batch<T, const Capacity: u64> { values: [T; Capacity]; }
 
 machine count_batch<T, const Capacity: u64, machine Predicate>(batch: &Batch<T, Capacity>) -> u64
-where machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: &T) -> bool;
 {
     count<Predicate>(&batch.values)
 }
 
 machine count_with_context<T, Context, machine Predicate>(values: &[T], context: &Context) -> u64
-where machine Predicate(value: &T, context: &Context) -> bool;
+requires machine Predicate(value: &T, context: &Context) -> bool;
 {
     transition { _ -> next(values, context, 0, 0) }
     machine next(values: &[T], context: &Context, position: u64, matched: u64) -> u64

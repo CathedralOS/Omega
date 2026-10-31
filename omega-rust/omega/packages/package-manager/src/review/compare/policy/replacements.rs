@@ -68,9 +68,7 @@ pub(super) fn compare(
     budget.source_replacements(count)?;
     budget.slots::<PackagePolicySourceReplacement>(count)?;
     let mut replacements = Vec::new();
-    replacements
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    super::limits::reserve(&mut replacements, count)?;
     if old_root != new_root {
         push(
             &mut replacements,
@@ -143,9 +141,7 @@ fn ordered_bindings<'source>(
     let selections = source.dependency_requests();
     budget.slots::<&CanonicalDependencySourceSelection>(selections.len())?;
     let mut ordered = Vec::new();
-    ordered
-        .try_reserve_exact(selections.len())
-        .map_err(|_| Error::AllocationFailed)?;
+    super::limits::reserve(&mut ordered, selections.len())?;
     ordered.extend(selections);
     ordered.sort_unstable_by(|left, right| binding(left).cmp(&binding(right)));
     Ok(ordered)

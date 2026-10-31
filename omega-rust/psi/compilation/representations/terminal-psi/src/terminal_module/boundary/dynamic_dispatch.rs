@@ -15,7 +15,7 @@
 //! and custody, never a callee's own places or values.
 
 use crate::terminal_module::TerminalIdentityIndex;
-use semantic_vocabulary::{MachineId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{MachineId, ScalarType, StructuralDomainId, StructuralTypeId};
 
 use crate::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
@@ -111,13 +111,18 @@ pub struct TerminalDynamicClaimPath {
 
 /// One structural formal of a slot: what every row's parameter at
 /// `position` declares.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalDynamicStructuralFormal {
-    /// Authored position among the requirement's formals.
+    /// Dense position in the slot's structural lane. The selector is not a
+    /// structural formal, and preceding scalar formals do not occupy this lane.
     pub position: u32,
     pub structural_type: StructuralTypeId,
     pub access: StructuralAccess,
     pub multiplicity: StructuralMultiplicity,
+    /// Strictly ordered domain preconditions every realization receives.
+    /// These are the requirement's public qualifications, not a row's private
+    /// proof that it established them.
+    pub qualifications: Vec<StructuralDomainId>,
 }
 
 /// One named implementation's complete row map for one interface. A

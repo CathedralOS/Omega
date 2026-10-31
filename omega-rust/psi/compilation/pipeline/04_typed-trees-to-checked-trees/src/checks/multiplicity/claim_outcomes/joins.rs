@@ -632,11 +632,7 @@ fn bound_sources_at_call(
         program,
         validation::call_target_symbol(program, call),
     );
-    let mut matching = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
+    let mut matching = crate::flow::call_flows(&facts.flow.control, flow.calls)
         .iter()
         .filter(|row| {
             row.statement_index == statement
@@ -1130,9 +1126,7 @@ impl InactivePlaceWrites {
             .find(|candidate| {
                 candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
             })?;
-        let statements = program
-            .statement_table
-            .statements(state.statement_nodes)
+        let statements = crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()
             .map(|(index, statement)| {

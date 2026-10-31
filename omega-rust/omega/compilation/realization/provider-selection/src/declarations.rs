@@ -47,6 +47,18 @@ pub(crate) fn same_declaration<Declaration: PartialEq>(
 }
 
 impl<Declaration: PartialEq> ProviderSubject<Declaration> {
+    /// Demand and publication retain the same exact schema/application/family
+    /// choice, without applying a target fence earlier than whole-plan selection.
+    pub fn selects_plan(&self, schema: &Result<Declaration, String>, plan: &ProviderPlan) -> bool {
+        plan.rows.iter().any(|row| {
+            self.selects_schema(
+                schema,
+                plan.identity_text(row.requirement_identity),
+                plan.schema.root_application_identity(),
+            )
+        })
+    }
+
     pub fn authored_path(&self) -> &str {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {

@@ -6,6 +6,7 @@
 //! identities. This module owns that join; there is no second publication of
 //! the same rows to reconcile.
 
+use crate::checked_facts::flow_facts;
 use checked_trees::{CheckedPlacedViewInput, CheckedTrees};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{StructuralAccess, TerminalPlacedViewInput};
@@ -64,9 +65,7 @@ pub(crate) fn lower_placed_view_input(
     // Join the actual checked structural telescope, rather than duplicating
     // its scalar/erased classifier. Only an executable machine's initial state
     // owns an input boundary; ordinary block loans transport later states.
-    let entry = checked
-        .facts
-        .flow
+    let entry = flow_facts(checked)
         .terminal_unit_effects
         .callable_entry_for_machine(input.machine)
         .filter(|entry| entry.state == input.state)

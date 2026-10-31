@@ -48,6 +48,7 @@
 //! orders that extent's evaluation; neither a probe stand-in nor a provisional
 //! layout may provide the encoded value.
 
+use crate::unique::{extend_unique, push_unique};
 use std::collections::HashMap;
 
 use diagnostics::Diagnostic;
@@ -66,6 +67,7 @@ use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
 
 mod invocations;
 mod materialize;
+mod probe_projection;
 mod replay;
 mod target_observations;
 
@@ -366,9 +368,7 @@ pub(crate) fn evaluate(
         for (reference, declaration) in selected.constants {
             let dependency = dependency(&declarations, &preparation, declaration, reference)?;
             let selected = (reference, dependency);
-            if !declarations[ordinal].dependencies.contains(&selected) {
-                declarations[ordinal].dependencies.push(selected);
-            }
+            push_unique(&mut declarations[ordinal].dependencies, selected);
         }
         if declarations[ordinal].leaves.is_empty() {
             continue;
@@ -562,9 +562,7 @@ pub(crate) fn evaluate(
                 )
                 .map_err(|reason| failure(reference, reason))?;
                 for choice in observation.calls() {
-                    if !choices.contains(choice) {
-                        choices.push(*choice);
-                    }
+                    push_unique(&mut choices, *choice);
                 }
                 observations.push((leaf.expression, observation));
             }
@@ -758,6 +756,7 @@ pub(crate) fn evaluate(
             let mut builtin_operators = Vec::new();
             let mut call_selections = Vec::new();
             let mut scalar_value = None;
+            let mut structured_value = None;
             for leaf in &declarations[ordinal].leaves {
                 let reference = syntax.expressions.source_span(leaf.expression);
                 let authored = &authored_probes
@@ -789,19 +788,21 @@ pub(crate) fn evaluate(
                         .evaluate_leaf(reference, authored, &syntax)
                         .map_err(|reason| failure(reference, reason))?;
                     for selection in &evaluation.calls {
-                        if !call_selections.contains(selection) {
-                            call_selections.push(*selection);
-                        }
+                        push_unique(&mut call_selections, *selection);
                     }
-                    for origin in evaluation.origins {
-                        if !selections.contains(&origin) {
-                            selections.push(origin);
-                        }
-                    }
-                    for operator in evaluation.operators {
-                        if !builtin_operators.contains(&operator) {
-                            builtin_operators.push(operator);
-                        }
+                    extend_unique(&mut selections, evaluation.origins);
+                    extend_unique(&mut builtin_operators, evaluation.operators);
+                    if declarations[ordinal].leaves.len() == 1
+                        && leaf.expression == authored_expression
+                    {
+                        let value = materialize::canonical_value(
+                            typed,
+                            evaluation.destination,
+                            &evaluation.value,
+                        )
+                        .map_err(|reason| failure(reference, reason))?;
+                        structured_value = Some(language_semantics::const_value::CanonicalConstIdentity::from_declaration_value(&value)
+                            .ok_or_else(|| failure(reference, "structured declaration value exceeds canonical encoding limits"))?.encoding.into());
                     }
                     let materialized = materialize::literal(
                         &mut syntax,
@@ -845,23 +846,13 @@ pub(crate) fn evaluate(
                 }
                 .map_err(|reason| failure(reference, reason))?;
                 for selection in &result.call_selections {
-                    if !call_selections.contains(selection) {
-                        call_selections.push(*selection);
-                    }
+                    push_unique(&mut call_selections, *selection);
                 }
-                for origin in result.origins {
-                    if !selections.contains(&origin) {
-                        selections.push(origin);
-                    }
-                }
+                extend_unique(&mut selections, result.origins);
                 // Several fields may depend on the same computed declaration.
                 // Its authored operators remain one provenance roster, not one
                 // synthetic occurrence for every leaf which reads the value.
-                for operator in result.operators {
-                    if !builtin_operators.contains(&operator) {
-                        builtin_operators.push(operator);
-                    }
-                }
+                extend_unique(&mut builtin_operators, result.operators);
                 scalar_value = Some(result.value.declaration_value());
                 use crate::const_evaluation::const_generic_expressions::value::ScalarValue;
                 let literal = match result.value {
@@ -927,6 +918,8 @@ pub(crate) fn evaluate(
                         "scalar initializer lost its evaluated value",
                     )
                 })?
+            } else if let Some(value) = structured_value {
+                value
             } else {
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
@@ -945,29 +938,15 @@ pub(crate) fn evaluate(
             // dependency receipts can contribute transitive operator meaning.
             for (reference, dependency) in &declarations[ordinal].authored_dependencies {
                 let origin = dependency.origin(*reference, &syntax, &declarations)?;
-                if !selections.contains(&origin) {
-                    selections.push(origin);
-                }
+                push_unique(&mut selections, origin);
                 let custody = dependency.custody(
                     &declarations,
                     &preparation,
                     InitializerCustodyPurpose::Value,
                 )?;
-                for origin in custody.selections {
-                    if !selections.contains(&origin) {
-                        selections.push(origin);
-                    }
-                }
-                for operator in custody.builtin_operators {
-                    if !builtin_operators.contains(&operator) {
-                        builtin_operators.push(operator);
-                    }
-                }
-                for call in custody.call_selections {
-                    if !call_selections.contains(&call) {
-                        call_selections.push(call);
-                    }
-                }
+                extend_unique(&mut selections, custody.selections);
+                extend_unique(&mut builtin_operators, custody.builtin_operators);
+                extend_unique(&mut call_selections, custody.call_selections);
             }
             let authored_custody = ConstInitializerCustody {
                 selections: dependency_origins(
@@ -1104,15 +1083,9 @@ fn dependency_origins(
     let mut origins = Vec::new();
     for (reference, dependency) in dependencies {
         let origin = dependency.origin(*reference, syntax, declarations)?;
-        if !origins.contains(&origin) {
-            origins.push(origin);
-        }
+        push_unique(&mut origins, origin);
         let custody = dependency.custody(declarations, preparation, purpose)?;
-        for origin in custody.selections {
-            if !origins.contains(&origin) {
-                origins.push(origin);
-            }
-        }
+        extend_unique(&mut origins, custody.selections);
     }
     Ok(origins)
 }

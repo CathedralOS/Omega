@@ -159,21 +159,17 @@ impl TerminalExecution<'_> {
         for ((parameter, argument), resolved) in
             parameters.iter().zip(arguments).zip(resolved_arguments)
         {
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&parameter.structural_type)
-                .ok_or(malformed())?;
+            let declaration = self.structural_declaration(parameter.structural_type)?;
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
             if terminal_semantics::borrowed_storage_parameter(
                 parameter,
-                self.program.structural_types().values(),
+                self.structural_types().values(),
             ) && terminal_semantics::stored_reference_access(&declaration.shape).is_some()
                 && terminal_semantics::borrowed_storage_reference_ceiling(
                     parameter,
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                 )
                 .is_none()
             {
@@ -262,20 +258,16 @@ impl TerminalExecution<'_> {
         for ((parameter, argument), resolved) in
             parameters.iter().zip(arguments).zip(resolved_arguments)
         {
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&parameter.structural_type)
-                .ok_or(malformed())?;
+            let declaration = self.structural_declaration(parameter.structural_type)?;
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
             if terminal_semantics::borrowed_storage_parameter(
                 parameter,
-                self.program.structural_types().values(),
+                self.structural_types().values(),
             ) && terminal_semantics::borrowed_storage_reference_ceiling(
                 parameter,
-                self.program.structural_types().values(),
+                self.structural_types().values(),
             )
             .is_none()
             {
@@ -289,7 +281,7 @@ impl TerminalExecution<'_> {
             if stored.opaque_identity != resolved.opaque_identity
                 || stored.path != resolved.path
                 || !terminal_semantics::borrowed_referent_matches(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     stored.structural_type,
                     resolved.structural_type,
                 )
@@ -310,7 +302,7 @@ impl TerminalExecution<'_> {
                 view.access()
             } else if terminal_semantics::borrowed_storage_parameter(
                 parameter,
-                self.program.structural_types().values(),
+                self.structural_types().values(),
             ) {
                 // Preserve the resident descriptor home behind the outer loan.
                 // Its view companion is attenuated, never a copied value home.
@@ -320,7 +312,7 @@ impl TerminalExecution<'_> {
                 self.validate_descriptor_borrow(argument, parameter.access)?;
                 terminal_semantics::borrowed_storage_reference_ceiling(
                     parameter,
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                 )
                 .ok_or_else(malformed)?
             } else {
@@ -328,7 +320,7 @@ impl TerminalExecution<'_> {
                     parameter,
                     argument,
                     resolved,
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                 ) {
                     return Err(TerminalInterpretError::StructuralArgumentPreparation {
                         stage: "rebind borrowed element view",
@@ -402,11 +394,11 @@ impl TerminalExecution<'_> {
         let mut callee_affine_frontier = crate::custody::bind_affine_frontier(
             &callee.structural_parameters,
             &structural_values,
-            &self.program.structural_types(),
+            &self.structural_types(),
         )
         .map_err(|error| error.in_argument_preparation("bind callee affine frontier"))?;
         let (remaining_claims, live_claims) = transfer_claims(
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.structural_cases.as_map(),
             &self.live_claims,
             structural_arguments,
@@ -418,14 +410,14 @@ impl TerminalExecution<'_> {
         )
         .map_err(|error| error.in_argument_preparation("transfer argument claims"))?;
         crate::custody::exclude_linear_regions(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &mut callee_affine_frontier,
             live_claims
                 .values()
                 .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
             &|current| {
                 crate::structural_inputs::case_membership::stored_case_at_projection(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     structural_values.get(&current.place)?,
                     self.structural_cases.as_map(),
                     &current.path,

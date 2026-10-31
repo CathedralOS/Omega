@@ -1,5 +1,6 @@
 //! Exact erasure of checked float-meaning projections into Terminal Psi.
 
+use crate::checked_facts::flow_facts;
 use checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
     CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource,
@@ -406,9 +407,7 @@ fn resolve_direct_block_float_parameter(
         )
     };
     let format = projection_format(parameter.fallback.primitive).map_err(|_| invalid_source())?;
-    let plan = checked
-        .facts
-        .flow
+    let plan = flow_facts(checked)
         .terminal_unit_effects
         .composed_for_machine(source_machine.symbol)
         .ok_or_else(invalid_source)?;

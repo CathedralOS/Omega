@@ -1,16 +1,16 @@
 // Expected exit: 0. A selected worker provider invokes the supplied body.
 public boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(arguments: Arguments) -> T
-    where machine Target(arguments: Arguments) -> T suspends; blocks;
+    requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true
     reaches
-    suspends; blocks;
+    suspends blocks;
 }
 data CheckedWorkerProvider {}
 machine CheckedWorkerProvider::execute<T, Arguments, machine Target>(arguments: Arguments) -> T
-where machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends blocks;
 satisfies WorkerProvider::execute
-suspends; blocks;
+suspends blocks
 {
     suspend block Target(arguments)
 }

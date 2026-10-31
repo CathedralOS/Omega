@@ -5,6 +5,7 @@
 //! through its referee without losing generic substitutions or a case selector.
 
 use super::super::type_instantiation::DeclarationScopes;
+use crate::frozen_program::expression_table;
 use facts::PlaceSegment;
 use symbols::SymbolKind;
 use typed_trees::data::{DataMember, DataVariant};
@@ -144,13 +145,11 @@ impl<'program> StorageProjectionCursor<'program> {
                     PlaceSegment::FixedIndex { index } if index < length => {}
                     PlaceSegment::Index { expression }
                         if *length > 0
-                            && self
-                                .program
-                                .expression_table
+                            && expression_table(self.program)
                                 .constant_integer_value(*expression)
                                 .is_none()
                             && !matches!(
-                                self.program.expression_table.expression(*expression),
+                                expression_table(self.program).expression(*expression),
                                 ExpressionNode::Range(_)
                             ) => {}
                     _ => return None,

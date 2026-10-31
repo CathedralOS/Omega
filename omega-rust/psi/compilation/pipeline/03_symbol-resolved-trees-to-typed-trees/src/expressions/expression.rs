@@ -26,6 +26,7 @@
 //! operators for it.
 
 use crate::lowerer::Lowerer;
+use crate::tables::resolved_expressions;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -135,10 +136,7 @@ pub(crate) fn lower_static_machine_argument(
                                 "qualified static member requires its resolved source program",
                             )
                         })?;
-                        let source = owner
-                            .tables
-                            .bodies
-                            .expressions
+                        let source = resolved_expressions(owner)
                             .static_member(application.member)
                             .ok_or_else(|| {
                                 Diagnostic::error(

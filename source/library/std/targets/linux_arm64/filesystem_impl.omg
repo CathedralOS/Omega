@@ -24,10 +24,12 @@ data LinuxArm64StatRecord {
     blocks: i64;
     blksize: i32;
 }
-data LinuxArm64StatLayout {}
-data LinuxArm64StatView { value: LinuxArm64StatLayout<LinuxArm64StatRecord>; }
+data LinuxArm64StatView { value: LayoutStorage<LinuxArm64StatRecord, LinuxArm64StatLayout>; }
 
-linux_arm64 machine LinuxArm64StatLayout::plan(schema: Schema) -> Plan {
+LinuxArm64StatLayout satisfies FixedLayout<LinuxArm64StatRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 16 } };
@@ -44,6 +46,7 @@ linux_arm64 machine LinuxArm64StatLayout::plan(schema: Schema) -> Plan {
     entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 56 } };
     Plan { entries: entries, entry_count: 13, size_fixed: 128, size_is_dynamic: false, align: 8 }
 }
+}
 
 linux_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
     let stat: &LinuxArm64StatView = &filesystem.stat_buf[0] as &LinuxArm64StatView;
@@ -54,7 +57,7 @@ linux_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFiles
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
     machine decode(stat: &LinuxArm64StatView, blocks: i64, blksize: i64) -> MetadataResult
-    requires blocks >= 0 && blksize >= 0;
+    requires blocks >= 0 && blksize >= 0
     {
         let mode: u32 = stat.value.mode;
         let details: PosixMetadata = PosixMetadata {

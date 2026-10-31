@@ -8,6 +8,7 @@
 use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
+use crate::unit_validation::structural_catalog::shared_view_declaration;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
@@ -473,15 +474,9 @@ fn shared_view_member(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     child: StructuralTypeId,
 ) -> bool {
-    types.get(&child).is_some_and(|declaration| {
-        matches!(
-            declaration.shape,
-            StructuralTypeShape::ElementView { .. }
-                | StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                )
-        )
-    })
+    types
+        .get(&child)
+        .is_some_and(|row| shared_view_declaration(row))
 }
 
 fn record_type(

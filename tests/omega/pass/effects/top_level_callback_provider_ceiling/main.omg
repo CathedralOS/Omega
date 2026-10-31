@@ -5,11 +5,11 @@ public boundary trait Handler {
 public data Operations {}
 data Provider {}
 public boundary requirement Operations::execute<machine Callback>() -> u64
-where machine Callback satisfies Handler::read;
+requires machine Callback satisfies Handler::read;
 invokes Handler;
 
 machine implementation<machine Callback>() -> u64
-where machine Callback satisfies Handler::read;
+requires machine Callback satisfies Handler::read;
 satisfies Operations::execute
-reaches Read blocks;
+reaches Read blocks
 { block Callback() }

@@ -2,6 +2,7 @@
 //! Formation checks all authored operands; only completed Build operations grant
 //! acceptance. Declaration visibility does not select a provider or prove its body.
 
+use crate::unique::push_unique;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredRootGrant, BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
@@ -58,9 +59,7 @@ pub fn collect_product_root_grants(
         })();
         let grant = result
             .map_err(|error: Diagnostic| vec![error.with_source_span(event.request.source_span)])?;
-        if !grants.contains(&grant) {
-            grants.push(grant);
-        }
+        push_unique(&mut grants, grant);
     }
     Ok(grants)
 }

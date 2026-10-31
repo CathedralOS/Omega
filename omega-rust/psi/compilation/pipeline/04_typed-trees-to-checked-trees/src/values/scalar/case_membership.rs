@@ -4,6 +4,7 @@
 //! constructor and local referents must arrive through ordinary value sequencing.
 //! Normal-return contracts additionally name their authenticated result place,
 //! never a synthetic parameter slot or a constructor-derived assumption.
+use crate::flow::expressions;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedStructuralParameterField;
 use typed_trees::expression::BinaryOperator;
@@ -114,8 +115,7 @@ fn case_identity(
         // equality on a union's operands is already the same tag observation.
         ExpressionNode::StructLiteral(literal)
             if literal.case_symbol.is_some()
-                && program
-                    .expression_table
+                && expressions(program)
                     .struct_fields(literal.fields)
                     .is_empty() =>
         {

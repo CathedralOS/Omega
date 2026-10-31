@@ -135,7 +135,7 @@ impl TerminalExecution<'_> {
                 continue;
             };
             if crate::custody::resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 anchor.structural_type,
                 path,
             )
@@ -148,7 +148,7 @@ impl TerminalExecution<'_> {
                 .strip_prefix(anchor.path.as_slice())
                 .ok_or_else(malformed)?;
             let geometry = terminal_semantics::reference_storage_region(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 anchor.structural_type,
                 path,
             )
@@ -241,6 +241,44 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         match &mut loan.storage.endpoint {
+            PrimitiveStorageEndpoint::Projection {
+                fragments,
+                logical,
+                stored,
+            } => {
+                let available = usize::from(
+                    terminal_semantics::reference_storage_byte_width(*stored)
+                        .ok_or_else(malformed)?,
+                );
+                let end = byte_offset.checked_add(width).ok_or_else(malformed)?;
+                if end > available {
+                    return Err(malformed());
+                }
+                let mut selected = Vec::new();
+                let selected_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
+                let selected_end = end.checked_mul(8).ok_or_else(malformed)?;
+                for fragment in fragments.iter() {
+                    let start = usize::from(fragment.destination_bit_offset);
+                    let fragment_end = start + usize::from(fragment.bit_length);
+                    let first = start.max(selected_start);
+                    let last = fragment_end.min(selected_end);
+                    if first >= last {
+                        continue;
+                    }
+                    let mut fragment = fragment.clone();
+                    fragment.source_bit_offset = fragment
+                        .source_bit_offset
+                        .checked_add(u8::try_from(first - start).map_err(|_| malformed())?)
+                        .ok_or_else(malformed)?;
+                    fragment.destination_bit_offset =
+                        u8::try_from(first - selected_start).map_err(|_| malformed())?;
+                    fragment.bit_length = u8::try_from(last - first).map_err(|_| malformed())?;
+                    selected.push(fragment);
+                }
+                *fragments = selected;
+                // The caller installs its exact observed codec after positioning.
+                let _ = logical;
+            }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 if loan.scalar_type != byte_type()? {
                     return Err(malformed());
@@ -433,6 +471,50 @@ pub(crate) fn shifted_byte_endpoint(
     byte_offset: usize,
 ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
     match endpoint {
+        PrimitiveStorageEndpoint::Projection {
+            fragments, stored, ..
+        } => {
+            let width = usize::from(
+                terminal_semantics::reference_storage_byte_width(*stored).ok_or_else(malformed)?,
+            );
+            if byte_offset >= width {
+                return Err(malformed());
+            }
+            let mut selected = Vec::new();
+            let byte_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
+            let byte_end = byte_start.checked_add(8).ok_or_else(malformed)?;
+            for fragment in fragments {
+                let first = usize::from(fragment.destination_bit_offset);
+                let last = first + usize::from(fragment.bit_length);
+                let start = first.max(byte_start);
+                let end = last.min(byte_end);
+                if start >= end {
+                    continue;
+                }
+                let mut fragment = fragment.clone();
+                fragment.source_bit_offset = fragment
+                    .source_bit_offset
+                    .checked_add(u8::try_from(start - first).map_err(|_| malformed())?)
+                    .ok_or_else(malformed)?;
+                fragment.destination_bit_offset =
+                    u8::try_from(start - byte_start).map_err(|_| malformed())?;
+                fragment.bit_length = u8::try_from(end - start).map_err(|_| malformed())?;
+                selected.push(fragment);
+            }
+            let coverage = selected.iter().try_fold(0u16, |covered, fragment| {
+                (u16::from(fragment.destination_bit_offset) == covered)
+                    .then(|| covered.checked_add(u16::from(fragment.bit_length)))
+                    .flatten()
+            });
+            if coverage != Some(8) {
+                return Err(malformed());
+            }
+            Ok(PrimitiveStorageEndpoint::Projection {
+                fragments: selected,
+                logical: byte_type()?,
+                stored: byte_type()?,
+            })
+        }
         PrimitiveStorageEndpoint::ArrayElement { array, index } => {
             Ok(PrimitiveStorageEndpoint::ArrayElement {
                 array: array.clone(),

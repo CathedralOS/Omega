@@ -10,6 +10,7 @@ use crate::limits::{CACHE_CUSTODY_ENTRY_LIMIT, LOCAL_CACHE_SNAPSHOTS, LocalSourc
 use crate::snapshot::metadata::{local_snapshot_content_identity, verify_local_snapshot};
 use crate::storage::RetainedStorageLane;
 use crate::tree::ResolvedLocalSource;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir;
@@ -127,11 +128,7 @@ fn recover_bounded(
             timings.direct_miss();
             timings.legacy_lookup_started();
         }
-        for (index, entry) in directory
-            .entries()
-            .map_err(|error| io_error(&collection, error))?
-            .enumerate()
-        {
+        for (index, entry) in directory.entries().at(&collection)?.enumerate() {
             if let Some(timings) = &mut timings {
                 timings.entry_enumerated();
             }
@@ -141,16 +138,12 @@ fn recover_bounded(
                     "cached local source lookup exceeds its entry limit",
                 ));
             }
-            let entry = entry.map_err(|error| io_error(&collection, error))?;
+            let entry = entry.at(&collection)?;
             let name = entry.file_name();
             let Some(name) = name.to_str().filter(|name| is_legacy_snapshot_name(name)) else {
                 continue;
             };
-            if !entry
-                .file_type()
-                .map_err(|error| io_error(&collection, error))?
-                .is_dir()
-            {
+            if !entry.file_type().at(&collection)?.is_dir() {
                 continue;
             }
             let publication = collection.join(name);
@@ -237,13 +230,9 @@ fn verify_collection(lane: &RetainedStorageLane, retained: &Dir) -> Result<(), S
     let named = lane
         .directory()
         .open_dir_nofollow(LOCAL_CACHE_SNAPSHOTS)
-        .map_err(|error| io_error(&path, error))?;
-    let first = retained
-        .dir_metadata()
-        .map_err(|error| io_error(&path, error))?;
-    let second = named
-        .dir_metadata()
-        .map_err(|error| io_error(&path, error))?;
+        .at(&path)?;
+    let first = retained.dir_metadata().at(&path)?;
+    let second = named.dir_metadata().at(&path)?;
     if !same_capability_file_identity(&first, &second) {
         return Err(local_snapshot_invalid(
             &path,

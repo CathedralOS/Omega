@@ -10,6 +10,8 @@
 //! or manufacturing an ownership death for borrowed storage.
 
 use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::flow::state_statements;
+use crate::places::place_at;
 use checked_trees::{
     CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallableEntry,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -62,18 +64,11 @@ pub(super) fn actions(
         };
         let displaced = old_value.source != *source;
         let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
-            program
-                .statement_table
-                .statements(declaration.statement_nodes)
+            crate::flow::state_statements(program, declaration.statement_nodes)
                 .get(*statement_index as usize)
         }) {
             Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    *statement_index as usize,
-                    assignment.target,
-                )
+                place_at(program, state, *statement_index as usize, assignment.target)
             }
             _ => None,
         };
@@ -85,9 +80,7 @@ pub(super) fn actions(
             let (root, segments) = super::super::borrowed_windows::resolve_storage_place(
                 program,
                 declaration,
-                program
-                    .statement_table
-                    .statements(declaration.statement_nodes),
+                state_statements(program, declaration.statement_nodes),
                 *statement_index as usize,
                 place.root.as_symbol()?,
                 &place.segments,

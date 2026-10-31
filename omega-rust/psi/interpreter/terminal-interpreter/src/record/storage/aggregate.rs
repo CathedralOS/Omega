@@ -24,7 +24,7 @@ impl ConstructorStorage {
             let mut destination = root.clone();
             destination.path.extend(
                 terminal_semantics::canonical_structural_storage_path(
-                    execution.program.structural_types().values(),
+                    execution.structural_types().values(),
                     aggregate.structural_type,
                     path,
                 )
@@ -48,12 +48,8 @@ impl ConstructorStorage {
             return Ok(());
         }
         let plan = ScalarAggregatePlan::new(
-            execution
-                .program
-                .structural_types()
-                .get(&aggregate.structural_type)
-                .ok_or_else(malformed)?,
-            |identity| execution.program.structural_types().get(&identity),
+            execution.structural_declaration(aggregate.structural_type)?,
+            |identity| execution.structural_types().get(&identity),
         )?;
         let mut fields = aggregate.fields.iter();
         plan.storage_parts(|path, part| {

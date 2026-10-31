@@ -11,7 +11,7 @@ machine callback_keep<'storage>(selected: View<'storage>) -> View<'storage>
 ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
 { selected }
 machine retain_callback<'storage, machine Callback>(selected: View<'storage>) -> View<'storage>
-where machine Callback<'invocation>(operand: View<'invocation>) -> View<'invocation>
+requires machine Callback<'invocation>(operand: View<'invocation>) -> View<'invocation>
 ensures result.bytes.len == operand.bytes.len, result.sibling.len == operand.sibling.len;
 ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
 { transition { _ -> Callback(selected) } }
@@ -82,7 +82,7 @@ ensures result == 7
 { value }
 machine retain_view<'storage>(selected: View<'storage>, remaining: u64)
 requires remaining <= 2
-terminates by remaining -> Nat::Descending in 0..=2;
+terminates by remaining -> Nat::Descending in 0..=2
 -> View<'storage>
 ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
 {

@@ -13,14 +13,14 @@ machine WrapTimer::arm(timer: &mut WrapTimer, start: u32 in Wrapping)
 requires
     start < 8
 ensures
-    timer.remaining > 0;
+    timer.remaining > 0,
     timer.remaining - 1 < 8
 {
     timer.remaining = start + 1;
 }
 machine WrapTimer::tick(timer: &mut WrapTimer) -> u32 in Wrapping
 requires
-    timer.remaining > 0;
+    timer.remaining > 0,
     timer.remaining - 1 < 8
 {
     timer.remaining = timer.remaining - 1;
@@ -30,14 +30,14 @@ machine SaturatingTimer::arm(timer: &mut SaturatingTimer, start: u32 in Saturati
 requires
     start < 8
 ensures
-    timer.remaining > 0;
+    timer.remaining > 0,
     timer.remaining - 1 < 8
 {
     timer.remaining = start + 1;
 }
 machine SaturatingTimer::tick(timer: &mut SaturatingTimer) -> u32 in Saturating
 requires
-    timer.remaining > 0;
+    timer.remaining > 0,
     timer.remaining - 1 < 8
 {
     timer.remaining = timer.remaining - 1;

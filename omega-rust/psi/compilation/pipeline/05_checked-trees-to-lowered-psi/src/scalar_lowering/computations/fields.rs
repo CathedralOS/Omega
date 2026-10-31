@@ -42,6 +42,7 @@ use super::super::{
 use super::{
     CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, storage, unsupported,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, PrimitiveReadSource,
@@ -52,6 +53,7 @@ use crate::expression_preparation::bindings::place_observations::{
     PlaceObservationCapture, PrimitiveObservation, byte_overlay_read,
 };
 use crate::scalar_lowering::branch_states::structural_values;
+use crate::terminal_identities::stored_structural_identity;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
@@ -73,14 +75,12 @@ impl super::Expansion<'_> {
         site: &super::Site<'_>,
     ) -> Result<usize, LoweringError> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-        let CheckedScalarComputationKind::StructuralField { result_type, .. } = self
-            .checked
-            .facts
-            .values
-            .scalar_computations
-            .nodes
-            .get(computation)
-            .kind
+        let CheckedScalarComputationKind::StructuralField { result_type, .. } =
+            value_facts(&self.checked)
+                .scalar_computations
+                .nodes
+                .get(computation)
+                .kind
         else {
             return unsupported("field observation lost its complete checked result type");
         };
@@ -96,10 +96,7 @@ impl super::Expansion<'_> {
                     } else {
                         receiver_expression.is_valid()
                             && receiver_expression
-                                == self
-                                    .checked
-                                    .facts
-                                    .values
+                                == value_facts(&self.checked)
                                     .structural_values
                                     .nodes
                                     .get(*root)
@@ -916,12 +913,7 @@ pub(crate) fn prepare(
                     // Storage shares the owner's carrier namespace, not its
                     // qualified theory. The computation retains source_type;
                     // this lookup neither forgets nor establishes membership.
-                    let root_identity = validation::stored_structural_type_identity(
-                        &checked.typed,
-                        *source_type,
-                        &[],
-                        &[],
-                    );
+                    let root_identity = stored_structural_identity(checked, *source_type);
                     let mut declarations = types.iter().filter(|declaration| {
                         declaration.identity
                             == identities.intern(

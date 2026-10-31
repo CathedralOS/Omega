@@ -50,11 +50,9 @@ pub(super) fn admit(
     let Some((abi, operation)) = select(binding)? else {
         return Ok(None);
     };
-    let invalid = || {
-        TerminalRuntimeError::InvalidProvision(
-            "foreign descriptor adapter differs from its exact admitted declaration/ABI",
-        )
-    };
+    let invalid = super::super::unprovisioned(
+        "foreign descriptor adapter differs from its exact admitted declaration/ABI",
+    );
     let descriptor_type = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
     let width: u16 = match abi {
         DescriptorAbi::WindowsCrt => 32,

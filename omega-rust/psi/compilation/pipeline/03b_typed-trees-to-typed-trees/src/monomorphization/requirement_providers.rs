@@ -5,7 +5,8 @@
 //! ordinary specialization retains its operands and immutable checking judges
 //! conformance. No private body supplies missing arguments or public premises.
 
-use super::{Diagnostic, TypedTrees, candidate, explicit_arguments, saved_calls};
+use super::{Diagnostic, TypedTrees, candidate, explicit_arguments, failed, saved_calls};
+use crate::tables::expressions_of;
 use typed_trees::trait_definition::AppliedTraitScope;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
@@ -74,12 +75,10 @@ pub(crate) fn generate_requirement_provider_specializations(
     }
     let mut generated = 0;
     for (index, application) in demands {
-        let owner = program
-            .expression_table
+        let owner = expressions_of(program)
             .static_machine_application(application)
             .lexical_owner;
-        let mut arguments = program
-            .expression_table
+        let mut arguments = expressions_of(program)
             .static_machine_application_arguments(application)
             .to_vec();
         super::body_rewriting::normalize_const_arguments(program, owner, &mut arguments)
@@ -103,11 +102,7 @@ pub(crate) fn generate_requirement_provider_specializations(
             continue;
         }
         let identity = normalized_machine_identity(program, &program.machines()[index])
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "boundary provider has no normalized declaration identity",
-                )]
-            })?;
+            .ok_or_else(|| failed("boundary provider has no normalized declaration identity"))?;
         let commitment = accepted_template_commitment(program, index);
         let ordinal = program
             .machine_specializations

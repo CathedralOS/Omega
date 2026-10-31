@@ -10,6 +10,8 @@
 
 use super::{ExpressionDependencies, reads};
 use crate::checks::ranges::RangeFacts;
+use crate::flow::expressions;
+use crate::places::place_at;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::{machine::Machine, state::State};
@@ -35,21 +37,17 @@ impl RangeFacts<'_> {
         let captured =
             validation::whole_collection_view_source(program, machine, Some(state), captured)
                 .unwrap_or(captured);
-        let Some(source) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            self.statement_index,
-            captured,
-        )
-        .and_then(|place| {
-            crate::flow::rebase_exact_local_place(
-                program,
-                state.symbol,
-                self.statement_index,
-                place,
-                self.checked_calls.and_then(|context| context.call_frames()),
-            )
-        }) else {
+        let Some(source) = place_at(program, state.symbol, self.statement_index, captured)
+            .and_then(|place| {
+                crate::flow::rebase_exact_local_place(
+                    program,
+                    state.symbol,
+                    self.statement_index,
+                    place,
+                    self.checked_calls.and_then(|context| context.call_frames()),
+                )
+            })
+        else {
             return;
         };
         if !matches!(source.root, facts::PlaceRoot::Symbol(root) if root.is_valid()) {
@@ -70,21 +68,16 @@ impl RangeFacts<'_> {
                     original.expression,
                 )
                 .unwrap_or(original.expression);
-                let original_place = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    self.statement_index,
-                    subject,
-                )
-                .and_then(|place| {
-                    crate::flow::rebase_exact_local_place(
-                        program,
-                        state.symbol,
-                        self.statement_index,
-                        place,
-                        call_frames,
-                    )
-                })?;
+                let original_place = place_at(program, state.symbol, self.statement_index, subject)
+                    .and_then(|place| {
+                        crate::flow::rebase_exact_local_place(
+                            program,
+                            state.symbol,
+                            self.statement_index,
+                            place,
+                            call_frames,
+                        )
+                    })?;
                 (original_place.root == source.root)
                     .then(|| (original.descriptor.is_some(), subject, original_place))
             })
@@ -101,12 +94,7 @@ impl RangeFacts<'_> {
             if !validation::place_root_may_be_symbol(program, expression, symbol) {
                 continue;
             }
-            let Some(candidate) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                prefix,
-                expression,
-            ) else {
+            let Some(candidate) = place_at(program, state.symbol, prefix, expression) else {
                 continue;
             };
             if candidate.root != facts::PlaceRoot::Symbol(symbol)
@@ -139,9 +127,7 @@ impl RangeFacts<'_> {
                                     self.current_scalar_observation(program, machine, state, *left);
                                 let right = self
                                     .current_scalar_observation(program, machine, state, *right);
-                                if program
-                                    .expression_table
-                                    .expressions_structurally_equal(left, right)
+                                if expressions(program).expressions_structurally_equal(left, right)
                                 {
                                     return true;
                                 }
@@ -180,10 +166,7 @@ impl RangeFacts<'_> {
                     machine,
                     state,
                     if uses_frozen_selector {
-                        program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
+                        crate::flow::state_statements(program, state.statement_nodes).len()
                     } else {
                         prefix
                     },

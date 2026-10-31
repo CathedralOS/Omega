@@ -58,9 +58,9 @@ public data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
 // honest -- the compiler's plan validation rejects any policy whose
 // fragments overlap a neighbor's destination bits or fail to tile a
 // scalar's declared source width exactly.
-public data InterruptGateLayout {
-}
-machine InterruptGateLayout::plan(schema: Schema) -> Plan {
+
+public InterruptGateLayout satisfies FixedLayout<InterruptGate> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     // `entry` (fields[0], u64): the sealed offset, split across the wire's
     // three disjoint destination containers.
@@ -134,6 +134,7 @@ machine InterruptGateLayout::plan(schema: Schema) -> Plan {
         align: 8,
     }
 }
+}
 
 // The table: one gate slot per vector the package's declared membership
 // covers. The board item's profile admits vectors 0, 13, 14 and 0x20, so
@@ -157,7 +158,7 @@ machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTabl
 }
 machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64) -> Plan
 requires fuel >= 1 && fuel <= 128
-terminates by fuel;
+terminates by fuel
 {
     let entries: [FieldEntry; 64];
     transition { _ -> fill(schema, entries, fuel, 0) }

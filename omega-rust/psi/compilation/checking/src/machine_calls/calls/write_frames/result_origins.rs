@@ -16,7 +16,11 @@ use super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, Machine, StatementNode,
     TopLevelSymbols, TypeReferenceHandle, machine_state_by_symbol,
 };
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::FrameInference;
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::{
+    ParameterRelativeQuery, parameter_relative_place_or_carrier_origins,
+};
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, walk_state_write_prefix_collected,
 };
@@ -43,7 +47,7 @@ pub(super) fn call_result_origins(
     include_shared: bool,
     inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
     let alternatives =
         if primitive_results::result_origins(program, machine, state, expected, include_shared)
@@ -104,14 +108,14 @@ fn call_body_result_origins(
     inputs: &dyn ArgumentOrigins,
 ) -> Option<AggregateOrigins> {
     // A stale or missing selected target cannot be repaired by its spelling.
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     // The body relation uses callee coordinates, while its receiving carrier
     // belongs to this applied invocation. Comparing the raw result would ask
     // the caller to identify a foreign runtime index with its own captured
     // scalar before the ordinary argument substitution crosses that boundary.
     let applied_result = crate::machine_calls::calls::call_result_type(program, expression)?;
     let parameters = program.state_parameters(state);
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     // Operand exposure and writes belong to the chronological call transfer.
     // Reference-shaped operands include ordinary borrowed collection windows;
     // their type alone cannot decide whether a descriptor binding was exposed.
@@ -256,7 +260,7 @@ fn state_equation<'program>(
             _ => continue,
         };
         if super::frame_place_path(program, source).is_some() {
-            let source = match program.expression_table.expression(source) {
+            let source = match expression_table(program).expression(source) {
                 super::ExpressionNode::Borrow(borrow) => borrow.target,
                 _ => source,
             };
@@ -322,8 +326,7 @@ fn state_equation<'program>(
                         .is_some_and(|owner| {
                             owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
                                 && owner.body_is_present
-                                && program
-                                    .expression_table
+                                && expression_table(program)
                                     .call_node(result)
                                     .is_some_and(|call| {
                                         unchanged_static_arguments(
@@ -630,9 +633,8 @@ pub(super) fn reference_result_relation(
             }],
         ));
     }
-    let origins = super::parameter_relative_origins::parameter_relative_place_or_carrier_origins(
-        program, machine, result, parameters, &aliases, symbols, inference,
-    )?;
+    let query = ParameterRelativeQuery::of(program, machine, parameters, &aliases, symbols);
+    let origins = parameter_relative_place_or_carrier_origins(query, result, inference)?;
     let access = crate::reference_shell(program, reference)?.access;
     Some(AggregateOrigins {
         references: origins

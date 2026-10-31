@@ -54,17 +54,17 @@ machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes 
 }
 
 machine TextBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
-requires start <= 16; bytes.len <= 16 - start {
+requires start <= 16, bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
     machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
-    requires start <= 16; index <= 16 {
+    requires start <= 16, index <= 16 {
         transition index < bytes.len && start + index < 16 {
             true -> writing(storage, bytes, start, index)
             _ -> done()
         }
     }
     machine writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
-    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+    requires start <= 16, index < 16, index < bytes.len, start + index < 16 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
@@ -76,7 +76,7 @@ machine TextBuffer::join(left: &[u8], right: &[u8]) -> TextBuffer crashes Trap {
         _ -> bad()
     }
     machine joining(left: &[u8], right: &[u8]) -> TextBuffer
-    requires left.len <= 16; right.len <= 16 - left.len {
+    requires left.len <= 16, right.len <= 16 - left.len {
     let mut result: TextBuffer;
     TextBuffer::copy(&mut result.storage, left, 0);
     TextBuffer::copy(&mut result.storage, right, left.len);

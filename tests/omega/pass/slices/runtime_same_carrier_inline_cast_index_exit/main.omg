@@ -1,11 +1,11 @@
 machine write(items: &mut [u8], index: u64 in Wrapping)
-requires index < items.len;
+requires index < items.len
 {
     items[index as u64] = 7;
 }
 
 machine read(items: &[u8], index: u64 in Wrapping) -> u8
-requires index < items.len;
+requires index < items.len
 {
     items[index as u64]
 }

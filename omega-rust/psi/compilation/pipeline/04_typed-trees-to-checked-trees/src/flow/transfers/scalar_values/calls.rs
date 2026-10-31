@@ -1,6 +1,6 @@
 use super::{CapturedValue, CheckedScalarExpressionRole};
 use crate::flow::FlowBuildContext;
-use validation::canonical_place_from_expression_in_state;
+use crate::places::place_at;
 
 use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::transfers::scalar_values::LiveValues;
@@ -44,12 +44,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
     // A receiver call's `self` is one exact caller storage place; the callee's
     // field reads on it resolve against that place's live facts below.
     let receiver_place = if call.receiver.is_valid() {
-        let place = canonical_place_from_expression_in_state(
-            program,
-            caller_state,
-            statement_index,
-            call.receiver,
-        )?;
+        let place = place_at(program, caller_state, statement_index, call.receiver)?;
         if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
             || !place
                 .segments
@@ -123,6 +118,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
         semantic,
         context,
         state: caller_state,
+        statement_index,
         active,
     };
     let call_ordinal = u32::try_from(occurrence.call_ordinal).ok()?;
@@ -191,15 +187,11 @@ pub(super) fn capture_call<Value: CapturedValue>(
             if Value::REQUIRES_SELECTED_ARGUMENTS && !parameter.is_mutable {
                 return Value::formal_fallback(program, parameter);
             }
-            if let Some(place) = canonical_place_from_expression_in_state(
-                program,
-                caller_state,
-                statement_index,
-                *argument,
-            ) && place
-                .segments
-                .iter()
-                .all(|segment| crate::flow::fixed_selection_segment(segment))
+            if let Some(place) = place_at(program, caller_state, statement_index, *argument)
+                && place
+                    .segments
+                    .iter()
+                    .all(|segment| crate::flow::fixed_selection_segment(segment))
                 && let Some(value) = Value::at_place(&place, &live)
             {
                 return Some(value);

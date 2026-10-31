@@ -96,7 +96,7 @@ machine retag_i64<const To: Unit>(
     value: i64
 ) -> i64 in Quantity<To>
 requires value >= 0 && value <= 100
-ensures result >= 0 && result <= 100;
+ensures result >= 0 && result <= 100
 {
     let tagged: i64 in Quantity<To> = (value as i64 in Quantity<To>);
     transition { _ -> tagged }

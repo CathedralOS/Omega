@@ -3,6 +3,9 @@ use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier,
     IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
@@ -58,10 +61,7 @@ pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
 ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
     // A non-Named target (for example a fixed-array carrier) can never name a
     // leading type parameter, so the whole telescope is index parameters.
-    let target_name = match syntax
-        .type_references
-        .type_reference(definition.target_type)
-    {
+    let target_name = match syntax_type_references(&syntax).type_reference(definition.target_type) {
         TypeReferenceNode::Named(target) => Some(target.as_str(syntax)),
         _ => None,
     };
@@ -94,14 +94,9 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         let Some(definition) = item.as_domain() else {
             continue;
         };
-        let parameters = syntax
-            .tables
-            .items
-            .type_parameters(definition.type_parameters);
-        let header_arguments = syntax
-            .tables
-            .type_references
-            .type_reference_handles(definition.index_arguments);
+        let parameters = syntax_items(&syntax).type_parameters(definition.type_parameters);
+        let header_arguments =
+            syntax_type_references(&syntax).type_reference_handles(definition.index_arguments);
 
         if parameters.is_empty() {
             if !header_arguments.is_empty() {
@@ -167,9 +162,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 ClosedDomainParameter::Type { name }
                 | ClosedDomainParameter::Const { name, .. } => name,
             };
-            let Some(argument_name) = syntax
-                .tables
-                .type_references
+            let Some(argument_name) = syntax_type_references(&syntax)
                 .type_reference(*argument)
                 .as_named()
             else {
@@ -226,8 +219,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 else {
                     return Vec::new();
                 };
-                syntax
-                    .type_references
+                syntax_type_references(&syntax)
                     .constraints(*constraints)
                     .iter()
                     .filter_map(|constraint| {
@@ -267,9 +259,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             if cast.semantic_domain.is_empty() {
                 return None;
             }
-            let members = syntax
-                .expressions
-                .identifier_path_members(cast.semantic_domain);
+            let members = syntax_expressions(&syntax).identifier_path_members(cast.semantic_domain);
             let name = members.joined_path_in(syntax);
             let mut reference = members.first()?.source_span();
             for member in members.iter().skip(1) {
@@ -305,9 +295,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         let Some(family) = family else {
             continue;
         };
-        let arguments = syntax
-            .tables
-            .type_references
+        let arguments = syntax_type_references(&syntax)
             .type_reference_handles(argument_span)
             .to_vec();
         canonicalize_closed_domain_application(
@@ -350,9 +338,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
         else {
             continue;
         };
-        let node = syntax
-            .tables
-            .type_references
+        let node = syntax_type_references(&syntax)
             .type_reference(argument)
             .clone();
         match node {

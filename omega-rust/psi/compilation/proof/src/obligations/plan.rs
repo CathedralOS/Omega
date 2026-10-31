@@ -3,6 +3,7 @@
 
 use crate::obligations::collection::estimated_proof_obligation_capacity;
 use crate::obligations::ranges::float_range_bound;
+use crate::typed_expressions::type_reference_table;
 use arena::{Arena, HandleSpan};
 pub(crate) use facts::IntegerRange;
 use numerics::bignum::BigInt;
@@ -30,8 +31,7 @@ pub struct ProofPlan<'program> {
 impl<'program> ProofPlan<'program> {
     pub(crate) fn new(program: &'program dyn ::validation::CheckingInput) -> Self {
         let obligation_capacity = estimated_proof_obligation_capacity(program);
-        let constraint_capacity = program
-            .type_reference_table
+        let constraint_capacity = type_reference_table(program)
             .constraint_count()
             .saturating_add(obligation_capacity);
 
@@ -97,8 +97,7 @@ impl<'program> ProofPlan<'program> {
         ) -> Option<ProofConstraint>,
     ) -> HandleSpan<ProofConstraint> {
         self.type_constraints.insert_many(
-            program
-                .type_reference_table
+            type_reference_table(program)
                 .constraints(constraints)
                 .iter()
                 .filter_map(|constraint| from_node(program, base_type, constraint)),

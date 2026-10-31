@@ -1,7 +1,7 @@
 # callback_schema_reach
 
 Machine params bound by signature schemas:
-`where machine Schema<const Number: u64>(value: u64)
+`requires machine Schema<const Number: u64>(value: u64)
 -> u64 reaches Console` — const binder + `reaches`
 effect in the bound; `Schema<2>(value)` calls with
 static args; `apply<selected, unused>(value)` passes

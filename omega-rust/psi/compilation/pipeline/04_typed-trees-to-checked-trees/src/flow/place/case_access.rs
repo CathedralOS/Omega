@@ -22,6 +22,7 @@ pub(crate) struct CaseEvidence<'program> {
     statement_index: usize,
     observations: Vec<CaseObservation>,
     indexed_observations: Vec<usize>,
+    scalar_values: Option<crate::checks::current_scalar_values::CurrentScalarValues<'program>>,
 }
 
 /// Coordinates prepared for repeated variant queries in one immutable evidence
@@ -47,11 +48,28 @@ impl<'program> CaseEvidence<'program> {
             observations::collect(program, semantic, contexts, machine, state, statement_index);
         // Only unresolved index expressions need semantic coordinate matching.
         // Retain their positions in the already sorted observation batch.
-        let indexed_observations = observations
+        let indexed_observations: Vec<_> = observations
             .iter()
             .enumerate()
             .filter_map(|(position, row)| observations::has_index(&row.place).then_some(position))
             .collect();
+        // The scalar-prefix owner already captures immutable local aliases and
+        // selectors in this exact statement-entry scope. Prepare it once only
+        // when unresolved live index observations can need semantic equality.
+        let scalar_values = indexed_observations
+            .iter()
+            .any(|position| observations[*position].stable_index_subject)
+            .then(|| {
+                crate::checks::current_scalar_values::CurrentScalarValues::at(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    Default::default(),
+                    None,
+                )
+            })
+            .flatten();
         Some(Self {
             program,
             semantic,
@@ -61,7 +79,37 @@ impl<'program> CaseEvidence<'program> {
             statement_index,
             observations,
             indexed_observations,
+            scalar_values,
         })
+    }
+
+    /// Resolve only a declared case of this exact applied sum. An enclosing
+    /// inactive payload is not a readable sum, and missing evidence is unknown.
+    pub(crate) fn case_truth(
+        &self,
+        subject: &CanonicalPlace,
+        reference: typed_trees::types::TypeReferenceHandle,
+        case: &typed_trees::data::DataMemberIdentity,
+    ) -> Option<bool> {
+        if !self.cases_are_selected(subject) {
+            return None;
+        }
+        let reference =
+            validation::field_domains::readable_type_reference(self.program, reference)?;
+        let data = self.program.closed_data_definition(reference)?;
+        let variant = self.program.data_members(data).iter().find_map(|member| {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.member_identity() == *case).then_some(variant.symbol)
+        })?;
+        let selected = self.has_value(subject, variant, true);
+        let excluded = self.has_value(subject, variant, false);
+        match (selected, excluded) {
+            (true, false) => Some(true),
+            (false, true) => Some(false),
+            _ => None,
+        }
     }
 
     pub(crate) fn cases_are_selected(&self, subject: &CanonicalPlace) -> bool {
@@ -299,7 +347,17 @@ impl<'program> CaseEvidence<'program> {
                         .take_while(|row| row.place.root == subject.root)
                         .filter(|row| {
                             row.place != *subject
-                                && super::canonical_places_agree(self.program, &row.place, subject)
+                                && (super::canonical_places_agree(
+                                    self.program,
+                                    &row.place,
+                                    subject,
+                                ) || (row.stable_index_subject
+                                    && self.scalar_values.as_ref().is_some_and(|values| {
+                                        values.same_scalar_projection(
+                                            &row.place.segments,
+                                            &subject.segments,
+                                        )
+                                    })))
                         }),
                 )
                 .any(|row| {

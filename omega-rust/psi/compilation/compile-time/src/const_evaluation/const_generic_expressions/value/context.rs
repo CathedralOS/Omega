@@ -1,6 +1,7 @@
 //! Selected operator meaning belongs to an activation or a closed position.
 
 use super::{Machine, Shape, State, primitive};
+use crate::build_time_evaluation::type_reference_table;
 use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle},
@@ -159,17 +160,13 @@ pub(super) fn reference(
         Shape::Boolean => PrimitiveType::Bool,
         Shape::Float(format) => super::float_primitive(format),
         Shape::Integer(_, reference, policy) if reference.is_valid() => {
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
-            {
+            if !type_reference_table(program).contains_type_reference(reference) {
                 return Err("constant call result type belongs to another program".into());
             }
             return if super::reference_policy(program, reference)? == policy {
                 Ok(Some(reference))
             } else {
-                program
-                    .type_reference_table
+                type_reference_table(program)
                     .find_policy_qualified_type_reference(reference, policy)
                     .map(Some)
                     .ok_or_else(|| {
@@ -201,8 +198,7 @@ pub(super) fn reference(
             children.find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))
         })
         .ok_or("constant operand lost its builtin type")?;
-    program
-        .type_reference_table
+    type_reference_table(program)
         .find_arithmetic_result_type_reference(
             symbol,
             match shape {

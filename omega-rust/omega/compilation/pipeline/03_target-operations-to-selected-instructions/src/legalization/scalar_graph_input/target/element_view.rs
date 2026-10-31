@@ -1,6 +1,7 @@
 //! Independent custody correspondence for element descriptor derivations.
 use super::Checker;
 use abstract_operations::AbstractOperation;
+use abstract_operations::control_flow::address_joins::is_address_join_in;
 use semantic_vocabulary::{PlaceId, ValueId};
 use target_operations::{TargetElementView, TargetStructuralArgumentSource};
 use terminal_psi::StructuralTypeShape;
@@ -344,9 +345,7 @@ impl Checker<'_> {
             terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
             || (block != self.optimized.entry
-                && (abstract_operations::control_flow::address_joins::is_address_join_in(
-                    parameter, self.types,
-                ) || descriptor_carrier)
+                && (is_address_join_in(parameter, self.types) || descriptor_carrier)
                 && matches!(
                     (parameter.access, requested),
                     (
@@ -485,22 +484,19 @@ impl Checker<'_> {
                 &collection, element, access, self.types,
             )
         { return false; }
-        let backing =
-            match geometry {
-                terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,
-                terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
-                    byte_extent,
-                    element: layout,
-                } => {
-                    if byte_window.is_some()
-                        || layout.size != u64::from(element_stride)
-                        || crate::structural_inputs::structural_reference_input::shape(
-                            element, self.types,
-                        )
-                        .is_none_or(|shape| {
-                            u64::from(shape.byte_size) != layout.size
-                                || u64::from(shape.alignment) != layout.alignment
-                        }) || layout.leaves.iter().any(|leaf| {
+        let backing = match geometry {
+            terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,
+            terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
+                byte_extent,
+                element: layout,
+            } => {
+                if byte_window.is_some()
+                    || layout.size != u64::from(element_stride)
+                    || crate::structural_inputs::shape(element, self.types).is_none_or(|shape| {
+                        u64::from(shape.byte_size) != layout.size
+                            || u64::from(shape.alignment) != layout.alignment
+                    })
+                    || layout.leaves.iter().any(|leaf| {
                         crate::structural_inputs::structural_reference_input::element_leaf_geometry(
                             element,
                             &leaf.path,
@@ -508,13 +504,14 @@ impl Checker<'_> {
                             self.types,
                         )
                         .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
-                    }) {
-                        return false;
-                    }
-                    return extent == target_operations::TargetViewExtent::Fixed(byte_extent)
-                        && offset == source_byte_offset;
+                    })
+                {
+                    return false;
                 }
-            };
+                return extent == target_operations::TargetViewExtent::Fixed(byte_extent)
+                    && offset == source_byte_offset;
+            }
+        };
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed
             && byte_window.is_some()
         {

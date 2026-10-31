@@ -4,6 +4,7 @@
 //! The element declaration must still exist; schema well-formedness belongs to
 //! the representation owner, independently of this zero-value judgment.
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralTypeId,
 };
@@ -346,16 +347,12 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                         })
                         .collect::<Option<Vec<_>>>()?;
                     field_path.push(field.identity);
-                    let mut matching =
-                        established_fields
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, established)| {
-                                established.field_path == field_path
-                                    && established.carrier_type_identity == carrier
-                            });
-                    let (index, _) = matching.next()?;
-                    if matching.next().is_some() || consumed[index] {
+                    let (index, _) =
+                        exactly_one(established_fields.iter().enumerate(), |(_, established)| {
+                            established.field_path == field_path
+                                && established.carrier_type_identity == carrier
+                        })?;
+                    if consumed[index] {
                         return None;
                     }
                     consumed[index] = true;

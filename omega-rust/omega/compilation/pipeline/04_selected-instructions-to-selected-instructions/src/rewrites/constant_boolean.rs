@@ -100,35 +100,18 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::fold_selected_constant_boolean;
 pub(crate) use validation::{measured_steps, surface_sizes};
 
-/// An accepted constant condition materialization with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedConstantBoolean {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: ConstantBooleanReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted constant condition materialization with its replay receipt.
+    ValidatedConstantBoolean,
+    ConstantBooleanReceipt
+);
 
-validated_transformed_receipt!(ValidatedConstantBoolean, ConstantBooleanReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConstantBooleanReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    materialization: SelectedInstructionId,
-}
-
-impl ConstantBooleanReceipt {
-    receipt_accessor_rows!(ref ConstantBooleanReceipt {
+rewrite_receipt!(ConstantBooleanReceipt {
     /// The function the fold was committed in.
-        function_index: usize,
+    function_index: usize,
     /// The folded flag-reader materialization's source-side identity.
-        materialization: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(ConstantBooleanReceipt);
+    materialization: SelectedInstructionId,
+});
 
 // Canonical identity of one validated constant boolean fold: every receipt
 // field — the coordinate, both plan identities, and the proof inputs — is

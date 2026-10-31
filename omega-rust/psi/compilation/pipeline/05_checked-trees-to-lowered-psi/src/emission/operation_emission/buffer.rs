@@ -240,6 +240,9 @@ pub(crate) struct SourceQuotientAdaptation {
 /// A completed value carries its selected path and access, not another home.
 #[derive(Clone, Debug)]
 pub(crate) struct ComputedValueBinding {
+    /// This producer allocated its own storage; an alias of an existing local
+    /// never grants its observing consumer authority to end that local.
+    pub(crate) fresh_storage: bool,
     pub(crate) argument: terminal_psi::StructuralArgument,
     pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
     /// Original observation namespace, captured before producing the value can

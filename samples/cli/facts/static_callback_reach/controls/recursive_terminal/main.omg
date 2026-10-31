@@ -4,25 +4,25 @@ public boundary trait Console {}
 public boundary trait Extra {}
 public trait StepContract {
     machine step(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 machine quiet(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine second(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine traverse<machine Step>(value: u64, remaining: u64) -> u64
-where machine Step satisfies StepContract::step;
-terminates by remaining;
+requires machine Step satisfies StepContract::step;
+terminates by remaining
 requires value <= 37 && remaining <= 3
 ensures result <= 37
 {

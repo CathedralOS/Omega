@@ -23,12 +23,12 @@ machine read(cell: &Cell) -> i32 {
 
 // The record's borrowed member contributes until its last read; the lease
 // operand stops contributing when the call transfers it.
-machine inspect(message: Message, lease: Lease) suspends; reaches Scheduler {
+machine inspect(message: Message, lease: Lease) suspends reaches Scheduler {
     let value: i32 = read(message.body);
     suspend Scheduler::park();
 }
 
-machine Main::main(main: &mut Main) suspends; reaches Scheduler {
+machine Main::main(main: &mut Main) suspends reaches Scheduler {
     let message: Message = Message { body: &main.cell };
     let value: i32 = read(message.body);
     suspend Scheduler::park();

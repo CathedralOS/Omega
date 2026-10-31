@@ -1,5 +1,6 @@
 //! Proposition law conformance and indexed law binder labels.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::{
     BinaryOperator, Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
 };
@@ -76,8 +77,7 @@ pub(crate) fn check_proposition_law_conformance(
                 .map(|argument| argument.display_name())
                 .collect::<Vec<_>>()
         };
-        let argument_labels = program
-            .expression_table
+        let argument_labels = expression_table(program)
             .expression_handles(instantiated.arguments)
             .iter()
             .map(|argument| {
@@ -186,7 +186,7 @@ fn indexed_law_pack(
         return Some(Vec::new());
     }
     let mut pack = Vec::with_capacity(binder_count);
-    for argument in program.expression_table.expression_handles(law.arguments) {
+    for argument in expression_table(program).expression_handles(law.arguments) {
         let required_index =
             proposition_law_parameter_index(program, *argument, required_parameters)?;
         let actual = actual_parameters.get(required_index)?;
@@ -248,9 +248,8 @@ fn proposition_law_parameter_index(
     argument: ExpressionHandle,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<usize> {
-    let path = program.expression_table.name_path_node(argument)?;
-    let name = program
-        .expression_table
+    let path = expression_table(program).name_path_node(argument)?;
+    let name = expression_table(program)
         .name_path_members(path.members)
         .last()?;
     parameters.iter().position(|parameter| {
@@ -315,7 +314,7 @@ pub(crate) fn collect_equality_conjuncts(
     if super::super::structural_terms::is_case_observation(program, expression) {
         return;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return;
     };
     match binary.operator {

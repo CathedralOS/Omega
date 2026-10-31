@@ -41,14 +41,17 @@ mod const_predicates;
 mod constraint_validation;
 mod formation;
 mod generic_arguments;
+mod implementation_arguments;
 mod open_index_expressions;
 mod static_argument_scope;
 
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
-    AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
+    AppliedValueCarrier, check_closed_const_expression_in_carrier,
+    const_argument_matches_parameter, const_integer_value_fits_primitive,
     exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
-    validate_exact_const_identity_in_carrier, validate_exact_typed_structured_const_argument,
+    validate_exact_const_identity_in_carrier, validate_exact_const_value_encoding_in_carrier,
+    validate_exact_typed_structured_const_argument,
 };
 pub use generic_arguments::{check_closed_const_expression, normalize_closed_const_expression};
 use generic_arguments::{
@@ -82,6 +85,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// The declaration whose lexical binders own a static call's type arguments.
@@ -440,12 +444,7 @@ pub fn validate_static_type_argument<'program>(
             owner: caller,
             generic_depth: 0,
         },
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner,
-            type_parameters: &type_parameters,
-            lifetime_parameters: &lifetime_parameters,
-        },
+        TypeParameterScope::authored(lexical_owner, &type_parameters, &lifetime_parameters),
         formation_obligations,
     );
 }
@@ -577,12 +576,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
         *base_symbol,
         base_name.as_str(),
         *arguments,
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: instance.symbol,
-            type_parameters: &[],
-            lifetime_parameters: &instance.lifetime_parameters,
-        },
+        TypeParameterScope::authored(instance.symbol, &[], &instance.lifetime_parameters),
         diagnostics,
     );
 }
@@ -758,15 +752,6 @@ fn validate_type_reference_node(
                     )));
                 }
                 let parameters = program.data_type_parameters(definition);
-                // A zero-parameter data declaration can still appear in the
-                // `Policy<Schema>` layout-application form. Its argument is a
-                // schema, not a data-generic argument.
-                if parameters.is_empty() {
-                    for argument in argument_handles {
-                        validate_generic_argument(*argument, diagnostics, formation_obligations);
-                    }
-                    return;
-                }
                 if parameters.len() != argument_handles.len() {
                     diagnostics.push(Diagnostic::error(format!(
                         "generic data `{base_name}` expected {} arguments but got {}",
@@ -774,13 +759,37 @@ fn validate_type_reference_node(
                         argument_handles.len()
                     )));
                 }
+                crate::declarations::traits::validate_implementation_application(
+                    program,
+                    definition.symbol,
+                    parameters,
+                    &definition.lifetime_parameters,
+                    &definition.conformance_bounds,
+                    argument_handles,
+                    lifetime_arguments,
+                    // The complete tuple belongs to its retained supplier,
+                    // including regions nested below this constructor. A
+                    // specialization's receiving machine cannot bind them.
+                    if type_parameter_scope.operand_lifetime_owner.is_valid() {
+                        type_parameter_scope.operand_lifetime_owner
+                    } else {
+                        type_parameter_scope.lexical_owner
+                    },
+                    &format!("data `{base_name}`"),
+                    diagnostics,
+                );
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
                         TypeParameterKind::Implementation => {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "data `{base_name}` declares implementation binder `{}`; implementation parameters belong to trait or machine contracts, not stored data",
-                                parameter.name
-                            )));
+                            implementation_arguments::validate_operand_formation(
+                                program,
+                                *argument,
+                                symbols,
+                                owner.generic_argument(),
+                                type_parameter_scope,
+                                diagnostics,
+                                formation_obligations,
+                            );
                         }
                         TypeParameterKind::Const { type_reference }
                         | TypeParameterKind::Value { type_reference } => {
@@ -824,7 +833,7 @@ fn validate_type_reference_node(
                                 .is_some()
                             {
                                 diagnostics.push(Diagnostic::error(format!(
-                                    "type parameter `{}` of `{base_name}` was instantiated with a machine symbol; declare it as `<machine {}>` with a `where machine` contract",
+                                    "type parameter `{}` of `{base_name}` was instantiated with a machine symbol; declare it as `<machine {}>` with a `requires machine` contract",
                                     parameter.name, parameter.name
                                 )));
                                 continue;
@@ -986,6 +995,21 @@ pub(crate) struct TypeParameterScope<'program> {
 }
 
 impl<'program> TypeParameterScope<'program> {
+    /// The authored telescope of `lexical_owner`: no retained operand supplies
+    /// its lifetimes, so the declaration's own parameters are the whole scope.
+    pub(crate) fn authored(
+        lexical_owner: symbols::SymbolHandle,
+        type_parameters: &'program [TypeParameter],
+        lifetime_parameters: &'program [typed_trees::name::Identifier],
+    ) -> Self {
+        Self {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner,
+            type_parameters,
+            lifetime_parameters,
+        }
+    }
+
     fn contains(self, name: &str) -> bool {
         self.type_parameters
             .iter()
@@ -1049,6 +1073,20 @@ pub(crate) fn type_references_match(
     }
 
     program.normalized_type_identity(actual) == program.normalized_type_identity(required)
+}
+
+/// The ordinary identity of `type_reference` under one-at-a-time
+/// `substitutions`. The derivation stays in the typed program: callers that
+/// compare two identities still ask for each operand separately.
+pub(crate) fn substituted_identity(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> typed_trees::type_identity::NormalizedTypeIdentity {
+    program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(type_reference)
+    })
 }
 
 pub(crate) fn type_reference_label(

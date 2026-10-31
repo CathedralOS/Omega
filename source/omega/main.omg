@@ -6,16 +6,19 @@
 use omega_language_std::console;
 use request::outcome;
 use request::request;
+use slots::review;
 
 data Main { }
 
 machine Main::main(context: &mut Main)
 reaches Console
 crashes Trap
-blocks;
+blocks
 {
     let mut request: Request;
     Request::clear(&mut request);
+    let mut slot_review: OmegaSlotReview;
+    OmegaSlotReview::prepare(&mut slot_review);
     transition { _ -> read(context, &mut request) }
 
     machine read(context: &mut Main, request: &mut Request) {
@@ -76,7 +79,7 @@ crashes Trap
 }
 
 // ProgramEntry selects code; ordinary local ownership supplies compiler state.
-machine entry_start() reaches Console crashes Trap blocks; {
+machine entry_start() reaches Console crashes Trap blocks {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

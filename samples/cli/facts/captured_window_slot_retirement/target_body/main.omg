@@ -67,13 +67,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise()
-        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         crashes Trap;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise()
-        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -93,7 +93,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise()
-        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);

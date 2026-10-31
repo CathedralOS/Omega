@@ -1,4 +1,5 @@
 //! Exact closed selection identity, independent of proof-output or execution rungs.
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 
@@ -43,8 +44,7 @@ pub fn closed_requirement_dispatch_is_valid(
         };
         supplying.binding_application
     };
-    let supplying_owner = program
-        .expression_table
+    let supplying_owner = expression_table(program)
         .static_machine_application(supplying_application)
         .lexical_owner;
     // The public call may be checked before an open map can acquire an
@@ -73,8 +73,7 @@ pub fn closed_requirement_dispatch_is_valid(
             .filter(|(_, capture)| capture.instance == executable)
         {
             if capture_binding_is_exact(program, capture).is_err()
-                || program
-                    .expression_table
+                || expression_table(program)
                     .static_machine_application(capture.supplying_application)
                     .lexical_owner
                     != supplying_owner
@@ -205,8 +204,7 @@ pub(crate) fn capture_binding_is_exact(
             )
         })
         .count();
-    let selected = program
-        .expression_table
+    let selected = expression_table(program)
         .static_machine_application_selected_machines(capture.binding_application);
     if selected.len() != count {
         return Err("capture executable callback roster differs from map telescope");
@@ -214,8 +212,7 @@ pub(crate) fn capture_binding_is_exact(
     if count != 0 {
         if !application.callable_application.is_valid()
             || selected
-                != program
-                    .expression_table
+                != expression_table(program)
                     .static_machine_application_selected_machines(application.callable_application)
         {
             return Err(
@@ -236,12 +233,8 @@ pub(crate) fn conformance_binding_is_exact(
     if !binding_application.is_valid() || !supplying_application.is_valid() {
         return Err("capture has missing supplying or binding application");
     }
-    let source = program
-        .expression_table
-        .static_machine_application(supplying_application);
-    let binding = program
-        .expression_table
-        .static_machine_application(binding_application);
+    let source = expression_table(program).static_machine_application(supplying_application);
+    let binding = expression_table(program).static_machine_application(binding_application);
     if binding.lexical_owner != source.lexical_owner
         || binding.registration_operation != application.declaration
         || binding.binding_declaration != application.declaration
@@ -249,8 +242,7 @@ pub(crate) fn conformance_binding_is_exact(
         return Err("capture binding owner or map declaration differs from supplying application");
     }
     let selected = if let Some(selection) = &source.conformance_selection {
-        program
-            .expression_table
+        expression_table(program)
             .static_machine_application_arguments(supplying_application)
             .get(selection.operand_ordinal as usize)
             .and_then(|argument| {
@@ -264,9 +256,8 @@ pub(crate) fn conformance_binding_is_exact(
         // several source binders select the same map tuple. Rejoin that slot
         // through the specialization's retained declaration order, rather
         // than treating equal map values as ambiguous source occurrences.
-        let source_bindings = program
-            .expression_table
-            .static_machine_application_bindings(supplying_application);
+        let source_bindings =
+            expression_table(program).static_machine_application_bindings(supplying_application);
         let evidence_positions = program
             .machine_specializations
             .iter()
@@ -277,23 +268,42 @@ pub(crate) fn conformance_binding_is_exact(
                     && selected.callable_application == application.callable_application)
                     .then_some(position)
             });
-        let trait_positions = program
+        let declaration_positions = program
             .trait_implementation_applications
             .iter()
-            .filter(|(_, selected)| {
-                selected.supplying_application == supplying_application
-                    && application.callable_application.is_valid()
-                    && selected.application.callable_application == application.callable_application
+            .map(|(_, selected)| {
+                (
+                    selected.supplying_application,
+                    selected.parameter,
+                    &selected.application,
+                )
             })
-            .filter_map(|(_, selected)| {
+            .chain(
+                program
+                    .data_implementation_applications
+                    .iter()
+                    .map(|(_, selected)| {
+                        (
+                            selected.supplying_application,
+                            selected.parameter,
+                            &selected.application,
+                        )
+                    }),
+            )
+            .filter(|(supplying, _, selected)| {
+                *supplying == supplying_application
+                    && application.callable_application.is_valid()
+                    && selected.callable_application == application.callable_application
+            })
+            .filter_map(|(_, parameter, _)| {
                 source_bindings
                     .iter()
                     .filter(|binding| {
                         matches!(binding.value, StaticMachineBindingValue::Conformance(_))
                     })
-                    .position(|binding| binding.parameter == selected.parameter)
+                    .position(|binding| binding.parameter == parameter)
             });
-        let mut positions = evidence_positions.chain(trait_positions);
+        let mut positions = evidence_positions.chain(declaration_positions);
         let position = positions
             .next()
             .ok_or("capture supplying application lost its exact evidence occurrence")?;
@@ -332,12 +342,15 @@ pub(crate) fn conformance_binding_is_exact(
         return Err("capture original conformance declaration is absent");
     };
     let parameters = program.conformance_type_parameters(declaration);
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(binding_application);
+    let bindings =
+        expression_table(program).static_machine_application_bindings(binding_application);
     if parameters.len() != application.arguments.len() || bindings.len() != parameters.len() {
         return Err("capture tuple or binding roster differs from map telescope");
     }
+    // This is the independently reclosed original supplying application,
+    // already joined above on its complete raw tuple and exact source custody.
+    let reclosed = &selected[0];
+    let mut const_ordinal = 0;
     for (parameter, argument) in parameters.iter().zip(&application.arguments) {
         let selected = bindings
             .iter()
@@ -346,20 +359,41 @@ pub(crate) fn conformance_binding_is_exact(
         let [selected] = selected.as_slice() else {
             return Err("capture binder has no unique selected operand");
         };
-        let matches = program.static_binding_matches_argument(
-            &parameter.kind,
-            &selected.value,
-            argument,
-            source.lexical_owner,
-            binding.lexical_owner,
-        );
+        let evaluated = if parameter.kind.is_const_or_value() {
+            let value = reclosed.const_arguments.get(const_ordinal);
+            const_ordinal += 1;
+            match value {
+                Some(typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
+                    value,
+                    ..
+                }) => Some(value),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let matches = if let Some(expected) = evaluated {
+            let StaticMachineBindingValue::Const(actual) = &selected.value else {
+                return Err("capture const binder changed its declared operand category");
+            };
+            typed_trees::typed_trees::static_const_value_identity(expected)
+                .zip(program.static_const_type_reference_identity(*actual))
+                .is_some_and(|(expected, actual)| expected == actual)
+        } else {
+            program.static_binding_matches_argument(
+                &parameter.kind,
+                &selected.value,
+                argument,
+                source.lexical_owner,
+                binding.lexical_owner,
+            )
+        };
         if !matches {
             return Err("capture operand does not match its exact original selected argument");
         }
     }
-    let lifetimes = program
-        .expression_table
-        .static_machine_application_lifetimes(binding_application);
+    let lifetimes =
+        expression_table(program).static_machine_application_lifetimes(binding_application);
     let matches = lifetimes.len() == declaration.lifetime_parameters.len()
         && lifetimes.len() == application.lifetime_arguments.len()
         && lifetimes

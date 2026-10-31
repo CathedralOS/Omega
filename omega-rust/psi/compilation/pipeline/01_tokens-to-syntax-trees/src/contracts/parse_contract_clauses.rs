@@ -3,6 +3,7 @@ use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals_or_membership,
 };
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::tables::{exprs, items};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -47,6 +48,7 @@ type RankedSubjects = (
 pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
 ) -> ParseResult<'tokens, 'source, MachineClauses> {
     let mut terminates_guarantee = false;
     let mut ranking_subjects = HandleSpan::empty();
@@ -55,13 +57,13 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
-    let mut service_reaches = crate::handle_spans::HandleSpanBuilder::new();
-    let mut invokes = crate::handle_spans::HandleSpanBuilder::new();
+    let mut service_reaches = Vec::new();
+    let mut invokes = Vec::new();
     let mut suspends_keyword_source_spans = Vec::new();
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
-    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
+    let mut contracts = Vec::new();
     let mut outcome_case_groups = Vec::<String>::new();
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
@@ -74,38 +76,36 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         // loop stands down and leaves the semicolon for parse_machine.
         && !input.at_punctuation(PunctuationKind::Semicolon)
     {
+        if input.at_contextual("requires")
+            && input
+                .take_contextual("requires")?
+                .at_keyword(KeywordKind::Machine)
+        {
+            let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
+                syntax_trees,
+                type_parameters,
+                input,
+            )?;
+            input = rest;
+            continue;
+        }
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
-            // Decision 23 (TPR1): bare `terminates;` authors the public
-            // guarantee; `terminates by <subjects> [-> View] [in <range>];`
+            // Decision 23 (TPR1): bare `terminates` authors the public
+            // guarantee; `terminates by <subjects> [-> View] [in <range>]`
             // supplies the private ranking witness. The old block form is
             // RETIRED loudly below.
             if input.at_contextual("by") {
                 let by_input = input.take_contextual("by")?;
                 let ((clause_subjects, clause_view, clause_view_arguments, clause_range), rest) =
                     parse_ranked_subjects(syntax_trees, by_input)?;
-                input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                input = rest;
                 ranking_subjects = clause_subjects;
                 ranking_view = clause_view;
                 ranking_view_arguments = clause_view_arguments;
                 ranking_range = clause_range;
                 continue;
             }
-            if input.at_punctuation(PunctuationKind::Semicolon) {
-                input = take_invokes_clause_terminator(input)?;
-                // TPR2: the bare form authors the PUBLIC guarantee.
-                terminates_guarantee = true;
-                continue;
-            }
-            if starts_termination_clause_block(input) {
-                return Err(input.error_here(
-                    "the `terminates { decreases ...; }` block form is retired \
-                     (decision 23): spell the ranking witness as `terminates by \
-                     <subjects> [-> View] [in <range>];`, or bare `terminates;` \
-                     for the guarantee alone",
-                ));
-            }
-            input = take_invokes_clause_terminator(input)?;
             terminates_guarantee = true;
             continue;
         }
@@ -114,7 +114,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             return Err(input.error_here(
                 "a standalone `decreases` clause is retired (decision 23): \
                  attach the ranking witness to the guarantee as `terminates by \
-                 <subjects> [-> View] [in <range>];`",
+                 <subjects> [-> View] [in <range>]`",
             ));
         }
 
@@ -122,7 +122,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             return Err(input.error_here(
                 "a standalone `increases` clause is retired (decision 23): \
                  select a bounded ranking view with `terminates by \
-                 <subject> -> Nat::IncreasingTo(<bound>);`",
+                 <subject> -> Nat::IncreasingTo(<bound>)`",
             ));
         }
 
@@ -135,7 +135,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("reaches") {
             input = super::take_operational_reaches_clause(
                 input,
-                syntax_trees,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
                 &mut service_reach_is_installation_bound,
@@ -147,29 +146,28 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("invokes") {
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
-            let handle = syntax_trees.items.append_identifier_path_member(binding);
-            invokes.push(handle);
-            input = take_invokes_clause_terminator(after_binding)?;
+            invokes.push(binding);
+            input = after_binding;
             continue;
         }
 
         if input.at_contextual("suspends") {
             suspends_keyword_source_spans.push(input.current_source_span());
             if suspends {
-                return Err(input.error_here("duplicate `suspends;` operational clause"));
+                return Err(input.error_here("duplicate `suspends` operational clause"));
             }
             suspends = true;
-            input = take_invokes_clause_terminator(input.take_contextual("suspends")?)?;
+            input = input.take_contextual("suspends")?;
             continue;
         }
 
         if input.at_contextual("blocks") {
             blocks_keyword_source_spans.push(input.current_source_span());
             if blocks {
-                return Err(input.error_here("duplicate `blocks;` operational clause"));
+                return Err(input.error_here("duplicate `blocks` operational clause"));
             }
             blocks = true;
-            input = take_invokes_clause_terminator(input.take_contextual("blocks")?)?;
+            input = input.take_contextual("blocks")?;
             continue;
         }
 
@@ -190,7 +188,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 return Err(after_number.error_here("expected `bytes` after the same-stack demand"));
             }
             input = after_number.take_contextual("bytes")?;
-            input = take_invokes_clause_terminator(input)?;
             admitted_same_stack_bytes = u64::try_from(bytes).expect("positive i64 fits in u64");
             continue;
         }
@@ -214,19 +211,15 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     },
                     true,
                 )?;
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind: CapabilityContractKind::Crashes { cause },
-                    keyword_source_span,
-                    binding: None,
-                    facts,
-                    token_count: fact_token_count
-                        .checked_add(header_token_count)
-                        .expect("crash contract token count overflow"),
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind: CapabilityContractKind::Crashes { cause },
+                keyword_source_span,
+                binding: None,
+                facts,
+                token_count: fact_token_count
+                    .checked_add(header_token_count)
+                    .expect("crash contract token count overflow"),
+            });
             input = rest;
             continue;
         }
@@ -273,7 +266,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                         }
                         public_selectors.push(binding.as_str(syntax_trees).to_owned());
                     }
-                    super::record_capability_contract(syntax_trees, contract, &mut contracts);
+                    contracts.push(contract);
                 }
                 input = rest;
                 continue;
@@ -311,23 +304,19 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 }
                 public_selectors.push(binding.as_str(syntax_trees).to_owned());
             }
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind,
-                    keyword_source_span,
-                    binding,
-                    facts,
-                    token_count,
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind,
+                keyword_source_span,
+                binding,
+                facts,
+                token_count,
+            });
             input = rest;
             continue;
         }
 
         // A return type may follow the clauses (`machine f(..) terminates
-        // by ..; -> usize { .. }`). This used to be eaten by a skip-any-token
+        // by .. -> usize { .. }`). This used to be eaten by a skip-any-token
         // fallback, so the machine silently parsed as VOID -- the declared
         // `-> usize` never reached any state.
         if input.at_punctuation(PunctuationKind::Arrow) {
@@ -347,7 +336,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             let after_where = input.take_contextual("where")?;
             if after_where.at_keyword(KeywordKind::Machine) {
                 return Err(after_where.error_here(
-                    "one-off `where machine T::member(...)` requirements are unsupported; declare a trait and bind an explicit conformance",
+                    "`where machine` is retired; write `requires machine` with an explicit generic binder",
                 ));
             }
             input = after_where;
@@ -380,9 +369,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             "`terminates`",
             "`decreases`",
             "`reaches`",
-            "`invokes <binding>;`",
-            "`suspends;`",
-            "`blocks;`",
+            "`invokes <binding>`",
+            "`suspends`",
+            "`blocks`",
             "`crashes <Cause>`",
             "`boundary`",
             "`requires`",
@@ -394,7 +383,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
 
     let mut where_facts_span = crate::handle_spans::HandleSpanBuilder::new();
     for fact in where_facts {
-        where_facts_span.push(syntax_trees.items.append_proof_fact(fact));
+        where_facts_span.push(items(syntax_trees).append_proof_fact(fact));
     }
     Ok((
         MachineClauses {
@@ -405,13 +394,15 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             ranking_range,
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            service_reaches: service_reaches.finish(),
-            invokes: invokes.finish(),
+            service_reaches: syntax_trees
+                .items
+                .insert_identifier_path_members(service_reaches),
+            invokes: items(syntax_trees).insert_identifier_path_members(invokes),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts: contracts.finish(),
+            contracts: super::publish_capability_contracts(syntax_trees, contracts),
             return_type,
             where_facts: where_facts_span.finish(),
             admitted_same_stack_bytes,
@@ -425,7 +416,8 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
 // expression cannot begin with one. Callers keep their punctuation boundaries
 // explicit because a crash clause additionally admits an empty `crashes Trap;`.
 fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
-    input.at_keyword(KeywordKind::Machine)
+    input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_keyword(KeywordKind::Machine)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Use)
         || input.at_contextual("requires")
@@ -521,7 +513,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
     keyword_source_span: Option<source::SourceSpan>,
 ) -> ParseResult<'tokens, 'source, (Vec<CapabilityContract>, String)> {
     let (result_case, rest) = parse_path_handle_span(input, |member| {
-        syntax_trees.items.append_identifier_path_member(member)
+        items(syntax_trees).append_identifier_path_member(member)
     })?;
     let group_name = syntax_trees
         .items
@@ -570,39 +562,6 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
     Ok(((contracts, group_name), input))
 }
 
-fn take_invokes_clause_terminator<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if continues_after_operational_clause(after_semicolon) {
-        Ok(after_semicolon)
-    } else {
-        // On a bodyless machine this semicolon is both the operational-clause
-        // terminator and the item terminator. Leave it for `parse_machine`.
-        Ok(input)
-    }
-}
-
-fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
-    input.at_punctuation(PunctuationKind::LeftBrace)
-        || input.at_punctuation(PunctuationKind::Arrow)
-        || input.at_contextual("terminates")
-        || input.at_contextual("decreases")
-        || input.at_contextual("reaches")
-        || input.at_contextual("effects")
-        || input.at_contextual("invokes")
-        || input.at_contextual("suspends")
-        || input.at_contextual("blocks")
-        || input.at_contextual("stack")
-        || input.at_contextual("crashes")
-        || (input.at_contextual("boundary")
-            && !crate::declarations::parse_declaration::starts_boundary_item(input))
-        || input.at_contextual("requires")
-        || input.at_contextual("ensures")
-        || input.at_contextual("where")
-        || input.at_contextual("satisfies")
-}
-
 fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::LeftBrace)
         || input.at_punctuation(PunctuationKind::Semicolon)
@@ -621,18 +580,6 @@ fn parse_crash_header<'tokens, 'source>(
     let (cause, after_cause) = input.take_identifier()?;
     let cause = crate::contracts::parse_crash_cause(&cause, after_cause)?;
     Ok(((cause, 2), after_cause))
-}
-
-fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
-    if !input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty() {
-        return false;
-    }
-
-    let rest = input.restarted(&input.tokens[1..]);
-    rest.tokens.first().is_some_and(|token| {
-        matches!(token.punctuation(), Some(PunctuationKind::RightBrace))
-            || matches!(input.text(token).as_str(), "decreases" | "increases")
-    })
 }
 
 /// Decision 23's ranking-witness body: `<subject>` or `(<s1>, <s2>, ..)`
@@ -668,14 +615,14 @@ fn parse_ranked_subjects<'tokens, 'source>(
             parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         (vec![expression], rest)
     };
-    let ranking_subjects = syntax_trees.expressions.insert_expression_handles(subjects);
+    let ranking_subjects = exprs(syntax_trees).insert_expression_handles(subjects);
     let mut ranking_view = HandleSpan::empty();
     let mut ranking_view_arguments = HandleSpan::empty();
 
     if rest.at_punctuation(PunctuationKind::Arrow) {
         rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
         let (order, next) = parse_path_handle_span(rest, |member| {
-            syntax_trees.items.append_identifier_path_member(member)
+            items(syntax_trees).append_identifier_path_member(member)
         })?;
         ranking_view = order;
         rest = next;
@@ -731,15 +678,13 @@ fn parse_ranked_subjects<'tokens, 'source>(
             after_separator,
         )?;
         ranking_range =
-            syntax_trees
-                .expressions
-                .insert(syntax_trees::expression::ExpressionNode::Range(
-                    syntax_trees::expression::TableRangeExpression {
-                        start,
-                        end,
-                        end_inclusive,
-                    },
-                ));
+            exprs(syntax_trees).insert(syntax_trees::expression::ExpressionNode::Range(
+                syntax_trees::expression::TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive,
+                },
+            ));
         rest = next;
     }
 

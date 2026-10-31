@@ -1,8 +1,9 @@
 //! Member, index, and selector reads: projected places, temporary member
 //! symbols, and the operand rosters an operator call reads through.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use validation::CanonicalPlace;
-use validation::canonical_place_from_expression_in_state;
 
 use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use super::ReadWalk;
@@ -51,12 +52,8 @@ impl ReadWalk<'_, '_, '_> {
         if receiver_is_borrow {
             return self.collect_place_read(expression, depth);
         }
-        if let Some(place) = canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            expression,
-        ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
+        if let Some(place) = place_at(program, state.symbol, statement_index, expression)
+            && matches!(place.root, facts::PlaceRoot::Symbol(_))
         {
             return self.descend_and_capture_symbol_place(expression, place, depth);
         }
@@ -277,9 +274,7 @@ impl ReadWalk<'_, '_, '_> {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 let members = program.expression_table.name_path_members(path.members);
-                let symbols = program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols);
+                let symbols = expressions(program).name_path_member_symbols(path.member_symbols);
                 validation::first_valid_name_path_symbol(path, &program.expression_table).is_some()
                     && (members.len() <= 1 || members.len() == symbols.len())
                     && symbols.iter().all(|symbol| symbol.is_valid())

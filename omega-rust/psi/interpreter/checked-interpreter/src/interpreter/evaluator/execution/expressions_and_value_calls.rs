@@ -1,8 +1,10 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, ExpressionNode,
-    Frame, Halt, HashSet, PrimitiveType, Reference, Value, trap, unsupported,
+    Frame, Halt, HashSet, PrimitiveType, Reference, Value, expression_table, trap,
+    type_reference_table, unsupported,
 };
 mod call_evaluation;
+mod layout_target_facts;
 mod literal_evaluation;
 mod match_dispatch;
 
@@ -44,19 +46,35 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         self.tick()?;
-        if self
-            .program
-            .static_type_predicate_operands(handle)
-            .is_some()
-        {
+        if let Some((left, right, _)) = self.program.static_type_predicate_operands(handle) {
             return self
                 .program
                 .static_type_predicate_value(handle)
                 .map(Value::Bool)
                 .ok_or_else(|| {
-                    Halt::Unsupported(
-                        "static type predicate remains unbound during execution".to_owned(),
-                    )
+                    let input = [left, right].into_iter().find_map(|reference| {
+                        typed_trees::references::collect_type_symbol_dependencies(
+                            self.program,
+                            reference,
+                        )
+                        .into_iter()
+                        .find(|symbol| {
+                            symbol.is_valid()
+                                && self.program.symbols.get(*symbol).kind
+                                    == symbols::SymbolKind::TypeParameter
+                        })
+                    });
+                    match input {
+                        Some(input) => Halt::StaticInputUnavailable(
+                            crate::interpreter::UnavailableStaticInput::TypePredicate {
+                                expression: handle,
+                                input,
+                            },
+                        ),
+                        None => Halt::Unsupported(
+                            "closed static type predicate cannot be evaluated".to_owned(),
+                        ),
+                    }
                 });
         }
         let node = self.program.expression_table.expression(handle).clone();
@@ -92,10 +110,8 @@ impl<'program> Evaluator<'program> {
                                 let states = self.program.machine_states(machine);
                                 states.len() == 1 && states[0].symbol == call.target_symbol
                             });
-                    let [left, right] = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
+                    let [left, right] =
+                        expression_table(self.program).expression_handles(call.arguments)
                     else {
                         return trap("selected binary requirement lost its exact arity");
                     };
@@ -489,7 +505,25 @@ impl<'program> Evaluator<'program> {
         let Some(owner) = validation::exact_case_reference_owner(self.program, binary.right) else {
             return trap("case membership requires an exact case classifier");
         };
-        let owner_symbol = owner.symbol;
+        let Some(subject_type) = self.expression_type_reference(binary.left, frame) else {
+            return trap("case membership subject has no exact receiving type");
+        };
+        let subject_type =
+            type_reference_table(self.program).unconstrained_type_reference(subject_type);
+        let Some(selected_owner) = self
+            .program
+            .closed_data_constructor_definition(subject_type, owner.symbol)
+        else {
+            return trap("case membership classifier has no exact subject application");
+        };
+        let Some(selected_case) = self
+            .program
+            .closed_data_constructor_case(subject_type, case_symbol)
+        else {
+            return trap("case membership classifier has no case in its subject application");
+        };
+        let owner_symbol = selected_owner.symbol;
+        let case_symbol = selected_case.symbol;
         let subject = self.eval_expression(binary.left, frame)?;
         let subject = match subject {
             Value::Ref(reference) => self.read_reference(&reference)?,
@@ -508,7 +542,7 @@ impl<'program> Evaluator<'program> {
         }
         let Some(runtime_case) =
             self.program
-                .data_members(owner)
+                .data_members(selected_owner)
                 .iter()
                 .find_map(|member| match member {
                     typed_trees::data::DataMember::Variant(variant)

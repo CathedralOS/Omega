@@ -1,1 +1,1 @@
-call operands invalidate the exact entry-relative ranking frame
+a preserving cycle has no strict measure DECREASE

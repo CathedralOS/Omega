@@ -166,7 +166,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     machine deliver(main: &mut Main, slot: u64, event: i32)
-    requires slot < 640;
+    requires slot < 640
     {
         main.calendar[slot] = 0;
         let value: bool = event == 2;
@@ -220,7 +220,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition previous < 640 { true -> clear(main, value, previous) false -> enqueue(main, value) }
     }
     machine clear(main: &mut Main, value: bool, previous: u64)
-    requires previous < 640;
+    requires previous < 640
     { main.calendar[previous] = 0; transition { _ -> enqueue(main, value) } }
     machine enqueue(main: &mut Main, value: bool) {
         let definition: Gate = main.network.gates[main.gate];
@@ -230,10 +230,10 @@ machine Main::main(main: &mut Main) reaches Console {
         transition value { true -> queue_one(main, slot) false -> queue_zero(main, slot) }
     }
     machine queue_one(main: &mut Main, slot: u64)
-    requires slot < 640;
+    requires slot < 640
     { main.calendar[slot] = 2; transition { _ -> next_gate(main) } }
     machine queue_zero(main: &mut Main, slot: u64)
-    requires slot < 640;
+    requires slot < 640
     { main.calendar[slot] = 1; transition { _ -> next_gate(main) } }
     machine next_gate(main: &mut Main) { main.gate = (main.gate % 9) + 1; transition { _ -> gates(main) } }
     machine next_node(main: &mut Main) { main.node = (main.node % 9) + 1; transition { _ -> scan(main) } }

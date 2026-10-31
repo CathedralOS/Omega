@@ -55,14 +55,7 @@ pub(crate) fn contract_call_target_telescopes<'a>(
         }
     }
     for operator in compilation
-        .operators()
-        .iter()
-        .chain(
-            compilation
-                .domain_definitions()
-                .iter()
-                .flat_map(|domain| compilation.domain_operators(domain)),
-        )
+        .all_operators()
         .filter(|operator| operator.symbol == target)
     {
         candidates.push(ContractCallTargetTelescopes {

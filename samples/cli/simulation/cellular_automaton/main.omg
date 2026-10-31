@@ -1,5 +1,3 @@
-use omega_language_std::math;
-
 // An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
 // diagram -- each generation is one printed row, so the history builds downward. From a
 // single live cell in the centre, Rule 90 (next = left XOR right) draws the SIERPINSKI
@@ -11,11 +9,11 @@ use omega_language_std::math;
 // a PLAIN counter index (no computed `cells[x+1]` subscript). The new cell is the rule bit
 // `(rule >> neighbourhood) & 1` (a value-position shift). Rendering maps 0/1 through a
 // 2-glyph Utf8 ramp " #"; the double buffer is copied back via a field temp.
-// The grids are plain `[i32; 64]`, so an indexed read carries no 0/1 fact: a
-// value re-guard (cv < 2) precedes the ramp lookup, and `min`/`max` clamps --
-// the identity on the values this automaton produces -- bound the window fold
-// and the rule-bit shift, keeping all of it Exact. Pure compute + stdout +
-// Clock.sleep.
+// Both grids carry an ordinary recursive predicate: every cell is 0 or 1.
+// The selected-cell theorem transports that fact into rendering and the window
+// fold. Main's counters and scratch values retain their original bounds as
+// propositions, so the arithmetic needs no value clamps.
+// Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
 use omega_language_std::console;
@@ -30,19 +28,52 @@ requires
 domain [u8; 2]::Utf8
 requires
     valid_utf8(self);
-data Main {
+machine cells_valid(cells: &[i32]) -> bool { check_cells(cells, cells.len) }
+
+machine check_cells(cells: &[i32], remaining: u64) -> bool
+requires remaining <= cells.len
+terminates
+terminates by remaining in 0..=cells.len
+{
+    transition remaining > 0 { true -> inspect(cells, remaining) false -> (true) }
+    machine inspect(cells: &[i32], remaining: u64) -> bool
+    requires remaining > 0 && remaining <= cells.len
+    {
+        let selected: u64 = remaining - 1;
+        transition cells[selected] >= 0 && cells[selected] <= 1 {
+            true -> check_cells(cells, selected)
+            false -> (false)
+        }
+    }
+}
+
+machine cell_is_bit(cells: &[i32], selected: u64)
+requires cells_valid(cells) == true && selected < cells.len
+ensures cells[selected] >= 0 && cells[selected] <= 1
+{}
+
+data Main
+requires cells_valid(&self.cells) == true && cells_valid(&self.next) == true
+requires self.gen >= 0 && self.gen <= 32
+requires self.rp >= 0 && self.rp <= 65
+requires self.window >= 0 && self.window <= 7
+requires self.cell >= 0 && self.cell <= 1
+requires self.nv >= 0 && self.nv <= 1
+requires self.x >= 0 && self.x <= 64
+requires self.cv >= 0 && self.cv <= 1
+{
     cells: [i32; 64];       // current generation (0/1)
     next: [i32; 64];        // next generation
     line: [u8; 64] in Utf8; // render buffer
     chars: [u8; 2] in Utf8; // " #"  dead / alive glyphs
-    gen: i32;               // guard-proven Exact generation counter
-    rp: i32;                // sliding-window read head, 0..64 (guard-proven)
+    gen: i32;               // generation counter, 0..32
+    rp: i32;                // sliding-window read head, 0..65
     op: i32;                // output head = rp - 1 (-1 before the window fills)
     window: i32;            // 3-bit (left,centre,right) neighbourhood, modular by construction
-    cell: i32;              // freshly read cell value (clamped to 0/1 where it is used)
+    cell: i32;              // freshly read cell value, 0/1
     nv: i32;                // computed next value (the rule bit)
-    x: i32;                 // render / copy index (guard-proven)
-    cv: i32;                // cell value during render / copy (re-guarded to 0/1 before the lookup)
+    x: i32;                 // render / copy index, 0..64
+    cv: i32;                // cell value during render / copy, 0/1
     glyph: u8;              // rendered byte (from the Utf8 ramp)
     pause: [u8; 256];
 }
@@ -52,52 +83,53 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.line = "                                                                ";
     main.chars = " #";
     main.x = 0;
-    transition { _ -> zero_loop(main) }
+    transition { _ -> block zero_loop(main) }
 
     // --- clear the grid, then light a single centre cell ---
     machine zero_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> zero_cell(main) _ -> seed(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block zero_cell(main) _ -> block seed(main) }
     }
     machine zero_cell(main: &mut Main) {
         main.cells[main.x] = 0;
         main.x = main.x + 1;
-        transition { _ -> zero_loop(main) }
+        transition { _ -> block zero_loop(main) }
     }
     machine seed(main: &mut Main) {
         main.cells[32] = 1;
         main.gen = 0;
-        transition { _ -> gen_loop(main) }
+        transition { _ -> block gen_loop(main) }
     }
 
     machine gen_loop(main: &mut Main) {
-        transition main.gen < 32 { true -> render_init(main) _ -> finish(main) }
+        transition main.gen < 32 { true -> block render_init(main) _ -> block finish(main) }
     }
 
     // --- render the current generation as one row ---
     machine render_init(main: &mut Main) {
         main.x = 0;
-        transition { _ -> render_loop(main) }
+        transition { _ -> block render_loop(main) }
     }
     machine render_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> render_cell(main) _ -> emit(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block render_cell(main) _ -> block emit(main) }
     }
     machine render_cell(main: &mut Main) {
+        cell_is_bit(&main.cells[..], main.x as u64);
         main.cv = main.cells[main.x];
-        transition main.cv >= 0 && main.cv < 2 { true -> render_put(main) _ -> bad(main) }
+        transition { _ -> block render_put(main) }
     }
     machine render_put(main: &mut Main) {
         // ramp lookup carries the Utf8-ness into the carrier (the ripple_field pattern)
         main.glyph = main.chars[main.cv];
-        transition main.x >= 0 && main.x < 64 { true -> render_emit(main) _ -> bad(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block render_emit(main) _ -> block bad(main) }
     }
     machine render_emit(main: &mut Main) {
         main.line[main.x] = main.glyph;
         main.x = main.x + 1;
-        transition { _ -> render_loop(main) }
+        transition { _ -> block render_loop(main) }
     }
     machine emit(main: &mut Main) {
         Console::write_line(main.line);
-        transition { _ -> scan_init(main) }
+        transition { _ -> block scan_init(main) }
     }
 
     // --- compute the next generation with a sliding 3-cell window ---
@@ -105,81 +137,77 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         main.window = 0;
         main.rp = 0;
         main.op = 0 - 1;
-        transition { _ -> scan_loop(main) }
+        transition { _ -> block scan_loop(main) }
     }
     machine scan_loop(main: &mut Main) {
-        transition main.rp >= 0 && main.rp <= 64 { true -> scan_read(main) _ -> copy_init(main) }
+        transition main.rp >= 0 && main.rp <= 64 { true -> block scan_read(main) _ -> block copy_init(main) }
     }
     machine scan_read(main: &mut Main) {
-        transition main.rp < 64 { true -> scan_real(main) _ -> scan_border(main) }
+        transition main.rp < 64 { true -> block scan_real(main) _ -> block scan_border(main) }
     }
     machine scan_real(main: &mut Main) {
-        transition main.rp >= 0 && main.rp < 64 { true -> scan_got(main) _ -> bad(main) }
+        transition main.rp >= 0 && main.rp < 64 { true -> block scan_got(main) _ -> block bad(main) }
     }
     machine scan_got(main: &mut Main) {
+        cell_is_bit(&main.cells[..], main.rp as u64);
         main.cell = main.cells[main.rp];
-        transition { _ -> scan_update(main) }
+        transition { _ -> block scan_update(main) }
     }
     machine scan_border(main: &mut Main) {
         main.cell = 0; // cells outside the grid are dead
-        transition { _ -> scan_update(main) }
+        transition { _ -> block scan_update(main) }
     }
     machine scan_update(main: &mut Main) {
-        // Shift-in as PROVEN-Exact arithmetic: the window stays in [0,7] and
-        // grid cells are always 0/1, so the min/max clamps are the identity
-        // while giving both operands a provable bound; the `% 8` then keeps the
-        // fold inside [0,7] --
-        // (w*2 + c) % 8 == ((w << 1) | c) & 7 for w in [0,7], c in {0,1}.
-        main.window = (min_i32(max_i32(main.window, 0), 7) * 2 + min_i32(max_i32(main.cell, 0), 1)) % 8;
-        transition { _ -> scan_write(main) }
+        // (w*2 + c) % 8 == ((w << 1) | c) & 7 for a 3-bit window and a bit.
+        main.window = (main.window * 2 + main.cell) % 8;
+        transition { _ -> block scan_write(main) }
     }
     machine scan_write(main: &mut Main) {
-        transition main.op >= 0 && main.op < 64 { true -> scan_do(main) _ -> scan_advance(main) }
+        transition main.op >= 0 && main.op < 64 { true -> block scan_do(main) _ -> block scan_advance(main) }
     }
     machine scan_do(main: &mut Main) {
-        // The clamp is the identity on the [0,7] window and proves the shift
-        // count below 32.
-        main.nv = (90i32 >> min_i32(max_i32(main.window, 0), 7)) & 1; // Rule 90: next = left XOR right
+        main.nv = (90i32 >> main.window) & 1; // Rule 90: next = left XOR right
         main.next[main.op] = main.nv;
-        transition { _ -> scan_advance(main) }
+        transition { _ -> block scan_advance(main) }
     }
     // Re-guard before the head advance: `rp < 65` on the direct edge proves the
     // increment into [0..=65] (the prior `op = rp` write is disjoint).
     machine scan_advance(main: &mut Main) {
         main.op = main.rp;
-        transition main.rp < 65 { true -> rp_bump(main) _ -> scan_loop(main) }
+        transition main.rp < 65 { true -> block rp_bump(main) _ -> block scan_loop(main) }
     }
     machine rp_bump(main: &mut Main) {
         main.rp = main.rp + 1;
-        transition { _ -> scan_loop(main) }
+        transition { _ -> block scan_loop(main) }
     }
 
     // --- copy next -> cells (via a field temp; a direct cells[x]=next[x] is refused) ---
     machine copy_init(main: &mut Main) {
         main.x = 0;
-        transition { _ -> copy_loop(main) }
+        transition { _ -> block copy_loop(main) }
     }
     machine copy_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> copy_cell(main) _ -> gen_next(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block copy_cell(main) _ -> block gen_next(main) }
     }
     machine copy_cell(main: &mut Main) {
+        cell_is_bit(&main.next[..], main.x as u64);
         main.cv = main.next[main.x];
-        transition main.x >= 0 && main.x < 64 { true -> copy_put(main) _ -> bad(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block copy_put(main) _ -> block bad(main) }
     }
     machine copy_put(main: &mut Main) {
         main.cells[main.x] = main.cv;
         main.x = main.x + 1;
-        transition { _ -> copy_loop(main) }
+        transition { _ -> block copy_loop(main) }
     }
     // Sleep first (the host call would kill facts), then re-guard `gen < 32`
     // so the increment proves into [0..=32].
     machine gen_next(main: &mut Main) {
         Clock::sleep(50);
-        transition main.gen < 32 { true -> gen_bump(main) _ -> gen_loop(main) }
+        transition main.gen < 32 { true -> block gen_bump(main) _ -> block gen_loop(main) }
     }
     machine gen_bump(main: &mut Main) {
         main.gen = main.gen + 1;
-        transition { _ -> gen_loop(main) }
+        transition { _ -> block gen_loop(main) }
     }
 
     machine finish(main: &mut Main) {

@@ -15,6 +15,7 @@ use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::name::lower_name;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalParameter, MathematicalType,
@@ -114,8 +115,7 @@ fn lower_mathematical_type(
             codomain: lower_mathematical_type(lowerer, syntax, *codomain)?,
         },
         syntax::item::MathematicalTypeNode::Application { callee, arguments } => {
-            let arguments = syntax
-                .expressions
+            let arguments = syntax_expressions(&syntax)
                 .expression_handles(*arguments)
                 .iter()
                 .map(|argument| lower_expression_into_table(lowerer, syntax, *argument))

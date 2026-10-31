@@ -17,39 +17,37 @@ semantic tokens, and a fail-closed whole-file parser for ordinary
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `[#N] case Name;` or structured
-`[#N] case Name([#N] field: Type, ...);` members that may carry their own
-`where` facts (`#N` is a stable schema identity), and
+`[#N] case Name([#N] field: Type, ...);` members (`#N` is a stable schema
+identity); case predicates reject, and
 `[public] [target] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
 declarations, where a target name before `machine` scopes one body of a
 family keyed by target, `boundary` marks a crossing, and a fixed operator
 token from the closed vocabulary `+ - * / % == != < <= > >= [] [..]` binds
 operator syntax to the declaration (a conformance member binds none). Each
-`where machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
-contract, or nominal `where machine Name satisfies Trait::requirement`,
+`requires machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
+contract, or nominal `requires machine Name satisfies Trait::requirement`,
 gives a static machine binder its signature; the contracts precede the
-other clauses, end at their `;` or at the next `where machine`, and form one
-flat list whose binders resolution matches, since a contract may name a
-binder of an earlier contract. The clauses are `reaches`, `invokes`,
-`suspends;`, `blocks;`, `crashes`, `requires`/`ensures` facts separated by
-`,` or `;`, `satisfies Trait[<arguments>]::requirement [as Label] [via
-value]` exact requirement edges (a bare trait rejects: whole-trait
-satisfaction is a named conformance), and `terminates [by subjects [->
-View]];`, whose subjects are one expression or a parenthesized list and whose
-view is a path or an argumented view call; a bare `terminates` may end at
-the body's `{`. A machine's return type may follow its clauses, further
-clauses continuing the same run. Bodies hold their executable statements followed
-by nested `machine` declarations.
+other clauses or interleave with them. Each requirement owns exactly one
+terminating `;`, and its nested requirements have independent signatures,
+clause ranges, and direct-child ranges. The declaration's own generic and
+parameter ranges freeze before its children append rows. The header owner in
+[`parse/callable_header.omg`](parse/callable_header.omg) stages direct rows
+and publishes descendants before their parent; it never infers ownership by
+looking past a semicolon.
+The clauses are `reaches`, `invokes`, `suspends`, `blocks`, `crashes`,
+`requires`/`ensures` facts separated by `,`, exact `satisfies` requirements,
+and `terminates [by subjects [-> View]]`. Callable clauses have no trailing
+semicolons. A bodyless callable consumes its own `;`; a callable with a body
+starts that body at `{`. Non-callable declarations and refinement rows retain
+their own punctuation. For example, after a trait member's terminator,
+`requires Parent;` belongs to the trait body.
 Every declaration has its own complete signature, result (Unit when omitted),
 contracts and exact body ranges. A stable parent handle scopes names and static
 binders at arbitrary nesting depth; children need not occupy contiguous rows.
-Once trailing declarations begin, executable statements cannot resume. A
-bodyless machine ends at `;`; a `;` that ends a contract fact, a
-satisfaction, a termination or an operational clause belongs to the clause
-only while the declaration continues after it with `{`, another clause or
-another fact, and otherwise ends the declaration; a trait member's `;` before
-`requires` ends the member, whose trait reads `requires Parent;` as its body
-parent ([`parse/clause.omg`](parse/clause.omg)).
+Once trailing declarations begin, executable statements cannot resume. The
+product resolver still refuses unsupported higher-order contracts explicitly;
+retaining their syntax does not claim that their checking is implemented.
 Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, the intentional discard
 `_ = value;`, `value;`, `transition [subject] { arms }` and a final
@@ -174,8 +172,7 @@ ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
-([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `where
-machine ... satisfies` contract, a structural one with generic parameters or
+([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `requires machine ... satisfies` contract, a structural one with generic parameters or
 clauses other than `requires`, `crashes`, `suspends` and `blocks`, a `where
 proposition` contract, a proposition binder, an evidence binder on a machine,
 data declaration, conformance, domain or proposition, or an
@@ -187,7 +184,7 @@ it (`Reader satisfies Reading<Value>` between a type and a const, or any
 other mix). The binder selects an implementation; it is not a stored type
 and not a second list. Its trait application binds as a trait in that
 telescope's scope, so an earlier binder is visible to it. A
-structural `where machine` contract binds its machine's `machine` binder of
+structural `requires machine` contract binds its machine's `machine` binder of
 its name, one contract per binder
 ([`resolve/contracts.omg`](resolve/contracts.omg)), its parameter and result
 types in the machine's scope and its `requires` facts over its own
@@ -425,7 +422,7 @@ and a byte predicate applies to one `u8` view
 ([`typing/admission.omg`](typing/admission.omg)).
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact over its own parameters (`result` has the
-machine's result type), each `where machine`
+machine's result type), each `requires machine`
 contract's `requires` fact over its own parameters, and each data
 declaration's `where` fact over its fields, and each case's own `where` fact
 over its payload fields and those fields, is a Boolean. A proposition
@@ -766,14 +763,14 @@ owns bounded token selection and trivia traversal;
 | `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `where machine` contracts), trait (with refinements and `where proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
+| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `where proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
 | `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
 | `integers/` | Owns exact integer values and arithmetic shared by literal folding and bounds reasoning. | Absorb only into a successor exact-arithmetic owner both consumers share. |
 | `checks/` | Owns checking's result: each rejected machine's first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
-| `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine. | Absorb only into the canonical checker that proves the same obligations. |
+| `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine, and publishes public slot returned-borrow origins and qualification preconditions (`slots.omg`). | Absorb only into the canonical checker that proves the same obligations. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

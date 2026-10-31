@@ -4,8 +4,8 @@
 // Expected rejection: not provably representable
 
 machine subtract_match_join(lhs: i16, rhs: i16, choose: bool) -> i32
-    requires lhs >= 300i16 && lhs <= 520i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 520i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let diff: i16 = match choose {
         true -> lhs - rhs,

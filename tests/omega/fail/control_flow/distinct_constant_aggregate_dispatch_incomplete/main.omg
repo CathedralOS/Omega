@@ -1,7 +1,9 @@
 // Different aggregate values cannot merge into one coverage axis.
-data Interval [copy] {
+data Interval [copy] 
+    requires (self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))
+{
     case Empty;
-    case Point(lo: u64, hi: u64) where lo == hi;
+    case Point(lo: u64, hi: u64);
 }
 const FIRST: [Interval; 1] = [Interval::Point { lo: 4, hi: 4 }];
 const SECOND: [Interval; 1] = [Interval::Point { lo: 5, hi: 5 }];

@@ -603,7 +603,7 @@ fn parses_name_owned_generic_conformance_telescope() {
 
         GenericConversion<'scope, Source, const Width: u64, machine Convert>
             satisfies Converter<'scope, Source, u64>
-        where machine Convert(value: Source) -> u64;
+        requires machine Convert(value: Source) -> u64;
         {}
     "#;
 

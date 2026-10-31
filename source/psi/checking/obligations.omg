@@ -630,7 +630,7 @@ crashes Trap
 }
 
 // A callee's `requires` facts must hold at the call; a machine binder's
-// call owes its `where machine` contract's.
+// call owes its `requires machine` contract's.
 machine Checker::require_callee_facts(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, expression: Expression)
 crashes Trap
 {

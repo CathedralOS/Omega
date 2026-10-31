@@ -1,1 +1,2 @@
-exact arithmetic may overflow under target `windows_x86_64`: bounds [-2, -2]
+scalar range condition
+bounds [-2, -2] lie outside [0, 18446744073709551615]

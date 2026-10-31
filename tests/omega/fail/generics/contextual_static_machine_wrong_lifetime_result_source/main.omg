@@ -1,7 +1,7 @@
 machine choose<'first, 'second>(left: &'first u64, right: &'second u64) -> &'second u64 { right }
 
 machine apply<'left, 'right, machine Callback>(left: &'left u64, right: &'right u64) -> &'left u64
-where machine Callback(left: &'left u64, right: &'right u64) -> &'left u64;
+requires machine Callback(left: &'left u64, right: &'right u64) -> &'left u64;
 { Callback(left, right) }
 
 machine relay<'first, 'second>(left: &'first u64, right: &'second u64) -> &'first u64 {

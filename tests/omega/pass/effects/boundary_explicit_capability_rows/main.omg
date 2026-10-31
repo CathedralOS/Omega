@@ -24,11 +24,11 @@ machine portable_pure() -> u64 {
 }
 
 machine read_only() -> u64 reaches Read
-invokes Host;
+invokes Host
 { Host::read() }
 
 machine pure_operation() -> u64
-invokes Host;
+invokes Host
 { Host::pure(7) }
 
 machine bound_read() -> u64 reaches Read {

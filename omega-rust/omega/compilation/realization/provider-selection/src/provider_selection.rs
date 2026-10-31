@@ -20,7 +20,7 @@ pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
 ) -> Result<Vec<SelectedProvider<Declaration, Owner, Origin>>, Vec<Diagnostic>> {
     let plans = candidates
         .iter()
-        .map(|candidate| candidate.plan.clone())
+        .map(|candidate| &candidate.plan)
         .collect::<Vec<_>>();
     let selected =
         crate::selection::select_provider_plan_indices(&plans, target, defaults, overrides)?;
@@ -97,7 +97,8 @@ pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
             }
             if !declaration.subject.selects_schema(
                 &correspondence.schema,
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
                 plan.schema.root_application_identity(),
             ) || !correspondence.provider.as_ref().is_some_and(|provider| {
                 same_declaration(&declaration.provider_type.declaration, provider)
@@ -179,7 +180,7 @@ fn check_operator_families<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
                         .candidate
                         .plan
                         .schema
-                        .identity_text(selected.candidate.plan.schema.trait_name)
+                        .identity_text(selected.candidate.plan.schema.declaration.trait_name)
                         == coordinate.requirement_identity
                         && selected
                             .candidate

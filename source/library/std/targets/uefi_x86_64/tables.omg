@@ -29,10 +29,10 @@ data EfiLoadedImage {
     unload: u64;
 }
 
-data EfiLoadedImageLayout {
-}
-
-uefi_x86_64 machine EfiLoadedImageLayout::plan(schema: Schema) -> Plan {
+EfiLoadedImageLayout satisfies FixedLayout<EfiLoadedImage> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
@@ -48,6 +48,7 @@ uefi_x86_64 machine EfiLoadedImageLayout::plan(schema: Schema) -> Plan {
     entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 84 } };
     entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 88 } };
     Plan { entries: entries, entry_count: 13, size_fixed: 96, size_is_dynamic: false, align: 8 }
+}
 }
 
 // uefi_x86_64 system-table and boot-services geometry, authored under the same
@@ -92,10 +93,10 @@ data EfiSystemTableView {
     configuration_table: u64;
 }
 
-data EfiSystemTableViewLayout {
-}
-
-uefi_x86_64 machine EfiSystemTableViewLayout::plan(schema: Schema) -> Plan {
+EfiSystemTableViewLayout satisfies FixedLayout<EfiSystemTableView> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
@@ -112,18 +113,20 @@ uefi_x86_64 machine EfiSystemTableViewLayout::plan(schema: Schema) -> Plan {
     entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 112 } };
     Plan { entries: entries, entry_count: 13, size_fixed: 120, size_is_dynamic: false, align: 8 }
 }
+}
 
 data EfiBootServicesView {
     header: EfiTableHeader;
     services: [u64; 44];
 }
 
-data EfiBootServicesViewLayout {
-}
-
-uefi_x86_64 machine EfiBootServicesViewLayout::plan(schema: Schema) -> Plan {
+EfiBootServicesViewLayout satisfies FixedLayout<EfiBootServicesView> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
     Plan { entries: entries, entry_count: 2, size_fixed: 376, size_is_dynamic: false, align: 8 }
+}
 }

@@ -71,22 +71,17 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
 ) -> Result<(), Vec<Diagnostic>> {
     let candidates = contract_call_target_parameter_sets(compilation, target);
     let [parameters] = candidates.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call target rejoins {} value telescopes; expected exactly one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "contract call target rejoins {} value telescopes; expected exactly one",
             candidates.len()
-        ))]);
+        )));
     };
     let arguments = compilation
         .expression_table
         .expression_handles(call.arguments);
     let parameters = parameters.iter().collect::<Vec<_>>();
     if arguments.len() != parameters.len() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call has inconsistent checked value arity",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("contract call has inconsistent checked value arity"));
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
         if matches!(
@@ -97,10 +92,8 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
             *argument,
             parameter.type_reference,
         ) {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` reference argument does not match its contract-call parameter type",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context
+                .rejected("reference argument does not match its contract-call parameter type"));
         }
     }
     Ok(())
@@ -114,10 +107,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Result<&'compilation checked_trees::CheckedFactCallProjection, Vec<Diagnostic>> {
     let Some(call) = compilation.expression_table.call_node(call_expression) else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` fact-call projection does not rejoin a call expression",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("fact-call projection does not rejoin a call expression"));
     };
     let matching = compilation
         .facts
@@ -131,27 +121,20 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         })
         .collect::<Vec<_>>();
     let [projection] = matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` fact-call projection rejoins {} exact eligibility certificates; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "fact-call projection rejoins {} exact eligibility certificates; expected one",
             matching.len()
-        ))]);
+        )));
     };
     let target = compilation
         .machine(projection.target_machine)
         .and_then(|machine| compilation.state_in_machine(machine, projection.target_state));
     if target.is_none_or(|state| state.return_type != projection.result_type) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` fact-call projection certificate no longer rejoins its exact result type",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context
+            .rejected("fact-call projection certificate no longer rejoins its exact result type"));
     }
     if member.case_variant.is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` fact-call projection is not a direct record field",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("fact-call projection is not a direct record field"));
     }
     let data_symbol = match compilation
         .type_reference_table
@@ -171,10 +154,9 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         })
         .is_some_and(|field| field == projection.field);
     if !field_rejoins {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` fact-call projection certificate no longer rejoins its exact field",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(
+            context.rejected("fact-call projection certificate no longer rejoins its exact field")
+        );
     }
     Ok(projection)
 }
@@ -190,27 +172,17 @@ pub(crate) fn exact_checked_contract_call_target(
     };
 
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call has {} exact checked call-selection rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "contract call has {} exact checked call-selection rows; expected one",
             selections.len()
-        ))]);
+        )));
     };
     if selection.exposure() != context.selection_exposure {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call has the wrong retained selection exposure",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("contract call has the wrong retained selection exposure"));
     }
     let retained_symbol = resolved_contract_call_symbol(compilation, call);
     let owner_derived_symbol = compilation.derive_checked_nominal_call_target(expression);
@@ -218,10 +190,9 @@ pub(crate) fn exact_checked_contract_call_target(
         && owner_derived_symbol.is_some()
         && retained_symbol != owner_derived_symbol
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call retained target disagrees with its exact checked owner derivation",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected(
+            "contract call retained target disagrees with its exact checked owner derivation",
+        ));
     }
     let resolved_symbol = retained_symbol.or(owner_derived_symbol);
     match selection.target() {
@@ -241,10 +212,9 @@ pub(crate) fn exact_checked_contract_call_target(
                 )?))
             }
         }
-        AuthoredDeclarationSelectionTarget::Resolved(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call target disagrees with its exact checked call-selection row",
-            context.subject_kind, context.subject_name
-        ))]),
+        AuthoredDeclarationSelectionTarget::Resolved(_) => Err(context.rejected(
+            "contract call target disagrees with its exact checked call-selection row",
+        )),
         AuthoredDeclarationSelectionTarget::Intrinsic(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
                 predicate,
@@ -309,13 +279,11 @@ pub(crate) fn exact_checked_contract_call_target(
                 name: call.target.as_str().to_owned(),
             })
         }
-        AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract-call intrinsic identity disagrees with its exact checked call-selection row or is not yet represented by package review",
-            context.subject_kind, context.subject_name
-        ))]),
-        AuthoredDeclarationSelectionTarget::LateBound(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` retains an unresolved contract call selection",
-            context.subject_kind, context.subject_name
-        ))]),
+        AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(context.rejected(
+            "contract-call intrinsic identity disagrees with its exact checked call-selection row or is not yet represented by package review",
+        )),
+        AuthoredDeclarationSelectionTarget::LateBound(_) => Err(context.rejected(
+            "retains an unresolved contract call selection",
+        )),
     }
 }

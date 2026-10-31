@@ -6,6 +6,7 @@
 //! Carried loans, derived holders and unknown origins retain ordinary lifetime
 //! checks. This supplies no new loan or restoration authority.
 
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{BorrowCallFact, BorrowLoanFact, CheckFacts, FlowStateFact};
 use typed_trees::statement::TransitionTargetHandle;
@@ -159,7 +160,8 @@ fn before_target(
     }) {
         return false;
     }
-    let Some(weakening) = validation::reference_result_custody::loan_weakening(
+    let Some(release) = validation::reference_result_custody::release_statement(
+        program,
         facts,
         flow.machine_symbol,
         flow.state_symbol,
@@ -167,27 +169,17 @@ fn before_target(
     ) else {
         return false;
     };
-    let state_exit = state.statement_nodes.count();
     // Unrestricted reference descriptors have no affine owner disposition.
-    // Join their unique checked weakening to the same last-use release query
-    // that produces deferred ReleaseReference. Lowering authenticates moving
-    // that exact release across the completed read from its full use graph.
-    if weakening.reason != checked_trees::FlowBorrowWeakeningReason::StateExit
-        || weakening.source
-            != (checked_trees::FlowInvalidationSource::Statement {
-                statement_index: state_exit as usize,
-            })
-        || validation::reference_result_custody::release_statement(
-            program,
-            facts,
-            flow.machine_symbol,
-            flow.state_symbol,
-            loan_handle,
-        ) != Some(state_exit)
-    {
-        return false;
-    }
-    true
+    // Both last-use expiry and state-exit weakening have an exact checked
+    // release boundary. A taken arm can retire that descriptor after its
+    // completed observation, whether the missed path releases it at the next
+    // statement or the state's exit. Replacement-owned death is excluded by
+    // release_statement. Lowering authenticates the same release against the
+    // complete use graph before moving it ahead of the selected target.
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    order.precedes(statement_index, release as usize)
 }
 
 fn observed_local_read(
@@ -222,7 +214,7 @@ fn observed_local_read(
             let receiver = facts.flow.control.operands.get(observation.receiver);
             receiver.state_symbol == flow.state_symbol
                 && receiver.statement_index == statement_index
-                && validation::canonical_place_from_expression_in_state(
+                && place_at(
                     program,
                     flow.state_symbol,
                     statement_index,

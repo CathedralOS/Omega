@@ -8,6 +8,7 @@ use super::{
     SymbolHandle, TypedTrees,
 };
 use crate::monomorphization::const_arguments;
+use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
@@ -98,7 +99,7 @@ pub(super) fn retain_authored_call(
 ) -> StaticMachineApplicationHandle {
     let (application, target_symbol, target, arguments) = match site {
         CallSite::Expression(handle) => {
-            let Some(call) = program.expression_table.call_node(handle) else {
+            let Some(call) = expressions_of(program).call_node(handle) else {
                 return StaticMachineApplicationHandle::invalid();
             };
             if let Some(query) = &call.native_code_layout {
@@ -140,9 +141,7 @@ pub(super) fn retain_authored_call(
         }
     };
     if application.is_valid() {
-        let retained = program
-            .expression_table
-            .static_machine_application_mut(application);
+        let retained = expressions_of_mut(program).static_machine_application_mut(application);
         if !retained.lexical_owner.is_valid() {
             retained.lexical_owner = lexical_owner;
         }
@@ -155,18 +154,17 @@ pub(super) fn retain_authored_call(
         }
         application
     } else {
-        let application = program.expression_table.retain_static_machine_application(
+        let application = expressions_of_mut(program).retain_static_machine_application(
             target_symbol,
             target,
             &arguments,
         );
-        program
-            .expression_table
+        expressions_of_mut(program)
             .static_machine_application_mut(application)
             .lexical_owner = lexical_owner;
         match site {
             CallSite::Expression(handle) => {
-                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
                 else {
                     unreachable!()
                 };
@@ -196,8 +194,7 @@ pub(super) fn retain_call(
     // The registration retains the authored callable binder. Once selection
     // chooses a concrete template, its retained tuple belongs to that exact
     // template; common argument correspondence transports it to the contract.
-    program
-        .expression_table
+    expressions_of_mut(program)
         .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
     let mut bindings = candidate_bindings(program, candidate);
@@ -209,8 +206,7 @@ pub(super) fn retain_call(
         .machine_by_symbol(candidate.template.template_symbol)
         .map(|declaration| program.machine_type_parameters(declaration).to_vec())
         .unwrap_or_default();
-    let arguments = program
-        .expression_table
+    let arguments = expressions_of(program)
         .static_machine_application_arguments(application)
         .to_vec();
     for (parameter, argument) in parameters.iter().zip(&arguments) {
@@ -235,12 +231,7 @@ pub(super) fn retain_call(
     // Source checking needs inferred values before executable retargeting,
     // including inside an open generic caller. Reuse these exact expressions
     // when realization later appends the ordinary hidden operands.
-    let runtime = candidate
-        .runtime_value_bindings
-        .iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
+    let runtime = super::runtime_value_subjects(&candidate.runtime_value_bindings);
     let operands =
         super::body_rewriting::runtime_value_operands(program, selection.lexical_state, &runtime);
     let mut operands = operands.into_iter();
@@ -259,9 +250,7 @@ pub(super) fn retain_call(
             }
         }
     }
-    program
-        .expression_table
-        .set_static_machine_application_bindings(application, &bindings);
+    expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
 }
 
 pub(super) fn retain_instance(
@@ -277,11 +266,9 @@ pub(super) fn retain_instance(
     // instances have no source call and retain their declaration context.
     let (lexical_owner, lifetimes) = if candidate.binding_application.is_valid() {
         let origin = source.unwrap_or(program);
-        let source_application = origin
-            .expression_table
-            .static_machine_application(candidate.binding_application);
-        let mut lifetimes = origin
-            .expression_table
+        let source_application =
+            expressions_of(origin).static_machine_application(candidate.binding_application);
+        let mut lifetimes = expressions_of(origin)
             .static_machine_application_lifetimes(candidate.binding_application)
             .to_vec();
         let source_declaration = source_application.binding_declaration;
@@ -348,24 +335,18 @@ pub(super) fn retain_instance(
     if source.is_some() {
         super::body_cloning::copy_binding_type_payloads(source, program, &mut bindings, &[])?;
     }
-    let application = program.expression_table.retain_static_machine_application(
+    let application = expressions_of_mut(program).retain_static_machine_application(
         candidate.template.template_symbol,
         typed_trees::name::Identifier::generated(&candidate.template.template_name),
         &[],
     );
-    program
-        .expression_table
+    expressions_of_mut(program)
         .static_machine_application_mut(application)
         .lexical_owner = lexical_owner;
-    program
-        .expression_table
+    expressions_of_mut(program)
         .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
-    program
-        .expression_table
-        .set_static_machine_application_bindings(application, &bindings);
-    program
-        .expression_table
-        .set_static_machine_application_lifetimes(application, &lifetimes);
+    expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
+    expressions_of_mut(program).set_static_machine_application_lifetimes(application, &lifetimes);
     Ok(application)
 }

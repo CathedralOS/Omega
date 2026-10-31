@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // The admitted populations and two-second horizon bound displayed values.
 public machine integer(value:u64) reaches Console
-invokes Console;
+invokes Console
 {
  transition { _ -> digits(value,1000000000000000,false) }
  machine digits(value:u64,divisor:u64,started:bool) {
@@ -27,7 +27,7 @@ invokes Console;
  machine done() {}
 }
 public machine number(value:f64) reaches Console
-invokes Console;
+invokes Console
 {
  transition value < 0.0 {true -> negative(value) _ -> positive(value)}
  machine negative(value:f64) {

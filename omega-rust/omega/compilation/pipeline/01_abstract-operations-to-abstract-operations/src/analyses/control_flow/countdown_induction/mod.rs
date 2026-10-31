@@ -9,7 +9,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
 
-use super::{AnalysisRoot, AnalysisRootError, LoopRegion, validate_analysis_root};
+use super::{AnalysisRoot, AnalysisRootError, LoopRegion, by_key, validate_analysis_root};
 
 mod compute;
 mod region;

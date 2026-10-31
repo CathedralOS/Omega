@@ -10,6 +10,7 @@
 //! question from the checked write frames of the operand calls: it grants
 //! nothing and consults no source shape.
 
+use crate::flow::expressions;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::FactPayload;
 use symbols::SymbolHandle;
@@ -384,24 +385,21 @@ fn expression_contains(
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),
         ExpressionNode::Range(range) => recurse(range.start) || recurse(range.end),
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_any(dispatch, |handle| recurse(handle)),
+        ExpressionNode::Match(dispatch) => {
+            expressions(program).match_deep_any(dispatch, |handle| recurse(handle))
+        }
         ExpressionNode::Call(call) => {
             recurse(call.receiver)
-                || program
-                    .expression_table
+                || expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| recurse(*argument))
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .any(|value| recurse(*value)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| recurse(field.value)),

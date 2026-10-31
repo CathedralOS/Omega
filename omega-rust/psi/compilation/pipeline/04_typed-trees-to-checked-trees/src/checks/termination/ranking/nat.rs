@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod arguments;
@@ -170,8 +171,7 @@ fn countdown_edge_parts<'program>(
         ExpressionNode::Name(path) => path,
         _ => return None,
     };
-    let decrease_name = program
-        .expression_table
+    let decrease_name = expressions(program)
         .name_path_members(decreases_path.members)
         .last()
         .map(|member| member.as_str())

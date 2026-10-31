@@ -20,6 +20,8 @@
 //! Scalar probes keep their exact evaluator rather than acquiring runtime
 //! return-range obligations.
 
+use crate::build_time_evaluation::{expression_table, type_reference_table};
+use crate::unique::{extend_unique, push_unique};
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -70,26 +72,24 @@ impl CheckedInitializers {
             })
             .cloned()
             .collect::<Vec<_>>();
-        let mut bodies = prepared.typed().clone();
-        let (probes, machines): (Vec<_>, Vec<_>) = bodies
+        let probes = prepared
+            .typed()
             .machines()
             .iter()
-            .cloned()
-            .partition(|machine| probe_symbols.contains(&machine.symbol));
-        if probes.len() != probe_symbols.len() {
+            .filter(|machine| probe_symbols.contains(&machine.symbol))
+            .count();
+        if probes != probe_symbols.len() {
             return Err(super::failure(
                 source::SourceSpan::default(),
                 "initializer preparation lost an exact probe owner",
             ));
         }
-        // Probe expressions are checked by the exact scalar evaluator, not as
-        // runtime bodies whose call results have only a declared range. Only
-        // their compiler-created roots leave this private body check. Every
-        // authored helper body remains unchanged and undergoes ordinary checking.
-        bodies.roots.machines = arena::HandleSpan::empty();
-        for machine in machines {
-            bodies.push_machine(machine);
-        }
+        // The private scalar evaluator owns probe expressions. The projection
+        // removes their unused generated context as well as their roots, while
+        // preserving every helper or descriptive operand that actually uses it.
+        let projection =
+            super::probe_projection::ProbeProjection::new(prepared.typed(), probe_symbols);
+        let bodies = projection.helper_bodies();
         let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
         let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (bodies, preparation) =
@@ -100,10 +100,7 @@ impl CheckedInitializers {
             &checked.typed,
             &checked.facts,
         );
-        let mut typed = checked.typed.into_inner();
-        for probe in probes {
-            typed.push_machine(probe);
-        }
+        let typed = projection.rejoin_unjudged(checked.typed.into_inner());
         // Checking may normalize boundary tokens into requirement calls.
         // Admission and interpretation consume the same validated selected
         // meaning on a private graph, never mutate the completed judgment.
@@ -291,11 +288,7 @@ impl Invocation<'_> {
             typed,
             &body.roots,
         )? {
-            for warning in self.check_call(call)? {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
-            }
+            extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = scalar_result(self.interpret(body.reference)?, destination)?;
         Ok((value, warnings))
@@ -464,9 +457,7 @@ impl ConstantCalls for Invocation<'_> {
                 carrier,
                 Some(self),
             )? {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
+                push_unique(&mut warnings, warning);
             }
         }
         Ok((destination, warnings))
@@ -656,8 +647,7 @@ impl Invocation<'_> {
         // Pair each evaluated operand expression with its declared carrier.
         let operands: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> =
             match target {
-                SelectedCall::Entry { entry, .. } => typed
-                    .expression_table
+                SelectedCall::Entry { entry, .. } => expression_table(typed)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied()
@@ -670,8 +660,7 @@ impl Invocation<'_> {
                     .collect(),
                 SelectedCall::Operator(operator) => {
                     let mut operands = Vec::new();
-                    let mut arguments = typed
-                        .expression_table
+                    let mut arguments = expression_table(typed)
                         .expression_handles(call.arguments)
                         .iter()
                         .copied();
@@ -745,11 +734,7 @@ impl Invocation<'_> {
                     _ => return Err("constant argument is not a canonical scalar snapshot".into()),
                 },
             });
-            for warning in argument_warnings {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
-            }
+            extend_unique(&mut warnings, argument_warnings);
         }
         if needs_concrete_discharge {
             let callee = match target {
@@ -891,9 +876,7 @@ impl Invocation<'_> {
             }
             return Ok(());
         }
-        let carrier = typed
-            .type_reference_table
-            .unconstrained_type_reference(destination);
+        let carrier = type_reference_table(typed).unconstrained_type_reference(destination);
         match typed.expression_table.expression(expression) {
             ExpressionNode::ArrayLiteral(elements) => {
                 // Substitution can retain a declared array's carrier on literal
@@ -1047,11 +1030,7 @@ impl Invocation<'_> {
         for call in
             crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
         {
-            for warning in self.check_call(call)? {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
-            }
+            extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = self.interpret(reference)?;
         Ok(LeafEvaluation {
@@ -1158,12 +1137,8 @@ fn result_carriers_match(
             && typed.arithmetic_domain_for_type_reference(actual)
                 == typed.arithmetic_domain_for_type_reference(destination);
     }
-    let actual = typed
-        .type_reference_table
-        .unconstrained_type_reference(actual);
-    let destination = typed
-        .type_reference_table
-        .unconstrained_type_reference(destination);
+    let actual = type_reference_table(typed).unconstrained_type_reference(actual);
+    let destination = type_reference_table(typed).unconstrained_type_reference(destination);
     if let (
         typed_trees::types::TypeReferenceNode::FixedArray {
             element_type: actual_element,

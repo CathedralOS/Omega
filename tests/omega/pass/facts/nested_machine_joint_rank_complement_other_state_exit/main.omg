@@ -1,0 +1,59 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Remaining { canary: u64; values: [u64; 2]; }
+measure Remaining::Complement(value: u64) -> u64 { ~value }
+machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
+    let amount: u64 = match active { true -> 4 false -> 7 };
+    let slot: u64 = match second { true -> 1 false -> 0 };
+    let mut remaining: Remaining = Remaining { canary: 641, values: [amount, amount] };
+    count(counter, &mut remaining, slot);
+    let preserved: bool = match second {
+        true -> remaining.values[0] == amount && remaining.values[1] == 7
+        false -> remaining.values[0] == 7 && remaining.values[1] == amount
+    };
+    transition preserved && remaining.canary == 641 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+
+    machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
+    terminates
+    terminates by remaining.values[slot] -> Remaining::Complement in 0..=18446744073709551615
+    requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 7
+    {
+        transition remaining.values[slot] < 7 {
+            true -> forward(remaining, slot, counter)
+            false -> finish(remaining.canary)
+        }
+        machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
+        terminates
+        terminates by pending.values[selected] -> Remaining::Complement in 0..=18446744073709551615
+        requires selected < 2 && pending.values[selected] >= 4 && pending.values[selected] < 7
+        {
+            counter = ((counter as u64 in Wrapping) + 1) as u64;
+            pending.values[selected] = pending.values[selected] + 1;
+            transition { _ -> count(counter, pending, selected) }
+        }
+        machine finish(canary: u64) crashes Trap {
+            transition canary == 641 { true -> done() false -> bad() }
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+machine main() crashes Trap {
+    let mut first_count: u64 = 3;
+    perform(&mut first_count, true, false);
+    let first: bool = first_count == 6;
+    perform(&mut first_count, false, false);
+    let mut second_count: u64 = 3;
+    perform(&mut second_count, true, true);
+    let second: bool = second_count == 6;
+    perform(&mut second_count, false, true);
+    transition first && second && first_count == 6 && second_count == 6 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

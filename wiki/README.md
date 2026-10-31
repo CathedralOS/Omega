@@ -66,7 +66,7 @@ beside code; completed work belongs in Git, not current reference material.
   [content custody](spec/resources/content_custody.md),
   [authority and qualification](spec/resources/authority.md),
   [extents and mappings](spec/resources/extents.md),
-  [placed access](spec/resources/placed_access.md),
+  [access policies](spec/resources/access.md),
   [device custody and ordering](spec/resources/device_access.md),
   [carry demands](spec/resources/carry.md),
   [runtime-sized activation storage](spec/resources/activation_storage.md),

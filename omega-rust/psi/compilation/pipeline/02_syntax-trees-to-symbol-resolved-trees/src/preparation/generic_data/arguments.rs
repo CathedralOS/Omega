@@ -9,6 +9,7 @@ use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
@@ -118,9 +119,7 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
     outer_lifetime_parameters: &[Identifier],
     outer_lifetime_arguments: &[Identifier],
 ) -> Option<TypeReferenceHandle> {
-    let node = syntax
-        .tables
-        .type_references
+    let node = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .clone();
     match node {
@@ -155,9 +154,7 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
             lifetime_arguments,
             arguments,
         } if !lifetime_arguments.is_empty()
-            && syntax
-                .tables
-                .type_references
+            && syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .is_empty()
             && exact_synthesized_lifetime_instance(
@@ -270,9 +267,7 @@ pub(crate) fn type_reference_slug(
             base_name,
             lifetime_arguments,
             arguments,
-        } if syntax
-            .tables
-            .type_references
+        } if syntax_type_references(&syntax)
             .type_reference_handles(*arguments)
             .is_empty()
             && exact_synthesized_lifetime_instance(
@@ -308,16 +303,13 @@ pub(crate) fn type_reference_slug(
         } => {
             let base = type_reference_slug(syntax, *base_type, selection)?;
             let mut rendered = Vec::new();
-            for (ordinal, constraint) in syntax
-                .tables
-                .type_references
+            for (ordinal, constraint) in syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .enumerate()
             {
                 if matches!(constraint, TypeConstraintNode::Range { .. }) {
-                    let range = syntax
-                        .type_references
+                    let range = syntax_type_references(&syntax)
                         .integer_range_normalization(handle, ordinal)?;
                     rendered.push(format!("[{}..={}]", range.minimum, range.maximum));
                 } else {
@@ -344,9 +336,8 @@ pub(crate) fn constraint_slug(
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str(syntax).to_string()),
         TypeConstraintNode::Domain(domain) => {
-            let arguments = syntax
-                .type_references
-                .type_reference_handles(domain.arguments);
+            let arguments =
+                syntax_type_references(&syntax).type_reference_handles(domain.arguments);
             if arguments.is_empty() {
                 return Some(domain.name.as_str(syntax).to_string());
             }
@@ -383,14 +374,57 @@ fn closed_argument_identities(
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
-            closed_argument_identity(
-                syntax,
-                selection,
-                *argument,
-                parameter.kind.is_const_or_value(),
-            )
+            closed_parameter_argument_identity(syntax, selection, *argument, &parameter.kind)
         })
         .collect::<Option<Vec<_>>>()
+}
+
+/// Close an argument under its receiving declaration's actual parameter kind.
+/// Implementations do not enter the data namespace; unsupported static operand
+/// categories stay on the ordinary resolver/checker path.
+pub(in crate::preparation::generic_data) fn closed_parameter_argument_identity(
+    syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    handle: TypeReferenceHandle,
+    kind: &TypeParameterKind,
+) -> Option<ClosedArgumentIdentity> {
+    match kind {
+        TypeParameterKind::Type => closed_argument_identity(syntax, selection, handle, false),
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+            closed_argument_identity(syntax, selection, handle, true)
+        }
+        TypeParameterKind::Implementation => {
+            let origin = syntax.type_references.generic_application_origin(handle);
+            let handle = if origin.is_valid() { origin } else { handle };
+            let (name, arguments) = match syntax.type_references.type_reference(handle) {
+                TypeReferenceNode::Named(name) => (name, &[][..]),
+                TypeReferenceNode::Generic {
+                    base_name,
+                    lifetime_arguments,
+                    arguments,
+                } if lifetime_arguments.is_empty() => (
+                    base_name,
+                    syntax.type_references.type_reference_handles(*arguments),
+                ),
+                // This syntax owner has no selected lifetime binders. Preserve
+                // lifetime-bearing applications for ordinary typed identity.
+                _ => return None,
+            };
+            let declaration = selection?.implementation_item(syntax, name).ok()?;
+            let Item::Conformance(implementation) = syntax.root_item(declaration) else {
+                return None;
+            };
+            if !implementation.lifetime_parameters.is_empty() {
+                return None;
+            }
+            let parameters = syntax.items.type_parameters(implementation.type_parameters);
+            Some(ClosedArgumentIdentity::Implementation(
+                declaration,
+                closed_argument_identities(syntax, selection, parameters, arguments)?,
+            ))
+        }
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => None,
+    }
 }
 
 pub(crate) fn closed_argument_identity(
@@ -528,8 +562,7 @@ pub(crate) fn closed_argument_identity(
         } => {
             let base = closed_argument_identity(syntax, selection, *base_type, false)?;
             let mut identities = Vec::new();
-            for (ordinal, constraint) in syntax
-                .type_references
+            for (ordinal, constraint) in syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .enumerate()
@@ -600,9 +633,7 @@ pub(crate) fn closed_argument_identity(
                                     ) {
                                         return None;
                                     }
-                                    let carrier = syntax
-                                        .type_references
-                                        .type_reference(*base_type).as_named()?;
+                                    let carrier = syntax_type_references(&syntax).type_reference(*base_type).as_named()?;
                                     ClosedConstraintIdentity::RetainedDeclaration(
                                         selection.retained_domain_identity(syntax, carrier, name)?,
                                     )
@@ -640,9 +671,7 @@ pub(crate) fn closed_argument_identity(
                         }
                     }
                     TypeConstraintNode::Range { .. } => ClosedConstraintIdentity::Range(
-                        syntax
-                            .type_references
-                            .integer_range_normalization(handle, ordinal)?
+                        syntax_type_references(&syntax).integer_range_normalization(handle, ordinal)?
                             .clone(),
                     ),
                 });
@@ -667,10 +696,7 @@ pub(crate) fn domain_index_telescope(
     definition: &DomainDefinition,
 ) -> (Vec<TypeParameter>, bool) {
     let parameters = syntax.items.type_parameters(definition.type_parameters);
-    let target_name = match syntax
-        .type_references
-        .type_reference(definition.target_type)
-    {
+    let target_name = match syntax_type_references(&syntax).type_reference(definition.target_type) {
         TypeReferenceNode::Named(target) => Some(target.as_str(syntax)),
         _ => None,
     };
@@ -866,8 +892,7 @@ fn normalize_domain_head_node(
             lifetime_arguments,
             arguments,
         } => {
-            let nested = syntax
-                .type_references
+            let nested = syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             // A data application keeps its nominal head; only a node whose
@@ -920,8 +945,7 @@ fn normalize_domain_head_node(
                 let TypeConstraintNode::Domain(domain) = constraint else {
                     continue;
                 };
-                for argument in syntax
-                    .type_references
+                for argument in syntax_type_references(&syntax)
                     .type_reference_handles(domain.arguments)
                     .to_vec()
                 {

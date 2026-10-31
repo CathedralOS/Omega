@@ -10,7 +10,7 @@ public machine validate_table(
     minimum_revision: u32,
     minimum_size: u32
 ) -> bool
-terminates;
+terminates
 {
     transition bytes.len >= 24 {
         true -> header(bytes, signature, minimum_revision, minimum_size)
@@ -18,7 +18,7 @@ terminates;
     }
 
     machine header(bytes: &[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
-    requires bytes.len >= 24;
+    requires bytes.len >= 24
     {
         let signature_low: u32 = read_u32(bytes);
         let signature_high: u32 = read_u32(bytes[4..]);
@@ -36,7 +36,7 @@ terminates;
     }
 
     machine checksum(bytes: &[u8], header_size: u64, expected_crc: u32) -> bool
-    requires header_size <= bytes.len;
+    requires header_size <= bytes.len
     {
         let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF);
         computed == expected_crc
@@ -44,7 +44,7 @@ terminates;
 }
 
 machine read_u32(bytes: &[u8]) -> u32
-requires bytes.len >= 4;
+requires bytes.len >= 4
 {
     (bytes[0] as u32) | ((bytes[1] as u32) << 8)
         | ((bytes[2] as u32) << 16) | ((bytes[3] as u32) << 24)
@@ -53,7 +53,7 @@ requires bytes.len >= 4;
 // Do not edit the firmware table to clear its CRC: even a read-only validated
 // borrow is enough. The checksum covers HeaderSize, not backing capacity.
 machine table_crc(bytes: &[u8], position: u64, checksum: u32) -> u32
-terminates by (position, bytes.len) -> Nat::BoundedDistance;
+terminates by (position, bytes.len) -> Nat::BoundedDistance
 {
     transition position < bytes.len {
         true -> table_crc(bytes, position + 1, table_byte(bytes, position, checksum))
@@ -63,7 +63,7 @@ terminates by (position, bytes.len) -> Nat::BoundedDistance;
 
 // A byte update is acyclic; the outer loop advances once per complete byte.
 machine table_byte(bytes: &[u8], position: u64, checksum: u32) -> u32
-requires position < bytes.len;
+requires position < bytes.len
 {
     transition position >= 16 && position < 20 {
         true -> crc_bits(checksum, 8)
@@ -72,7 +72,7 @@ requires position < bytes.len;
 }
 
 machine crc_bits(checksum: u32, remaining: u64) -> u32
-terminates by remaining;
+terminates by remaining
 {
     transition remaining > 0 {
         true -> bit(checksum, remaining)
@@ -80,7 +80,7 @@ terminates by remaining;
     }
 
     machine bit(checksum: u32, remaining: u64) -> u32
-    requires remaining > 0;
+    requires remaining > 0
     {
         transition (checksum & 1) == 1 {
             true -> crc_bits((checksum >> 1) ^ 0xEDB88320, remaining - 1)

@@ -4,16 +4,16 @@
 // Expected rejection: may overflow `u32`
 
 machine add_operands(a: u32, b: u32) -> u32
-    requires a >= 20u32 && a <= 40u32;
-    requires b >= 30u32 && b <= 51u32;
-    ensures result >= 50u32 && result <= 91u32;
+    requires a >= 20u32 && a <= 40u32
+    requires b >= 30u32 && b <= 51u32
+    ensures result >= 50u32 && result <= 91u32
 {
     a + b
 }
 
 machine evaluate(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 51u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 51u32
 {
     let sum: u32 = add_operands(lhs, rhs);
     let headroom: u32 = 90u32 - sum;

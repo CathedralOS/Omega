@@ -1,3 +1,4 @@
+use crate::build_time_evaluation::type_references;
 use std::collections::BTreeMap;
 
 use access_plans::{AccessExposure, FieldAccess, ValidatedPlacementPlan};
@@ -81,8 +82,7 @@ pub(super) fn synthesize_probe_records(
                 })
             })
             .collect::<Vec<_>>();
-        let origin_node = syntax
-            .type_references
+        let origin_node = type_references(syntax)
             .type_reference(application.origin)
             .clone();
         let origin = syntax.type_references.insert(origin_node);
@@ -159,6 +159,7 @@ pub(super) fn synthesize_exact_records(
                 supply_mode: DataSupplyMode::BoundaryOpaque,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
+                conformance_bounds: Vec::new(),
                 generic_instance: None,
                 properties: DataProperties::default(),
                 where_facts: HandleSpan::empty(),
@@ -203,8 +204,7 @@ pub(super) fn synthesize_exact_records(
                 type_reference: field_type,
             }));
         }
-        let origin_node = syntax
-            .type_references
+        let origin_node = type_references(syntax)
             .type_reference(application.origin)
             .clone();
         let origin = syntax.type_references.insert(origin_node);
@@ -266,11 +266,7 @@ fn accessor_name(
     access: &FieldAccess,
 ) -> Result<String, Vec<Diagnostic>> {
     let base = if matches!(access, FieldAccess::Atomic { .. }) {
-        match syntax
-            .tables
-            .type_references
-            .type_reference(field.type_reference)
-        {
+        match type_references(&syntax.tables).type_reference(field.type_reference) {
             TypeReferenceNode::Named(name) => match name.as_str(syntax) {
                 "bool" => "AtomicBool#PlacedField",
                 "u32" => "AtomicU32#PlacedField",
@@ -377,10 +373,8 @@ fn clone_accessor_machine(
     // explicit parameter role: its trait requirement substitutes `Self`
     // with this exact accessor type, without introducing a receiver.
     let subject = TypeReferenceNode::Named(generated_identifier(accessor_name, provenance));
-    for (handle, base_name) in syntax
-        .tables
-        .type_references
-        .generic_nodes_from(watermark, &syntax.text)
+    for (handle, base_name) in
+        type_references(&syntax.tables).generic_nodes_from(watermark, &syntax.text)
     {
         if base_name == "PlacedField" {
             syntax
@@ -389,15 +383,10 @@ fn clone_accessor_machine(
                 .replace_type_reference(handle, subject.clone());
         }
     }
-    let replacement = syntax
-        .tables
-        .type_references
+    let replacement = type_references(&syntax.tables)
         .type_reference(field_type)
         .clone();
-    for (handle, name) in syntax
-        .tables
-        .type_references
-        .named_nodes_from(watermark, &syntax.text)
+    for (handle, name) in type_references(&syntax.tables).named_nodes_from(watermark, &syntax.text)
     {
         if name == "T" {
             syntax
@@ -458,6 +447,7 @@ fn push_record(
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         generic_instance: Some(origin),
         properties: DataProperties {
             multiplicity: Multiplicity::Linear,

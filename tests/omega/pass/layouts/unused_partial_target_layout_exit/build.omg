@@ -1,6 +1,9 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "unused_partial_target_layout_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<LayoutPlatform, MacosArm64LayoutPlatform>(builder, macos_arm64);
+    Build::select_provider<LayoutPlatform, WindowsX8664LayoutPlatform>(builder, windows_x86_64);
+    Build::select_provider<LayoutPlatform, LinuxX8664LayoutPlatform>(builder, linux_x86_64);
     Build::bind(builder, macos_arm64::ProgramEntry, program);
     Build::bind(builder, windows_x86_64::ProgramEntry, program);
     Build::bind(builder, linux_x86_64::ProgramEntry, program);

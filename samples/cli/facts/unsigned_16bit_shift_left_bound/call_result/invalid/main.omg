@@ -4,14 +4,14 @@
 // Expected rejection: may overflow `u16`
 
 machine compute_shift(v: u16) -> u16
-    requires v >= 25u16 && v <= 30u16;
-    ensures result >= 100u16 && result <= 120u16;
+    requires v >= 25u16 && v <= 30u16
+    ensures result >= 100u16 && result <= 120u16
 {
     v << 2u16
 }
 
 machine shift_call_result(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16;
+    requires val >= 25u16 && val <= 30u16
 {
     let shifted: u16 = compute_shift(val);
     let check: u16 = shifted - 120u16;

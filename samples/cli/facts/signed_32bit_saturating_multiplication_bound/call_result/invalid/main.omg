@@ -4,9 +4,9 @@
 // Expected rejection: not provably representable
 
 machine compute_sat_prod(l: i32, r: i32) -> i32
-    requires l >= 10i32 && l <= 21i32;
-    requires r >= 5i32 && r <= 10i32;
-    ensures result >= 50i32 && result <= 210i32;
+    requires l >= 10i32 && l <= 21i32
+    requires r >= 5i32 && r <= 10i32
+    ensures result >= 50i32 && result <= 210i32
 {
     let a: i32 in Saturating = l as i32 in Saturating;
     let b: i32 in Saturating = r as i32 in Saturating;
@@ -15,8 +15,8 @@ machine compute_sat_prod(l: i32, r: i32) -> i32
 }
 
 machine multiply_call_result(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 21i32;
-    requires rhs >= 5i32 && rhs <= 10i32;
+    requires lhs >= 10i32 && lhs <= 21i32
+    requires rhs >= 5i32 && rhs <= 10i32
 {
     let prod: i32 = compute_sat_prod(lhs, rhs);
     let headroom: i32 = 200i32 - prod;

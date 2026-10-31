@@ -3,7 +3,7 @@
 
 machine walk(remaining: u64, flag: bool) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     let value: u64 = match flag { true -> remaining, false -> remaining };
     value - 2

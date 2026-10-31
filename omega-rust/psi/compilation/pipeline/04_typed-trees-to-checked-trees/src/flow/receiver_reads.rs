@@ -45,7 +45,6 @@
 //! terminates even through self-referential projections.
 
 use validation::CanonicalPlace;
-use validation::canonical_place_from_expression_in_state;
 use validation::{CallSite, find_call_site_in_state};
 
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
@@ -53,6 +52,7 @@ use crate::flow::mutation::{
     WritePlaceNamespace, call_data_argument, call_receiver_mutated_place,
     canonical_receiver_place_for_call_site, instantiate_call_relative_places,
 };
+use crate::places::place_at;
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -421,11 +421,10 @@ struct DirectReads<'walk, 'program> {
 impl DirectReads<'_, '_> {
     fn collect(&mut self) {
         let program = self.program;
-        for (statement_index, statement) in program
-            .statement_table
-            .statements(self.owner.state.statement_nodes)
-            .iter()
-            .enumerate()
+        for (statement_index, statement) in
+            crate::flow::state_statements(program, self.owner.state.statement_nodes)
+                .iter()
+                .enumerate()
         {
             self.statement_index = statement_index;
             if let Some(call) = statement.as_call()
@@ -547,7 +546,7 @@ impl DirectReads<'_, '_> {
         if !expression.is_valid() {
             return;
         }
-        if let Some(place) = canonical_place_from_expression_in_state(
+        if let Some(place) = place_at(
             self.program,
             self.owner.state.symbol,
             self.statement_index,

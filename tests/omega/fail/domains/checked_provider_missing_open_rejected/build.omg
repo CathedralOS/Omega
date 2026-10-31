@@ -1,0 +1,16 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "checked_provider_missing_open_rejected");
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, linux_arm64);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, linux_x86_64);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, macos_arm64);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, macos_x86_64);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, windows_x86_64);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, local_unchecked);
+    Build::select_provider<Source, CheckedSourceSourceImplementation>(builder, alpha_bootstrap);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+}

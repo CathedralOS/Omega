@@ -15,7 +15,7 @@ use crate::{
     machine::TraitConformance,
     proposition::{PropositionApplication, PropositionBinderArgumentKind, PropositionFormula},
     signature::{AuthoredInvocationTarget, SignatureContract},
-    statement::{StatementNode, TransitionTargetNode},
+    statement::{StatementHandle, StatementNode, TransitionTargetNode},
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 use symbols::SymbolHandle;
@@ -83,7 +83,6 @@ impl<'call> StaticArgumentCall<'call> {
         let application = self.application();
         if application.is_valid() {
             return program
-                .expression_table
                 .static_machine_application(application)
                 .registration_operation;
         }
@@ -98,7 +97,6 @@ impl<'call> StaticArgumentCall<'call> {
         let application = self.application();
         if application.is_valid() {
             program
-                .expression_table
                 .static_machine_application(application)
                 .lexical_owner
         } else {
@@ -111,9 +109,7 @@ impl<'call> StaticArgumentCall<'call> {
     pub fn arguments(&self, program: &'call TypedTrees) -> &'call [StaticMachineArgument] {
         let application = self.application();
         if application.is_valid() {
-            return program
-                .expression_table
-                .static_machine_application_arguments(application);
+            return program.static_machine_application_arguments(application);
         }
         match self {
             Self::Expression(_, call) => &call.machine_arguments,
@@ -157,6 +153,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn expression(&mut self, _: ExpressionHandle) -> bool {
         true
     }
+    fn statement_handle(&mut self, _: StatementHandle) {}
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
     }
@@ -187,6 +184,7 @@ pub struct ProgramReferences {
     /// Declaration dependencies retained as descriptions, not executable edges.
     pub descriptor_symbols: HashSet<SymbolHandle>,
     pub expressions: HashSet<ExpressionHandle>,
+    pub statements: HashSet<StatementHandle>,
     pub type_references: Vec<TypeReferenceHandle>,
     pub proof_facts: Vec<arena::Handle<ProofFact>>,
     /// Exact ledger identities owned by these roots, not selections inferred
@@ -201,6 +199,7 @@ struct ReferenceCollector {
     callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
+    statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
     track_new_expressions: bool,
     new_expressions: HashSet<ExpressionHandle>,
@@ -215,6 +214,9 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn statement_handle(&mut self, handle: StatementHandle) {
+        self.statements.insert(handle);
+    }
     fn callable_use(&mut self, symbol: SymbolHandle) {
         if symbol.is_valid() {
             self.callable_uses.insert(symbol);
@@ -312,7 +314,18 @@ pub struct TypeOccurrence {
 /// Retain the supplying declaration for every live type operand. A shared
 /// arena handle does not transfer its author's lexical checking scope.
 pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
-    let mut occurrences = TypeOccurrences::default();
+    collect_selected_program_type_occurrences(program, &DeclarationSelection::default())
+}
+
+/// Source-owned type operands under one operation's declaration roster.
+pub fn collect_selected_program_type_occurrences(
+    program: &TypedTrees,
+    selection: &DeclarationSelection,
+) -> Vec<TypeOccurrence> {
+    let mut occurrences = TypeOccurrences {
+        selection: selection.clone(),
+        ..TypeOccurrences::default()
+    };
     visit_program(program, &mut occurrences);
     occurrences.types
 }
@@ -395,6 +408,7 @@ pub(crate) fn collect_program_application_occurrences(
 
 #[derive(Default)]
 struct TypeOccurrences {
+    selection: DeclarationSelection,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -479,6 +493,9 @@ impl TypedReferences for TypeOccurrences {
     }
 
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        if !self.selection.contains(symbol) {
+            return false;
+        }
         self.owner = symbol;
         true
     }
@@ -762,6 +779,7 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
         symbols: roots.symbols,
         descriptor_symbols: roots.descriptor_symbols,
         expressions: roots.expressions,
+        statements: roots.statements,
         type_references,
         proof_facts,
         authored_selection_occurrences: roots.authored_selection_occurrences,
@@ -851,9 +869,7 @@ pub fn visit_product_operand_inputs(
         .product_operand_applications
         .iter()
         .filter_map(|(handle, application)| {
-            let source = program
-                .expression_table
-                .static_machine_application(application.supplying_application);
+            let source = program.static_machine_application(application.supplying_application);
             (source.lexical_owner == owner).then_some(handle)
         })
         .collect::<Vec<_>>();
@@ -863,9 +879,7 @@ pub fn visit_product_operand_inputs(
     let live = program.live_product_operand_applications();
     for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
         let application = program.product_operand_applications.get(handle);
-        let source = program
-            .expression_table
-            .static_machine_application(application.supplying_application);
+        let source = program.static_machine_application(application.supplying_application);
         roots.enter_lexical_scope(source.lexical_owner);
         roots.declaration_description_dependency(application.declaration);
         for selection in program
@@ -1158,9 +1172,7 @@ fn visit_callable_symbol(
     {
         visit_type_reference(program, retained, *reference);
     }
-    let source = program
-        .expression_table
-        .static_machine_application(application.application);
+    let source = program.static_machine_application(application.application);
     visit_symbol(retained, source.binding_declaration);
     retained.declaration_description_dependency(source.lexical_owner);
     visit_static_machine_bindings(program, retained, application.application);
@@ -1226,9 +1238,7 @@ fn visit_static_machine_bindings_inner(
         return;
     }
     retained.static_application(application);
-    let source = program
-        .expression_table
-        .static_machine_application(application);
+    let source = program.static_machine_application(application);
     for selection in program
         .product_input_selections
         .span_or_empty(source.input_selections)
@@ -1238,7 +1248,6 @@ fn visit_static_machine_bindings_inner(
         }
     }
     if let Some(selection) = &program
-        .expression_table
         .static_machine_application(application)
         .conformance_selection
         && let Some(selected) = selection.application.as_deref()
@@ -1256,10 +1265,7 @@ fn visit_static_machine_bindings_inner(
     {
         visit_static_argument(program, retained, selected);
     }
-    for binding in program
-        .expression_table
-        .static_machine_application_bindings(application)
-    {
+    for binding in program.static_machine_application_bindings(application) {
         use crate::static_applications::StaticMachineBindingValue;
         match &binding.value {
             StaticMachineBindingValue::Type(reference)
@@ -1353,6 +1359,29 @@ fn visit_declaration_dependencies(
 ) {
     visit_constant_evaluation_entries(program, retained, owner);
     visit_product_operand_inputs(program, retained, owner);
+    for (_, selected) in program
+        .data_implementation_applications
+        .iter()
+        .filter(|(_, selected)| selected.lexical_owner == owner)
+    {
+        visit_type_reference(program, retained, selected.source_application);
+        visit_type_reference(program, retained, selected.argument);
+        visit_static_machine_bindings(program, retained, selected.supplying_application);
+        visit_closed_conformance(program, retained, &selected.application);
+        for (_, capture) in program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| {
+                capture.conformance_application == selected.application
+                    && program
+                        .static_machine_application(capture.supplying_application)
+                        .lexical_owner
+                        == owner
+            })
+        {
+            visit_symbol(retained, capture.instance);
+        }
+    }
     if program.trait_implementation_applications.is_empty() {
         return;
     }
@@ -1361,7 +1390,6 @@ fn visit_declaration_dependencies(
         .iter()
         .filter(|(_, selected)| {
             program
-                .expression_table
                 .static_machine_application(selected.supplying_application)
                 .lexical_owner
                 == owner
@@ -1379,7 +1407,6 @@ fn visit_declaration_dependencies(
                     .filter(|(_, capture)| {
                         capture.conformance_application == selected.application
                             && program
-                                .expression_table
                                 .static_machine_application(capture.supplying_application)
                                 .lexical_owner
                                 == owner
@@ -1436,6 +1463,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             }
         }
         visit_type_parameters(program, retained, data.type_parameters);
+        for bound in &data.conformance_bounds {
+            visit_symbol(retained, bound.trait_symbol);
+            for argument in &bound.arguments {
+                visit_type_reference(program, retained, *argument);
+            }
+        }
         if data.predicate_subject_symbol.is_valid() {
             visit_symbol(retained, data.predicate_subject_symbol);
             visit_type_reference(program, retained, data.predicate_subject_type);
@@ -1480,10 +1513,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             .chain(definition.refines.iter())
         {
             visit_symbol(retained, requirement.symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-            {
+            for argument in program.type_reference_handles(requirement.arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1521,10 +1551,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_symbol(retained, row.realization_machine);
             visit_symbol(retained, row.realization_state);
         }
-        for argument in program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-        {
+        for argument in program.type_reference_handles(conformance.arguments) {
             visit_type_reference(program, retained, *argument);
         }
     }
@@ -1703,19 +1730,14 @@ fn visit_cleanup_selection(
     retained: &mut impl TypedReferences,
     selection: &crate::domain::CleanupSelection,
 ) {
-    let application = program
-        .expression_table
-        .static_machine_application(selection.application);
+    let application = program.static_machine_application(selection.application);
     if let Some(occurrence) = selection.authorization {
         retained.authored_selection(occurrence);
     }
     visit_symbol(retained, application.registration_operation);
     visit_symbol(retained, selection.executable);
     visit_type_reference(program, retained, selection.subject);
-    for argument in program
-        .expression_table
-        .static_machine_application_arguments(selection.application)
-    {
+    for argument in program.static_machine_application_arguments(selection.application) {
         visit_static_argument(program, retained, argument);
     }
     visit_static_machine_bindings(program, retained, selection.application);
@@ -1740,10 +1762,7 @@ pub fn visit_proof_fact(
             }
             visit_expression(program, retained, membership.value);
             visit_symbol(retained, membership.domain_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(membership.domain_arguments)
-            {
+            for argument in program.type_reference_handles(membership.domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1913,10 +1932,7 @@ pub fn visit_type_reference(
             ..
         } => {
             visit_symbol(retained, *base_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1929,10 +1945,7 @@ pub fn visit_type_reference(
             symbol, arguments, ..
         } => {
             visit_symbol(retained, *symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -2008,10 +2021,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             visit_type_reference(program, retained, cast.result_type);
             visit_symbol(retained, cast.semantic_domain_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(cast.semantic_domain_arguments)
-            {
+            for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -2105,14 +2115,9 @@ fn visit_static_requirement_dispatch(
     visit_symbol(retained, dispatch.declaring_trait);
     let selected = dispatch.selection_application;
     if selected.is_valid() && selected != invocation {
-        let application = program
-            .expression_table
-            .static_machine_application(selected);
+        let application = program.static_machine_application(selected);
         visit_symbol(retained, application.registration_operation);
-        for argument in program
-            .expression_table
-            .static_machine_application_arguments(selected)
-        {
+        for argument in program.static_machine_application_arguments(selected) {
             visit_static_argument(program, retained, argument);
         }
         visit_static_machine_bindings(program, retained, selected);
@@ -2140,7 +2145,6 @@ fn visit_call_expression(
         visit_symbol(
             retained,
             program
-                .expression_table
                 .static_machine_application(call.authored_machine_application)
                 .registration_operation,
         );
@@ -2203,10 +2207,7 @@ fn visit_conformance(
     visit_symbol(retained, conformance.symbol);
     visit_symbol(retained, conformance.requirement_symbol);
     visit_expression(program, retained, conformance.via_expression);
-    for argument in program
-        .type_reference_table
-        .type_reference_handles(conformance.arguments)
-    {
+    for argument in program.type_reference_handles(conformance.arguments) {
         visit_type_reference(program, retained, *argument);
     }
 }
@@ -2238,7 +2239,6 @@ fn visit_statement(
                 visit_symbol(
                     retained,
                     program
-                        .expression_table
                         .static_machine_application(call.authored_machine_application)
                         .registration_operation,
                 );
@@ -2374,10 +2374,11 @@ fn visit_machine_with_sidecars(
             .filter(|(_, capture)| capture.instance == machine.symbol)
         {
             visit_symbol(retained, capture.template);
-            let source = program
-                .expression_table
-                .static_machine_application(capture.supplying_application);
-            retained.declaration_description_dependency(source.lexical_owner);
+            let source = program.static_machine_application(capture.supplying_application);
+            // This declaration owns the independently replayed evidence occurrence.
+            // It is a checking prerequisite, not a call edge or permission to
+            // execute the supplying owner's body.
+            visit_symbol(retained, source.lexical_owner);
             visit_symbol(retained, capture.conformance_application.declaration);
             visit_static_machine_bindings(program, retained, capture.binding_application);
             visit_static_machine_bindings(program, retained, capture.supplying_application);
@@ -2516,7 +2517,11 @@ fn visit_machine_with_sidecars(
         for contract in program.state_contracts(state) {
             visit_proof_facts(program, retained, contract.facts);
         }
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for (handle, statement) in program
+            .statement_table
+            .iter_statements(state.statement_nodes)
+        {
+            retained.statement_handle(handle);
             visit_statement(program, retained, statement);
         }
     }

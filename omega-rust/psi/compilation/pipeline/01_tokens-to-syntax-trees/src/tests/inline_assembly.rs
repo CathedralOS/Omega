@@ -30,6 +30,19 @@ pub(super) fn instruction_statements(
     instructions
 }
 
+/// The statements a single-state `Main::main` assembly body desugars into —
+/// the parse every `asm` catalog case below starts from.
+fn main_statements(
+    parsed: &syntax_trees::SyntaxTrees,
+) -> Vec<syntax_trees::statement::StatementHandle> {
+    let machine = super::root_machine(parsed, "machine root item");
+    let entry = super::entry_state_handle(parsed, machine);
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements);
+    instruction_statements(parsed, statements)
+}
+
 #[test]
 fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
     let source = r#"
@@ -41,14 +54,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = instruction_statements(
-        &parsed,
-        parsed
-            .items
-            .statements(parsed.items.state(entry).statements),
-    );
+    let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 3);
     for (statement, target) in statements
@@ -75,14 +81,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = instruction_statements(
-        &parsed,
-        parsed
-            .items
-            .statements(parsed.items.state(entry).statements),
-    );
+    let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 2);
     for (statement, target) in statements.iter().zip(["asm#cli", "asm#sti"]) {
@@ -109,11 +108,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
+    let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 2);
 
     let StatementNode::Assignment(snapshot) = parsed.statements.statement(statements[0]) else {
@@ -146,11 +141,7 @@ fn parses_x86_msr_as_structured_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
+    let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 2);
 
     let StatementNode::Assignment(read) = parsed.statements.statement(statements[0]) else {
@@ -188,11 +179,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
+    let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 7);
 
     for (statement_index, target) in [
@@ -380,14 +367,7 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
         "#;
 
     let parsed = super::parse_source(source, "register moves should parse");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = instruction_statements(
-        &parsed,
-        parsed
-            .items
-            .statements(parsed.items.state(entry).statements),
-    );
+    let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 3, "let + two desugared moves");
     let StatementNode::Assignment(first) = parsed.statements.statement(statements[1]) else {
@@ -427,14 +407,7 @@ fn parses_memory_transfers_as_place_assignments() {
         "#;
 
     let parsed = super::parse_source(source, "memory transfers should parse");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = instruction_statements(
-        &parsed,
-        parsed
-            .items
-            .statements(parsed.items.state(entry).statements),
-    );
+    let statements = main_statements(&parsed);
 
     assert_eq!(statements.len(), 2, "two desugared transfers");
     // `str value, place` writes the value INTO the place: the place is the

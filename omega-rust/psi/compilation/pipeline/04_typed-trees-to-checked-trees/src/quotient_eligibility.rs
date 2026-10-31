@@ -1,6 +1,7 @@
 //! Finish quotient eligibility from the same checking invocation's crash facts.
 //! Schema and termination admission precede body checking; no new effect walk
 //! or crash inference runs here. Missing invocation evidence is not purity.
+use crate::flow::expressions;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 
@@ -36,11 +37,7 @@ fn check_operation(
         .iter()
         .find(|(_, state)| state.state_symbol == operation.public_state)
         .ok_or("public flow state is absent")?;
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .filter(|call| call.authored_expression == operation.request);
     let call = calls.next().ok_or("selected invocation is absent")?;
@@ -70,8 +67,7 @@ fn check_operation(
     if !checked.surviving_buckets().is_empty() {
         return Err("selected representative retains a possible crash in the public invocation");
     }
-    let request = program
-        .expression_table
+    let request = expressions(program)
         .call_node(operation.request)
         .and_then(|call| call.quotient_operation.as_ref())
         .ok_or("selected request is absent")?;

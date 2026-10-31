@@ -1,36 +1,36 @@
 
 public boundary trait BoundaryRankReader {
-    machine read(value: &u32) -> u32 reaches terminates;
+    machine read(value: &u32) -> u32 reaches terminates
     requires value <= 9
     ensures result == value;
-    machine keep(value: u32) -> u32 reaches terminates;
+    machine keep(value: u32) -> u32 reaches terminates
     requires value <= 9
     ensures result == value;
 }
 
 CheckedReader satisfies BoundaryRankReader {
     machine read(value: &u32) -> u32
-    requires value <= 9;
-    ensures result == value;
+    requires value <= 9
+    ensures result == value
     { value }
     machine keep(value: u32) -> u32
-    requires value <= 9;
-    ensures result == value;
+    requires value <= 9
+    ensures result == value
     { value }
 }
 
 machine require_identity(actual: u32, expected: u32) -> u32
-requires actual == expected;
+requires actual == expected
 { actual }
 
 machine countdown(remaining: u32) -> u32
-requires remaining <= 9;
-terminates by remaining in 0..=9;
+requires remaining <= 9
+terminates by remaining in 0..=9
 reaches BoundaryRankReader
 {
     transition { _ -> scan(remaining) }
     machine scan(remaining: u32) -> u32
-    requires remaining <= 9;
+    requires remaining <= 9
     {
         let observed: u32 = BoundaryRankReader::read(&remaining);
         let direct_checked: u32 = require_identity(observed, remaining);

@@ -1,5 +1,6 @@
 //! Lower a direct scalar call binding against its callee's Unit body.
 
+use crate::checked_facts::value_facts;
 use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::calls::{
@@ -114,9 +115,7 @@ pub(crate) fn lower_scalar_call(
                     LoweringError::Unsupported("scalar call erased proof ordinal exceeds u32")
                 })?,
             };
-            let term = checked
-                .facts
-                .values
+            let term = value_facts(checked)
                 .proof_terms
                 .term_at(caller_state, statement_ordinal, role)
                 .ok_or(LoweringError::Unsupported(

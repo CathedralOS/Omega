@@ -5,6 +5,8 @@
 //! this invocation's exact substitution; a matching signature or result value
 //! cannot replace the authored selection.
 
+use crate::build_time_evaluation::expression_table;
+use crate::unique::push_unique;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
     ResolvedAuthoredCallBinding,
@@ -58,38 +60,14 @@ pub(super) fn call_expressions(
     roots: &[ExpressionHandle],
 ) -> Result<Vec<ExpressionHandle>, String> {
     let mut calls = Vec::new();
-    let mut pending = roots
-        .iter()
-        .rev()
-        .map(|root| (*root, false))
-        .collect::<Vec<_>>();
-    let mut active = Vec::new();
-    let mut complete = Vec::new();
-    while let Some((expression, finish)) = pending.pop() {
-        if finish {
-            if active.pop() != Some(expression) {
-                return Err("constant initializer has invalid expression traversal".into());
-            }
-            complete.push(expression);
-            continue;
-        }
-        if active.contains(&expression) {
-            return Err("constant initializer contains a cyclic expression".into());
-        }
-        if complete.contains(&expression) {
-            continue;
-        }
-        let children = expression_children(program, expression)?;
+    for_each_initializer_expression(program, roots, |expression| {
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Call(_)
         ) {
             calls.push(expression);
         }
-        active.push(expression);
-        pending.push((expression, true));
-        pending.extend(children.into_iter().rev().map(|child| (child, false)));
-    }
+    })?;
     Ok(calls)
 }
 
@@ -307,9 +285,7 @@ pub(crate) fn retain_current_initializer_calls(
             return Err("pending initializer changed its original selection kind".into());
         }
         let target = (selection.source_span(), target);
-        if !targets.contains(&target) {
-            targets.push(target);
-        }
+        push_unique(&mut targets, target);
     }
     if targets.len() != custody.call_targets.len()
         || custody
@@ -365,13 +341,11 @@ fn validate(
     }
     let mut expected = Vec::new();
     for occurrence in
-        program
-            .expression_table
-            .authored_selection_occurrences(if specialized_calls {
-                materialized
-            } else {
-                root
-            })
+        expression_table(program).authored_selection_occurrences(if specialized_calls {
+            materialized
+        } else {
+            root
+        })
     {
         let selection = program
             .authored_declaration_selections()
@@ -385,9 +359,7 @@ fn validate(
             return Err("constant call receipt has no exact selected target".into());
         };
         let target = (selection.source_span(), selected.selected_symbol());
-        if !expected.contains(&target) {
-            expected.push(target);
-        }
+        push_unique(&mut expected, target);
     }
     let actual = collect_internal(
         program,
@@ -730,9 +702,7 @@ impl<'program> Collector<'program> {
         }
         let occurrence = selection.occurrence_id();
         self.selected_call(&site, context, authored, reference)?;
-        if !self.custody.call_occurrences.contains(&occurrence) {
-            self.custody.call_occurrences.push(occurrence);
-        }
+        push_unique(&mut self.custody.call_occurrences, occurrence);
         Ok(())
     }
 
@@ -798,12 +768,8 @@ impl<'program> Collector<'program> {
             })
             .ok_or("constant call lost its exact selected declaration source")?;
         let selection = (reference, declaration);
-        if !self.custody.calls.contains(&selection) {
-            self.custody.calls.push(selection);
-        }
-        if !self.custody.call_targets.contains(&(reference, target)) {
-            self.custody.call_targets.push((reference, target));
-        }
+        push_unique(&mut self.custody.calls, selection);
+        push_unique(&mut self.custody.call_targets, (reference, target));
         let executable_symbol = self.program.symbols.get(executable);
         let executable_machine = match executable_symbol.kind {
             SymbolKind::Machine => Some(executable),
@@ -867,9 +833,7 @@ impl<'program> Collector<'program> {
             // without inventing a canonical value; only the private observation
             // owner consumes this inventory and cannot validate it for execution.
             let pending = (reference, source);
-            if !self.custody.pending_constants.contains(&pending) {
-                self.custody.pending_constants.push(pending);
-            }
+            push_unique(&mut self.custody.pending_constants, pending);
             return Ok(());
         }
         // Read the current concrete declaration, never copy a caller's expected
@@ -883,9 +847,7 @@ impl<'program> Collector<'program> {
                 .clone()
                 .ok_or("selected constant has no ready canonical value")?,
         };
-        if !self.custody.origins.contains(&origin) {
-            self.custody.origins.push(origin);
-        }
+        push_unique(&mut self.custody.origins, origin);
         // Preparation may still contain provisional declaration values. Only
         // the receiving traversal asks replay to validate materialized subjects.
         if self.syntax.is_none() {
@@ -900,9 +862,7 @@ impl<'program> Collector<'program> {
                 declaration: symbol,
                 expression: materialized,
             };
-            if !self.custody.dependency_values.contains(&subject) {
-                self.custody.dependency_values.push(subject);
-            }
+            push_unique(&mut self.custody.dependency_values, subject);
             // A larger computed root inherits dependency occurrences, but its
             // value is not the dependency's value. Exact token equality selects
             // only the original use which was replaced by that constant.
@@ -911,9 +871,7 @@ impl<'program> Collector<'program> {
                     declaration: symbol,
                     expression,
                 };
-                if !self.custody.dependency_values.contains(&subject) {
-                    self.custody.dependency_values.push(subject);
-                }
+                push_unique(&mut self.custody.dependency_values, subject);
             }
         }
         if self.expanded_constants.contains(&symbol) {
@@ -928,18 +886,13 @@ impl<'program> Collector<'program> {
             // dependency value. Never specialize its detached source recipe as
             // though it were the current invocation's body.
             let materialized = declaration.materialized_initializer;
-            if !self
-                .program
-                .expression_table
-                .expression_is_valid(materialized)
+            if !expression_table(self.program).expression_is_valid(materialized)
                 || self.program.expression_table.source_span(materialized)
                     != declaration.initializer_source_span
             {
                 return Err("constant dependency lost its owned materialized custody".into());
             }
-            let calls = self
-                .program
-                .expression_table
+            let calls = expression_table(self.program)
                 .authored_selection_occurrences(materialized)
                 .map(|occurrence| {
                     let selection = self
@@ -966,9 +919,7 @@ impl<'program> Collector<'program> {
                     },
                     reference,
                 )?;
-                if !self.custody.call_occurrences.contains(&occurrence) {
-                    self.custody.call_occurrences.push(occurrence);
-                }
+                push_unique(&mut self.custody.call_occurrences, occurrence);
             }
             self.expressions.push((
                 materialized,
@@ -1055,9 +1006,7 @@ impl<'program> Collector<'program> {
                 // This inventory and the published custody both name the
                 // original ledger declaration, independently of executable routing.
                 let target = (selection.source_span(), selected.selected_symbol());
-                if !self.retained_call_targets.contains(&target) {
-                    self.retained_call_targets.push(target);
-                }
+                push_unique(&mut self.retained_call_targets, target);
             } else if selection.kind() == Kind::Operator {
                 // Helper operators remain ordinary checked body evidence, not
                 // initializer builtin-operator receipts.
@@ -1180,9 +1129,7 @@ impl<'program> Collector<'program> {
                         owned_entry
                     };
                     let selected = (target, selection.source_span(), entry, occurrence);
-                    if !selections.contains(&selected) {
-                        selections.push(selected);
-                    }
+                    push_unique(&mut selections, selected);
                 }
                 let [(authored, reference, entry, occurrence)] = selections.as_slice() else {
                     return Err(format!(
@@ -1232,9 +1179,7 @@ impl<'program> Collector<'program> {
                 } else {
                     self.selected_call(&site, context, *authored, *reference)?;
                 }
-                if !self.custody.call_occurrences.contains(occurrence) {
-                    self.custody.call_occurrences.push(*occurrence);
-                }
+                push_unique(&mut self.custody.call_occurrences, *occurrence);
             }
             ExpressionNode::Name(name)
                 if program.symbols.get(name.symbol).kind == SymbolKind::Const =>
@@ -1340,15 +1285,12 @@ impl<'program> Collector<'program> {
                         self.static_arguments(&call.machine_arguments);
                         if call.authored_machine_application.is_valid() {
                             self.static_arguments(
-                                program
-                                    .expression_table
-                                    .static_machine_application_arguments(
-                                        call.authored_machine_application,
-                                    ),
+                                expression_table(program).static_machine_application_arguments(
+                                    call.authored_machine_application,
+                                ),
                             );
                             self.static_arguments(
-                                program
-                                    .expression_table
+                                expression_table(program)
                                     .static_machine_application_selected_machines(
                                         call.authored_machine_application,
                                     ),

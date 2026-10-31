@@ -1,6 +1,7 @@
 //! Frozen reference leaves held by completed actuals. Unknown address coverage
 //! remains unknown; lifetime dependencies never substitute for referents.
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 
@@ -12,6 +13,30 @@ pub(super) struct HeldLeaf {
     pub(super) copied: bool,
     pub(super) access: BorrowAccessKind,
     pub(super) place: Option<CapturedPlace>,
+}
+
+impl HeldLeaf {
+    /// A mutable leaf with no per-path descriptor.
+    ///
+    /// Unknown address coverage stays unknown: the route names the single
+    /// completing occurrence, and the reference holds mutably until the
+    /// caller's boundary.
+    fn mutable(
+        expression: typed_trees::expression::ExpressionHandle,
+        route: Option<usize>,
+        until: usize,
+        copied: bool,
+    ) -> Self {
+        Self {
+            expression,
+            completion: route.unwrap_or(0),
+            route,
+            until,
+            copied,
+            access: BorrowAccessKind::Mutable,
+            place: None,
+        }
+    }
 }
 
 pub(super) fn append(
@@ -35,15 +60,7 @@ pub(super) fn append(
                     !row.source_arm.is_valid() || !facts.flow.control.operands.is_valid(row.value)
                 })
         }) {
-            leaves.push(HeldLeaf {
-                expression: capture.expression,
-                completion: 0,
-                route: None,
-                until,
-                copied,
-                access: BorrowAccessKind::Mutable,
-                place: None,
-            });
+            leaves.push(HeldLeaf::mutable(capture.expression, None, until, copied));
             return;
         }
         for alternative in rows.unwrap() {
@@ -67,28 +84,12 @@ pub(super) fn append(
             .operand_children
             .span(capture.constructed_children())
         else {
-            leaves.push(HeldLeaf {
-                expression: capture.expression,
-                completion: 0,
-                route: None,
-                until,
-                copied,
-                access: BorrowAccessKind::Mutable,
-                place: None,
-            });
+            leaves.push(HeldLeaf::mutable(capture.expression, None, until, copied));
             return;
         };
         for child in children {
             if !facts.flow.control.operands.is_valid(child.value) {
-                leaves.push(HeldLeaf {
-                    expression: capture.expression,
-                    completion: 0,
-                    route: None,
-                    until,
-                    copied,
-                    access: BorrowAccessKind::Mutable,
-                    place: None,
-                });
+                leaves.push(HeldLeaf::mutable(capture.expression, None, until, copied));
                 continue;
             }
             append(
@@ -119,15 +120,7 @@ pub(super) fn append(
     let Some(paths) =
         validation::borrow_contracts::carried_reference_paths(program, capture.type_reference)
     else {
-        leaves.push(HeldLeaf {
-            expression: capture.expression,
-            completion,
-            route,
-            until,
-            copied,
-            access: BorrowAccessKind::Mutable,
-            place: None,
-        });
+        leaves.push(HeldLeaf::mutable(capture.expression, route, until, copied));
         return;
     };
     for (path, access) in paths {
@@ -139,7 +132,7 @@ pub(super) fn append(
         if path
             .iter()
             .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-            && let Some(mut source) = validation::canonical_place_from_expression_in_state(
+            && let Some(mut source) = place_at(
                 program,
                 capture.state_symbol,
                 capture.statement_index,

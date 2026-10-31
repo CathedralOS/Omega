@@ -8,7 +8,7 @@ public data Index {
 }
 
 data Stream<machine S>
-where machine S(index: Index) -> Index;
+requires machine S(index: Index) -> Index;
 {
     case Empty;
     case More(sample: Index, tail: Stream<S>);

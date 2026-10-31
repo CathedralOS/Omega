@@ -1,3 +1,4 @@
+use crate::places::place_at;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -165,7 +166,7 @@ pub(crate) fn borrow_access_geometry(
                     representation_address: Some(address),
                 });
             }
-            let source = validation::validate_runtime_indexed_recast_source(
+            if let Some(source) = validation::validate_runtime_indexed_recast_source(
                 program,
                 machine,
                 state,
@@ -173,25 +174,46 @@ pub(crate) fn borrow_access_geometry(
                 expression,
                 cast.target_type,
                 access,
+            ) {
+                return borrow_access_place(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    source,
+                    machine_symbol,
+                )
+                .map(BorrowAccessGeometry::declared);
+            }
+            // An unavailable footprint is not absence of the source's loan.
+            // Retain its complete collection and separately captured address;
+            // this grants no cast compatibility or narrower physical range.
+            // Pending applications rebuild this geometry in strict replay
+            // after their plans validate. Invalid casts still owe the ordinary
+            // recast judgment and cannot publish from this source capture.
+            let indexed = program.expression_table.indexed_node(source)?;
+            let place = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                indexed.collection,
+                machine_symbol,
             )?;
-            return borrow_access_place(
+            let address = borrow_access_place(
                 program,
                 state_symbol,
                 statement_index,
                 source,
                 machine_symbol,
-            )
-            .map(BorrowAccessGeometry::declared);
+            )?;
+            return Some(BorrowAccessGeometry {
+                place,
+                representation_address: Some(address),
+            });
         }
     }
     // Formation, flow and returned-value capture share one address algebra.
     // In particular, a computed backing root is not absence of a loan.
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )?;
+    let place = place_at(program, state_symbol, statement_index, expression)?;
     Some(BorrowAccessGeometry::declared(BorrowAccessPlace {
         incoming_reference: Default::default(),
         incoming_owner_path: Default::default(),

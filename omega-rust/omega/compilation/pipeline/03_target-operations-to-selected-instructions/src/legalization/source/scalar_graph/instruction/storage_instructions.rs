@@ -159,11 +159,8 @@ pub(super) fn project_borrowed_window(
             let value_type =
                 scalar_graph_input::primitive_locals::read_root_type(optimized, *value)
                     .ok_or(Error::custody())?;
-            let shape = crate::structural_inputs::structural_reference_input::shape(
-                value_type,
-                &plan.structural_types,
-            )
-            .ok_or(Error::custody())?;
+            let shape = crate::structural_inputs::shape(value_type, &plan.structural_types)
+                .ok_or(Error::custody())?;
             Ok(LegalizedScalarInstructionKind::StoreStructuralField {
                 destination: destination.clone(),
                 path: path.clone(),

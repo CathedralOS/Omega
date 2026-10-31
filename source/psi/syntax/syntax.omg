@@ -474,7 +474,7 @@ public data OperatorToken [copy] {
 // A `machine` declaration. `Owner::name` records the owner path member;
 // a free-standing machine has no owner and an empty owner span. Its generic
 // parameters are a contiguous range of `SyntaxTrees::generic_parameters`;
-// its `where machine` contracts, one per static machine binder, a contiguous
+// its `requires machine` contracts, one per static machine binder, a contiguous
 // range of `SyntaxTrees::contracts`. A fixed token after `machine` binds
 // `operator`, spelled at `token`.
 // Every declaration has its own signature, contract and executable ranges.
@@ -519,9 +519,9 @@ public data MachineItem [copy] {
 }
 
 // A declaration-site contract for a static binder of a machine or trait
-// head. A `Machine` contract `where machine Name [<binders>] [(parameters)]
+// head. A `Machine` contract `requires machine Name [<binders>] [(parameters)]
 // [-> Type] clauses ;` gives a machine binder its callable signature, or
-// with a `Satisfies` clause (`where machine Name satisfies Trait::member;`)
+// with a `Satisfies` clause (`requires machine Name satisfies Trait::member;`)
 // an exact requirement; a `Proposition` contract `where proposition
 // Name(parameters);` gives a proposition binder its signature. Which binder
 // a contract names is resolution's question: a contract may also name a
@@ -542,6 +542,10 @@ public data Contract [copy] {
     return_type: u64 in Trapping;
     first_clause: u64 in Trapping;
     clause_count: u64 in Trapping;
+    // Direct requirements of this callable, excluding descendants. A nested
+    // requirement binds in this signature's scope, never a neighboring one.
+    first_contract: u64 in Trapping;
+    contract_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -907,6 +911,9 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedArrayElement;
     case ExpectedArrayElementEnd;
     case MissingBoundaryReachCeiling;
+    case RetiredWhereMachineRequirement;
+    case RetiredDomainSubject;
+    case RetiredCasePredicate;
 }
 
 public data ParseDiagnostic [copy] {

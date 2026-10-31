@@ -51,7 +51,7 @@ NativeWindowsFilesystemReparseImports satisfies WindowsFilesystemReparseIo {
         returned: &mut u32, overlapped: u64) -> i32
     requires handle != 0 && control == 589992 && input == 0 && input_size == 0
         && capacity == 16384 && overlapped == 0
-    reaches FilesystemMetadataQuery blocks;
+    reaches FilesystemMetadataQuery blocks
     { block WindowsFilesystemReparseImports::query(handle, control, input, input_size,
         output, capacity, returned, overlapped) }
 }

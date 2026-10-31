@@ -29,6 +29,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
 };
+use crate::places::place_at;
 use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
@@ -78,7 +79,7 @@ pub(super) fn build(
     )
     .and_then(|subject| {
         let source = facts.flow.control.operands.get(subject.source);
-        validation::canonical_place_from_expression_in_state(
+        place_at(
             program,
             source.state_symbol,
             source.statement_index,
@@ -455,6 +456,7 @@ pub(super) fn build(
                             state,
                             structural,
                             entry_claims,
+                            operations,
                             &mut count,
                             ordinal,
                             *expression,
@@ -756,11 +758,7 @@ fn subject_call(
 )> {
     let flow =
         crate::execution::terminal_unit::types::state_flow(facts, machine.symbol, state.symbol)?;
-    let mut matching = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
+    let mut matching = crate::flow::call_flows(&facts.flow.control, flow.calls)
         .iter()
         .filter(|call| {
             call.statement_index == transition_start && call.authored_expression == subject

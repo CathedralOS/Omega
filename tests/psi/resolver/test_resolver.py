@@ -125,10 +125,6 @@ def layout_query(tag: int) -> tuple[int, int, int]:
     return (18, tag, 0)
 
 
-def payload_field_name(handle: int) -> tuple[int, int, int]:
-    """A payload field a case's own `where` fact names bare."""
-    return (15, handle, 0)
-
 # Type bindings: (tag, handle, domain tag, declared domain handle).
 BUILTIN = 1
 DATA = 2
@@ -958,26 +954,8 @@ def main() -> None:
             parameter(1),
         ),
     )
-    # A case's own `where` fact names its payload fields, then the
-    # declaration's fields; another case's payload is not in scope.
-    accepted(
-        program,
-        "case-fact-names-its-payload",
-        b"data Interval { tag: u64; case Empty; case Range(lo: u64, hi: u64) where lo <= hi && tag > 0; }",
-        (builtin("u64"), builtin("u64"), builtin("u64")),
-        (
-            payload_field_name(0), payload_field_name(1), NOT_A_NAME,
-            field_name(0), NOT_A_NAME, NOT_A_NAME, NOT_A_NAME,
-        ),
-    )
-    rejected(
-        program,
-        "case-fact-names-only-its-own-payload",
-        b"data I { case A(x: u64); case B(y: u64) where x > 0; }",
-        UNKNOWN_NAME,
-        b"x > 0",
-        length=1,
-    )
+    # Case-local predicates reject in the parser; parser tests retain those
+    # controls before any resolver payload-name lookup can occur.
     rejected(program, "fact-unknown-name", b"machine f(x: u64)\nrequires y > 0\n{}", UNKNOWN_NAME, b"y")
     # A fact whose root is the set's first expression (handle zero) binds:
     # a clause's fact is present by its flag, not by a nonzero handle.
@@ -1209,14 +1187,14 @@ def main() -> None:
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (binder_name(0), parameter(0), binder_name(1), NOT_A_NAME, binder_name(2), parameter(1), NOT_A_NAME),
     )
-    # A `where machine` contract gives its `machine` binder a callable
+    # A `requires machine` contract gives its `machine` binder a callable
     # signature in the machine's scope; its `requires` facts name its own
     # parameters. A static argument may name a machine for that binder, or
     # forward a binder.
     accepted(
         program,
         "machine-contract-binds",
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8 requires value > 0;\n{ F(x) }",
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8 requires value > 0;\n{ F(x) }",
         (builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8")),
         (parameter(1), NOT_A_NAME, NOT_A_NAME, binder_name(0), parameter(0), NOT_A_NAME),
     )
@@ -1224,8 +1202,8 @@ def main() -> None:
         program,
         "static-machine-arguments",
         b"machine double(x: u8) -> u8 { x }\n"
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
-        b"machine again<machine G>(x: u8) -> u8\nwhere machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine again<machine G>(x: u8) -> u8\nrequires machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
         b"machine g() -> u8 { apply<double>(3) }",
         (builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"),
          builtin("u8"), builtin("u8"), builtin("u8"), builtin("u8"), generic(1), builtin("u8"), machine_argument(0)),
@@ -1233,14 +1211,14 @@ def main() -> None:
     rejected(
         program,
         "contract-names-no-binder",
-        b"machine apply<machine F>(x: u8) where machine G(value: u8); {}",
+        b"machine apply<machine F>(x: u8) requires machine G(value: u8); {}",
         CONTRACT_NAMES_NO_BINDER,
         b"G",
     )
     rejected(
         program,
         "second-contract-for-a-binder",
-        b"machine apply<machine F>(x: u8) where machine F(a: u8); where machine F(b: u8); {}",
+        b"machine apply<machine F>(x: u8) requires machine F(a: u8); requires machine F(b: u8); {}",
         DUPLICATE_CONTRACT,
         b"F",
         occurrence=3,
@@ -1446,10 +1424,10 @@ def main() -> None:
          UNSUPPORTED_OPERATOR_TOKEN, b"+"),
         ("unsupported-index-token", b"machine [] at(items: u8, index: u8) -> u8 { items }",
          UNSUPPORTED_OPERATOR_TOKEN, b"[]"),
-        ("unsupported-nominal-machine-contract", b"machine apply<machine F>(x: u8) where machine F satisfies T::r; {}",
-         UNSUPPORTED_MACHINE_CONTRACT, b"where machine F satisfies T::r;"),
-        ("unsupported-contract-guarantee", b"machine apply<machine F>(x: u8) where machine F(value: u8) -> u8 ensures result > 0; {}",
-         UNSUPPORTED_MACHINE_CONTRACT, b"where machine F(value: u8) -> u8 ensures result > 0;"),
+        ("unsupported-nominal-machine-contract", b"machine apply<machine F>(x: u8) requires machine F satisfies T::r; {}",
+         UNSUPPORTED_MACHINE_CONTRACT, b"requires machine F satisfies T::r;"),
+        ("unsupported-contract-guarantee", b"machine apply<machine F>(x: u8) requires machine F(value: u8) -> u8 ensures result > 0; {}",
+         UNSUPPORTED_MACHINE_CONTRACT, b"requires machine F(value: u8) -> u8 ensures result > 0;"),
         ("unsupported-evidence-binder", b"machine m<T, O satisfies Order<T>>() {}",
          UNSUPPORTED_GENERIC_PARAMETER, b"O satisfies Order<T>"),
         ("unsupported-proposition-binder", b"machine m<proposition R>() {}",
@@ -1551,19 +1529,17 @@ def main() -> None:
     accepted(
         program,
         "terminates-ranks-parameters",
-        b"machine f(n: u64) requires n > 0 terminates by n; {}",
+        b'machine f(n: u64) requires n > 0 terminates by n {}',
         (builtin("u64"),),
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
-    rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
-    # Each nested declaration binds its own formals; source ancestry does not
-    # identify a runtime subject with its callers' entry subjects.
+    rejected(program, "terminates-unknown-subject", b'machine f(n: u64) terminates by m {}', UNKNOWN_NAME, b"m", length=1)
+    # A machine formal carries the entry subject its arrivals pass it, read
+    # from the body bindings while resolution runs (clauses.omg).
     accepted(
         program,
-        "ranked-outer-and-nested-callees-bind-independently",
-        b"machine count(n: u64) -> u64\nterminates by n;\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n"
-        b"    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
-        b"    machine done() -> u64 { 0 }\n}",
+        "ranked-state-arrivals-bind-carriers",
+        b'machine count(n: u64) -> u64\nterminates by n\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n    machine done() -> u64 { 0 }\n}',
         (builtin("u64"),) * 5,
     )
     # A view names the compiler's ranking vocabulary by spelling, not a
@@ -1571,15 +1547,14 @@ def main() -> None:
     accepted(
         program,
         "ranking-views-name-the-vocabulary",
-        b"machine f(i: u64, n: u64) terminates by (i, n) -> Nat::BoundedDistance; {}\n"
-        b"machine g(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n); {}",
+        b'machine f(i: u64, n: u64) terminates by (i, n) -> Nat::BoundedDistance {}\nmachine g(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n) {}',
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (parameter(0), parameter(1), NOT_A_NAME, parameter(2), NOT_A_NAME, parameter(3), NOT_A_NAME),
     )
     rejected(
         program,
         "ranking-view-outside-the-vocabulary",
-        b"machine f(n: u64) terminates by n -> Nat::Sideways; {}",
+        b'machine f(n: u64) terminates by n -> Nat::Sideways {}',
         UNSUPPORTED_RANKING_VIEW,
         b"Nat::Sideways",
     )
@@ -1588,22 +1563,17 @@ def main() -> None:
     accepted(
         program,
         "rank-range-endpoints-bind",
-        b"machine f(n: u64, limit: u64) terminates by n in 0..=limit; {}",
+        b'machine f(n: u64, limit: u64) terminates by n in 0..=limit {}',
         (builtin("u64"), builtin("u64")),
         (parameter(0), NOT_A_NAME, parameter(1), NOT_A_NAME),
     )
-    rejected(program, "rank-range-unknown-endpoint", b"machine f(n: u64) terminates by n in 0..=limit; {}", UNKNOWN_NAME, b"limit")
+    rejected(program, "rank-range-unknown-endpoint", b'machine f(n: u64) terminates by n in 0..=limit {}', UNKNOWN_NAME, b"limit")
     # A declared measure (wiki/spec/language/termination.md#ranking) is the
     # view its path names: a computed one takes one subject parameter and a
     # body, a lexicographic one names fields of its owner. A measure is never
     # a callee.
     measures = (
-        b"data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\n"
-        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine f(card: Card, progress: Progress)\n"
-        b"terminates by card -> Card::PowerOrder;\n"
-        b"terminates by progress -> Progress::Steps;\n{}"
+        b'data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine f(card: Card, progress: Progress)\nterminates by card -> Card::PowerOrder\nterminates by progress -> Progress::Steps\n{}'
     )
     accepted(
         program,

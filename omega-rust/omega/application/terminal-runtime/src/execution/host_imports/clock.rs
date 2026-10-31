@@ -240,8 +240,7 @@ fn selector(
     arguments: &[TerminalScalarValue],
     signature: &TerminalImportSignature,
 ) -> Result<u128, TerminalEffectRejection> {
-    let invalid =
-        || TerminalEffectRejection::new("clock selector differs from its installed carrier");
+    let invalid = super::refusal("clock selector differs from its installed carrier");
     let [TerminalScalarValue::Integer { scalar_type, value }] = arguments else {
         return Err(invalid());
     };
@@ -349,29 +348,17 @@ impl TerminalEffectHandler for ClockImport {
         }
     }
 
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "clock imports require result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("clock imports require result-aware dispatch");
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid =
-            || TerminalEffectRejection::new("clock operands differ from the installed contract");
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
-        if !structural_arguments.is_empty()
-            || arguments.len() != self.signature.scalar_parameters.len()
-            || !arguments.iter().zip(&self.signature.scalar_parameters).all(|(value, expected)| {
+        let invalid = super::refusal("clock operands differ from the installed contract");
+        let call = super::call_operands(effect, &invalid)?;
+        if !call.structural_arguments.is_empty()
+            || call.arguments.len() != self.signature.scalar_parameters.len()
+            || !call.arguments.iter().zip(&self.signature.scalar_parameters).all(|(value, expected)| {
                 value.scalar_type() == *expected && matches!(value,
                     TerminalScalarValue::Integer { scalar_type, value } if scalar_type.admits(*value))
             })
@@ -380,7 +367,7 @@ impl TerminalEffectHandler for ClockImport {
         }
         match &self.operation {
             ClockOperation::Read => {
-                let selector = selector(arguments, &self.signature)?;
+                let selector = selector(call.arguments, &self.signature)?;
                 let reading = self
                     .clock
                     .lock()
@@ -413,7 +400,7 @@ impl TerminalEffectHandler for ClockImport {
                         value: IntegerValue::Signed(milliseconds),
                         ..
                     },
-                ] = arguments.as_slice()
+                ] = call.arguments
                 else {
                     return Err(invalid());
                 };

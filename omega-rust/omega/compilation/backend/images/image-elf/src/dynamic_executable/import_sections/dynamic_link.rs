@@ -167,17 +167,7 @@ mod tests {
                 NativeTarget::linux_x64()
             }
         };
-        let mut image = FinalImage::with_capacity(
-            target,
-            FinalImageMemory {
-                text: vec![0; 20],
-                ..FinalImageMemory::default()
-            },
-            Handle::invalid(),
-            1,
-            1,
-            2,
-        );
+        let mut image = crate::test_support::relocation_image(target, 20);
         crate::test_support::import_with_text_relocations(
             &mut image,
             "__omega_dynamic_import",

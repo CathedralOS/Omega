@@ -18,7 +18,9 @@ use checked_trees::{
 };
 use proof::obligations::ProofPlan;
 
+mod current_integer_bounds;
 mod evaluation;
+pub(crate) use current_integer_bounds::CurrentIntegerBounds;
 pub(crate) mod float_predicates;
 mod place_intervals;
 mod projection_evaluations;

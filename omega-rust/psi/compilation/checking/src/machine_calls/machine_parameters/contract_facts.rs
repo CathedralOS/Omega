@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
 use typed_trees::data::TypeParameter;
@@ -15,6 +16,10 @@ pub(super) fn validate_contract_facts(
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
     actual_owner: symbols::SymbolHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_contracts = program.state_signature_contracts(requirement);
@@ -28,6 +33,7 @@ pub(super) fn validate_contract_facts(
         actual_parameters,
         requirement.symbol,
         actual_owner,
+        substitutions,
         diagnostics,
     );
 }
@@ -43,14 +49,24 @@ pub(crate) fn validate_callable_contract_refinement(
     actual_parameters: &[StateParameter],
     required_owner: symbols::SymbolHandle,
     actual_owner: symbols::SymbolHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
     ] {
-        let required = normalized_facts(program, required_contracts, &kind, required_parameters);
-        let actual = normalized_facts(program, actual_contracts, &kind, actual_parameters);
+        let required = normalized_facts(
+            program,
+            required_contracts,
+            &kind,
+            required_parameters,
+            substitutions,
+        );
+        let actual = normalized_facts(program, actual_contracts, &kind, actual_parameters, &[]);
         let valid = match &kind {
             // Required preconditions may be stronger: callers of the generic
             // already prove them, so the selected implementation may demand a
@@ -91,6 +107,7 @@ pub(crate) fn validate_callable_contract_refinement(
         actual_contracts,
         required_parameters,
         actual_parameters,
+        substitutions,
         diagnostics,
     );
 }
@@ -104,6 +121,10 @@ fn validate_crash_contract_refinement(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut checked = Vec::<SignatureContractKind>::new();
@@ -121,6 +142,7 @@ fn validate_crash_contract_refinement(
             actual_contracts,
             &actual_contract.kind,
             actual_parameters,
+            &[],
         )
         .expect("an actual crash contract contributes its own bucket");
         let required_bucket = normalized_crash_bucket(
@@ -128,6 +150,7 @@ fn validate_crash_contract_refinement(
             required_contracts,
             &actual_contract.kind,
             required_parameters,
+            substitutions,
         );
         let valid = required_bucket.is_some_and(|required| {
             required.unconditional
@@ -159,6 +182,10 @@ fn normalized_crash_bucket(
     contracts: &[SignatureContract],
     kind: &SignatureContractKind,
     parameters: &[StateParameter],
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
 ) -> Option<NormalizedCrashBucket> {
     let matching = contracts
         .iter()
@@ -168,9 +195,16 @@ fn normalized_crash_bucket(
         return None;
     }
     let unconditional = matching.iter().any(|contract| {
-        normalized_facts(program, std::slice::from_ref(*contract), kind, parameters).is_empty()
+        normalized_facts(
+            program,
+            std::slice::from_ref(*contract),
+            kind,
+            parameters,
+            substitutions,
+        )
+        .is_empty()
     });
-    let mut routes = normalized_facts(program, contracts, kind, parameters);
+    let mut routes = normalized_facts(program, contracts, kind, parameters, substitutions);
     routes.sort();
     routes.dedup();
     Some(NormalizedCrashBucket {
@@ -184,6 +218,10 @@ fn normalized_facts(
     contracts: &[SignatureContract],
     kind: &SignatureContractKind,
     parameters: &[StateParameter],
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
 ) -> Vec<String> {
     let mut facts = Vec::new();
     for contract in contracts.iter().filter(|contract| &contract.kind == kind) {
@@ -192,7 +230,7 @@ fn normalized_facts(
                 fact,
                 ProofFact::Expression(expression)
                     if matches!(
-                        program.expression_table.expression(*expression),
+                        expression_table(program).expression(*expression),
                         ExpressionNode::Boolean(true)
                     )
             ) {
@@ -203,11 +241,11 @@ fn normalized_facts(
             }
             let raw = match fact {
                 ProofFact::Expression(expression) => {
-                    program.expression_table.display_name(*expression)
+                    expression_table(program).display_name(*expression)
                 }
                 ProofFact::Membership(membership) => format!(
                     "{} in {}{}",
-                    program.expression_table.display_name(membership.value),
+                    expression_table(program).display_name(membership.value),
                     program.domain_path_members(membership.domain).joined_path(),
                     if membership.domain_arguments.is_empty() {
                         String::new()
@@ -230,11 +268,10 @@ fn normalized_facts(
                         .iter()
                         .map(|argument| argument.path.joined_path())
                         .collect::<Vec<_>>();
-                    let arguments = program
-                        .expression_table
+                    let arguments = expression_table(program)
                         .expression_handles(application.arguments)
                         .iter()
-                        .map(|argument| program.expression_table.display_name(*argument))
+                        .map(|argument| expression_table(program).display_name(*argument))
                         .collect::<Vec<_>>();
                     let binder_suffix = if binders.is_empty() {
                         String::new()
@@ -248,7 +285,8 @@ fn normalized_facts(
                     )
                 }
             };
-            facts.push(alpha_normalize(&raw, parameters));
+            let substituted = substitute_type_actuals(program, &raw, substitutions);
+            facts.push(alpha_normalize(&substituted, parameters));
         }
     }
     facts.sort();
@@ -303,7 +341,8 @@ fn single_guarantee_left_prefix(
                 return false;
             };
             let mut prefix = *expression;
-            while let ExpressionNode::Binary(binary) = program.expression_table.expression(prefix) {
+            while let ExpressionNode::Binary(binary) = expression_table(program).expression(prefix)
+            {
                 if binary.operator != BinaryOperator::And {
                     break;
                 }
@@ -383,8 +422,8 @@ fn same_guarantee_expression(
     actual_parameters: &[StateParameter],
 ) -> bool {
     match (
-        program.expression_table.expression(required),
-        program.expression_table.expression(actual),
+        expression_table(program).expression(required),
+        expression_table(program).expression(actual),
     ) {
         (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
         (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
@@ -396,7 +435,7 @@ fn same_guarantee_expression(
             {
                 return true;
             }
-            let table = &program.expression_table;
+            let table = expression_table(program);
             let left_members = table.name_path_members(left.members);
             let right_members = table.name_path_members(right.members);
             let left_symbols = table.name_path_member_symbols(left.member_symbols);
@@ -449,6 +488,73 @@ fn same_guarantee_expression(
         }
         _ => false,
     }
+}
+
+/// Replace type-argument spellings with the exact actual's display. Only a
+/// binder named by `substitutions` changes, and only in `<...>` position, so
+/// a value parameter with the same spelling stays a value.
+fn substitute_type_actuals(
+    program: &dyn crate::CheckingInput,
+    text: &str,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+) -> String {
+    if substitutions.is_empty() {
+        return text.to_owned();
+    }
+    let mut names = Vec::new();
+    for (symbol, actual) in substitutions {
+        let Some(parameter) = program.data_type_parameter_by_symbol(*symbol) else {
+            continue;
+        };
+        if !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+            continue;
+        }
+        let rendered = program.display_type_reference(*actual);
+        if rendered.is_empty()
+            || names
+                .iter()
+                .any(|(name, _)| name == parameter.name.as_str())
+        {
+            continue;
+        }
+        names.push((parameter.name.as_str().to_owned(), rendered));
+    }
+    if names.is_empty() {
+        return text.to_owned();
+    }
+    let characters: Vec<char> = text.chars().collect();
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while cursor < characters.len() {
+        if !characters[cursor].is_ascii_alphanumeric() && characters[cursor] != '_' {
+            output.push(characters[cursor]);
+            cursor += 1;
+            continue;
+        }
+        let start = cursor;
+        while cursor < characters.len()
+            && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+        {
+            cursor += 1;
+        }
+        let word: String = characters[start..cursor].iter().collect();
+        let previous = characters[..start]
+            .iter()
+            .rev()
+            .copied()
+            .find(|character| !character.is_whitespace());
+        if matches!(previous, Some('<' | ','))
+            && let Some((_, rendered)) = names.iter().find(|(name, _)| name == &word)
+        {
+            output.push_str(rendered);
+        } else {
+            output.push_str(&word);
+        }
+    }
+    output
 }
 
 fn alpha_normalize(text: &str, parameters: &[StateParameter]) -> String {

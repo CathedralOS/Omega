@@ -8,38 +8,38 @@ use tokens::{KeywordKind, PunctuationKind};
 
 /// Parse the declaration-site contracts for static machine-symbol parameters.
 /// The parameter list only names symbols (`<machine F>`); every such symbol
-/// must receive exactly one authored `where machine F(...)` requirement before
-/// the executable body's clauses begin. Nothing is inferred from uses.
+/// receive one authored `requires machine F(...)` contract. Declaration owners
+/// validate completeness after their whole clause stream, not from body usage.
 pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ()> {
-    parse_machine_parameter_contracts_in(syntax_trees, type_parameters, input, true)
-}
-
-fn parse_machine_parameter_contracts_in<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
-    mut input: Input<'tokens, 'source>,
-    reject_unknown_parameter: bool,
-) -> ParseResult<'tokens, 'source, ()> {
+    let mut input = input;
     loop {
-        if !input.at_contextual("where") {
+        if input.at_contextual("where")
+            && input
+                .take_contextual("where")?
+                .at_keyword(KeywordKind::Machine)
+        {
+            return Err(input.error_here(
+                "`where machine` is retired; write `requires machine` with its complete contract and terminating semicolon",
+            ));
+        }
+        if !input.at_contextual("requires") {
             break;
         }
-        let after_where = input.take_contextual("where")?;
-        if !after_where.at_keyword(KeywordKind::Machine) {
+        let after_keyword = input.take_contextual("requires")?;
+        if !after_keyword.at_keyword(KeywordKind::Machine) {
             break;
         }
-        let after_machine = after_where.take_keyword(KeywordKind::Machine, "machine")?;
+        let after_machine = after_keyword.take_keyword(KeywordKind::Machine, "machine")?;
         let (name, after_name) = after_machine.take_identifier()?;
 
-        // A `::` after the name is not a machine-symbol parameter contract.
-        // Leave it for the general clause parser, which rejects the retired
-        // one-off member requirement rather than silently discarding it.
         if after_name.at_punctuation(PunctuationKind::ColonColon) {
-            break;
+            return Err(after_name.error_here(
+                "one-off `requires machine T::member(...)` requirements are unsupported; declare a trait and bind an explicit conformance",
+            ));
         }
 
         let Some(parameter_index) = syntax_trees
@@ -48,31 +48,26 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             .iter()
             .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
         else {
-            if reject_unknown_parameter {
-                return Err(after_name.error_here(format!(
-                    "`where machine {}` has no matching `<machine {}>` parameter",
-                    name.as_str(syntax_trees),
-                    name.as_str(syntax_trees)
-                )));
-            }
-            // A nested signature's requirements are written in the same
-            // clause stream as its owner's remaining requirements. An
-            // unknown name at this level therefore belongs to the caller;
-            // leave the complete `where machine` clause unconsumed.
-            break;
+            return Err(after_name.error_here(format!(
+                "`requires machine {}` has no matching generic parameter",
+                name.as_str(syntax_trees)
+            )));
         };
 
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
             syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
+            syntax_trees::item::TypeParameterKind::Type
+                if syntax_trees.items.type_parameters(type_parameters)[parameter_index].bounds
+                    == syntax_trees::item::DataProperties::default() => {}
             syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
-                    "machine parameter `{}` already has a `where machine` contract",
+                    "machine parameter `{}` already has a `requires machine` contract",
                     name.as_str(syntax_trees)
                 )));
             }
             _ => {
                 return Err(after_name.error_here(format!(
-                    "`{}` is not a machine parameter; declare it as `<machine {}>` before writing a machine contract",
+                    "`{}` is not a machine parameter; its declared kind or property bounds conflict with `requires machine {}`",
                     name.as_str(syntax_trees),
                     name.as_str(syntax_trees)
                 )));
@@ -96,19 +91,10 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             }
             if after_requirement.at_contextual("via") {
                 return Err(after_requirement.error_here(
-                    "a `where machine` nominal requirement cannot use `via`; bindings belong on the satisfying bodyless machine",
+                    "a `requires machine` nominal requirement cannot use `via`; native bindings belong to the owning Build",
                 ));
             }
-            let after_semicolon =
-                after_requirement.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            let rest = if continues_after_machine_parameter_contract(after_semicolon) {
-                after_semicolon
-            } else {
-                // A bodyless declaration's final semicolon terminates both the
-                // nominal binder and the declaration. Leave it for the outer
-                // machine parser, just like operational clauses do.
-                after_requirement
-            };
+            let rest = take_machine_contract_terminator(after_requirement)?;
             let parameter =
                 &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
             parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
@@ -131,27 +117,22 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             parse_optional_parameters(syntax_trees, after_type_parameters)?;
         let (return_type, after_return) =
             parse_optional_return_type(syntax_trees, after_parameters)?;
-        let ((), after_nested_contracts) = parse_machine_parameter_contracts_in(
-            syntax_trees,
-            nested_type_parameters,
-            after_return,
-            false,
-        )?;
-        let (clauses, mut rest) = crate::contracts::signature::parse_signature_clauses(
+        let ((), after_nested_contracts) =
+            parse_machine_parameter_contracts(syntax_trees, nested_type_parameters, after_return)?;
+        let (clauses, rest) = crate::contracts::signature::parse_signature_clauses(
             syntax_trees,
             after_nested_contracts,
-            false,
+            nested_type_parameters,
         )?;
+        validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
         if clauses.service_reach_is_installation_bound {
             return Err(rest.error_here(
                 "`reaches <= Bound` is installation-selected and cannot appear on a structural machine parameter",
             ));
         }
-        // Permit a separator after the requirement. The semicolon belongs to
-        // this `where machine` signature, never to the generic machine body.
-        if rest.at_punctuation(PunctuationKind::Semicolon) {
-            rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        }
+        // This separator closes the nested callable. Following predicates
+        // belong to its enclosing declaration, never to this signature.
+        let rest = take_machine_contract_terminator(rest)?;
 
         let contract = syntax_trees::item::StateSignature {
             name: name.clone(),
@@ -182,6 +163,15 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         input = rest;
     }
 
+    Ok(((), input))
+}
+
+/// Completeness belongs to the declaration's finished clause stream.
+pub(crate) fn validate_machine_parameter_contracts(
+    syntax_trees: &SyntaxTrees,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+    input: Input<'_, '_>,
+) -> Result<(), crate::diagnostics::parse_error::ParseError> {
     if let Some(missing) = syntax_trees
         .items
         .type_parameters(type_parameters)
@@ -194,24 +184,23 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         })
     {
         return Err(input.error_here(format!(
-            "machine parameter `{}` requires an authored declaration-site contract: write `where machine {}(...) -> Result` or `where machine {} satisfies Trait::requirement;`",
+            "machine parameter `{}` requires an authored declaration-site contract: write `requires machine {}(...) -> Result;` or `requires machine {} satisfies Trait::requirement;`",
             missing.name.as_str(syntax_trees),
             missing.name.as_str(syntax_trees),
             missing.name.as_str(syntax_trees),
         )));
     }
 
-    Ok(((), input))
+    Ok(())
 }
 
-fn continues_after_machine_parameter_contract(input: Input<'_, '_>) -> bool {
-    input.at_punctuation(PunctuationKind::LeftBrace)
-        || input.at_punctuation(PunctuationKind::Arrow)
-        || input.at_contract_continuation_keyword()
-        || input.at_contextual("requires")
-        || input.at_contextual("ensures")
-        || input.at_contextual("where")
-        || input.at_contextual("satisfies")
+/// This terminator belongs to this nested declaration alone. Its enclosing
+/// bodyless declaration, if any, owns another terminator; sharing one would
+/// silently change the scope of subsequent clauses.
+fn take_machine_contract_terminator<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
+    input.take_punctuation(PunctuationKind::Semicolon, ";")
 }
 
 /// `Trait::requirement` or `Trait<Arguments>::requirement`, optionally

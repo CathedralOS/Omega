@@ -44,7 +44,7 @@ machine number(value: f64) reaches Console {
     machine emit(bytes: &[u8; 21]) { Console::write_line(bytes); }
 }
 public machine report(observations: &Observations, fit: &Fit) reaches Console
-invokes Console;
+invokes Console
 crashes Trap
 {
     Console::write_line("dose_response_fit synthetic bounded 4PL");

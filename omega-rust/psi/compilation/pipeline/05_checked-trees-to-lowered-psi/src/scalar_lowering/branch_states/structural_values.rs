@@ -4,10 +4,12 @@
 
 use super::super::StructuralTypeId;
 use super::{CheckedTrees, LoweringError};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarEffect,
 };
 use crate::scalar_lowering::computations::Expansion;
+use crate::terminal_identities::stored_structural_identity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ValueRequest {
@@ -23,20 +25,13 @@ impl ValueRequest {
         value: checked_trees::CheckedStructuralValueHandle,
         types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<Self, LoweringError> {
-        let root = checked
-            .facts
-            .values
+        let root = value_facts(checked)
             .structural_values
             .root_for_value(value)
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its complete checked root",
             ))?;
-        let identity = validation::stored_structural_type_identity(
-            &checked.typed,
-            root.type_reference,
-            &[],
-            &[],
-        );
+        let identity = stored_structural_identity(checked, root.type_reference);
         let declaration = crate::terminal_identities::structural_declaration_by_identity(
             types,
             identities,
@@ -49,6 +44,52 @@ impl ValueRequest {
             structural_type: declaration.id,
             captured: root.captured_copy.is_valid(),
         })
+    }
+
+    /// A copied no-code carrier owns only intrinsic snapshot retirement.
+    /// Source checking supplies that capability; the emitted producer must
+    /// independently prove that this consumer received fresh whole storage.
+    /// Nontrivial owned dispositions stay with checked value completion.
+    pub(crate) fn complete_snapshot(
+        self,
+        checked: &CheckedTrees,
+        completed_types: &[semantic_vocabulary::QualifiedScalarType],
+        target: usize,
+        expansion: &mut Expansion<'_>,
+    ) -> Result<usize, LoweringError> {
+        let root = value_facts(checked)
+            .structural_values
+            .root_for_value(self.value)
+            .ok_or(LoweringError::Unsupported(
+                "snapshot completion lost its checked value root",
+            ))?;
+        let identity = validation::stored_structural_type_identity(
+            &checked.typed,
+            root.type_reference,
+            &[],
+            &[],
+        );
+        let intrinsic_copy = flow_facts(checked)
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .any(|declaration| {
+                declaration.identity == identity
+                    && declaration.copyable
+                    && declaration.no_code_affine_cleanup
+            });
+        if self.captured || !intrinsic_copy {
+            return Ok(target);
+        }
+        Ok(expansion.push(LoweredScalarBranchState::jumping(
+            target,
+            Vec::new(),
+            completed_types.to_vec(),
+            completed_types,
+            vec![LoweredScalarEffect::CompleteSnapshots {
+                snapshots: vec![super::prepared::CompletedSnapshot::Produced(self.value)],
+            }],
+        )))
     }
 
     pub(crate) fn finish(

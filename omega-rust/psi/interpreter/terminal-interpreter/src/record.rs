@@ -50,9 +50,7 @@ impl TerminalExecution<'_> {
         // them must not weaken the actual-child qualification/custody joins.
         let declaration = self
             .program
-            .structural_types()
-            .get(&result.structural_type)
-            .ok_or_else(malformed)?;
+            .structural_declaration(result.structural_type)?;
         let StructuralTypeShape::Record {
             fields: declarations,
             ..
@@ -190,10 +188,8 @@ impl TerminalExecution<'_> {
             {
                 continue;
             }
-            let types = self.program.structural_types();
-            let declaration = types
-                .get(&parameter.structural_type)
-                .ok_or_else(malformed)?;
+            let types = self.structural_types();
+            let declaration = types.declaration(&parameter.structural_type)?;
             let composite = declaration.shape.is_composite_shape();
             let primitive = match declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),

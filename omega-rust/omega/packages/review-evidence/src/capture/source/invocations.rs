@@ -1,6 +1,6 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::canonical_checked_invocation_targets;
-use crate::capture::semantics::facts::exactly_one;
+use crate::capture::semantics::facts::machine_invocation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn validate_machine_invocations(
@@ -15,13 +15,9 @@ pub(crate) fn validate_machine_invocations(
             machine.name,
         ))]);
     }
-    let checked = exactly_one(
-        compilation
-            .facts
-            .synchronous_invocations
-            .machines
-            .iter()
-            .filter(|fact| fact.machine == machine.symbol),
+    let checked = machine_invocation(
+        &compilation.facts.synchronous_invocations.machines,
+        machine.symbol,
         machine.name.as_str(),
         "synchronous-invocation",
     )?;
@@ -73,24 +69,15 @@ fn family_invocation_ceiling(
     for declaration in members {
         let declared =
             validation::declared_machine_invocations(compilation.checking_input, declaration);
-        let checked = exactly_one(
-            compilation
-                .facts
-                .synchronous_invocations
-                .machines
-                .iter()
-                .filter(|fact| fact.machine == declaration.symbol),
+        let checked = machine_invocation(
+            &compilation.facts.synchronous_invocations.machines,
+            declaration.symbol,
             machine.name.as_str(),
             "family member synchronous-invocation",
         )?;
-        let original = exactly_one(
-            compilation
-                .custody
-                .facts
-                .synchronous_invocations
-                .machines
-                .iter()
-                .filter(|fact| fact.machine == declaration.symbol),
+        let original = machine_invocation(
+            &compilation.custody.facts.synchronous_invocations.machines,
+            declaration.symbol,
             machine.name.as_str(),
             "family member synchronous-invocation custody",
         )?;
@@ -120,13 +107,9 @@ fn family_invocation_ceiling(
         flow_effects::InvocationTarget::Parameter(index) => (0_u8, *index),
         flow_effects::InvocationTarget::Service(symbol) => (1_u8, symbol.arena_index()),
     });
-    let head = exactly_one(
-        compilation
-            .facts
-            .synchronous_invocations
-            .machines
-            .iter()
-            .filter(|fact| fact.machine == machine.symbol),
+    let head = machine_invocation(
+        &compilation.facts.synchronous_invocations.machines,
+        machine.symbol,
         machine.name.as_str(),
         "family head synchronous-invocation",
     )?;

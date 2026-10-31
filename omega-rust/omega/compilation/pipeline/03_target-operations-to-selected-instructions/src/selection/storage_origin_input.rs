@@ -551,8 +551,16 @@ fn collect_calls(
                     // cannot map an element back to one exact original index.
                     collect_calls(geometry, parent, visited, calls)?;
                 }
-                I::EstablishReference { source: parent, .. }
-                | I::EstablishPlacedReference { source: parent, .. } => {
+                I::EstablishReference {
+                    source: parent,
+                    result,
+                    ..
+                }
+                | I::EstablishPlacedReference {
+                    source: parent,
+                    result,
+                    ..
+                } => {
                     let known_width = if coordinate.path.is_empty()
                         || coordinate.path == [terminal_psi::StructuralPathSegment::Referent]
                     {
@@ -573,7 +581,13 @@ fn collect_calls(
                         .active
                         .last()
                         .ok_or_else(SelectedInstructionError::custody)?;
-                    collect_calls(geometry, &rebased(parent, suffix), visited, calls)?;
+                    let backing = reference_backing_coordinate(
+                        function,
+                        result.structural_type,
+                        parent,
+                        suffix,
+                    )?;
+                    collect_calls(geometry, &backing, visited, calls)?;
                     if let Some(width) = known_width {
                         // Replace only this producer's backing edge by its
                         // exact codec fact. Independently retained replacement
@@ -724,6 +738,64 @@ fn collect_calls(
     }
     visited.leave();
     Ok(())
+}
+
+/// Logical view selectors are not selectors of the physical source constructor.
+/// Same-carrier projections keep their exact coordinate. An inline recast
+/// conservatively retains its original source prefix: this inventory bounds
+/// memory reach, while the existing access geometry still bounds the read.
+/// A further pointer crossing needs its own exact descriptor origin and cannot
+/// be authenticated merely by retaining the enclosing allocation.
+fn reference_backing_coordinate(
+    function: &LegalizedScalarFunction,
+    reference: semantic_vocabulary::StructuralTypeId,
+    parent: &terminal_psi::StructuralArgument,
+    suffix: &[terminal_psi::StructuralPathSegment],
+) -> Result<terminal_psi::StructuralArgument, SelectedInstructionError> {
+    if suffix.is_empty() {
+        return Ok(parent.clone());
+    }
+    let declarations = &function
+        .structural
+        .as_ref()
+        .ok_or_else(SelectedInstructionError::custody)?
+        .structural_types;
+    let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
+        terminal_psi::find_structural_type(declarations, reference)
+            .ok_or_else(SelectedInstructionError::custody)?
+            .shape
+    else {
+        return Err(SelectedInstructionError::custody());
+    };
+    let root = super::reference_input::root_type(function, parent.place)
+        .ok_or_else(SelectedInstructionError::custody)?;
+    let source =
+        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+            root,
+            &parent.path,
+            declarations,
+        )
+        .ok_or_else(SelectedInstructionError::custody)?;
+    if matches!(source.selected.as_ref(), terminal_psi::StructuralFieldType::Structural(actual) if *actual == referent)
+    {
+        return Ok(rebased(parent, suffix));
+    }
+    let projection =
+        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+            referent,
+            suffix,
+            declarations,
+        )
+        .ok_or_else(SelectedInstructionError::custody)?;
+    if projection.uses_borrowed_backing {
+        return Err(SelectedInstructionError::custody_because(
+            "representation-view pointer crossing lacks an exact source descriptor coordinate",
+        ));
+    }
+    // In particular, do not turn a logical byte's width into a fact about this
+    // physical source. Scalar footprint authority remains on its original
+    // codec/endpoint and is reconstructed independently by the caller.
+    Ok(parent.clone())
 }
 
 fn rebased(

@@ -166,6 +166,8 @@ fn project_requirement(
         synchronous_invocations: row.synchronous_invocations,
         suspends: row.suspends,
         blocks: row.blocks,
+        returned_borrow_origins: row.returned_borrow_origins,
+        parameter_qualification_preconditions: row.parameter_qualification_preconditions,
         termination: values::termination(
             compilation,
             &source.termination_guarantee,

@@ -1,1 +1,1 @@
-requires a recursively fact-free element
+must be recursively fact-free

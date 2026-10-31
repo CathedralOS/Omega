@@ -5,9 +5,8 @@ data Countdown where 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.remaining }
 
-machine walk(countdown: Countdown)
-terminates by countdown -> Countdown::Remaining in 0..=5;
--> u64 {
+machine walk(countdown: Countdown) -> u64
+terminates by countdown -> Countdown::Remaining in 0..=5 {
     transition countdown.remaining > 3 {
         true -> iterate(Countdown { remaining: 3, limit: 5 })
         false -> countdown.remaining

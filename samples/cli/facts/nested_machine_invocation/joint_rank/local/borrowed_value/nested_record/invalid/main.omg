@@ -3,16 +3,16 @@
 data Payload { count: u64; tag: u64; }
 data Remaining { canary: u64; payload: Payload; }
 machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-terminates;
-terminates by remaining.payload.count;
-requires remaining.payload.count <= 7;
+terminates
+terminates by remaining.payload.count
+requires remaining.payload.count <= 7
 {
     transition remaining.payload.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary, remaining.payload.tag)
     }
     machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-    requires pending.payload.count > 0 && pending.payload.count <= 7;
+    requires pending.payload.count > 0 && pending.payload.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.payload.count = pending.payload.count;

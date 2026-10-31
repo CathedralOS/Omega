@@ -21,6 +21,7 @@ use super::structural_prefix::{
     expression_is_transition_target, observe_acyclic_invocation_prefix,
     observe_runtime_state_prefix,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::signature::StateParameter;
 use typed_trees::{machine::Machine, state::State};
@@ -72,8 +73,7 @@ pub(crate) fn construction_predicate_judgments(
     // A source field selector can name its template while this construction
     // owns an applied declaration. Demand and substitution must consume the
     // same exact receiving-field correspondence.
-    let selected_fields = program
-        .expression_table
+    let selected_fields = expression_table(program)
         .struct_fields(literal.fields)
         .iter()
         .map(|field| {
@@ -128,6 +128,17 @@ pub(crate) fn construction_predicate_judgments(
     {
         return visitor.judgments;
     }
+    // A private nested machine receives the caller's checked actuals, including
+    // case-selected payload facts. Use the same complete arrival roster as
+    // calls and stored-predicate restoration; lexical containment alone is not
+    // a premise. Failed trials must not contaminate the universal accumulator.
+    let mut private = incoming.clone();
+    if super::structural_prefix::observe_private_arrivals(program, machine, &mut private, false)
+        == Some(true)
+        && private.has_positive_proof()
+    {
+        return private.judgments;
+    }
     // A local proof is sufficient, but an unknown local parameter may have a
     // stronger fact on every acyclic arrival. The same operation-entry observer
     // consumes those paths; no scalar source recognizer supplies a fallback.
@@ -166,7 +177,7 @@ fn collect_predicate_fields(
         return;
     }
     if let typed_trees::expression::ExpressionNode::Name(path) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
         && parameters
             .iter()
             .any(|parameter| parameter.symbol == path.symbol)
@@ -176,7 +187,7 @@ fn collect_predicate_fields(
     }
     crate::expression_traversal::children(
         program,
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         |child| collect_predicate_fields(program, parameters, child, fields),
     );
 }
@@ -209,7 +220,7 @@ fn construction_predicate_subject(
             continue;
         }
         visited.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if matches!(node, ExpressionNode::Name(path) if path.symbol == symbol) {
             demanded = true;
             break;
@@ -251,7 +262,7 @@ impl ConstructionPredicates<'_> {
         machine: &Machine,
         state: &State,
     ) -> Option<Vec<StructuralJudgment>> {
-        let supplied = program.expression_table.struct_fields(self.literal.fields);
+        let supplied = expression_table(program).struct_fields(self.literal.fields);
         if !supplied
             .iter()
             .all(|field| is_closed_literal(program, field.value))
@@ -297,8 +308,7 @@ impl ConstructionPredicates<'_> {
         // These callbacks read completed operand captures. They never execute
         // source expressions or observe the constructor's own result.
         let completed_fields = self.predicate_subject.as_ref().map(|_| {
-            (0..program
-                .expression_table
+            (0..expression_table(program)
                 .struct_fields(self.literal.fields)
                 .len())
                 .map(&mut supplied_value)
@@ -312,7 +322,7 @@ impl ConstructionPredicates<'_> {
             }
         };
         if let Some(subject) = &self.predicate_subject {
-            let supplied_fields = program.expression_table.struct_fields(self.literal.fields);
+            let supplied_fields = expression_table(program).struct_fields(self.literal.fields);
             let value = super::structural_terms::constructor_literal_term(
                 program,
                 self.expression,
@@ -393,6 +403,14 @@ impl ConstructionPredicates<'_> {
 }
 
 impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
+    fn has_positive_proof(&self) -> bool {
+        self.observed
+            && self
+                .judgments
+                .iter()
+                .all(|judgment| matches!(judgment, StructuralJudgment::Proven))
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }
@@ -411,7 +429,7 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
-        let supplied = program.expression_table.struct_fields(self.literal.fields);
+        let supplied = expression_table(program).struct_fields(self.literal.fields);
         let demanded_values = supplied
             .iter()
             .zip(self.selected_fields)
@@ -467,19 +485,17 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
 /// particular names, calls, casts and reads must use occurrence snapshots even
 /// when the general term producer could assign them a mathematical denotation.
 fn is_closed_literal(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_) => true,
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| is_closed_literal(program, field.value)),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(elements) => expression_table(program)
             .expression_handles(*elements)
             .iter()
             .all(|&element| is_closed_literal(program, element)),

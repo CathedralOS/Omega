@@ -86,6 +86,7 @@ pub struct CheckedRankCoordinateBinding {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStateRankCorrespondence {
+    pub application: super::CheckedRankApplicationFacts,
     pub state: SymbolHandle,
     pub bindings: HandleSpan<CheckedRankCoordinateBinding>,
 }
@@ -157,6 +158,10 @@ pub enum CheckedRankObservation {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeNaturalState {
+    /// Application decisions remain attached to this exact state/input row.
+    pub application: super::CheckedRankApplicationFacts,
+    /// Selected declaration applied to this exact input coordinate; ZII is primitive.
+    pub measure: SymbolHandle,
     pub state: SymbolHandle,
     pub coordinate: CheckedRankCoordinateHandle,
     pub parameter_position: u32,
@@ -170,6 +175,8 @@ impl Default for CheckedRuntimeNaturalState {
     /// Its non-integer carrier cannot supply natural-rank evidence either.
     fn default() -> Self {
         Self {
+            application: Default::default(),
+            measure: SymbolHandle::invalid(),
             state: SymbolHandle::invalid(),
             coordinate: CheckedRankCoordinateHandle::invalid(),
             parameter_position: 0,
@@ -237,6 +244,8 @@ pub struct CheckedSourceNaturalRankComponent {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankArrivalPlan {
+    pub application_casts: Arena<crate::operators::ExactIntegerCastFact>,
+    pub application_formations: Arena<super::CheckedRankApplicationFormation>,
     pub judgments: Arena<CheckedRankBodyJudgment>,
     pub machines: Arena<CheckedMachineRankCorrespondence>,
     pub states: Arena<CheckedStateRankCorrespondence>,

@@ -4,6 +4,7 @@
 //! typed invocation and its landed operand only until checked plans replace
 //! them with dense, plan-local identities.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::float_projection::FloatProjectionContractIdentity;
 use numerics::float_projection::FloatProjectionOperation;
@@ -59,8 +60,8 @@ fn requested_projection_operation(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<FloatProjectionOperation> {
-    let path = program.expression_table.name_path_node(call.receiver)?;
-    let [namespace] = program.expression_table.name_path_members(path.members) else {
+    let path = expression_table(program).name_path_node(call.receiver)?;
+    let [namespace] = expression_table(program).name_path_members(path.members) else {
         return None;
     };
     FloatProjectionOperation::from_source_identity(namespace.as_str(), call.target.as_str())
@@ -83,8 +84,8 @@ pub fn float_static_call_resolution<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
-    let path = program.expression_table.name_path_node(call.receiver)?;
-    let [namespace] = program.expression_table.name_path_members(path.members) else {
+    let path = expression_table(program).name_path_node(call.receiver)?;
+    let [namespace] = expression_table(program).name_path_members(path.members) else {
         return None;
     };
     if namespace.as_str() != "Float" {
@@ -96,8 +97,7 @@ pub fn float_static_call_resolution<'program>(
         call.target_symbol,
         Some(&static_receiver),
         call.target.as_str(),
-        program
-            .expression_table
+        expression_table(program)
             .expression_handles(call.arguments)
             .len(),
         false,
@@ -115,7 +115,7 @@ fn walk_expression(
         return Ok(());
     }
     visited.push(expression);
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     match node {
         // An equality joins the projections its operands already recorded, so a
         // binary's subtrees are walked before the join is proposed.
@@ -151,7 +151,7 @@ fn walk_expression(
         // and arguments are walked before the join it contributes.
         ExpressionNode::Call(call) => {
             walk_expression(program, call.receiver, visited, projections, equalities)?;
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            for argument in expression_table(program).expression_handles(call.arguments) {
                 walk_expression(program, *argument, visited, projections, equalities)?;
             }
             if let Some(requested_operation) = requested_projection_operation(program, call) {
@@ -167,7 +167,7 @@ fn walk_expression(
                         "proof-only float-meaning projection call resolved a different canonical operation",
                     ));
                 }
-                let [source] = program.expression_table.expression_handles(call.arguments) else {
+                let [source] = expression_table(program).expression_handles(call.arguments) else {
                     return Err(Diagnostic::error(
                         "validated float-meaning projection did not retain one source operand",
                     ));
@@ -233,9 +233,9 @@ pub(crate) fn collect_float_meaning_projection_invocations(
         let roots: &[ExpressionHandle] = match fact {
             ProofFact::Expression(expression) => std::slice::from_ref(expression),
             ProofFact::Membership(membership) => std::slice::from_ref(&membership.value),
-            ProofFact::Proposition(application) => program
-                .expression_table
-                .expression_handles(application.arguments),
+            ProofFact::Proposition(application) => {
+                expression_table(program).expression_handles(application.arguments)
+            }
         };
         for root in roots {
             walk_expression(

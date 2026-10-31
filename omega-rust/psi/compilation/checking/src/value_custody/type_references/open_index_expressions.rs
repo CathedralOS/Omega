@@ -1,4 +1,5 @@
 use super::{TypeParameterScope, TypeReferenceOwner, type_reference_label, type_references_match};
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use std::collections::HashMap;
@@ -46,8 +47,7 @@ pub(crate) fn validate_indexed_qualification_arguments(
     let arguments = program
         .type_reference_table
         .type_reference_handles(cast.semantic_domain_arguments);
-    let domain_name = program
-        .expression_table
+    let domain_name = expression_table(program)
         .name_path_members(cast.semantic_domain)
         .joined_path();
     let owner = format!("machine `{}` indexed qualification", machine.name);
@@ -56,12 +56,11 @@ pub(crate) fn validate_indexed_qualification_arguments(
         definition,
         &domain_name,
         arguments,
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: machine.symbol,
-            type_parameters: program.machine_type_parameters(machine),
-            lifetime_parameters: &machine.lifetime_parameters,
-        },
+        TypeParameterScope::authored(
+            machine.symbol,
+            program.machine_type_parameters(machine),
+            &machine.lifetime_parameters,
+        ),
         diagnostics,
         &owner,
     );
@@ -129,8 +128,7 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             );
         }
     }
-    let indexed_qualification_sites = program
-        .expression_table
+    let indexed_qualification_sites = expression_table(program)
         .expression_entries()
         .filter_map(|(_, expression)| {
             let typed_trees::expression::ExpressionNode::Cast(cast) = expression else {
@@ -272,7 +270,7 @@ fn open_index_expression_owner(
     let mut owner = None;
     let mut leaves = vec![expression];
     while let Some(handle) = leaves.pop() {
-        match program.expression_table.expression(handle) {
+        match expression_table(program).expression(handle) {
             ExpressionNode::Name(path) => {
                 if let Some(candidate) = binder_owners.get(&path.symbol)
                     && let Some(existing) = owner.replace(*candidate)
@@ -303,7 +301,7 @@ fn normalize_open_index_expression_operations(
     use language_core::operator_spelling::OperatorSpelling;
     use typed_trees::expression::BinaryOperator;
 
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return;
     };
     let spelling = match binary.operator {
@@ -431,7 +429,7 @@ fn bind_machine_index_operations(
             );
         }
         for expression in expressions {
-            let Some(binary) = program.expression_table.binary_node(expression) else {
+            let Some(binary) = expression_table(program).binary_node(expression) else {
                 continue;
             };
             let Some(spelling) =
@@ -630,12 +628,9 @@ fn validate_open_index_expression(
 ) {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
-            let name = program
-                .expression_table
-                .name_path_members(path.members)
-                .joined_path();
+            let name = expression_table(program).name_path_members(path.members).joined_path();
             if let Some(value) = CanonicalConstValue::from_atom(&name) {
                 let expected_name = const_index_type_label(program, expected);
                 if value.type_name != expected_name {
@@ -670,7 +665,7 @@ fn validate_open_index_expression(
             let Some(binder) = binder else {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses `{name}` in open index expression `{}`, but it is not a direct in-scope const binder",
-                    program.expression_table.display_name(expression)
+                    expression_table(program).display_name(expression)
                 )));
                 return;
             };
@@ -732,7 +727,7 @@ fn validate_open_index_expression(
         }
         _ => diagnostics.push(Diagnostic::error(format!(
             "{owner} uses unsupported open index expression `{}` in `{domain_name}`; only direct const binders combined with `+`, `-`, `*`, or `/` are in the proof-static algebra fragment",
-            program.expression_table.display_name(expression)
+            expression_table(program).display_name(expression)
         ))),
     }
 }

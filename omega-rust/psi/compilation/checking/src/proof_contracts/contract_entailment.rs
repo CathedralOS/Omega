@@ -76,6 +76,7 @@
 //! `self_induction.rs` intakes self-induction hypotheses.
 
 pub(crate) mod arithmetic_judgment;
+pub use arithmetic_judgment::IntegerApplicationFormation;
 pub(crate) mod call_requirements;
 mod citations;
 pub(crate) mod collection_bounds;
@@ -150,8 +151,8 @@ pub(crate) use proof_integer::{
 };
 
 pub(crate) use ranking_range::{
-    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_ranking_range_call,
+    CapturedScalarRank, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
 };
 
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
@@ -170,6 +171,7 @@ pub(crate) use specification_calls::{
 
 pub(crate) use structural_judgment::declared_index_algebra_laws;
 
+use crate::frozen_program::expression_table;
 use std::collections::BTreeMap;
 
 use diagnostics::Diagnostic;
@@ -393,7 +395,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
         .iter()
         .map(|fact| {
-            let Some(binary) = program.expression_table.binary_node(*fact) else {
+            let Some(binary) = expression_table(program).binary_node(*fact) else {
                 return None;
             };
             let entry = program.machine_states(machine).first()?;
@@ -497,7 +499,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 eprintln!(
                     "STRUCT normal-return machine={} value={value:?} fact={} verdict={}",
                     machine.name,
-                    program.expression_table.display_name(fact),
+                    expression_table(program).display_name(fact),
                     if dependency.is_some() {
                         "conditional"
                     } else {
@@ -542,7 +544,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         }
         if structural_terms::is_case_observation(program, fact)
             && let Some(paths) = &case_result
-            && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
+            && let ExpressionNode::Binary(comparison) = expression_table(program).expression(fact)
         {
             // A parameter named `result` is not the reserved returned value.
             // Rejoin the authored occurrence before installing a textual alias,
@@ -708,7 +710,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 eprintln!(
                     "ROUTE machine={} fact=`{}` mention={:?} zero_value={}",
                     machine.name,
-                    program.expression_table.display_name(*fact),
+                    expression_table(program).display_name(*fact),
                     mention.as_deref(),
                     zero_value_mention.is_some(),
                 );
@@ -722,9 +724,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             // an undeclared view name has no selected declaration to supply
             // a proof term.
             if requires.iter().any(|required| {
-                program
-                    .expression_table
-                    .expressions_structurally_equal(*required, *fact)
+                expression_table(program).expressions_structurally_equal(*required, *fact)
             }) && fact_call_targets(program, *fact).all_declared
             {
                 proven.entry.push(*fact);
@@ -806,7 +806,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                          compile error, grants notwithstanding (chapter 10 engine \
                          veto)",
                         machine.name,
-                        program.expression_table.display_name(*fact),
+                        expression_table(program).display_name(*fact),
                     )));
                     fenced_structural = true;
                 }
@@ -828,7 +828,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                          structurally: under the requires hypotheses the sides resolve \
                          to constructor forms that contradict the claim",
                         machine.name,
-                        program.expression_table.display_name(*fact),
+                        expression_table(program).display_name(*fact),
                     )));
                     fenced_structural = true;
                 }
@@ -846,7 +846,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                              corresponding `{relation}(left_carrier, right_carrier)` requires \
                              fact for quotient `{quotient}`",
                             machine.name,
-                            program.expression_table.display_name(*fact),
+                            expression_table(program).display_name(*fact),
                         )));
                     } else if zero_value_mention.is_some() {
                         diagnostics.push(Diagnostic::error(format!(
@@ -854,7 +854,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                              `{}` for `{held}`: all-zero storage is gated, has no payload-free \
                              authored home case, or is not a cased data representation",
                             machine.name,
-                            program.expression_table.display_name(*fact),
+                            expression_table(program).display_name(*fact),
                         )));
                     } else {
                         diagnostics.push(Diagnostic::error(format!(
@@ -864,7 +864,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                              measures, or cite a checked theorem establishing it \
                              (wiki/spec/proofs/contracts.md#citation-and-induction){suggestion}",
                             machine.name,
-                            program.expression_table.display_name(*fact),
+                            expression_table(program).display_name(*fact),
                         )));
                     }
                     fenced_structural = true;
@@ -936,7 +936,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             eprintln!(
                 "ENTAILDBG machine={} fact={} visible={} params={:?}",
                 machine.name,
-                program.expression_table.display_name(*fact),
+                expression_table(program).display_name(*fact),
                 requires_fully_visible,
                 engine.parameter_atoms
             );
@@ -945,14 +945,14 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         // arithmetic's verdict directly: `true` is proven and `false` is
         // disproved. Standing down on `false` would let a refuted
         // postcondition pass `--check` silently.
-        if let Some(constant) = program.expression_table.boolean_node(*fact) {
+        if let Some(constant) = expression_table(program).boolean_node(*fact) {
             if *constant {
                 proven.entry.push(*fact);
             } else {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic",
                     machine.name,
-                    program.expression_table.display_name(*fact)
+                    expression_table(program).display_name(*fact)
                 )));
             }
             continue;
@@ -963,14 +963,14 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` ensures contract proof fact `{}` is disproved: the requires contract entails its negation",
                     machine.name,
-                    program.expression_table.display_name(*fact)
+                    expression_table(program).display_name(*fact)
                 )));
             }
             Judgment::ConstantFalse => {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic",
                     machine.name,
-                    program.expression_table.display_name(*fact)
+                    expression_table(program).display_name(*fact)
                 )));
             }
             Judgment::Unknown { goal_in_language } => {
@@ -988,7 +988,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` cannot prove ensures contract proof fact `{}` from the requires contract",
                         machine.name,
-                        program.expression_table.display_name(*fact)
+                        expression_table(program).display_name(*fact)
                     )));
                 }
                 // Otherwise the contract leans on facts outside the engine's
@@ -1031,7 +1031,7 @@ fn fact_call_targets(
         }
         summary
     };
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => merge(&mut crate::expression_traversal::match_children(
             program, *dispatch,
         )),
@@ -1045,8 +1045,7 @@ fn fact_call_targets(
                     .any(|machine| machine.name.as_str() == call.target.as_str());
             let mut nested = merge(
                 &mut [call.receiver].into_iter().chain(
-                    program
-                        .expression_table
+                    expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
                         .copied(),
@@ -1066,15 +1065,13 @@ fn fact_call_targets(
         }
         ExpressionNode::Range(range) => merge(&mut [range.start, range.end].into_iter()),
         ExpressionNode::StructLiteral(struct_literal) => merge(
-            &mut program
-                .expression_table
+            &mut expression_table(program)
                 .struct_fields(struct_literal.fields)
                 .iter()
                 .map(|field| field.value),
         ),
         ExpressionNode::ArrayLiteral(items) => merge(
-            &mut program
-                .expression_table
+            &mut expression_table(program)
                 .expression_handles(*items)
                 .iter()
                 .copied(),

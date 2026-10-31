@@ -129,7 +129,9 @@ public data FirstSecondaryProcessorStackPolicy {
 }
 
 public FirstSecondaryProcessorStackCalling satisfies CallingPolicy {
-    CallingPolicy::plan = FirstSecondaryProcessorStackPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        FirstSecondaryProcessorStackPolicy::plan(signature)
+    }
 }
 
 machine FirstSecondaryProcessorStackPolicy::plan(
@@ -242,7 +244,9 @@ public data SecondSecondaryProcessorStackPolicy {
 }
 
 public SecondSecondaryProcessorStackCalling satisfies CallingPolicy {
-    CallingPolicy::plan = SecondSecondaryProcessorStackPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        SecondSecondaryProcessorStackPolicy::plan(signature)
+    }
 }
 
 machine SecondSecondaryProcessorStackPolicy::plan(
@@ -342,8 +346,8 @@ proposition confirmed(envelope: StartupEnvelope) =
 machine StartupConfirmation::confirm(envelope: StartupEnvelope)
     satisfies StartupAcknowledgementProtocol::confirm
     reaches MachineControl
-    requires envelope in StartupEnvelope::Pending;
-    ensures confirmed(envelope);
+    requires envelope in StartupEnvelope::Pending
+    ensures confirmed(envelope)
 {
     let nonce: u64 = envelope.invocation;
     envelope.acknowledgement.value.store(nonce, Publish);

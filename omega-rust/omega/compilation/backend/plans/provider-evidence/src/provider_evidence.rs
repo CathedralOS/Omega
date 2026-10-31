@@ -231,7 +231,8 @@ impl SelectedProviderPlanFacts {
             if !boundary_slots.insert(slot) {
                 return Err(format!(
                     "boundary slot `{}` has more than one selected provider plan",
-                    plan.schema.identity_text(plan.schema.trait_name)
+                    plan.schema
+                        .identity_text(plan.schema.declaration.trait_name)
                 ));
             }
         }
@@ -312,7 +313,8 @@ impl SelectedProviderPlanFacts {
         }) {
             return Err(format!(
                 "boundary slot `{}` has more than one selected provider plan",
-                plan.schema.identity_text(plan.schema.trait_name)
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name)
             ));
         }
         let mut requirement_identities = self.identities.clone().into_builder();
@@ -349,10 +351,14 @@ impl SelectedProviderPlanFacts {
         for plan in &checked.plans {
             if self.plans.iter().any(|existing| {
                 existing.report_fingerprint() == plan.report_fingerprint()
-                    || (existing.schema.trait_package_identity
-                        == plan.schema.trait_package_identity
-                        && existing.schema.identity_text(existing.schema.trait_name)
-                            == plan.schema.identity_text(plan.schema.trait_name))
+                    || (existing.schema.declaration.trait_package_identity
+                        == plan.schema.declaration.trait_package_identity
+                        && existing
+                            .schema
+                            .identity_text(existing.schema.declaration.trait_name)
+                            == plan
+                                .schema
+                                .identity_text(plan.schema.declaration.trait_name))
             }) {
                 return Err(format!(
                     "direct boundary callable `{}` collides with an existing selected plan",

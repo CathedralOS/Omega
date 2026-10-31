@@ -156,11 +156,8 @@ pub(super) fn build(
         declarations,
     )
     .ok_or(invalid())?;
-    let region_shape = crate::structural_inputs::structural_reference_input::shape(
-        geometry.region_root,
-        declarations,
-    )
-    .ok_or(invalid())?;
+    let region_shape =
+        crate::structural_inputs::shape(geometry.region_root, declarations).ok_or(invalid())?;
     if !geometry.elements.is_empty()
         || !geometry.readable
         || geometry.byte_offset != *byte_offset

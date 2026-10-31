@@ -5,6 +5,7 @@
 //! establish the selected preconditions. Applied binders remain attached to the
 //! public owner for the consumer's separate formation judgment.
 
+use crate::frozen_program::expression_table;
 use checked_trees::{CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
@@ -101,8 +102,7 @@ pub fn scoped_operator_application<'program>(
     // including retained authored selection custody; formation and destination
     // admission remain separate judgments below the selection boundary.
     if typed_trees::closed_numeric::has_anonymous_operator_meaning(program, expression)
-        && program
-            .expression_table
+        && expression_table(program)
             .binary_node(expression)
             .is_some_and(|binary| {
                 [binary.left, binary.right].into_iter().all(|operand| {
@@ -190,7 +190,7 @@ pub fn scoped_operator_application<'program>(
             selected_symbol,
         };
     }
-    let use_site = program.expression_table.source_span(expression);
+    let use_site = expression_table(program).source_span(expression);
     let declared = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
@@ -206,10 +206,10 @@ pub fn scoped_operator_application<'program>(
             use_site,
         )
     };
-    let operands = match program.expression_table.expression(expression) {
+    let operands = match expression_table(program).expression(expression) {
         typed_trees::expression::ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
         typed_trees::expression::ExpressionNode::Indexed(indexed) => {
-            if let Some(range) = program.expression_table.range_node(indexed.index) {
+            if let Some(range) = expression_table(program).range_node(indexed.index) {
                 vec![indexed.collection, range.start, range.end]
             } else {
                 vec![indexed.collection, indexed.index]
@@ -237,8 +237,7 @@ pub fn scoped_operator_application<'program>(
                 )
             })
     };
-    let carriers = program
-        .expression_table
+    let carriers = expression_table(program)
         .binary_node(expression)
         .is_some_and(|binary| {
             let [left, right] = operand_types else {

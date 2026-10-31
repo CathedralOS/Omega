@@ -19,6 +19,7 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, StorageObservations, structural_result_declaration,
 };
@@ -432,9 +433,7 @@ impl StateGraphEmission<'_, '_> {
                                                         let source_value_count = edge_values.len();
                                                         for segment in &subject.path {
                                                             if let checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(handle) = segment {
-                                                                let root = checked
-                                                                    .facts
-                                                                    .values
+                                                                let root = value_facts(checked)
                                                                     .scalar_computations
                                                                     .roots
                                                                     .iter()
@@ -470,24 +469,14 @@ impl StateGraphEmission<'_, '_> {
                                                                         next_edge,
                                                                         operations,
                                                                     },
-                                                                    |frame| {
-                                                                        let (mut environment, emission) = frame.split();
-                                                                        emission.evaluation.source_value(
+                                                                    |mut frame| {
+                                                                        frame.source_value(
                                                                             identities,
-                                                                            checked,
-                                                                            owner,
-                                                                            state.state,
                                                                             edge.statement_ordinal,
                                                                             root.role,
-                                                                            &checked_trees::CheckedCallScalarArgument::Computation(*handle),
-                                                                            source_value_count,
-                                                                            emission.values,
-                                                                            emission.next_value,
-                                                                            emission.next_block,
-                                                                            emission.next_edge,
-                                                                            emission.operations,
-                                                                            emission.calls,
-                                                                            &mut environment,
+                                                                            &checked_trees::CheckedCallScalarArgument::Computation(
+                                                                                *handle,
+                                                                            ),
                                                                         )
                                                                     },
                                                                 )?;
@@ -1119,26 +1108,14 @@ impl StateGraphEmission<'_, '_> {
                                     next_edge,
                                     operations,
                                 },
-                                |frame| {
-                                    let (mut environment, emission) = frame.split();
-                                    emission.evaluation.source_value(
+                                |mut frame| {
+                                    frame.source_value(
                                         identities,
-                                        checked,
-                                        owner,
-                                        state.state,
                                         edge.statement_ordinal,
                                         CheckedScalarExpressionRole::TransitionArgument {
                                             argument_ordinal: transfer.argument_ordinal,
                                         },
                                         &value,
-                                        emission.source_value_count,
-                                        emission.values,
-                                        emission.next_value,
-                                        emission.next_block,
-                                        emission.next_edge,
-                                        emission.operations,
-                                        emission.calls,
-                                        &mut environment,
                                     )
                                 },
                             )?;

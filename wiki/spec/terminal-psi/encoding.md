@@ -829,7 +829,7 @@ not serialized here. Marker 171 replaced the earlier proof-row catalog layout.
 Marker 182 retains that quotient layout, the folded constant closure, and
 caller-activation claim establishment and release operations under vocabulary
 130, together with the indexed theorem and mathematical-carrier tables above.
-It adds whole-value placement lifecycle plans independently of field-view plans,
+It adds whole-value access lifecycle plans independently of field-view plans,
 including their selected-provider or compiler-primitive execution obligation.
 Each compiler lifecycle retains the exact profile-supply requirement coordinate as well
 as its result type, independently projected exact nominal owner and callable
@@ -841,7 +841,7 @@ order, including inaccessible fields. Erased and zero-byte children stay in
 semantic custody but have no image entry; field-view accessors are not the
 whole-value image roster.
 Boundary and dynamic scalar results retain their complete qualification sets.
-Placed-reference formation retains a Boolean resident-source discriminator after
+Access-reference formation retains a Boolean resident-source discriminator after
 its source path. When true, two structural-field IDs identify the source owner's
 base and length fields, followed by two structural-domain IDs for its Granted
 and Resident roles. The field roles come from the authenticated core declaration,
@@ -867,9 +867,9 @@ Older markers are rejected before their payload is read.
 | 10 | services | counted service declarations |
 | 11 | concrete root service reach | counted service ids |
 | 12 | installation reach dependencies | counted installation reach rows |
-| 13 | placed-view plans | counted placement policy plans |
-| 14 | placement lifecycle plans | counted whole-value placement demand rows, below |
-| 15 | placed-view inputs | counted placed-view input rows |
+| 13 | access-view plans | counted access policy plans |
+| 14 | access lifecycle plans | counted whole-value access demand rows, below |
+| 15 | access-view inputs | counted access-view input rows |
 | 16 | reborrow restored call uses | counted restored-use rows |
 | 17 | boundary machines | counted boundary machine declarations |
 | 18 | provider candidates | counted provider candidate rows |
@@ -910,7 +910,7 @@ duplicate identities, absent root/callee frames, invalid structural references,
 incomplete layout alternatives and truncated payloads. Provider coverage and
 target storage composition remain the receiving Omega join's responsibility.
 
-A placement lifecycle row encodes its boundary machine id, `u8` operation
+A access lifecycle row encodes its boundary machine id, `u8` operation
 (`0` initialize, `1` move-out), then `u8` execution kind (`0` selected provider,
 `1` compiler primitive; other tags reject). A compiler primitive adds a Boolean
 profile-type presence and, when present, its structural type id. Compiler primitives
@@ -924,8 +924,8 @@ coordinates: extent structural type id, base and length field ids, and Granted,
 Vacant and Resident domain ids. These roles come from the source-authenticated
 core declaration, not a consumer's recognition of names or record shape. Three
 `u32` identity-table indices follow: policy, policy-plan machine, and schema. The complete
-normalized placement payload follows, using the same layout/access/reach wire
-as a placed-view plan, without the view carrier or accessor table. Rows are
+normalized access-plan payload follows, using the same layout/access/reach wire
+as an access-view plan, without the view carrier or accessor table. Rows are
 strictly ordered by boundary id. These rows describe demanded operations;
 they establish neither provider selection, backing, profile authority, nor
 successful initialization. A checked adapter selected statically does not
@@ -987,8 +987,8 @@ omit it. A callback body must retain it, and native admission compares it to the
 caller's selected body.
 
 A boundary's optional checked callable adds its counted closed method arguments
-and a `u8` execution owner: `0` provider, `1` compiler placement initialization,
-`2` compiler placement extraction. Other tags reject. Each compiler placement
+and a `u8` execution owner: `0` provider, `1` compiler access initialization,
+`2` compiler access extraction. Other tags reject. Each compiler access
 declaration requires exactly one matching lifecycle obligation row; deleting
 that row cannot change the declaration into a provider-supplied boundary.
 
@@ -1384,14 +1384,14 @@ A capacity scalar inside a domain declaration is a `u8` tag:
 | 6 | Subtract | two capacity scalars |
 | 7 | Multiply | two capacity scalars |
 
-### Placed-view inputs and reborrow custody
+### Access-view inputs and reborrow custody
 
 These rosters are positional: entries decode in producer-declared order and
 are not re-sorted by the canonical-order checker.
 
 | Row | Fields |
 | --- | --- |
-| placed-view input | machine id + `u32` position + source machine identity string + source state identity string + source parameter identity string + structural access + `bool` const binding + `bool` mutable binding + view identity string + policy identity string + policy-plan machine identity string + schema identity string + `u64` placement report fingerprint + 32-byte placement commitment |
+| access-view input | machine id + `u32` position + source machine identity string + source state identity string + source parameter identity string + structural access + `bool` const binding + `bool` mutable binding + view identity string + policy identity string + policy-plan machine identity string + schema identity string + `u64` access-plan report fingerprint + 32-byte access-plan commitment |
 | reborrow place | root identity string + counted place segments |
 | reborrow restored call use | machine id + operation id + restoration class + call boundary + call target machine id + source machine identity string + source state identity string + direct root owner identity string + counted owner path segments + direct root place + activation boundary + weakening boundary + direct-root lifetime identity string + child owner identity string + counted owner path segments + child place + counted projection remainder segments + child access + child activation boundary + formation boundary + child weakening boundary + counted shared cohort |
 | shared cohort member | child owner identity string + counted owner path segments + child place + child access + child activation boundary + child weakening boundary |
@@ -2132,9 +2132,9 @@ The reconstructed manifest binds each present component under its own hash domai
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence
 preserves semantic identity while changing its own identity.
 
-## Retained placement custody
+## Retained access custody
 
-A source-derived placed-view input binds Terminal machine/state/parameter
+A source-derived access-view input binds Terminal machine/state/parameter
 coordinates to hermetic source, policy, producing-plan-machine, and schema
 identities; the policy/schema-derived view identity; exact access and binding
 modes; a report-only compact coordinate; and the validated plan's
@@ -2152,7 +2152,7 @@ decisions, complete emitted-image hash, and text-validation evidence. Retain
 separate domain-framed strong digests for encoded compiler text, final compiler
 text, canonical relocations, and their derivation. Compact fingerprints are
 report compatibility, not substitutes for those commitments. Installation still
-consumes separate admission and placement authority; decoding yields an audit
+consumes separate admission and access authority; decoding yields an audit
 projection, not an executable grant.
 
 Effectful roots additionally retain the canonical function map, each privileged

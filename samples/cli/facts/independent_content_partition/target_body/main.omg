@@ -53,12 +53,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(select: bool) -> Parts
-        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(select: bool) -> Parts
-        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
         let whole: Region in First & Second = issue();
@@ -68,7 +68,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(select: bool) -> Parts
-        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
         let whole: Region in First & Second = issue();
@@ -91,7 +91,7 @@ machine inspect(parts: Parts) -> bool {
 }
 machine main()
     reaches SelectedProbe, SelectedBodyCheck
-    invokes SelectedProbe; invokes SelectedBodyCheck;
+    invokes SelectedProbe invokes SelectedBodyCheck
     crashes Trap
 {
     let first: bool = inspect(SelectedProbe::exercise(true));
@@ -101,11 +101,11 @@ machine main()
     machine wrong() { crash Trap; }
 }
 
-machine x86_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe; invokes SelectedBodyCheck; crashes Trap {
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe invokes SelectedBodyCheck crashes Trap {
     SelectedBodyCheck::require_tag(17u64);
     main();
 }
-machine arm_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe; invokes SelectedBodyCheck; crashes Trap {
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe invokes SelectedBodyCheck crashes Trap {
     SelectedBodyCheck::require_tag(29u64);
     main();
 }

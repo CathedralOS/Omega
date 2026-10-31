@@ -17,16 +17,9 @@ fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint()
             family: MachineAlternativeFamily::FloatResultPolicy(form),
             variant: 0,
         };
-        let encoded = isa_aarch64::encode_aarch64_selected_form(
-            &physical,
-            kind,
-            alternative,
-            &registers[..form.operand_count() + 1],
-        )
-        .unwrap();
         let instruction = SelectedInstructionId(1);
         let (store, encoding, layout) =
-            super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
+            super::form_fixture(kind, alternative, &registers[..form.operand_count() + 1]);
         for mutation in 0..5 {
             let mut changed = store.clone();
             let footprint = changed.footprint_mut(encoding.footprint).unwrap();

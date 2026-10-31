@@ -4,6 +4,8 @@
 use crate::authored_selections::call_targets::{
     checked_statement_call_target, implementation_call_selection,
 };
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -149,10 +151,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 fact_roots.push(membership.value);
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                {
+                for argument in expressions(program).expression_handles(application.arguments) {
                     fact_roots.push(*argument);
                 }
             }
@@ -160,11 +159,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
     }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-            {
+            for statement in crate::flow::state_statements(program, state.statement_nodes).iter() {
                 let Some(fact) = statement.as_assembly_fact() else {
                     continue;
                 };
@@ -205,8 +200,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
             if call.target_symbol.is_valid() || call.receiver.is_valid() {
                 continue;
             }
-            let occurrences = program
-                .expression_table
+            let occurrences = expressions(program)
                 .authored_selection_occurrences(expression)
                 .collect::<Vec<_>>();
             for occurrence in occurrences.iter().copied() {
@@ -274,10 +268,7 @@ pub(crate) fn collect_checked_statement_selections(
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Some(call) = statement.as_call() else {
                     continue;
                 };

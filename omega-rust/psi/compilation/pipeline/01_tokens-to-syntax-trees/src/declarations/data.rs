@@ -2,6 +2,7 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::tables::{items, items_of};
 use crate::type_syntax::parse_type::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
@@ -44,6 +45,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         type_parameters,
         input,
     )?;
+    crate::parameters::contracts::validate_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        next,
+    )?;
     input = next;
     let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
@@ -63,13 +69,13 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
         input = next.take_punctuation(PunctuationKind::Percent, "%")?;
         let (relation, next) = parse_path_handle_span(input, |member| {
-            syntax_trees.items.append_identifier_path_member(member)
+            items(syntax_trees).append_identifier_path_member(member)
         })?;
         input = next;
         let equivalence = if input.at_contextual("where") {
             input = input.take_contextual("where")?;
             let (selected_relation, next) = parse_path_handle_span(input, |member| {
-                syntax_trees.items.append_identifier_path_member(member)
+                items(syntax_trees).append_identifier_path_member(member)
             })?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
@@ -102,6 +108,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 supply_mode: language_core::DataSupplyMode::CheckedShape,
                 lifetime_parameters,
                 type_parameters,
+                conformance_bounds: generic_parameters.conformance_bounds,
                 generic_instance: None,
                 properties,
                 cleanup_selection,
@@ -166,6 +173,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             supply_mode: language_core::DataSupplyMode::CheckedShape,
             lifetime_parameters,
             type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
             generic_instance: None,
             properties,
             cleanup_selection,
@@ -192,11 +200,16 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
         ));
     }
     let (generic_parameters, input) =
-        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::StaticBinders)?;
+        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::DataDeclaration)?;
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
     let ((), input) = crate::parameters::contracts::parse_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        input,
+    )?;
+    crate::parameters::contracts::validate_machine_parameter_contracts(
         syntax_trees,
         type_parameters,
         input,
@@ -220,6 +233,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
             supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
             lifetime_parameters,
             type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
             generic_instance: None,
             properties,
             quotient: None,
@@ -245,11 +259,11 @@ fn parse_data_members<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, next) = parse_data_member(syntax_trees, input)?;
         input = next;
-        members.push(syntax_trees.items.append_data_member(member));
+        members.push(items(syntax_trees).append_data_member(member));
     }
 
     let members = members.finish();
-    validate_data_identity_modes(syntax_trees.items.data_members(members), input)?;
+    validate_data_identity_modes(items_of(syntax_trees).data_members(members), input)?;
     Ok((members, input))
 }
 
@@ -473,24 +487,15 @@ fn parse_case_member<'tokens, 'source>(
         (HandleSpan::empty(), Vec::new())
     };
 
-    // CASE-CONSTRAINTS: a case-local `where` clause after the payload list --
-    // `case Range(lo: u64, hi: u64) where lo <= hi;` -- names payload and
-    // common fields; the fact list ends at the case's `;`. The
-    // case-constraints-through-default-domain migration spells the same
-    // proposition in the data's `requires` disjunction; both views land on
-    // this `where_facts` span (see `project_case_predicate_facts`).
-    let mut where_facts = HandleSpan::empty();
-    if input.at_contextual("where") {
-        input = input.take_contextual("where")?;
-        let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| input.at_punctuation(PunctuationKind::Semicolon) || input.tokens.is_empty(),
-            )?;
-        where_facts = facts;
-        input = rest;
+    // Case-local predicates are retired. The same proposition is a conjunct of
+    // the data declaration's default-domain `requires`, and
+    // `project_case_predicate_facts` derives this span from that disjunction.
+    if input.at_contextual("where") || input.at_contextual("requires") {
+        return Err(input.error_here(
+            "case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`",
+        ));
     }
+    let where_facts = HandleSpan::empty();
 
     input = if input.at_punctuation(PunctuationKind::Semicolon) {
         input.take_punctuation(PunctuationKind::Semicolon, ";")?
@@ -543,7 +548,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         input = next;
 
-        let handle = syntax_trees.items.append_data_payload_field(DataField {
+        let handle = items(syntax_trees).append_data_payload_field(DataField {
             identity,
             name: field_name,
             relevance,
@@ -611,11 +616,11 @@ fn project_case_predicate_facts(
     if extracted.is_empty() {
         return;
     }
-    let member_count = syntax_trees.items.data_members(members).len();
+    let member_count = items_of(syntax_trees).data_members(members).len();
     for (case_name, fact_handles) in extracted {
         let member_index = (0..member_count).find(|index| {
             matches!(
-                syntax_trees.items.data_members(members)[*index],
+                items_of(syntax_trees).data_members(members)[*index],
                 DataMember::Variant(ref variant)
                     if variant.name.as_str(syntax_trees) == case_name
             )
@@ -624,33 +629,15 @@ fn project_case_predicate_facts(
             continue;
         };
         let mut facts = crate::handle_spans::HandleSpanBuilder::new();
-        // An authored clause and a projected branch may coexist while the
-        // surface retires; the union preserves both.
-        let authored: Vec<ProofFact> = match &syntax_trees.items.data_members(members)[member_index]
-        {
-            DataMember::Variant(variant) => variant
-                .where_facts
-                .handles()
-                .map(|handle| syntax_trees.items.proof_fact(handle).clone())
-                .collect(),
-            _ => Vec::new(),
-        };
-        for fact in authored {
-            facts.push(syntax_trees.items.append_proof_fact(fact));
-        }
         for handle in fact_handles {
-            facts.push(
-                syntax_trees
-                    .items
-                    .append_proof_fact(ProofFact::Expression(handle)),
-            );
+            facts.push(items(syntax_trees).append_proof_fact(ProofFact::Expression(handle)));
         }
         let facts = facts.finish();
         if facts.is_empty() {
             continue;
         }
         if let DataMember::Variant(variant) =
-            &mut syntax_trees.items.data_members_mut(members)[member_index]
+            &mut items(syntax_trees).data_members_mut(members)[member_index]
         {
             variant.where_facts = facts;
         }

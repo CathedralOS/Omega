@@ -399,6 +399,17 @@ impl StructuralJudge<'_> {
                         .collect::<Option<Vec<_>>>()?,
                 })
             }
+            StructuralTerm::RepeatedArray { length, element } => {
+                Some(StructuralTerm::RepeatedArray {
+                    length,
+                    element: match element {
+                        Some(element) => {
+                            Some(Box::new(self.resolve_case_subject(*element, depth + 1)?))
+                        }
+                        None => None,
+                    },
+                })
+            }
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::ScalarRepresentation { .. }
@@ -417,12 +428,20 @@ impl StructuralJudge<'_> {
                 element_identity,
                 collection,
                 index,
-            } => Some(StructuralTerm::IndexedValue {
-                element_type,
-                element_identity,
-                collection: Box::new(self.resolve_case_subject(*collection, depth + 1)?),
-                index: Box::new(self.resolve_case_subject(*index, depth + 1)?),
-            }),
+            } => {
+                let collection = self.resolve_case_subject(*collection, depth + 1)?;
+                let index = self.resolve_case_subject(*index, depth + 1)?;
+                Some(
+                    observed_projections::uniform_element(&collection, &index).unwrap_or_else(
+                        || StructuralTerm::IndexedValue {
+                            element_type,
+                            element_identity,
+                            collection: Box::new(collection),
+                            index: Box::new(index),
+                        },
+                    ),
+                )
+            }
             StructuralTerm::CallProjection { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }

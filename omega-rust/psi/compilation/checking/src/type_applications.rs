@@ -153,6 +153,20 @@ impl DeclarationScopes {
         reference: TypeReferenceHandle,
         scope: usize,
     ) -> Option<(&'program DataDefinition, usize)> {
+        // Representation choice changes physical placement, not the semantic
+        // field telescope. These read-only content/loan walks also run before
+        // a closed representation view has entered the prepared roster. Keep
+        // T's complete application and its supplying substitution scope; the
+        // erased implementation operand contributes no possible hidden slots.
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            let (semantic, scope) = self.head(program, storage.semantic_type, scope);
+            return self.definition(program, semantic, scope);
+        }
+        if let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            return self.definition(program, *base_type, scope);
+        }
         if let Some(definition) = program.closed_data_definition(reference) {
             return Some((definition, scope));
         }

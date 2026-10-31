@@ -55,6 +55,7 @@ pub(crate) use crash_plan_facts::{
     derive_authored_signature_crash_buckets, machine_entry_parameter_names,
 };
 pub(crate) use dynamic_conformance::normalized_dynamic_row_identities;
+pub(crate) use qualification_evidence::{checked_validation_evidence, propagated_evidence};
 
 /// Checker-side read of the shared crash entry-provenance law. Guard
 /// admission and call-actual substitution must agree on when a source read

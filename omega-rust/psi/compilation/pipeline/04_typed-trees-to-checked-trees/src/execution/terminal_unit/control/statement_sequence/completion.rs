@@ -22,6 +22,8 @@ use super::{
     StatementSequence, SymbolHandle, append_exit_reference_releases, append_reference_releases,
     structural_operands,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.
@@ -106,8 +108,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     // statement root.
     let tail = statements.last().and_then(|statement| {
         let expression = statement.as_expression()?;
-        if program
-            .expression_table
+        if expressions(program)
             .call_node(*expression)
             .and_then(|call| call.native_code_layout.as_ref())
             .is_some_and(|query| query.discards_result)
@@ -484,10 +485,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         trivial_affine_locals,
         entry_claims,
         &operations,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
+        crate::flow::state_statements(program, state.statement_nodes).len(),
     );
     trace.phase("statement sequence: completion descriptor retirement");
     append_exit_reference_releases(
@@ -546,7 +544,7 @@ fn forwarded_parameter(
     {
         return None;
     }
-    let place = validation::canonical_place_from_expression_in_state(
+    let place = place_at(
         program,
         state.symbol,
         usize::try_from(root.statement_ordinal).ok()?,

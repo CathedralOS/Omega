@@ -122,7 +122,7 @@ gen-d3b0020bf6a (revision d3b0020bf6a72cac2367f3eae2ff1db55cc332b0, omega sha256
 
 - **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): the settled
   [proposition-based scalar range contract](../../../../wiki/spec/language/domains.md#declaration-and-membership),
-  where machine and state parameters carry `requires`, results carry `ensures`, and locals take their
+  requires machine and state parameters carry `requires`, results carry `ensures`, and locals take their
   facts from initializers, guards and calls. This row is one customer group's nine-place transport and
   execution of that contract; the underlying numeric-policy realization is
   `ARITHMETIC-POLICY-REALIZATION`.

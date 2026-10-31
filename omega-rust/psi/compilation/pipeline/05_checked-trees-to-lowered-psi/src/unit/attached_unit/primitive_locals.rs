@@ -349,26 +349,8 @@ impl OperationFrame<'_, '_> {
         // The initializer completes on the ordinary operand schedule: a
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
-        let initializer = {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.source_value(
-                identities,
-                environment.checked,
-                environment.machine,
-                environment.state,
-                *statement_index,
-                CheckedScalarExpressionRole::StorageInitializer,
-                value,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
+        let role = CheckedScalarExpressionRole::StorageInitializer;
+        let initializer = self.source_value(identities, *statement_index, role, value)?;
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let declarations: &[StructuralTypeDeclaration] = match &self.structural_types {
             StructuralTypeRoster::Owned(types) => types,
@@ -522,6 +504,7 @@ impl super::argument_evaluation::Evaluation {
             )?;
         } else {
             self.prepare_immutable_local_borrow(
+                identities,
                 checked,
                 state,
                 source.structural_storage_root(),
@@ -544,6 +527,7 @@ impl super::argument_evaluation::Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::unit::attached_unit) fn prepare_immutable_local_borrow(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state_symbol: symbols::SymbolHandle,
         root: Option<facts::PlaceRoot>,
@@ -577,17 +561,26 @@ impl super::argument_evaluation::Evaluation {
         if value.scalar_type != scalar_type {
             return unsupported("immutable primitive borrow changes its completed scalar type");
         }
-        let mut carriers = structural_types.iter().filter(|declaration| {
-            declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
-        });
+        let identity =
+            identities.intern(&checked.normalized_type_identity_text(local.declared_type));
+        let mut carriers = structural_types
+            .iter()
+            .filter(|declaration| declaration.identity == identity);
+
         let structural_type = carriers
             .next()
             .ok_or(LoweringError::Unsupported(
                 "immutable primitive home has no storage carrier",
             ))?
             .id;
-        if carriers.next().is_some() {
-            return unsupported("immutable primitive home has ambiguous storage carriers");
+        if carriers.next().is_some()
+            || terminal_psi::find_structural_type(structural_types, structural_type).is_none_or(
+                |declaration| {
+                    declaration.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
+                },
+            )
+        {
+            return unsupported("immutable primitive home lost its exact declared storage carrier");
         }
         let place = self.immutable_primitive_home(
             symbol,

@@ -4,6 +4,7 @@
 use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
 };
+use crate::places::place_at;
 
 /// The source of boundary authority is independent of operand scheduling.
 /// Consumers retain the ordinary parameter in their own signature. Selecting
@@ -110,12 +111,7 @@ fn resolve_parameter_binding_receiver_sources<'program>(
 ) -> Result<Vec<(&'program StateParameter, validation::CanonicalPlace)>, &'static str> {
     let place = match call_site {
         validation::CallSite::Expression { call, .. } => {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                call.receiver,
-            )
+            place_at(program, state.symbol, statement_index, call.receiver)
         }
         validation::CallSite::Statement(call) => {
             validation::projected_statement_receiver_place(program, state, statement_index, call)

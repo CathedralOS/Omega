@@ -18,6 +18,7 @@ mod graph;
 mod joint_natural;
 mod order;
 mod progress;
+mod rank_inputs;
 mod ranking;
 mod source_natural;
 
@@ -196,47 +197,21 @@ pub(crate) fn admit_machine_rankings(
                     .iter()
                     .any(|state| state.symbol == coordinate.state)
             })
-            .map(|coordinate| {
-                let path = admitted
-                    .path_segments
-                    .insert_many(coordinate.coordinate.path.clone());
-                let entry_indexes = admitted
-                    .entry_indexes
-                    .insert_many(coordinate.entry_indexes.clone());
-                let selected = admitted
-                    .coordinates
-                    .insert(checked_trees::CheckedRankCoordinate {
-                        parameter: coordinate.parameter,
-                        path,
-                        entry_indexes,
-                    });
-                let measure = match coordinate.observation {
-                    validation::RankPremiseObservation::Value => {
-                        checked_trees::CheckedNaturalRankMeasure::IntegerValue {
-                            coordinate: selected,
-                            primitive_type: coordinate.primitive_type,
-                        }
-                    }
-                    validation::RankPremiseObservation::Length => {
-                        checked_trees::CheckedNaturalRankMeasure::SequenceLength {
-                            coordinate: selected,
-                        }
-                    }
-                };
-                checked_trees::CheckedStateNaturalRank {
-                    function: coordinate.function,
-                    state: coordinate.state,
-                    parameter: coordinate.parameter,
-                    parameter_position: coordinate.parameter_position,
-                    measure,
-                    observation: Default::default(),
-                }
-            })
-            .collect::<Vec<_>>();
+            .map(|coordinate| joint_natural::retain_observation(program, &mut admitted, coordinate))
+            .collect::<Result<Vec<_>, _>>();
+        let joint_observations = match joint_observations {
+            Ok(observations) => observations,
+            Err(reason) => {
+                local_terminates = false;
+                entry_rank_formed = false;
+                diagnostic = reason.to_owned();
+                Vec::new()
+            }
+        };
         let observations = if local_terminates && !joint_observations.is_empty() {
             admitted.observations.insert_many(joint_observations)
         } else if local_terminates && witness.is_some() {
-            ranking::prepare_natural_observations(program, machine, &mut admitted)
+            ranking::prepare_natural_observations(program, machine, &mut admitted, call_frames)
                 .map(|observations| admitted.observations.insert_many(observations))
                 .unwrap_or_default()
         } else {

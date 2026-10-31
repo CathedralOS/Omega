@@ -9,6 +9,7 @@ use crate::preparation::declaration_selection::{
     GenericApplicationSubstitution, has_deferred_const_argument, substituted_generic_arguments,
     type_mentions_parameters,
 };
+use crate::tables::syntax_type_references;
 use source::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::JoinedSyntaxPath;
@@ -79,8 +80,7 @@ pub(crate) fn pending_const_initializer_leaves(
     ) -> Result<(), String> {
         // A carrier spelled as a bare parameter reselects the enclosing
         // application's already-closed argument handle.
-        if let Some(name) = syntax
-            .type_references
+        if let Some(name) = syntax_type_references(&syntax)
             .type_reference(type_reference)
             .as_named()
             && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -97,9 +97,7 @@ pub(crate) fn pending_const_initializer_leaves(
         // A rewritten `Named` instance spelling carries its authored
         // application as origin evidence; resolve through it so the
         // synthesized name never has to re-resolve as a header symbol.
-        let origin = syntax
-            .type_references
-            .generic_application_origin(type_reference);
+        let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
         if origin.is_valid() && origin != type_reference {
             return collect(syntax, selection, expression, origin, substitution, leaves);
         }
@@ -207,6 +205,14 @@ pub(crate) fn pending_const_initializer_leaves(
                 lifetime_arguments,
                 arguments,
             } => {
+                // A produced aggregate is checked against its exact typed
+                // application. Its fields need no second syntax-level view,
+                // and imported declaration bodies need not be copied here.
+                if closed_leaf_carrier(syntax, type_reference, substitution)
+                    && structured_leaf(syntax, selection, expression) {
+                    push_structured_leaf(leaves, expression, type_reference);
+                    return Ok(());
+                }
                 // A closed application `Base<args..>` stands in for its
                 // synthesized instance: the selected template keeps exact
                 // declaration custody while its parameter bindings map each

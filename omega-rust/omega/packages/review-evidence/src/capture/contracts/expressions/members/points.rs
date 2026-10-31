@@ -1,5 +1,6 @@
 //! Declaration projection follows the checked precondition's entry scope.
 
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::facts::exactly_one;
@@ -44,11 +45,10 @@ pub(super) fn contract_point(
         "contract member path",
         "entry owner",
     )?;
-    let entry = compilation.machine_states(machine).first().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "reviewed precondition has no canonical entry state",
-        )]
-    })?;
+    let entry = compilation
+        .machine_states(machine)
+        .first()
+        .or_evidence("reviewed precondition has no canonical entry state")?;
     Ok((
         ProgramPoint::State {
             machine_symbol,

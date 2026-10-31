@@ -1,0 +1,13 @@
+# Fixed policy compositions
+
+Owning task: `LIBRARY-REPRESENTATION-FAMILIES`, named FixedLayout policy applications with complete static operands and portable physical observations. These are compositions of the existing storage row, not additional transport rows.
+
+- [Closed requirement policy](closed_requirement_policy/main.omg) checks the same declared finite 7/11 contract at both calls and reads the authored byte at offset 8. Its [twin](closed_requirement_policy/invalid/main.omg) asks for an incompatible physical extent.
+- [Finite dynamic policy](finite_dynamic_policy/main.omg) executes fixed-layout field and byte operations inside a finite generic dynamic implementation. Both Width entries return 7, so this runtime oracle does not distinguish lost or permuted dispatcher entries. Its [twin](finite_dynamic_policy/invalid/main.omg) makes the selected plan alignment zero.
+- [Computed const policy](computed_const_policy/main.omg) forms `Value + 1` under the genuine upper bound published by both the public requirement and implementation. Its [twin](computed_const_policy/invalid/main.omg) removes that bound while leaving the policy, actual caller and operation unchanged. An unused policy parameter does not discharge operand formation.
+
+The [invariant open policy](unbounded_invariant_policy/main.omg), [semantic-only varying policy](semantic_only_policy/main.omg), [valid overridden policy](overridden_valid_policy/main.omg) and [unmentioned valid policy](unmentioned_valid_policy/main.omg) retain distinct Source checking contexts. A semantic description can remain abstract; a physical operation still needs complete geometry. Existing partial-target coverage remains in `tests/omega/pass/layouts/unused_partial_target_layout_exit`.
+
+Each positive declares exit zero and ordinary hosted ProgramEntry rows. Exact optimized producer94 (`2ba727eefb59abae5e75b6b6f7e94a5ddcb58742`) freshly observed these seven compositions and the existing partial-target case exiting zero in both engines. Their nine intended Source controls and three existing private-slot Source positives also meet their authored oracles. Historical runs keep their own producer identity. Source-invalid programs are never executed. Additional pinned controls cover uncalled finite members, unavailable universal geometry and invalid dormant or overridden policy bodies.
+
+The nine-place storage and fragmented-byte rows remain the transport evidence. Nested reference descriptors, aliases, conversion families, complete C ABI migration, product producer parity and the other remaining task requirements are not closed by these compositions. The unchanged unqualified descriptor witness and its controls remain linked from the owning task at their original checkpoint.

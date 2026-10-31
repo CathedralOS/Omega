@@ -270,10 +270,10 @@ exact integrated review is a separate qualification gate.
 
 Further valid-positive refusals are retained against fixed baseline 37
 and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
-`an unclosed machine or runtime operand`, a cross-module const alias loses its
-exact declaration selection, and a generic abstract-premise call confuses its
-actual and required `T`. Their current producer behavior has not been re-observed;
-they remain the same parent's next formation work.
+`an unclosed machine or runtime operand`, and a cross-module const alias loses its
+exact declaration selection. Their current producer behavior has not been re-observed.
+The generic abstract-premise confusion of actual and required `T` is the
+[generic exact type actual](#generic-exact-type-actual) production.
 This Type/Const application step does not claim those repairs. The broader
 task's law, declaration migration and other-host acceptance remain open.
 
@@ -526,6 +526,51 @@ fragment result and diagnostics as the earlier C2 measurement. The six AA
 baseline attributions above therefore still apply; no unrelated constants rows
 are recorded. The rejected C1/C3 reviews, both source generations and all
 nonaccepted intermediate observations retain their original identities.
+
+## Generic exact type actual
+
+A call inside a generic abstract signature is the premise under the exact type
+actual. The signature records that call's result, and the caller reads the
+record.
+
+`apply<T, machine Observe>` requires `premise<T>(kept)`. The call
+`apply<bool, witness<bool>>(kept)` substitutes that premise with the exact
+actual `bool`. `hold(direct)` requires `direct == true` and returns `direct`,
+so a lowered value other than true takes `bad()` (`crash Trap`). Each twin
+changes only `premise`'s body from `true` to `false`.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [local](generic_actual/local/main.omg) | [invalid](generic_actual/local/invalid/main.omg) |
+| field | [field](generic_actual/field/main.omg) | [invalid](generic_actual/field/invalid/main.omg) |
+| parameter | [parameter](generic_actual/parameter/main.omg) | [invalid](generic_actual/parameter/invalid/main.omg) |
+| call result | [call result](generic_actual/call_result/main.omg) | [invalid](generic_actual/call_result/invalid/main.omg) |
+| match join | [match join](generic_actual/match_join/main.omg) | [invalid](generic_actual/match_join/invalid/main.omg) |
+| const name | [const name](generic_actual/const_name/main.omg) | [invalid](generic_actual/const_name/invalid/main.omg) |
+| nested machine | [other state](generic_actual/other_state/main.omg) | [invalid](generic_actual/other_state/invalid/main.omg) |
+| another machine | [other machine](generic_actual/other_machine/main.omg) | [invalid](generic_actual/other_machine/invalid/main.omg) |
+| target body | [target body](generic_actual/target_body/main.omg) | [invalid](generic_actual/target_body/invalid/main.omg) |
+
+The nine places are pinned as
+`tests/omega/{pass,fail}/facts/abstract_signature_call_generic_actual_through_<place>_{exit,rejected}`.
+Reject fragments are `structurally false` and `premise<T>(kept)`.
+
+On Linux x86_64 at base `3caadfad789f1e6521a06ccb3ebdf043f7733da5`, before the
+repair, the local positive refused with `actual T, required T` on the
+machine-parameter requirement `Observe`. After the repair, all nine positives
+report native exit 0 and interpreter exit 0 from `omega run --both`, and all
+nine twins reject the premise. Windows, macOS, and QEMU were not run.
+
+- **Establishment:** `premise<T>(kept)` is an obligation of the abstract
+  signature. The body `true` discharges it only after `T` is the exact actual.
+- **Identity:** the value subject is one `bool` per place. The type actual is
+  the enclosing binder `T` at the signature and `bool` at the call.
+- **Composition:** `hold(direct)` reads the recorded result. No caller guard
+  re-establishes `direct == true`.
+- **Soundness:** each twin is structurally false on `premise<T>(kept)`.
+- **Psi 05–07 through Omega 07–09:** the nine positives agree on this host's
+  Terminal Psi interpreter and native image. The other hosted targets are
+  bound and not executed here.
 
 ## What remains open
 

@@ -7,6 +7,8 @@
 use super::actions::disposition_actions;
 use super::retained_owners::{owner_group_actions, selected_actions};
 use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
 use checked_trees::{
     CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallCoordinate, CheckedUnitCallableEntry,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -830,11 +832,7 @@ pub(crate) fn finalize_completion_actions(
             }
             let call = facts.flow.control.calls.get(source_call);
             let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
-                facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(row.calls)
+                crate::flow::call_flows(&facts.flow.control, row.calls)
                     .iter()
                     .any(|candidate| std::ptr::eq(candidate, call))
                     .then_some(row)
@@ -922,9 +920,7 @@ pub(crate) fn finalize_completion_actions(
             }
             let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
             let state = program.state_in_machine(machine, state_flow.state_symbol)?;
-            let (_, statement) = program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
+            let (_, statement) = indexed_statements(program, state.statement_nodes)
                 .find(|(statement_index, _)| *statement_index == call.statement_index)?;
             let completed = crate::checks::ownership_occurrences::completed_expressions(
                 program,
@@ -1068,9 +1064,7 @@ pub(crate) fn finalize_completion_actions(
                 {
                     refusal = format!(
                         "{site}: completed operand `{}` ({:?}) has no selected normal death",
-                        program
-                            .expression_table
-                            .display_name(operand.root.expression),
+                        expressions(program).display_name(operand.root.expression),
                         operand.root.expression,
                     );
                     return None;

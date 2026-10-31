@@ -12,9 +12,8 @@ machine Main::main(main: &mut Main) -> u64 {
     }
 }
 
-machine Main::walk(main: &mut Main, limit: u64, index: u64)
-terminates by (limit, index);
--> u64
+machine Main::walk(main: &mut Main, limit: u64, index: u64) -> u64
+terminates by (limit, index)
 {
     transition index < limit {
         true -> walk(main, limit, index + 1)

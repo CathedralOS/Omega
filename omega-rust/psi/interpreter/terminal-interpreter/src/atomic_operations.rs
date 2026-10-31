@@ -31,7 +31,7 @@ impl TerminalExecution<'_> {
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
         let machine = self.program.verified_machine(self.current_machine)?;
-        let root = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let root = self.structural_value(place)?;
         let access = terminal_semantics::arrival_parameter(machine, place)
             .filter(|parameter| parameter.structural_type == root.structural_type)
             .map(|parameter| parameter.access)
@@ -69,7 +69,7 @@ impl TerminalExecution<'_> {
             .into_iter()
             .map(StructuralPathSegment::Case)
             .collect::<Vec<_>>();
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let (canonical, declaration) = terminal_semantics::static_field_projection(
             types.values(),
             declared_parent,
@@ -144,9 +144,9 @@ impl TerminalExecution<'_> {
                 {
                     return Err(malformed());
                 }
-                let types = self.program.structural_types();
+                let types = self.structural_types();
                 let cases = terminal_psi::types::atomic_once_outcome_cases(
-                    types.get(&result.structural_type).ok_or_else(malformed)?,
+                    types.declaration(&result.structural_type)?,
                     scalar_type,
                 )
                 .ok_or_else(malformed)?;

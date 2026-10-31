@@ -36,9 +36,7 @@ pub(super) fn policy(
     encoder.package_identity_field("package", policy.package)?;
     encoder.string_field("target", policy.target.identity().as_str())?;
     encoder.field("plans", |encoder| encoder.sequence(&policy.plans, plan))?;
-    encoder.field("families", |encoder| {
-        encoder.sequence(&policy.families, family)
-    })
+    encoder.sequence_field("families", &policy.families, family)
 }
 
 fn plan(
@@ -59,9 +57,7 @@ fn plan(
         encode_nominal,
     )?;
     encoder.field("target", |encoder| encoder.string(&plan.target))?;
-    encoder.field("methods", |encoder| {
-        encoder.sequence(&plan.methods, service::method)
-    })?;
+    encoder.sequence_field("methods", &plan.methods, service::method)?;
     encoder.field("rows", |encoder| encoder.sequence(&plan.rows, row))?;
     encoder.field("grants", |encoder| {
         encoder.sequence(&plan.grants, |encoder, grant| {
@@ -105,12 +101,8 @@ fn row(
     )?;
     encoder.field("installation_reach", |encoder| {
         encoder.option(row.installation_reach.as_ref(), |encoder, reach| {
-            encoder.field("upper_bound", |encoder| {
-                encoder.sequence(&reach.upper_bound, encode_nominal)
-            })?;
-            encoder.field("resolved", |encoder| {
-                encoder.sequence(&reach.resolved, encode_nominal)
-            })
+            encoder.sequence_field("upper_bound", &reach.upper_bound, encode_nominal)?;
+            encoder.sequence_field("resolved", &reach.resolved, encode_nominal)
         })
     })?;
     encoder.u64_field("admitted_same_stack_bytes", row.admitted_same_stack_bytes)

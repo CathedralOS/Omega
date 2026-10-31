@@ -6,7 +6,7 @@ boundary machine read(value: u64) -> u64 satisfies Reader::read reaches Read { v
 trait Published { machine run() -> u64; }
 
 machine apply<machine Step>(value: u64) -> u64
-where machine Step(value: u64) -> u64 reaches Read;
+requires machine Step(value: u64) -> u64 reaches Read;
 reaches Read
 { Step(value) }
 

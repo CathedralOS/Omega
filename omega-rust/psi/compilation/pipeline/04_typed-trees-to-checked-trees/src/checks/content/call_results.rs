@@ -5,6 +5,8 @@
 //! annotation or a compatible content algebra cannot substitute for that join.
 
 use super::content_paths::content_segments_to_fact_path;
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -885,9 +887,7 @@ fn input_argument(
     parameters: &[StateParameter],
     position: usize,
 ) -> Option<ExpressionHandle> {
-    let arguments = program
-        .expression_table
-        .expression_handles(invocation.call.arguments);
+    let arguments = expressions(program).expression_handles(invocation.call.arguments);
     parameters.get(position)?;
     arguments.get(position).copied()
 }
@@ -936,11 +936,7 @@ pub(super) fn input_claim(
         .flow
         .control
         .state(invocation.machine, invocation.state)?;
-    let call_flow = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let call_flow = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .find(|call| {
             call.statement_index == invocation.statement
@@ -999,12 +995,7 @@ pub(super) fn input_claim(
         return None;
     }
     let evaluation = invocation.evaluation(program)?;
-    let mut current = validation::canonical_place_from_expression_in_state(
-        program,
-        invocation.state,
-        invocation.statement,
-        argument,
-    )?;
+    let mut current = place_at(program, invocation.state, invocation.statement, argument)?;
     current.extend_segments(path);
     let transferred = unique_claim(
         program,

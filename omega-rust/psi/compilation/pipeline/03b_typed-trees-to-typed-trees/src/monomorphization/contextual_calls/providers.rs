@@ -3,6 +3,7 @@
 //! telescopes are universal schemas, never permission to choose one instance.
 
 use super::super::application_lifetimes as lifetime_arguments;
+use crate::tables::expressions_of;
 
 use super::super::{
     Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees, candidate,
@@ -24,16 +25,14 @@ pub(super) fn close(
     // Executable rewriting consumes nested tuples. Admission always reads
     // the occurrence's retained authored provider, including erased regions,
     // rather than treating a private instance as a new source declaration.
-    let mut source_selection = program
-        .expression_table
+    let mut source_selection = expressions_of(program)
         .static_machine_application_arguments(application)
         .iter()
         .filter(|argument| super::invocations::is_machine(program, argument.symbol))
         .nth(ordinal)
         .cloned()
         .unwrap_or_else(|| selection.clone());
-    let owner = program
-        .expression_table
+    let owner = expressions_of(program)
         .static_machine_application(application)
         .lexical_owner;
     super::super::body_rewriting::normalize_const_arguments(
@@ -161,16 +160,7 @@ pub(super) fn close(
             None => provider.const_bindings[ordinal] = Some(actual),
             Some(previous)
                 if !supplied_constants[ordinal]
-                    && program
-                        .static_const_type_reference_identity(previous)
-                        .zip(program.static_const_type_reference_identity(actual))
-                        .map_or_else(
-                            || {
-                                program.normalized_type_identity_text(previous)
-                                    != program.normalized_type_identity_text(actual)
-                            },
-                            |(previous, actual)| previous != actual,
-                        ) =>
+                    && !super::super::selection::same_const_identity(program, previous, actual) =>
             {
                 provider.conflicted = true
             }
@@ -195,9 +185,7 @@ pub(super) fn close(
         &lifetimes,
         expected,
         caller_types,
-        program
-            .expression_table
-            .static_machine_application_lifetimes(application),
+        expressions_of(program).static_machine_application_lifetimes(application),
     ) {
         return Ok(None);
     }
@@ -217,23 +205,7 @@ pub(super) fn close(
     // Admission consumes the complete determined symbolic tuple, not the
     // original universal declaration. Executable instances still require closed
     // operands; a caller's const binder is not a cache key or a concrete value.
-    if provider
-        .type_bindings
-        .iter()
-        .chain(&provider.const_bindings)
-        .flatten()
-        .any(|reference| super::static_operands::is_open(program, *reference))
-        || provider.machine_bindings.iter().flatten().any(|argument| {
-            matches!(
-                program.symbols.get(argument.symbol).kind,
-                symbols::SymbolKind::MachineParameter
-            ) || argument.application.is_some()
-        })
-        || provider.evidence_bindings.iter().flatten().any(|argument| {
-            validation::conformance_applications::close_conformance_application(program, argument)
-                .is_err()
-        })
-    {
+    if super::super::provider_tuple_closure::operands_are_open(program, &provider) {
         provider.binding_application = super::applications::retain_provider(
             program,
             &provider,

@@ -33,10 +33,7 @@ pub(in crate::selection) fn observe(
     };
     if result.scalar_type != ScalarType::Boolean
         || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
-        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        )
+        || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(invalid());
     }

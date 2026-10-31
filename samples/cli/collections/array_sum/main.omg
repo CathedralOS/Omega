@@ -14,7 +14,10 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-data Main {
+data Main
+requires
+    0 <= self.i && self.i <= 2
+{
     nums: [i32; 2];
     i: i32;
     sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.
@@ -23,19 +26,19 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator");
-    main.nums[0] = 2000000000;
-    main.nums[1] = 200000000;
+    main.nums[0] = 0x7735_9400;
+    main.nums[1] = 0x0BEB_C200;
     main.i = 0;
     main.sum = 0;
 
     transition {
-        _ -> step(main)
+        _ -> block step(main)
     }
 
     machine step(main: &mut Main) {
         transition main.i < 2 {
-            true -> add(main)
-            _ -> done(main)
+            true -> block add(main)
+            _ -> block done(main)
         }
     }
 
@@ -45,14 +48,14 @@ machine Main::main(main: &mut Main) reaches Console {
             + (widen_i32_to_i64(main.nums[main.i]) as i64 in Wrapping);
         main.i = main.i + 1;
         transition {
-            _ -> step(main)
+            _ -> block step(main)
         }
     }
 
     machine done(main: &mut Main) {
-        transition main.sum == 2200000000 {
-            true -> good(main)
-            _ -> bad(main)
+        transition main.sum == 0x8321_5600 {
+            true -> block good(main)
+            _ -> block bad(main)
         }
     }
 

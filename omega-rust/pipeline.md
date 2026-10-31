@@ -198,6 +198,44 @@ family coordinates remain complete and unavailable targets retain refusal rows.
 Preparation is application-local: a source cohort does not establish equality of
 Build defaults, overrides or assumptions. This removes late source reconstruction
 from publication, not all source dependencies from provider planning.
+Psi owns the target-neutral service surface: inherited applications, signatures,
+completion, claims, reach and progress premises. Its projection consumes the
+original simultaneous type/region scopes and retains exact ordered requirement
+correspondence and supplying ownership. Omega's
+`ServiceSchema` shares that declaration and attaches paired calling-report and
+commitment evidence by requirement coordinate; inherited receiver comparison
+still includes the complete target calling contract. The final immutable Product
+owner prepares the complete source census once, before target planning; early
+Build prepares a separate census for its unchanged provisional projection.
+Abstract generic declarations, live applied roots, retained named applications,
+operators, top-level requirements and sealed accessor declarations remain distinct
+origins. Unsupported surfaces and exact trait-requirement-closure refusals stay
+deferred data, not preparation failures. Target provider derivation and declaration
+custody query those records without projecting source schemas again. Candidate
+eligibility and capture coalescing remain separate operations; catalog presence
+grants neither selection nor execution. Independent package-review candidates
+prepare their own source census rather than borrowing custody coordinates.
+Selected physical calling consumes the exact provider schema and ordered row
+correspondence rather than searching source declarations by rendered names.
+Psi retains declaring-owner eligibility as deferred per-method data: an ordinary
+inherited trait does not become a boundary owner, and an unused such method does
+not make census preparation fail. Foreign extraction and component ABI preparation
+retain the complete provider/provenance relationship; toolchain settlement emits
+the same derived-plan carrier instead of a separate plan-plus-symbol record.
+Target calling-plan validation and commitment checks remain separate from this
+source correspondence. Native Build supply and canonical-host settlement attach
+calling evidence to the same prepared Product declarations instead of projecting
+neutral schemas per target. Canonical-host admission still requires the exact
+accepted package, path and complete target-augmented schema digest. Native
+supplies retain exact declared-signature checks and validate every authored
+target's locator before narrowing realization; neither catalog presence nor a
+Product row supplies Build-host authority. Entry-role nomination, physical-entry
+planning and deferred Build adapter lookup use those prepared declarations too;
+their existing source-shape, source-custody and checked-body admission remain
+explicit. Reference dispatch no longer carries retired `Binding<R>` receiver
+applications or calling-plan inputs used only by them. Other source-schema
+consumers, default ABI signature materialization and canonical Terminal publication
+of the full catalog remain unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -235,11 +273,14 @@ Build admission are reacquired. Invalid, truncated or obsolete records are
 optional misses. Terminal values inside the graph use the canonical Terminal
 codec and rejoin companion receipts through their original producers.
 
-This implements cross-invocation exact-program reuse. It does not admit checked
-dependency judgments into a different consumer from body hashes: cross-consumer
-reuse still needs complete producer-dependency context admission. In-memory
-shared declaration pages, local flow facts and conservative unknown-input
-fallback retain their existing ownership.
+This implements cross-invocation exact-program reuse. A dependency judgment
+enters another consumer only when the producer dependency context matches:
+package identity, dependency scope, and callee body hashes. A body hash alone
+does not admit it. Persisted source/check graphs and native Terminal products
+still require fresh source, dependency, compiler, and invocation admission
+before a recorded judgment is used. In-memory shared declaration pages, local
+flow facts and conservative unknown-input fallback retain their existing
+ownership.
 
 | Input → output | Owner |
 | --- | --- |
@@ -257,6 +298,56 @@ Terminal Psi. Source preparation remains package-owned input composition,
 not a new language stage.
 
 ## Build and compiler ownership migration
+
+Provider settlement is complete only when target policy consumes canonical Psi
+declarations and explicit Build/package inputs, without reopening checked source.
+The remaining connected migration is:
+
+1. Publish candidate/default and requirement declaration inputs before target
+   choice; keep whole-plan, target and grant selection in Omega.
+2. Publish exact calling applications, signatures and checked contracts so
+   Build-sponsored completion and target ABI/materialization consume records.
+3. Move entry, selected-family reach and source-cycle obligations onto canonical
+   declaration/call evidence, including dormant obligations for rootless checks.
+4. Complete owner-bound service/qualification/role review and deferred constant
+   recipes, then remove selected-source policy from Terminal inventory discovery.
+
+Each step removes the replaced source-reading route across all its consumers;
+none is a separate implementation handoff. Native receiving admission remains
+source-free. Check and declaration review must still work without executable
+publication, and reviewed candidates never replace original compiler custody.
+
+Boundary-value layout now takes a source-free storage recipe graph. Psi's
+`typed-trees::boundary_values` closes applications, reference descriptors,
+runtime members, all admitted fixed-storage alternatives and opaque carrier correspondence;
+Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
+target without reading typed source. Ordinary calling signatures, entry storage
+and table dispatch all use this one route. The graph carries storage meaning,
+not type/contract authority or a representation grant. It currently remains an
+invocation-owned projection: canonical Terminal signature publication, exact
+callback/policy capture, and Terminal-first target orchestration are still open.
+In particular, this split does not establish source-discard/reload acceptance.
+
+The same source catalog now retains native parameter/callback telescopes before
+target choice. Psi owns nominal parameter identities, static-machine ordinal
+gaps, callback requirements, synchronous-invocation flags and declared native
+positions. Default ABI lookup uses its Product-eligible declaration subset;
+authored policy evaluation retains the complete checked-input census, including
+Build copies. Omega consumes those records instead of rewalking signatures.
+Projection refusals remain deferred until an ABI request, and runtime type
+recipes still materialize one parameter at a time. These telescopes and their
+separate source correspondence are invocation-owned; publishing the complete
+signature/contract set canonically in Terminal is still required.
+
+Psi's same immutable catalog also retains the complete explicit calling-policy
+application census: the owning vocabulary, concrete boundary arguments, exact
+named-map capture, inherited signature order and simultaneous type bindings.
+Requests and their refusal results remain in source order. Omega follows these
+arena-backed associations rather than traversing trait requirements or rebuilding
+application scopes for every target. It still selects each deployment's policy
+body and evaluates the policy. Publishing these applications and their closed
+storage/contract inputs in Terminal, rather than retaining source coordinates,
+remains the next connected migration.
 
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
@@ -385,7 +476,7 @@ not synthesized service fields on an application record. Provider roots come fro
 actual calls and callback demand. Selected entries, private native derivation
 records and runtime provisions carry no synthetic field-establishment roster;
 older private records reject at their schema boundary. Ordinary provider
-admission, placed-view inputs and physical entry adapters remain independent.
+admission, access-view inputs and physical entry adapters remain independent.
 
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the
@@ -428,6 +519,35 @@ candidate cardinality, template-row agreement, complete closed-instance coverage
 and attachment to the selected plans. Review still prepares from the original
 compiler program, not the candidate under review. These are invocation-local
 declarations, not another portable format or permission to execute a provider.
+`SelectedProviderSource` now owns the immutable checked program and complete
+selected-plan roster together. It prepares that declaration payload lazily once;
+callback, Check, review and reference consumers borrow it and run source-free
+selection at their original admission points. Empty callback rosters do not
+initialize it. Clones share preparation, equality ignores only derived cache
+state, and no caller can replace the program independently of its plans.
+
+Psi's `PreparedProviderInventory` retains that same immutable checked owner
+before target selection. Its lazy demand inventory includes callable references,
+concrete and symbolic boundary applications, and implicit closed descriptor
+requirements; it is not entry reachability. Omega's source-free demand predicate
+reads those prepared coordinates, and the authored-choice predicate is shared
+with complete provider publication. Publication does not discard undemanded
+candidates. The inventory also retains authored Product target origins from the
+same typed-source query used during early Build preparation. Omega selects target
+defaults from these declarations without rescanning machine bodies. These
+process-local coordinates are not another portable boundary; candidate derivation,
+calling plans and source-side policy must still migrate before the driver can
+settle the full target product after Terminal production.
+
+That owner also retains direct-call declarations in machine/state/first-encounter
+order. Psi resolves exact machine and state aliases and records authored target,
+lexical target context, raw target membership, scope and family coordinates.
+Omega's `provider-selection/target_bodies.rs` consumes those records for candidate
+absence propagation and selected-entry/provider reach, preserving their distinct
+body-resolution rules. Neither operation walks source bodies. Rootless checks
+still impose no entry reach, and absence remains negative evidence rather than
+an execution grant. These are invocation-local declarations, not a new portable
+family schema or renewed support for retired target-prefixed syntax.
 
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider

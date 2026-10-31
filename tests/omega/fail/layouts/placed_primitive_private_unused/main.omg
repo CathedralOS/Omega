@@ -2,7 +2,7 @@ use omega::language::core::layout;
 use vendor::main;
 
 machine ignore<A, machine Step>(field: &A) -> u64
-where machine Step(field: &A) -> u64;
+requires machine Step(field: &A) -> u64;
 { 0u64 }
 
 machine main() {

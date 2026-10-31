@@ -12,9 +12,11 @@ pub(crate) use lexical_inputs::{
 };
 
 use crate::lowering::domain::lower_proof_facts;
+use crate::lowering::name::lower_names;
 use crate::lowering::statement::lower_statement_handle;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_items;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -266,10 +268,7 @@ pub(crate) fn lower_state_signature_parts(
             name: crate::lowering::name::lower_name(syntax_trees, name),
             storage: StateSignatureStorage {
                 spelling,
-                lifetime_parameters: lifetime_parameters
-                    .iter()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                    .collect(),
+                lifetime_parameters: lower_names(syntax_trees, &lifetime_parameters),
                 type_parameters,
                 is_default,
                 parameters,
@@ -330,12 +329,10 @@ pub(crate) fn lower_service_reach_names(
     syntax_trees: &SyntaxTrees,
     service_reaches: HandleSpan<syntax::identifier::Identifier>,
 ) -> Vec<symbol_resolved_trees::name::DiagnosticName> {
-    syntax_trees
-        .items
-        .identifier_path_members(service_reaches)
-        .iter()
-        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-        .collect()
+    lower_names(
+        syntax_trees,
+        syntax_trees.items.identifier_path_members(service_reaches),
+    )
 }
 
 pub(crate) fn lower_signature_contracts(
@@ -352,8 +349,7 @@ pub(crate) fn lower_machine_signature_contracts(
     contracts: HandleSpan<syntax::item::CapabilityContract>,
     states: HandleSpan<Handle<symbol_resolved_trees::state::State>>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
-    let has_outcome_rows = syntax_trees
-        .items
+    let has_outcome_rows = syntax_items(&syntax_trees)
         .capability_contracts(contracts)
         .iter()
         .any(|contract| {
@@ -660,8 +656,7 @@ pub(crate) fn lower_state_parameters(
     let mut span = HandleSpan::empty();
 
     for parameter in syntax_trees.items.state_parameters(parameters) {
-        let authored_type = syntax_trees
-            .items
+        let authored_type = syntax_items(&syntax_trees)
             .state_parameter(*parameter)
             .type_reference;
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;

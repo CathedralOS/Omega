@@ -12,6 +12,7 @@ mod segments;
 pub(super) use self::premises::append_statement_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
 use self::segments::place_segments_compatibility;
+use crate::flow::expressions;
 
 /// Produced evaluation facts shared by source debt and executable planning.
 /// Borrow only these fields so recording cleanup invocations stays independent.
@@ -219,10 +220,9 @@ fn attached_field_place_under_receiver(
     });
     segments.extend_from_slice(&field_place.segments);
     Some(checked_trees::CapturedPlace {
-        incoming_reference: Default::default(),
-        incoming_owner_path: Default::default(),
         root: receiver.root,
         segments,
+        ..Default::default()
     })
 }
 
@@ -237,10 +237,9 @@ pub(super) fn canonical_place_for_loan(
         facts::PlaceRoot::Symbol(symbol) => {
             if facts::PlaceRoot::Symbol(symbol) == loan.root {
                 Some(checked_trees::CapturedPlace {
-                    incoming_reference: Default::default(),
-                    incoming_owner_path: Default::default(),
                     root: place.root,
                     segments: place.segments.clone(),
+                    ..Default::default()
                 })
             } else {
                 match place.segments.split_first() {
@@ -251,10 +250,9 @@ pub(super) fn canonical_place_for_loan(
                         remaining,
                     )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
                         Some(checked_trees::CapturedPlace {
-                            incoming_reference: Default::default(),
-                            incoming_owner_path: Default::default(),
                             root: loan.root,
                             segments: remaining.to_vec(),
+                            ..Default::default()
                         })
                     }
                     Some((
@@ -267,26 +265,23 @@ pub(super) fn canonical_place_for_loan(
                         ],
                     )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
                         Some(checked_trees::CapturedPlace {
-                            incoming_reference: Default::default(),
-                            incoming_owner_path: Default::default(),
                             root: loan.root,
                             segments: remaining.to_vec(),
+                            ..Default::default()
                         })
                     }
                     _ => Some(checked_trees::CapturedPlace {
-                        incoming_reference: Default::default(),
-                        incoming_owner_path: Default::default(),
                         root: place.root,
                         segments: place.segments.clone(),
+                        ..Default::default()
                     }),
                 }
             }
         }
         facts::PlaceRoot::Expression(_) => Some(checked_trees::CapturedPlace {
-            incoming_reference: Default::default(),
-            incoming_owner_path: Default::default(),
             root: place.root,
             segments: place.segments.clone(),
+            ..Default::default()
         }),
         facts::PlaceRoot::Unknown
         | facts::PlaceRoot::TypeReference(_)
@@ -414,8 +409,7 @@ fn expression_mentions_field(
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => program
-            .expression_table
+        ExpressionNode::Name(path) => expressions(program)
             .name_path_members(path.members)
             .last()
             .is_some_and(|member| member.as_str() == field),

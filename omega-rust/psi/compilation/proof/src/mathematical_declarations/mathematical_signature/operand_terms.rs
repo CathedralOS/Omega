@@ -2,6 +2,7 @@
 //! zero values, integer operations, and open terms denote into the shared
 //! mathematical carriers.
 
+use crate::typed_expressions::expression_table;
 use numerics::bignum::BigInt;
 use numerics::literals::{FloatFormat, FloatLiteral, IntegerLiteral, LandedIntegerType};
 
@@ -333,10 +334,7 @@ impl<'a> Elaborator<'a> {
         let mut pending = vec![handle];
         let mut seen = Vec::new();
         while let Some(expression) = pending.pop() {
-            if !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+            if !expression_table(self.program).expression_is_valid(expression)
                 || seen.contains(&expression)
             {
                 continue;
@@ -354,9 +352,7 @@ impl<'a> Elaborator<'a> {
             }
             let node = self.program.expression_table.expression(expression);
             if let ExpressionNode::Name(path) = node {
-                let name = self
-                    .program
-                    .expression_table
+                let name = expression_table(self.program)
                     .name_path_members(path.members)
                     .last();
                 if let Some(position) = self.scope.iter().rposition(|entry| {

@@ -104,17 +104,13 @@ pub(super) fn project_member_expression(
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol && member.case_variant.is_none())
         {
-            let field = contract_parameter_field_symbol(
-                compilation,
-                parameter,
-                member.member.as_str(),
-            )
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` proposition parameter member does not resolve through its declared carrier",
-                    context.subject_kind, context.subject_name
-                ))]
-            })?;
+            let field =
+                contract_parameter_field_symbol(compilation, parameter, member.member.as_str())
+                    .ok_or_else(|| {
+                        context.rejected(
+                    "proposition parameter member does not resolve through its declared carrier",
+                )
+                    })?;
             require_exact_checked_contract_nominal_member(compilation, context, expression, field)?;
             return project_contract_member_expression(
                 compilation,
@@ -173,7 +169,7 @@ fn project_checked_or_computed_member(
         );
     };
     let Some((root_expression, mut source_members)) =
-        contract_member_path_source(compilation, expression)
+        contract_member_path_source(compilation, context, expression)?
     else {
         return project_computed_contract_member_expression(
             compilation,
@@ -186,33 +182,22 @@ fn project_checked_or_computed_member(
     let data_subject_root = context.data_symbol.is_some_and(|data_symbol| {
         is_data_subject_field_expression(compilation, data_symbol, root_expression)
     });
-    let root =
-        contract_member_path_root(compilation, context, root_expression).ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract member path has no exact semantic root",
-                context.subject_kind, context.subject_name
-            ))]
-        })?;
+    let root = contract_member_path_root(compilation, context, root_expression)
+        .ok_or_else(|| context.rejected("contract member path has no exact semantic root"))?;
     let receiver = if data_subject_root {
         let Some(path) = compilation.expression_table.name_path_node(root_expression) else {
             unreachable!("guarded data-subject name root")
         };
-        let [field_name] = compilation.expression_table.name_path_members(path.members) else {
-            unreachable!("guarded single data-subject field")
-        };
-        source_members.insert(0, field_name.clone());
+        source_members.insert(0, path.symbol);
         PackageReviewContractExpression::DomainSubject
     } else {
         child(root_expression)?
     };
     let member_path =
         checked_contract_member_path(compilation, context, checked_fact, root, &source_members)?;
-    let selected_member = member_path.last().ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract member path has no checked member coordinate",
-            context.subject_kind, context.subject_name
-        ))]
-    })?;
+    let selected_member = member_path
+        .last()
+        .ok_or_else(|| context.rejected("contract member path has no checked member coordinate"))?;
     require_exact_checked_contract_nominal_member(
         compilation,
         context,

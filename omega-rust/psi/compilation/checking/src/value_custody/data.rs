@@ -1,7 +1,8 @@
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, type_reference_label, type_references_match,
+    TypeParameterScope, TypeReferenceOwner, type_reference_label, type_references_match,
     validate_generic_instance_argument_bounds, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
@@ -43,12 +44,11 @@ pub(crate) fn validate_data_field_types(
             symbols,
             &format!("data `{}`", data_definition.name),
             type_parameters,
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: data_definition.symbol,
+            TypeParameterScope::authored(
+                data_definition.symbol,
                 type_parameters,
-                lifetime_parameters: &data_definition.lifetime_parameters,
-            },
+                &data_definition.lifetime_parameters,
+            ),
             diagnostics,
             formation_obligations,
         );
@@ -76,12 +76,11 @@ pub(crate) fn validate_data_field_types(
                         field: field.name.as_str(),
                         generic_depth: 0,
                     },
-                    crate::value_custody::type_references::TypeParameterScope {
-                        operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                        lexical_owner: data_definition.symbol,
+                    TypeParameterScope::authored(
+                        data_definition.symbol,
                         type_parameters,
-                        lifetime_parameters: &data_definition.lifetime_parameters,
-                    },
+                        &data_definition.lifetime_parameters,
+                    ),
                     formation_obligations,
                 );
                 validate_stored_field_has_a_representation(
@@ -240,12 +239,11 @@ fn validate_data_default_domain(
             continue;
         };
         let typed_trees::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(membership.value)
+            expression_table(program).expression(membership.value)
         else {
             continue;
         };
-        let Some(field_name) = program
-            .expression_table
+        let Some(field_name) = expression_table(program)
             .name_path_members(path.members)
             .last()
         else {
@@ -286,6 +284,15 @@ fn type_requires_establishment_inner(
 ) -> bool {
     if !type_reference.is_valid() {
         return false;
+    }
+    // Physical representation does not establish T's qualifications. Keep
+    // enclosing qualifications in the normal walk before following this lens.
+    if !matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Constrained { .. }
+    ) && let Some(storage) = program.layout_storage_arguments(type_reference)
+    {
+        return type_requires_establishment_inner(program, storage.semantic_type, index);
     }
     if let Some(interval) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(
         program,

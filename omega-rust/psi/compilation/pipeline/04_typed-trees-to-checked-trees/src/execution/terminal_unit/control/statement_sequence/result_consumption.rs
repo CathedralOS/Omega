@@ -471,10 +471,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             .chain(prepared_calls.operations_for(machine, state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| {
-                operation
-                    .call()
-                    .and_then(|call| call.structural_custody())
-                    .is_some()
+                // Every materialized descriptor has a retirement owner,
+                // including an exact, proven-empty source loan roster.
+                // Calls, stored values and direct formations share that join.
+                captured_reference_result(
+                    program, facts, machine, state, results, operation, operations,
+                )
+                .is_some()
             })
     {
         return Some(());
@@ -664,10 +667,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         {
             continue;
         }
-        let Some(StatementNode::LocalData(local)) = program
-            .statement_table
-            .statements(authored_state.statement_nodes)
-            .get(result.statement_index as usize)
+        let Some(StatementNode::LocalData(local)) =
+            crate::flow::state_statements(program, authored_state.statement_nodes)
+                .get(result.statement_index as usize)
         else {
             continue;
         };
@@ -965,10 +967,13 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             .chain(prepared_calls.operations_for(machine, state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| {
-                operation
-                    .call()
-                    .and_then(|call| call.structural_custody())
-                    .is_some()
+                // Every materialized descriptor has a retirement owner,
+                // including an exact, proven-empty source loan roster.
+                // Calls, stored values and direct formations share that join.
+                captured_reference_result(
+                    program, facts, machine, state, results, operation, operations,
+                )
+                .is_some()
             })
     {
         return Some(());
@@ -1024,10 +1029,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 trace.phase("statement sequence: returned carrier loan boundary");
                 trace.statement(Some(result.statement_index));
                 let authored = program.state_by_symbol(state)?;
-                let statement_count = program
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .len();
+                let statement_count =
+                    crate::flow::state_statements(program, authored.statement_nodes).len();
                 if !facts.borrow.loan_group(loans)?.all(|(loan, _)| {
                     super::super::super::reference_results::release_boundary(
                         program, facts, machine, state, loan,

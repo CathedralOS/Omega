@@ -13,12 +13,13 @@
 
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
+use crate::flow::indexed_statements;
 mod batches;
 mod guarantees;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowCallFact, DomainFacts, FlowSemanticContextRef};
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 
 /// Re-seed the declared field facts of every exclusive borrowed referent the
@@ -454,10 +455,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         return;
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = QualificationEvidence::from_origin(
-        language_semantics::QualificationEvidenceOrigin::Propagated,
-        borrow_call.target_symbol,
-    );
+    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts = preserved;
@@ -619,10 +617,7 @@ fn parameter_symbols_for_storage(
             let Some(state) = program.state_by_symbol(state_symbol) else {
                 continue;
             };
-            for (_, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (_, statement) in indexed_statements(program, state.statement_nodes) {
                 let Some(transition) = statement.as_transition() else {
                     continue;
                 };
@@ -700,10 +695,7 @@ fn state_keeps_byte_class_after_element_stores(
     required: validation::field_domains::ByteSequencePredicate,
 ) -> ElementStoreClass {
     let mut last_store = None;
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };

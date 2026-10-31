@@ -774,8 +774,10 @@ impl Builder<'_, '_> {
                     } else {
                         None
                     };
-                if !call.machine_arguments.is_empty()
-                    || call.quotient_operation.is_some()
+                // Static operands are retained by the admitted application,
+                // not evaluated as extra scalar operands. Boundary and body
+                // calls keep the same ordinary computation/occurrence owner.
+                if call.quotient_operation.is_some()
                     || call.private_layout_operation.is_some()
                     || call.layout_query.is_some()
                 {
@@ -1038,11 +1040,7 @@ impl Builder<'_, '_> {
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
         let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
-        let mut matching = self
-            .flow
-            .control
-            .calls
-            .span_or_empty(state.calls)
+        let mut matching = crate::flow::call_flows(&self.flow.control, state.calls)
             .iter()
             .filter(|call| {
                 call.statement_index == self.statement_index

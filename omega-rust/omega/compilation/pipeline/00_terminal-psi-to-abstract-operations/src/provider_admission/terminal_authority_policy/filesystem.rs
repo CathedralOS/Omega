@@ -131,6 +131,7 @@ pub fn filesystem_host_permission_rows(
 ) -> Result<Vec<ServiceTerminalAuthorityPermission>, UnsettledFilesystemRequirement> {
     let digest = schema.identity_digest();
     schema
+        .declaration
         .methods
         .iter()
         .map(|method| filesystem_host_permission_row(schema, digest, method, identities))

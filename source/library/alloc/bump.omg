@@ -61,11 +61,11 @@ public machine try_allocate(strategy: &mut Bump, length: u64) -> Attempt
 // subsequent partition/recomposition contracts retain the backing geometry.
 public machine allocate(strategy: &mut Bump, length: u64, available: u64) -> Extent in Granted & Vacant
 requires
-    available == strategy.remaining;
+    available == strategy.remaining,
     length <= available
 ensures
-    strategy.remaining == available - length;
-    strategy.tail.length == available - length;
+    strategy.remaining == available - length,
+    strategy.tail.length == available - length,
     result.length == length
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
@@ -81,7 +81,7 @@ ensures
 // the source constructor or a second allocation cannot stand in for its result.
 public machine check_remaining(remaining: u64, previous: u64, length: u64)
 requires
-    length <= previous;
+    length <= previous,
     remaining == previous - length
 {}
 
@@ -103,7 +103,7 @@ public machine reset(
 ensures
     embed(result.remaining) == embed(lower.length) + embed(upper.length) + embed(strategy.tail.length)
 reaches ExtentPartition
-    invokes ExtentPartition;
+    invokes ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
     let upper_and_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {
@@ -134,8 +134,8 @@ public data Released {
 
 public machine release(strategy: Bump, returned: Extent in Granted & Vacant) -> Released
 ensures
-    result.strategy.tail.length == strategy.tail.length;
-    result.strategy.remaining == strategy.remaining;
+    result.strategy.tail.length == strategy.tail.length,
+    result.strategy.remaining == strategy.remaining,
     result.retired_storage.length == returned.length
 {
     Released { strategy: strategy, retired_storage: returned }
@@ -159,12 +159,12 @@ public data BumpVec {
 // requires clause. Later allocations consume `allocate`'s returned residual.
 public machine open(whole: Extent in Granted & Vacant, capacity: u64, residual: u64) -> BumpVec
 requires
-    capacity <= residual;
+    capacity <= residual,
     residual == whole.length
 ensures
     result.buffer.length == capacity
 reaches ExtentPartition
-    invokes ExtentPartition;
+    invokes ExtentPartition
 {
     let mut strategy: Bump = Bump { tail: whole, remaining: residual };
     let buffer: Extent in Granted & Vacant = allocate(&mut strategy, capacity, residual);
@@ -193,7 +193,7 @@ public data Recomposed {
 // the sanctioned return of the backing, not a cursor rewind.
 public machine close(vec: BumpVec) -> Recomposed
 reaches ExtentPartition
-    invokes ExtentPartition;
+    invokes ExtentPartition
 {
     let strategy: Bump = vec.strategy;
     let buffer: Extent in Granted & Vacant = vec.buffer;
@@ -235,7 +235,7 @@ public data Growth {
 
 public machine grow(vec: BumpVec, capacity: u64) -> Growth
 reaches ExtentPartition
-    invokes ExtentPartition;
+    invokes ExtentPartition
 {
     let strategy: Bump = vec.strategy;
     let buffer: Extent in Granted & Vacant = vec.buffer;
@@ -319,7 +319,7 @@ public machine shrink(vec: BumpVec, kept: u64) -> Truncation
 requires
     kept <= vec.buffer.length
 reaches ExtentPartition
-    invokes ExtentPartition;
+    invokes ExtentPartition
 {
     let strategy: Bump = vec.strategy;
     let buffer: Extent in Granted & Vacant = vec.buffer;
@@ -371,7 +371,7 @@ public machine retain_buffer(storage: Extent in Granted & Vacant) -> RetiredSlot
 
 public machine reset_retired(strategy: Bump, retired: RetiredSlot) -> Bump
 reaches ExtentPartition
-    invokes ExtentPartition;
+    invokes ExtentPartition
 {
     transition retired {
         RetiredSlot::Empty -> strategy

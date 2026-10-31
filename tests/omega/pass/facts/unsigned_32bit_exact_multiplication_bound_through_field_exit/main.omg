@@ -8,8 +8,8 @@ data Factors {
 }
 
 machine multiply_field(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 30u32;
-    requires rhs >= 15u32 && rhs <= 25u32;
+    requires lhs >= 20u32 && lhs <= 30u32
+    requires rhs >= 15u32 && rhs <= 25u32
 {
     let f: Factors = Factors { lhs: lhs, rhs: rhs };
     let prod: u32 = f.lhs * f.rhs;

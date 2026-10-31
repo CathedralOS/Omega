@@ -4,7 +4,7 @@
 // Expected rejection: may overflow `u32`
 
 machine remainder_match_join(dividend: u32, divisor: u32, choose: bool) -> i32
-    requires divisor >= 16u32 && divisor <= 17u32;
+    requires divisor >= 16u32 && divisor <= 17u32
 {
     let rem: u32 = match choose {
         true -> dividend % divisor,

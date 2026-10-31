@@ -126,9 +126,7 @@ pub(super) fn guarded(
             // custody owners; they cannot be relabeled as fresh value returns.
             return None;
         };
-        let expression = match program
-            .statement_table
-            .statements(state.statement_nodes)
+        let expression = match crate::flow::state_statements(program, state.statement_nodes)
             .get(*statement_ordinal as usize)?
         {
             StatementNode::Expression(expression) if !is_continuation => *expression,
@@ -163,6 +161,7 @@ pub(super) fn guarded(
             state,
             parameters,
             claims,
+            operations,
             &mut count,
             *statement_ordinal,
             expression,
@@ -196,9 +195,10 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
 /// The `StructuralValue` local-binding producer for one authored `(expression)`
 /// return target: its structural root must already be retained by the value
 /// fact for this exact statement, carry this machine's result type, and lower
-/// through the same call decomposition the guarded-return roster uses. The
-/// companion operation list is empty on this path: nested calls and their
-/// preparation stay in the returned structural value's operand schedule,
+/// through the same call decomposition the guarded-return roster uses.
+/// Preceding operations supply the established result namespace, not a second
+/// execution of that prefix. The companion operation list is empty: nested
+/// calls and their preparation stay in the returned value's operand schedule,
 /// executed inside the selected arm, never in the state's common preamble.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn return_value_operation(
@@ -210,6 +210,7 @@ pub(super) fn return_value_operation(
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     claims: &[CheckedUnitEntryClaimPlan],
+    preamble: &[CheckedUnitEffectOperationPlan],
     count: &mut usize,
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
@@ -240,6 +241,22 @@ pub(super) fn return_value_operation(
         return None;
     }
     trace.phase("state graph: structural return value: operand calls");
+    let flow = super::super::types::state_flow(facts, machine.symbol, state.symbol)?;
+    let source_calls = facts.flow.control.calls.span(flow.calls)?;
+    let results = preamble
+        .iter()
+        .filter_map(|operation| {
+            let result = operation.structural_result_binding()?;
+            let owner = super::super::calls::structural_result_owner(
+                program,
+                facts,
+                state.symbol,
+                source_calls,
+                operation,
+            )?;
+            Some((result.clone(), owner))
+        })
+        .collect::<Vec<_>>();
     let mut operand_calls = Vec::new();
     let (calls, completion) = control::structural_operands::value_calls(
         program,
@@ -251,8 +268,8 @@ pub(super) fn return_value_operation(
         parameters,
         &[],
         claims,
-        &[],
-        &operand_calls,
+        &results,
+        preamble,
         count,
         root.root,
         trace,

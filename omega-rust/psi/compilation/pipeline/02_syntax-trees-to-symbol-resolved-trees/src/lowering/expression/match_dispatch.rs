@@ -4,6 +4,7 @@
 
 use super::{expression_table, lower_expression_into_table, lower_name};
 use crate::resolution::lowerer::{Lowerer, MatchArmCapture};
+use crate::tables::syntax_expressions;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
@@ -19,8 +20,7 @@ pub(super) fn lower_match(
 ) -> Result<ExpressionHandle, Diagnostic> {
     let subject = lower_expression_into_table(lowerer, syntax_trees, dispatch.subject)?;
     let capture = if dispatch.capture.is_valid() {
-        if syntax_trees
-            .expressions
+        if syntax_expressions(&syntax_trees)
             .match_subject(dispatch.capture)
             .subject
             != dispatch.subject

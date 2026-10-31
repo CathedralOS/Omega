@@ -41,6 +41,7 @@ use crate::execution::terminal_unit::control::structural_operands;
 use crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at;
 use crate::execution::terminal_unit::scalar_return_expressions::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_binders};
+use crate::flow::expressions;
 
 use checked_trees::CheckedUnitStructuralReturnPlan;
 use std::ops::Bound;
@@ -340,9 +341,7 @@ pub(in crate::execution::terminal_unit) fn build(
     let erased_locals = phase_profile::scope("05.d.8_10.a.3.2c.3b2.erased_locals", || {
         erased_alias_locals(program, facts, machine, state)
     });
-    let mut scalar_count = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let mut scalar_count = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(construction_statement_count)
         .filter(|statement| {
@@ -415,8 +414,7 @@ pub(in crate::execution::terminal_unit) fn build(
         }
         let statement = &statements[index];
         if let StatementNode::Expression(expression) = statement
-            && program
-                .expression_table
+            && expressions(program)
                 .call_node(*expression)
                 .and_then(|call| call.native_code_layout.as_ref())
                 .is_some_and(|query| query.discards_result)

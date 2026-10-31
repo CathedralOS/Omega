@@ -15,7 +15,7 @@ use psi::types::types;
 // proves the crash axis; a requirement with `requires` or `ensures` facts,
 // or a satisfier with `requires` facts, rejects as unsupported rather than
 // passing unrefined. A static machine argument refines its binder's
-// `where machine` contract the same way
+// `requires machine` contract the same way
 // (wiki/spec/language/generics.md#invocation-lifetime-families): typing
 // matched its signature, and checking proves its crash causes lie within
 // the contract's; an argument with premises of its own rejects as

@@ -1,7 +1,9 @@
 //! Invoke exact selected endpoint calls without preexecuting nested expressions.
 
 use super::integer_type::ScalarPosition;
+use crate::build_time_evaluation::expression_table;
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
+use crate::unique::extend_unique;
 use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
@@ -10,6 +12,8 @@ use language_semantics::const_value::{
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
+    machine::Machine,
+    state::State,
     types::{PrimitiveType, TypeReferenceHandle},
 };
 
@@ -35,6 +39,22 @@ impl Invocation<'_> {
         super::resolve_endpoint_callee(self.execution, &endpoint)
     }
 
+    /// The selected machine a callee instance resolves to, and its entry state.
+    /// Both lookups refuse with the endpoint's own wording so a malformed call
+    /// never falls back to an invented machine or entry.
+    fn machine(&self, callee: super::EndpointCallee) -> Result<&Machine, String> {
+        self.execution
+            .machine(callee.instance)
+            .ok_or_else(|| "range endpoint lost its selected machine".to_string())
+    }
+
+    fn entry(&self, machine: &Machine) -> Result<&State, String> {
+        self.execution
+            .machine_states(machine)
+            .first()
+            .ok_or_else(|| "range endpoint lost entry".to_string())
+    }
+
     fn position(
         &self,
         callee: super::EndpointCallee,
@@ -49,15 +69,7 @@ impl Invocation<'_> {
     }
 
     fn result_position(&self, callee: super::EndpointCallee) -> Result<ScalarPosition, String> {
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let entry = self.entry(self.machine(callee)?)?;
         self.position(callee, entry.return_type)
     }
 
@@ -73,19 +85,8 @@ impl Invocation<'_> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
-        let arguments = self
-            .execution
-            .expression_table
-            .expression_handles(call.arguments);
+        let entry = self.entry(self.machine(callee)?)?;
+        let arguments = expression_table(self.execution).expression_handles(call.arguments);
         let parameters = self.execution.state_parameters(entry);
         if arguments.len() != parameters.len() {
             return Err(
@@ -104,7 +105,7 @@ impl Invocation<'_> {
                 policy(&position),
                 self,
             )?;
-            append_warnings(&mut warnings, new_warnings);
+            extend_unique(&mut warnings, new_warnings);
             match (position, value.decode_encoding()) {
                 (ScalarPosition::Boolean, Some(DecodedCanonicalConstValue::Boolean(value))) => {
                     literals.push(ExpressionNode::Boolean(value));
@@ -163,20 +164,13 @@ impl Invocation<'_> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
-        let argument_handles = self
-            .execution
-            .expression_table
-            .expression_handles(call.arguments);
+        let argument_handles = expression_table(self.execution).expression_handles(call.arguments);
         if argument_handles.len() != literals.len() {
             return Err(
                 "range endpoint call argument count does not match its evaluated snapshots".into(),
             );
         }
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let entry = self.entry(machine)?;
         let snapshots = argument_handles
             .iter()
             .zip(literals)
@@ -236,15 +230,8 @@ impl ConstantCalls for Invocation<'_> {
             self.authority,
         )?;
         let callee = self.callee(expression)?;
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
-        let entry = self
-            .execution
-            .machine_states(machine)
-            .first()
-            .ok_or("range endpoint lost entry")?;
+        let machine = self.machine(callee)?;
+        let entry = self.entry(machine)?;
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
@@ -280,10 +267,7 @@ impl ConstantCalls for Invocation<'_> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
-        let arguments = self
-            .execution
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.execution).expression_handles(call.arguments);
         let parameters = self.execution.state_parameters(entry);
         if arguments.len() != parameters.len() {
             return Err(
@@ -293,7 +277,7 @@ impl ConstantCalls for Invocation<'_> {
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
             let position = self.position(callee, parameter.type_reference)?;
-            append_warnings(
+            extend_unique(
                 &mut warnings,
                 value::validate_closed_scalar_with_policy(
                     self.execution,
@@ -313,10 +297,7 @@ impl ConstantCalls for Invocation<'_> {
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let callee = self.callee(expression)?;
         let (arguments, literals, warnings) = self.arguments(expression, callee)?;
-        let machine = self
-            .execution
-            .machine(callee.instance)
-            .ok_or("range endpoint lost its selected machine")?;
+        let machine = self.machine(callee)?;
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
@@ -398,13 +379,5 @@ fn policy(position: &ScalarPosition) -> numerics::arithmetic::ArithmeticDomain {
     match position {
         ScalarPosition::Boolean => numerics::arithmetic::ArithmeticDomain::Exact,
         ScalarPosition::Integer(position) => position.policy,
-    }
-}
-
-fn append_warnings(warnings: &mut Vec<Diagnostic>, additions: Vec<Diagnostic>) {
-    for warning in additions {
-        if !warnings.contains(&warning) {
-            warnings.push(warning);
-        }
     }
 }

@@ -2,15 +2,18 @@
 //! Preparation does not inspect initializers or recover retired observations.
 //! Each Boolean leaf keeps its selected operation, exact place and polarity.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 pub(super) struct CaseObservation {
     pub place: CanonicalPlace,
     pub variant: SymbolHandle,
     pub selected: bool,
+    pub stable_index_subject: bool,
 }
 
 pub(super) fn collect(
@@ -57,6 +60,7 @@ pub(super) fn collect(
                     place,
                     variant,
                     selected: value,
+                    stable_index_subject: false,
                 });
             }
             _ => {}
@@ -65,6 +69,10 @@ pub(super) fn collect(
     // Normalize every retained observation in this same immutable consumer
     // scope once. Captured expression roots stay exact saved occurrences.
     for row in &mut observer.rows {
+        // Check the original selector before pinned-index normalization can
+        // hide a mutable or foreign binding behind a fixed coordinate.
+        row.stable_index_subject = has_index(&row.place)
+            && super::stable_subject(program, machine, state, statement_index, &row.place);
         normalize_place(
             program,
             semantic,
@@ -107,8 +115,7 @@ pub(super) fn normalize_place(
         if !program.expression_table.expression_is_valid(expression) {
             continue;
         }
-        if let Some(index) = program
-            .expression_table
+        if let Some(index) = expressions(program)
             .constant_integer_value(expression)
             .and_then(|value| usize::try_from(value).ok())
         {
@@ -193,7 +200,7 @@ impl Observer<'_> {
                 ) else {
                     return;
                 };
-                let Some(place) = canonical_place_from_expression_in_state(
+                let Some(place) = place_at(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
@@ -205,6 +212,7 @@ impl Observer<'_> {
                     place,
                     variant,
                     selected: value,
+                    stable_index_subject: false,
                 });
             }
             _ => {}

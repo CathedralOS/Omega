@@ -2,9 +2,9 @@
 //!
 //! A domain subject is a lexical binder, not a same-spelled field or a type
 //! name. Each predicate uses its declaration's exact subject and closed index
-//! roster. Nested membership carries its original value term into the nested
-//! declaration's roster. Unknown propositions and recursion supply no evidence;
-//! a route cannot be minted by a numerical predicate proof.
+//! roster. Subject membership carries that same integer into the parent.
+//! A different operand stays a term. Unknown propositions and recursion supply
+//! no evidence, and a route cannot be minted by a numerical predicate proof.
 //!
 //! A semantic role is not a membership obligation. Establishing membership
 //! "requires all carrier, predicate, and provenance obligations"
@@ -22,6 +22,7 @@ use crate::{
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The caller supplies the established integer denotation, either an exact
@@ -130,20 +131,33 @@ fn membership(
                         bindings: bindings.clone(),
                     },
                 ),
-                ProofFact::Membership(fact) => membership(
-                    program,
-                    fact.domain_symbol,
-                    program
-                        .type_reference_table
-                        .type_reference_handles(fact.domain_arguments),
-                    fact.semantic_domain,
-                    &ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-                        owner: definition.symbol,
-                        expression: fact.value,
-                        bindings: bindings.clone(),
-                    }),
-                    active_domains,
-                ),
+                ProofFact::Membership(fact) => {
+                    // `self in Parent` is the same integer. Wrapping it as a
+                    // term leaves the parent predicate without that value, so
+                    // both a member and a non-member stay unproved.
+                    // An unindexed membership is the parent's own instance.
+                    // Interning only fills indexed applications, so this fact's
+                    // semantic id stays absent until the declaration id is read.
+                    let nested_value = if subject_value(program, definition, fact.value) {
+                        value.clone()
+                    } else {
+                        ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                            owner: definition.symbol,
+                            expression: fact.value,
+                            bindings: bindings.clone(),
+                        })
+                    };
+                    membership(
+                        program,
+                        fact.domain_symbol,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(fact.domain_arguments),
+                        parent_instance(program, fact),
+                        &nested_value,
+                        active_domains,
+                    )
+                }
                 ProofFact::Proposition(_) => Unknown,
             };
             if judgment == Refuted || judgment == Unknown {
@@ -154,4 +168,40 @@ fn membership(
     })();
     active_domains.pop();
     judgment
+}
+
+/// The membership operand is this domain's logical subject, not a field.
+fn subject_value(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::domain::DomainDefinition,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    if members.len() != 1 {
+        return false;
+    }
+    path.symbol == definition.subject_symbol || members[0].as_str() == "self"
+}
+
+/// Unindexed `self in Parent` denotes Parent's declaration instance.
+/// Indexed applications intern their own semantic id; a monomorphic fact does
+/// not, and reading the absent id drops the parent predicate.
+fn parent_instance(
+    program: &dyn crate::CheckingInput,
+    fact: &typed_trees::domain::ProofMembershipFact,
+) -> SemanticDomainId {
+    if fact.semantic_domain.is_valid() {
+        return fact.semantic_domain;
+    }
+    let Some(parent) = program.domain_definition(fact.domain_symbol) else {
+        return SemanticDomainId::NULL;
+    };
+    if parent.index_arguments.is_empty() && fact.domain_arguments.is_empty() {
+        parent.semantic_id
+    } else {
+        SemanticDomainId::NULL
+    }
 }

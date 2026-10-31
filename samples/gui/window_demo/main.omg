@@ -20,7 +20,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes AppKit; invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
+        invokes AppKit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost;
     machine window_destroy(window: Window, device: u64) -> bool
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
@@ -29,7 +29,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
+        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -43,14 +43,14 @@ public boundary trait Gui {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC; invokes WindowsGuiHost;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost;
     machine is_window(window_state: &Window, window: u64) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC; invokes WindowsGuiHost;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
@@ -59,7 +59,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
+        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
 // ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:

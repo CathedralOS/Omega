@@ -6,6 +6,7 @@
 //! strings. Tuple derivation shares carrier readers so it cannot erase a named
 //! const's carrier or a literal's earlier landing.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
 use symbols::SymbolKind;
@@ -56,7 +57,7 @@ pub fn validate_source_const_recipes(
             formation_obligations,
         );
     };
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expression_table(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate(
                 StaticArgumentCall::Expression(handle, call),
@@ -102,7 +103,7 @@ pub fn validate_authored_static_arguments(
     }
     let scopes = requirement_predicates::CallScopes::build(program);
     let expression_states = expression_call_states(program);
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expression_table(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call(
                 program,
@@ -137,12 +138,9 @@ pub fn validate_authored_static_arguments(
     // uses. Preparation can derive these rows but cannot admit their operands
     // or substituted predicates on the checker's behalf.
     for application in program.closed_requirement_applications() {
-        let source = program
-            .expression_table
-            .static_machine_application(application.application);
-        let arguments = program
-            .expression_table
-            .static_machine_application_arguments(application.application);
+        let source = expression_table(program).static_machine_application(application.application);
+        let arguments =
+            expression_table(program).static_machine_application_arguments(application.application);
         let Some((owner, requirement)) = program.trait_machine_signature(application.template)
         else {
             diagnostics.push(Diagnostic::error(
@@ -150,26 +148,55 @@ pub fn validate_authored_static_arguments(
             ));
             continue;
         };
-        // The application receipt owns its source route. Rebuilding only the
-        // materialized argument tuple here loses enclosing and inherited
-        // simultaneous frames, including captured regions in phantom operands.
-        let scope = application
-            .trait_scope
-            .scope(program)
-            .filter(|scope| scope.declaration.symbol == owner.symbol);
-        let Some(signature) = scope
-            .as_ref()
-            .and_then(|scope| program.applied_callable_signature(scope, application.template))
-        else {
+        // The producer retains the complete admission telescope separately
+        // from executable arity. Its exact source scope remains mandatory;
+        // an unrelated outer-signature cache is not this instance's owner.
+        let Some(scope) = application.trait_scope.scope(program) else {
             diagnostics.push(Diagnostic::error(
-                "closed requirement lost its complete applied source telescope",
+                "closed requirement lost its retained source scope",
             ));
             continue;
         };
+        if scope.declaration.symbol != owner.symbol {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement source scope selects a different declaring trait",
+            ));
+            continue;
+        }
+        if scope.application_identity(program) != Some(application.trait_application_identity)
+            || scope.portable_application_identity(program)
+                != Some(application.portable_trait_application_identity)
+        {
+            diagnostics.push(Diagnostic::error("closed requirement source scope differs from its complete retained application identity"));
+            continue;
+        }
+        if let Err(reason) = program.require_receiving_trait_operands(&scope) {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed requirement source operands are not closed: {reason}"
+            )));
+            continue;
+        }
+        let Some(signature) =
+            program.closed_requirement_admission_signature(application.signature.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement lost its produced admission signature",
+            ));
+            continue;
+        };
+        if program.state_signature_type_parameters(&signature).len() != arguments.len()
+            || application.local_arguments.len() != arguments.len()
+            || source.binding_declaration != application.template
+        {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement admission tuple differs from its exact source declaration",
+            ));
+            continue;
+        }
         if let Err(error) = validate_arguments(
             program,
             requirement.name.as_str(),
-            program.state_signature_type_parameters(signature),
+            program.state_signature_type_parameters(&signature),
             arguments,
             None,
         ) {
@@ -178,7 +205,7 @@ pub fn validate_authored_static_arguments(
         requirement_predicates::validate_where_facts(
             program,
             owner,
-            signature,
+            &signature,
             arguments,
             source.lexical_owner,
             None,
@@ -275,7 +302,7 @@ fn ordinary_arguments<'program>(
     if !handle.is_valid() {
         return std::borrow::Cow::Borrowed(arguments);
     }
-    let application = program.expression_table.static_machine_application(handle);
+    let application = expression_table(program).static_machine_application(handle);
     let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
         return std::borrow::Cow::Borrowed(arguments);
     };
@@ -289,9 +316,7 @@ fn ordinary_arguments<'program>(
     if machine.conformance_bounds.is_empty() {
         return std::borrow::Cow::Borrowed(arguments);
     }
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(handle);
+    let bindings = expression_table(program).static_machine_application_bindings(handle);
     let mut consumed = vec![false; bindings.len()];
     std::borrow::Cow::Owned(
         arguments
@@ -336,7 +361,7 @@ fn expression_call_states<'program>(
                     );
                 }
                 states.extend(expressions.iter().filter_map(|expression| {
-                    program.expression_table.call_node(*expression)?;
+                    expression_table(program).call_node(*expression)?;
                     Some((*expression, state))
                 }));
             }
@@ -391,9 +416,7 @@ fn validate_call(
     let arguments = call.arguments(program);
     if let StaticArgumentCall::Expression(_, expression) = call
         && let Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(request)) =
-            program
-                .expression_table
-                .build_selection_request(expression.build_selection)
+            expression_table(program).build_selection_request(expression.build_selection)
     {
         match context {
             Some((machine, _)) => {
@@ -542,7 +565,7 @@ fn validate_types(
                 ));
                 if let StaticArgumentCall::Expression(handle, _) = source_call {
                     diagnostic =
-                        diagnostic.with_source_span(program.expression_table.source_span(handle));
+                        diagnostic.with_source_span(expression_table(program).source_span(handle));
                 }
                 diagnostics.push(diagnostic);
             }
@@ -604,7 +627,7 @@ pub fn is_runtime_value_expression(
     else {
         return false;
     };
-    program.expression_table.expression_is_valid(*expression)
+    expression_table(program).expression_is_valid(*expression)
 }
 
 /// The shape of one ordinary runtime subject admissible into a `Value`

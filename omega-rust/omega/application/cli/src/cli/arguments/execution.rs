@@ -1,5 +1,6 @@
 pub(crate) struct RunArguments {
     pub(crate) both: bool,
+    pub(crate) terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
     pub(crate) target_name: Option<String>,
@@ -16,6 +17,7 @@ pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Result<RunArguments, String> {
     let mut both = false;
+    let mut terminal_fuel_allowance = None;
     let mut private_entry_ram = Vec::new();
     let mut keep = false;
     let mut target_name = None;
@@ -28,6 +30,20 @@ pub(super) fn parse_arguments(
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
+            Some("--terminal-fuel-allowance") => {
+                if terminal_fuel_allowance.is_some() {
+                    return Err("duplicate --terminal-fuel-allowance".into());
+                }
+                let value = super::option_value(&mut arguments)
+                    .ok_or("--terminal-fuel-allowance requires a positive u64")?
+                    .into_string()
+                    .map_err(|_| "--terminal-fuel-allowance requires a positive u64")?;
+                terminal_fuel_allowance = Some(
+                    value
+                        .parse::<std::num::NonZeroU64>()
+                        .map_err(|_| "--terminal-fuel-allowance requires a positive u64")?,
+                );
+            }
             Some("--entry-ram") => {
                 let value = arguments
                     .next()
@@ -134,9 +150,13 @@ pub(super) fn parse_arguments(
     if cases && target_name.is_some() {
         return Err("case runs execute on the host; they cannot take --target".into());
     }
+    if terminal_fuel_allowance.is_some() && (!both || target_name.is_some()) {
+        return Err("--terminal-fuel-allowance requires --both host execution".into());
+    }
     Ok(RunArguments {
         private_entry_ram,
         both,
+        terminal_fuel_allowance,
         keep,
         target_name,
         inputs,
@@ -225,5 +245,57 @@ mod tests {
         .expect("explicit case files parse");
         assert_eq!(arguments.input_files.len(), 2);
         assert!(arguments.inputs.is_none());
+    }
+
+    #[test]
+    fn terminal_fuel_allowance_is_explicit_and_order_independent() {
+        let arguments = parse(&[
+            "--terminal-fuel-allowance",
+            "100000000",
+            "--both",
+            "main.omg",
+        ])
+        .expect("positive host reference allowance parses");
+        assert_eq!(
+            arguments
+                .terminal_fuel_allowance
+                .map(std::num::NonZeroU64::get),
+            Some(100_000_000)
+        );
+        assert!(
+            parse(&["--both", "main.omg"])
+                .expect("default allowance parses")
+                .terminal_fuel_allowance
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn terminal_fuel_allowance_rejects_invalid_or_unused_requests() {
+        for value in ["0", "-1", "many", "18446744073709551616"] {
+            assert!(parse(&["--both", "--terminal-fuel-allowance", value, "main.omg"]).is_err());
+        }
+        for arguments in [
+            vec!["--terminal-fuel-allowance", "--both", "main.omg"],
+            vec!["--terminal-fuel-allowance", "1", "main.omg"],
+            vec![
+                "--both",
+                "--target",
+                "linux_x86_64",
+                "--terminal-fuel-allowance",
+                "1",
+                "main.omg",
+            ],
+            vec![
+                "--both",
+                "--terminal-fuel-allowance",
+                "1",
+                "--terminal-fuel-allowance",
+                "2",
+                "main.omg",
+            ],
+        ] {
+            assert!(parse(&arguments).is_err());
+        }
     }
 }

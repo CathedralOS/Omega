@@ -2,6 +2,7 @@
 //! `selection::domain_operator_homes`.
 
 use crate::lowering::data::lower_type_parameters;
+use crate::lowering::name::lower_names;
 use crate::lowering::name::lower_operator_path_name;
 use crate::lowering::state::{lower_signature_contracts, lower_state_parameters};
 use crate::lowering::type_reference::lower_type_reference_handle;
@@ -20,11 +21,7 @@ pub(crate) fn lower_operator_definition(
         is_boundary: operator.is_boundary,
         symbol: Default::default(),
         name: lower_operator_path_name(lowerer, syntax_trees, operator.name),
-        lifetime_parameters: operator
-            .lifetime_parameters
-            .iter()
-            .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-            .collect(),
+        lifetime_parameters: lower_names(syntax_trees, &operator.lifetime_parameters),
         type_parameters: lower_type_parameters(lowerer, syntax_trees, operator.type_parameters)?,
         parameters: lower_state_parameters(lowerer, syntax_trees, operator.parameters)?,
         return_type: operator
@@ -165,11 +162,7 @@ pub(crate) fn lower_bare_bodyless_signature(
         is_boundary: false,
         symbol: Default::default(),
         name: path,
-        lifetime_parameters: machine
-            .lifetime_parameters
-            .iter()
-            .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-            .collect(),
+        lifetime_parameters: lower_names(syntax_trees, &machine.lifetime_parameters),
         type_parameters: lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?,
         parameters: lower_state_parameters(lowerer, syntax_trees, entry.parameters)?,
         return_type: entry

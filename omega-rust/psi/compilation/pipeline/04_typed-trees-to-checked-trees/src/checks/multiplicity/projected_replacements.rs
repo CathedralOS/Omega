@@ -11,6 +11,7 @@ use super::cleanup_dispositions::RemainingCustody;
 use super::linear_obligations::LinearPlace;
 use super::linear_obligations::type_reference_is_reference;
 use crate::checks::type_multiplicity;
+use crate::places::place_at;
 use checked_trees::{
     CheckFacts, ContextualCleanupDisposition, ContextualCleanupFacts, FlowPermissionEventFact,
 };
@@ -40,12 +41,7 @@ pub(super) fn append_replacement(
     let Some(assignment) = statement.as_assignment() else {
         return Ok(Vec::new());
     };
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        assignment.target,
-    ) else {
+    let Some(place) = place_at(program, state, statement_index, assignment.target) else {
         return Ok(Vec::new());
     };
     // A range selects several owned subtrees, not one array-typed subtree.
@@ -61,12 +57,7 @@ pub(super) fn append_replacement(
         ) else {
             return Ok(Vec::new());
         };
-        let Some(collection) = validation::canonical_place_from_expression_in_state(
-            program,
-            state,
-            statement_index,
-            indexed.collection,
-        ) else {
+        let Some(collection) = place_at(program, state, statement_index, indexed.collection) else {
             return Ok(Vec::new());
         };
         let Some(collection_type) = validation::canonical_place_type_reference(
@@ -412,7 +403,7 @@ fn append_descriptor_death(
         // Canonical selector identity is not disjointness: entries[i] may be
         // the selected entries[j]. Authenticate exclusions before either a
         // descriptor death OR a vacancy establishment can be published.
-        for excluded in remaining.removed_paths(program, place.root, &[]) {
+        for excluded in remaining.excluded_paths(place.root) {
             if place.segments.starts_with(excluded) || excluded.starts_with(&place.segments) {
                 return None;
             }

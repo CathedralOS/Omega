@@ -98,7 +98,7 @@ fn accepts_exit_contract_clauses_on_nested_machines() {
 fn parses_machine_termination_clauses() {
     let source = r#"
         machine walk(items: &[Item], remaining: usize)
-        terminates by remaining -> Nat::Descending;
+        terminates by remaining -> Nat::Descending
         {
         }
         "#;
@@ -116,7 +116,7 @@ fn parses_machine_termination_tuple_subjects() {
     // ranked-subject tuple, bound in order to the named view's parameters.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates by (index, limit) -> Nat::BoundedDistance;
+        terminates by (index, limit) -> Nat::BoundedDistance
         {
         }
         "#;
@@ -135,7 +135,7 @@ fn parses_machine_termination_argumented_view() {
     // subject stays alone on the arrow's left.
     let source = r#"
         machine walk(limit: usize, index: usize)
-        terminates by index -> Nat::IncreasingTo(limit);
+        terminates by index -> Nat::IncreasingTo(limit)
         {
         }
         "#;
@@ -218,14 +218,16 @@ fn parses_data_default_domain_where_clause() {
 }
 
 #[test]
-fn parses_case_local_where_clause() {
-    // CASE-CONSTRAINTS (ch12 active-case indexed constraint): the `where`
-    // clause sits after the payload parens and before the case's `;`; a case
-    // without it has an empty fact span.
+fn projects_default_domain_case_predicate() {
+    // The data `requires` disjunction is the authored predicate. Projection
+    // copies the Range conjunct onto that case and leaves Empty empty.
     let source = r#"
-        data Interval {
+        data Interval
+            requires (self in Interval::Empty)
+               || ((self in Interval::Range) && self.lo <= self.hi)
+        {
             case Empty;
-            case Range(lo: u64, hi: u64) where lo <= hi;
+            case Range(lo: u64, hi: u64);
         }
         "#;
 
@@ -248,8 +250,24 @@ fn parses_case_local_where_clause() {
         Some(0),
         "payload-less case without `where`"
     );
-    assert_eq!(fact_counts.next(), Some(1), "case `where lo <= hi`");
+    assert_eq!(fact_counts.next(), Some(1), "projected `lo <= hi`");
     assert!(fact_counts.next().is_none());
+}
+
+#[test]
+fn rejects_case_local_where_clause() {
+    let error = super::parse_source_error(
+        "data Interval { case Range(lo: u64, hi: u64) where lo <= hi; }",
+        "tokenize retired case predicate",
+        "case-local where must reject",
+    );
+    assert!(
+        error
+            .message
+            .contains("case-local predicate clauses are retired"),
+        "got: {}",
+        error.message
+    );
 }
 
 #[test]
@@ -401,7 +419,7 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
     let source = r#"
         machine grant(value: u64) -> u64
         ensures
-            result in Carry::Portable;
+            result in Carry::Portable
         {
             transition { _ -> value }
         }

@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -25,10 +26,7 @@ pub(super) fn seed_state_requires(
                 seed_index_proofs_from_expression(program, facts, membership.value);
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                {
+                for argument in expressions(program).expression_handles(application.arguments) {
                     seed_index_proofs_from_expression(program, facts, *argument);
                 }
             }
@@ -148,10 +146,7 @@ fn seed_index_proofs_from_expression(
             seed_index_proofs_from_expression(program, facts, range.end);
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
+            for field in expressions(program).struct_fields(struct_literal.fields) {
                 seed_index_proofs_from_expression(program, facts, field.value);
             }
         }

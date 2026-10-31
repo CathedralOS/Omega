@@ -2,6 +2,7 @@ use super::evidence::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
 };
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
@@ -32,6 +33,16 @@ pub(crate) struct ContractProjectionContext<'a> {
 }
 
 impl ContractProjectionContext<'_> {
+    /// The refusal sentence every contract projection states: the reviewed
+    /// subject first, then the caller's own exact detail. Each site keeps its
+    /// detail vocabulary and stops restating the subject prefix.
+    pub(crate) fn rejected(&self, detail: impl std::fmt::Display) -> Vec<Diagnostic> {
+        vec![Diagnostic::error(format!(
+            "reviewed {} `{}` {detail}",
+            self.subject_kind, self.subject_name
+        ))]
+    }
+
     pub(crate) fn requires_public_nominals(&self) -> bool {
         self.selection_exposure
             == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
@@ -45,6 +56,19 @@ pub(crate) fn callable_contract_exposure(
     machine: &typed_trees::machine::Machine,
 ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
     machine.interface_exposure
+}
+
+/// A service description does not change its declaration's source exposure.
+/// Private boundary traits remain audited without acquiring public visibility.
+pub(crate) fn trait_contract_exposure(
+    declaration: &typed_trees::trait_definition::TraitDefinition,
+) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if declaration.is_public {
+        AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }
 }
 
 pub(crate) fn project_callable_contracts(
@@ -104,11 +128,9 @@ pub(crate) fn reviewed_package(
         .custody
         .sources()
         .package_identity()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "{subject} review requires package-aware checked compilation"
-            ))]
-        })
+        .or_evidence(format!(
+            "{subject} review requires package-aware checked compilation"
+        ))
 }
 
 pub(crate) fn project_contracts(
@@ -139,10 +161,7 @@ pub(crate) fn project_contracts(
             SignatureContractKind::Crashes { .. } => continue,
         };
         if contract.facts.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` has an empty public {:?} contract",
-                context.subject_kind, context.subject_name, kind
-            ))]);
+            return Err(context.rejected(format!("has an empty public {:?} contract", kind)));
         }
         for fact_handle in contract.facts.handles() {
             let fact = match compilation.proof_facts.get(fact_handle) {
@@ -191,20 +210,17 @@ pub(crate) fn project_contracts(
                         let domain = compilation
                             .domain_definition(membership.domain_symbol)
                             .ok_or_else(|| {
-                                vec![Diagnostic::error(format!(
-                                    "reviewed {} `{}` contract refers to an unresolved domain",
-                                    context.subject_kind, context.subject_name
-                                ))]
+                                context.rejected("contract refers to an unresolved domain")
                             })?;
                         let domain_identity = nominal_identity(compilation, domain.symbol)?;
                         if context.requires_public_nominals()
                             && reviewed_package_owns(&domain_identity, reviewed_package)?
                             && !domain.is_public
                         {
-                            return Err(vec![Diagnostic::error(format!(
-                                "reviewed {} `{}` exposes non-public domain `{}` in its contract",
-                                context.subject_kind, context.subject_name, domain.name
-                            ))]);
+                            return Err(context.rejected(format!(
+                                "exposes non-public domain `{}` in its contract",
+                                domain.name
+                            )));
                         }
                         PackageReviewContractFact::Membership {
                             value: project_contract_expression(

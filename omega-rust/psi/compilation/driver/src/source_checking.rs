@@ -17,12 +17,27 @@ mod constant_entries;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
+static WHOLE_PROGRAM_REUSE_HITS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Exact typed-input and preparation-admission matches. A different program misses.
+pub fn whole_program_reuse_hits() -> u64 {
+    WHOLE_PROGRAM_REUSE_HITS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn record_whole_program_reuse() {
+    WHOLE_PROGRAM_REUSE_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Evaluated source permissions and representation custody for this invocation.
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
+    pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
+    pub layout_selection_authority:
+        Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
@@ -110,6 +125,11 @@ impl CheckRequest<'_> {
                 self.admission.completion,
             )
         })?;
+        build_time_evaluation::evaluate_fixed_layout_applications(
+            &mut program,
+            self.admission.layout_scopes,
+            self.admission.layout_selection_authority.clone(),
+        )?;
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(&representations.copy_properties)
@@ -129,6 +149,7 @@ impl CheckRequest<'_> {
         });
         let outcome = if let Some(prior) = matching {
             phase_profile::count("05.b.retained_match.hit", 1);
+            record_whole_program_reuse();
             let outcome =
                 typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?;
             build_time_evaluation::admit_placement_lifecycle_plans(
@@ -157,6 +178,11 @@ impl CheckRequest<'_> {
                 .iter()
                 .flat_map(|prior| prior.strict_dependency_bodies().iter().cloned())
                 .collect();
+            let prior_frozen_bodies: Vec<_> = self
+                .previous
+                .iter()
+                .flat_map(|prior| prior.strict_frozen_dependency_bodies().iter().cloned())
+                .collect();
             phase_profile::scope("05.d.lower_typed_trees", || {
                 typed_trees_to_checked_trees::lower_typed_trees_reusing(
                     program,
@@ -164,6 +190,7 @@ impl CheckRequest<'_> {
                     retained_input,
                     &checking,
                     &prior_dependency_bodies,
+                    &prior_frozen_bodies,
                     self.retain,
                 )
             })?

@@ -4,6 +4,7 @@
 //! origins and refuses unresolved reference endpoints. Lifetime dependencies
 //! alone identify no pointer, and geometry never grants ancestry or access.
 //! Incoming parameters retain their separately admitted joint namespace.
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 
@@ -42,7 +43,7 @@ fn captured_places(
     if capture.state_symbol != state.state_symbol {
         return None;
     }
-    let mut source = validation::canonical_place_from_expression_in_state(
+    let mut source = place_at(
         program,
         capture.state_symbol,
         capture.statement_index,
@@ -56,10 +57,9 @@ fn captured_places(
         capture.statement_index,
         constraints,
         CapturedPlace {
-            incoming_reference: Handle::invalid(),
-            incoming_owner_path: Default::default(),
             root: source.root,
             segments: source.segments,
+            ..Default::default()
         },
         &mut Vec::new(),
     );

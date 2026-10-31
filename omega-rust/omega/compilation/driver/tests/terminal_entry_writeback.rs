@@ -35,7 +35,7 @@ fn produce(
     let checked = omega_build::check_source(&mut CompilationSession::default(), request)
         .result
         .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
-    let typed = &checked.execution().program.typed;
+    let typed = &checked.execution().provider_source.program().typed;
     let admission =
         package_compilation::build_execution::build_value::BuildValueAdmission::admit(typed)
             .unwrap();
@@ -57,7 +57,7 @@ fn produce(
     .unwrap();
     let initial = admission.initial_value(typed, selected, &scope);
     let artifact = psi_compiler::TerminalProductionRequest::new(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         psi_compiler::TerminalMachineSelection::Name(machine),
         checked.sources().exact_toolchain_sources(),
     )

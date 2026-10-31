@@ -67,7 +67,10 @@ pub(crate) fn prepare_checked_build(
     );
     let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
-        context,
+        &typed_trees::provider_declarations::provider_target_declarations(
+            context.typed,
+            context.scope,
+        ),
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
     );
@@ -76,9 +79,16 @@ pub(crate) fn prepare_checked_build(
         execution_profile,
         packages,
     )?;
+    let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
+    // This provisional Build owner stays immutable through provider planning
+    // and pending evaluation. A later re-projection creates its own census.
+    let service_catalog =
+        typed_trees::service_declarations::PreparedServiceCatalog::prepare(context);
+    let services = service_catalog.bind(context).map_err(|error| vec![error])?;
     let candidates = provider_planning::derive_satisfies_plans(
         provider_planning::ProviderPlanDerivation::evaluated(
-            context,
+            services,
+            &body_declarations,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
             &bindings,
@@ -106,7 +116,7 @@ pub(crate) fn prepare_checked_build(
     if had_pending {
         let operator_selections = validation::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
-            context,
+            services,
             execution_profile.unwrap_or_else(target::TargetProfile::host),
             &[],
             &operator_selections,

@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -49,7 +50,7 @@ pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
     let mut direct_formats: Vec<(ExpressionHandle, FloatFormat)> = Vec::new();
     let mut anonymous_comparisons: Vec<ExpressionHandle> = Vec::new();
 
-    for (handle, node) in program.expression_table.expression_entries() {
+    for (handle, node) in expression_table(program).expression_entries() {
         match node {
             ExpressionNode::StructLiteral(literal) => {
                 crate::value_custody::struct_literals::each_selected_literal_field(
@@ -73,8 +74,7 @@ pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
                 }
             }
             ExpressionNode::Call(call) => {
-                let arguments = program
-                    .expression_table
+                let arguments = expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied();
@@ -127,7 +127,7 @@ pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
                 // resolves computed results in bodies and callable contracts.
                 for (typed, anonymous) in [(binary.left, binary.right), (binary.right, binary.left)]
                 {
-                    if let Some(path) = program.expression_table.name_path_node(typed)
+                    if let Some(path) = expression_table(program).name_path_node(typed)
                         && let Some(declared) =
                             crate::value_custody::expression_types::named_value_type_reference(
                                 program, path,
@@ -298,7 +298,7 @@ fn collect_result_contract_float_pairs(
                 program,
                 *expression,
                 &|operand| {
-                    if program.expression_table.names_reserved_result(operand) {
+                    if expression_table(program).names_reserved_result(operand) {
                         return return_type.is_valid().then_some(return_type);
                     }
                     crate::value_custody::expression_types::parameter_expression_result_type_reference(
@@ -355,9 +355,8 @@ fn land_float_value_for_type(
 ) {
     use typed_trees::types::TypeReferenceNode;
 
-    if let Some(dispatch) = program.expression_table.match_node(value) {
-        let values = program
-            .expression_table
+    if let Some(dispatch) = expression_table(program).match_node(value) {
+        let values = expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .map(|arm| arm.value)
@@ -372,7 +371,7 @@ fn land_float_value_for_type(
     // whose field type alone cannot choose a float format. Translate through
     // the exact constructor/member correspondence before visiting operands;
     // this supplies rounding destinations, not construction or loan authority.
-    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value) {
+    if let ExpressionNode::StructLiteral(literal) = expression_table(program).expression(value) {
         let fields = if literal.case_symbol.is_some() {
             crate::structural_case_constructor(program, value, declared)
                 .map(|constructor| {
@@ -387,8 +386,7 @@ fn land_float_value_for_type(
             let Some(reference) = crate::unwrapped_type_reference(program, declared) else {
                 return;
             };
-            program
-                .expression_table
+            expression_table(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .filter_map(|field| {
@@ -413,7 +411,7 @@ fn land_float_value_for_type(
         .clone();
     match declared_node {
         TypeReferenceNode::Reference { referee, .. } => {
-            let source = match program.expression_table.expression(value) {
+            let source = match expression_table(program).expression(value) {
                 ExpressionNode::Borrow(borrow) => borrow.target,
                 _ => value,
             };
@@ -428,8 +426,7 @@ fn land_float_value_for_type(
             else {
                 return;
             };
-            let elements = program
-                .expression_table
+            let elements = expression_table(program)
                 .expression_handles(elements)
                 .to_vec();
             for element in elements {
@@ -496,7 +493,7 @@ fn anonymous_exact_float_tree(
 ) -> Option<numerics::bignum::ExactFloat> {
     use typed_trees::expression::BinaryOperator;
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(literal) if literal.landing().is_none() => {
             Some(numerics::bignum::ExactFloat::Finite(
                 numerics::bignum::BigRational::from_integer(literal.value_bignum()?),
@@ -590,14 +587,10 @@ fn retain_folded_subtree_occurrences(program: &mut TypedTrees, root: ExpressionH
             continue;
         }
         visited.push(expression);
-        occurrences.extend(
-            program
-                .expression_table
-                .authored_selection_occurrences(expression),
-        );
+        occurrences.extend(expression_table(program).authored_selection_occurrences(expression));
         crate::expression_traversal::children(
             program,
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             |child| pending.push(child),
         );
     }
@@ -624,7 +617,7 @@ fn stamp_float_tree(
         land_float_tree(program, expression, format);
         return;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => {
             let inner = *inner;
             stamp_float_tree(program, inner.target, format);

@@ -31,6 +31,7 @@ use crate::values::{
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use terminal_psi::TerminalMachine;
 
+mod aggregate_projection;
 pub(crate) mod encoding;
 
 pub(crate) use encoding::{scalar_fits_storage, shifted_byte_endpoint};
@@ -109,6 +110,11 @@ impl PrimitiveStorageHome {
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum PrimitiveStorageEndpoint {
+    Projection {
+        fragments: Vec<PrimitiveStorageFragment>,
+        logical: ScalarType,
+        stored: ScalarType,
+    },
     Scalar(StructuralRuntimePlace),
     /// One scalar leaf inside a shared referent's containing record. The key
     /// addresses `structural_scalar_fields` directly: primitive root storage
@@ -129,6 +135,36 @@ pub(crate) enum PrimitiveStorageEndpoint {
         bytes: crate::byte_sequences::ByteSequenceView,
         index: usize,
     },
+}
+
+/// A physical bit slice of one retained original scalar endpoint.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct PrimitiveStorageFragment {
+    pub(super) storage: PrimitiveStorage,
+    logical: ScalarType,
+    stored: ScalarType,
+    pub(super) source_bit_offset: u8,
+    destination_bit_offset: u8,
+    bit_length: u8,
+    /// The source is an actual contiguous scalar cell, not a logical field
+    /// whose bits were distributed by an authored storage recipe.
+    addressable_cell: bool,
+}
+
+impl PrimitiveStorageFragment {
+    /// Address exposure can reuse a contiguous original cell's prefix. Bit
+    /// assembly and clipping never turn a fragmented field into such a cell.
+    pub(super) fn contiguous_address_endpoint(
+        &self,
+        observed: ScalarType,
+    ) -> Option<PrimitiveStorageEndpoint> {
+        let width = terminal_semantics::reference_storage_byte_width(observed)?;
+        (self.addressable_cell
+            && self.source_bit_offset == 0
+            && self.destination_bit_offset == 0
+            && u16::from(self.bit_length) == u16::from(width) * 8)
+            .then(|| self.storage.endpoint.clone())
+    }
 }
 
 pub(crate) enum ArrayCell {
@@ -184,7 +220,12 @@ impl PrimitiveStorage {
     /// Host snapshots expose the observed physical carrier; the pinned
     /// endpoint still retains the original codec for eventual writeback.
     pub(crate) fn storage_scalar(&self) -> Option<ScalarType> {
-        self.encoding.map(|encoding| encoding.view)
+        self.encoding
+            .map(|encoding| encoding.view)
+            .or_else(|| match &self.endpoint {
+                PrimitiveStorageEndpoint::Projection { stored, .. } => Some(*stored),
+                _ => None,
+            })
     }
 }
 
@@ -214,6 +255,17 @@ impl PrimitiveStorageWrites {
     ) -> Result<(), TerminalInterpretError> {
         if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
             return Err(malformed());
+        }
+        if let PrimitiveStorageEndpoint::Projection {
+            fragments,
+            logical,
+            stored,
+        } = &storage.endpoint
+        {
+            if *logical != scalar_type {
+                return Err(malformed());
+            }
+            return self.stage_projection(execution, destination, fragments, *stored, value);
         }
         if let Some(encoding) = storage.encoding {
             let value = if encoding.view != encoding.source {
@@ -282,7 +334,8 @@ impl PrimitiveStorageWrites {
                     return Err(malformed());
                 }
             }
-            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
+            PrimitiveStorageEndpoint::ViewByte { .. }
+            | PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
         }
         let write = PreparedPrimitiveWrite {
             destination,
@@ -362,10 +415,7 @@ impl TerminalExecution<'_> {
                         structural_type,
                     } => (depth, place, structural_type),
                     ArrayStorageHome::Runtime => {
-                        let payload = self
-                            .structural_byte_storage
-                            .get(&array.referent)
-                            .ok_or_else(malformed)?;
+                        let payload = self.structural_byte_storage.require(&array.referent)?;
                         if *index >= payload.len() {
                             return Err(malformed());
                         }
@@ -417,6 +467,15 @@ impl TerminalExecution<'_> {
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
         let changed = match &storage.endpoint {
+            PrimitiveStorageEndpoint::Projection { fragments, .. } => {
+                // The provider already wrote these exact original cells. A
+                // composed presentation invalidates each endpoint's provenance
+                // without replaying any of its pre-call logical snapshots.
+                for fragment in fragments {
+                    self.record_original_scalar_write(&fragment.storage)?;
+                }
+                return Ok(());
+            }
             PrimitiveStorageEndpoint::Scalar(home) => {
                 self.invalidate_stored_provenance(home);
                 return Ok(());
@@ -451,7 +510,7 @@ impl TerminalExecution<'_> {
                         .in_argument_preparation("original frame write lost its resident cell"));
                 }
                 let path = terminal_semantics::scalar_array_leaf_path(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     structural_type,
                     u64::try_from(index).map_err(|_| malformed())?,
                 )
@@ -464,8 +523,7 @@ impl TerminalExecution<'_> {
             Some(ArrayCell::Structural { array, index }) => {
                 if self
                     .structural_byte_storage
-                    .get(&array)
-                    .ok_or_else(malformed)?
+                    .require(&array)?
                     .capture_scalar(index)?
                     .1
                     .is_none()
@@ -493,10 +551,7 @@ impl TerminalExecution<'_> {
         identity_cursor: &mut Option<u64>,
     ) -> Result<PrimitiveLoan, TerminalInterpretError> {
         let terminal_psi::StructuralTypeShape::PrimitiveScalar(expected) = self
-            .program
-            .structural_types()
-            .get(&parameter.structural_type)
-            .ok_or_else(malformed)?
+            .structural_declaration(parameter.structural_type)?
             .shape
         else {
             return Err(malformed());
@@ -515,10 +570,7 @@ impl TerminalExecution<'_> {
         if argument.path.is_empty()
             && let Some(loan) = self.primitive_loan_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             if *value != loan.referent
                 || value.structural_type != parameter.structural_type
                 || (parameter.access != StructuralAccess::SharedBorrow
@@ -657,7 +709,7 @@ impl TerminalExecution<'_> {
         else {
             return Ok(None);
         };
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let root = self.live_structural_type(argument.place)?;
         if !terminal_semantics::runtime_structural_path_tip(types.values(), root, prefix)
             .is_some_and(|row| {
@@ -721,7 +773,7 @@ impl TerminalExecution<'_> {
                 ..
             } => {
                 let extent = crate::structural_inputs::byte_arrays::byte_array_length(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     *array_type,
                 )
                 .ok_or_else(malformed)?;
@@ -812,7 +864,7 @@ impl TerminalExecution<'_> {
                     terminal_semantics::primitive_read_projection_type
                 };
                 let scalar_type = projection_type(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     owner.structural_type,
                     path,
                 )
@@ -826,7 +878,13 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             if let Some(view) = view {
                 return self
-                    .aggregate_view_primitive_access(&referent, view, &path[crossing + 1..])
+                    .aggregate_view_primitive_access(
+                        &referent,
+                        view,
+                        &path[crossing + 1..],
+                        None,
+                        writing,
+                    )
                     .map(Some);
             }
             let suffix = &path[crossing + 1..];
@@ -846,7 +904,7 @@ impl TerminalExecution<'_> {
                 terminal_semantics::primitive_read_projection_type
             };
             let scalar_type = projection_type(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 referent.structural_type,
                 suffix,
             )
@@ -878,7 +936,7 @@ impl TerminalExecution<'_> {
                 terminal_semantics::canonical_primitive_read_path
             };
             let canonical = canonical_path(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 referent.structural_type,
                 suffix,
             )
@@ -899,11 +957,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
     ) -> Result<ScalarType, TerminalInterpretError> {
         if matches!(
-            self.program
-                .structural_types()
-                .get(&structural_type)
-                .ok_or_else(malformed)?
-                .shape,
+            self.structural_declaration(structural_type)?.shape,
             terminal_psi::StructuralTypeShape::ByteSequence(_)
         ) {
             return Ok(ScalarType::Integer(
@@ -911,7 +965,7 @@ impl TerminalExecution<'_> {
             ));
         }
         terminal_semantics::primitive_projection_type(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             structural_type,
             path,
         )
@@ -928,8 +982,10 @@ impl TerminalExecution<'_> {
         referent: &TerminalStructuralValue,
         view: crate::reference::AggregateViewTip,
         suffix: &[StructuralPathSegment],
+        home: Option<&crate::element_views::ElementViewHome>,
+        writing: bool,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let crate::reference::AggregateViewTip::Aggregate { view, backing } = view else {
             return Err(malformed());
         };
@@ -942,6 +998,19 @@ impl TerminalExecution<'_> {
         .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
             "aggregate re-view has no unique contiguous scalar endpoint",
         ))?;
+        if let crate::reference::AggregateViewTip::ScalarRegion {
+            view: observed,
+            byte_length,
+        } = tip
+        {
+            return self.aggregate_projection_storage(
+                referent,
+                observed,
+                byte_length,
+                home,
+                writing,
+            );
+        }
         let crate::reference::AggregateViewTip::Scalar {
             view: observed,
             backing: stored,
@@ -954,11 +1023,12 @@ impl TerminalExecution<'_> {
                 "aggregate re-view backing scalar has no retained cell coordinate",
             ),
         )?;
-        let (mut storage, _, shared_view) = self.primitive_view_access(
+        let (mut storage, _, shared_view) = self.original_view_primitive_access(
             referent,
-            canonical.as_slice(),
+            home,
+            &canonical,
             stored.logical_scalar,
-            false,
+            writing,
         )?;
         if storage
             .encoding
@@ -980,6 +1050,30 @@ impl TerminalExecution<'_> {
             });
         }
         Ok((storage, observed.logical_scalar, shared_view))
+    }
+
+    fn original_view_primitive_access(
+        &self,
+        referent: &TerminalStructuralValue,
+        home: Option<&crate::element_views::ElementViewHome>,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+        writing: bool,
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        match home {
+            Some(home) => {
+                let suffix = terminal_semantics::canonical_structural_storage_path(
+                    self.structural_types().values(),
+                    referent.structural_type,
+                    path,
+                )
+                .ok_or_else(malformed)?;
+                let mut selected = home.path.clone();
+                selected.extend(suffix);
+                self.primitive_home_access(home.storage, writing, &selected)
+            }
+            None => self.primitive_view_access(referent, path, scalar_type, false),
+        }
     }
 
     pub(crate) fn capture_primitive_home(
@@ -1014,7 +1108,7 @@ impl TerminalExecution<'_> {
              whole: &[semantic_vocabulary::StructuralDomainId],
              projected: &[terminal_psi::StructuralPathQualification]| {
                 terminal_semantics::primitive_store_restriction(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     self.program.catalogs.structural_domains.iter(),
                     root,
                     whole,
@@ -1107,7 +1201,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         expected: ScalarType,
     ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         for (position, segment) in path.iter().enumerate() {
             let StructuralPathSegment::FixedIndex(index) = segment else {
                 continue;
@@ -1199,7 +1293,7 @@ impl TerminalExecution<'_> {
             }
             return loan.initialized_empty_scalar_array(self, path, expected);
         }
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         if crate::custody::resolve_structural_path_type(&types, home.structural_type, path)?
             != expected
         {
@@ -1288,7 +1382,7 @@ impl TerminalExecution<'_> {
         }
         if path.contains(&StructuralPathSegment::Referent) {
             self.primitive_home_contract(home, writing, path)?;
-            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            let owner = structural_values.require(&place)?;
             if owner.structural_type != home.structural_type {
                 return Err(malformed());
             }
@@ -1298,7 +1392,7 @@ impl TerminalExecution<'_> {
         }
         if let Some(loan) = element_view_values.get(&place) {
             self.primitive_home_contract(home, writing, path)?;
-            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            let owner = structural_values.require(&place)?;
             if owner.structural_type != home.structural_type || !loan.matches_descriptor_home(owner)
             {
                 return Err(malformed());
@@ -1343,6 +1437,8 @@ impl TerminalExecution<'_> {
                         backing: backing.value.structural_type,
                     },
                     path,
+                    backing.collection_home.as_ref(),
+                    writing,
                 )?;
                 return Ok((storage, scalar_type, shared_view));
             }
@@ -1355,7 +1451,7 @@ impl TerminalExecution<'_> {
         // Reuse the same endpoint judgment without interpreting that PlaceId
         // in the current callee's frame.
         if let Some(binding) = byte_sequence_values.get(&place) {
-            let descriptor = structural_values.get(&place).ok_or_else(malformed)?;
+            let descriptor = structural_values.require(&place)?;
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };
@@ -1386,23 +1482,15 @@ impl TerminalExecution<'_> {
         } else {
             terminal_semantics::primitive_read_projection_type
         };
-        let scalar_type = projection_type(
-            self.program.structural_types().values(),
-            structural_type,
-            path,
-        )
-        .ok_or_else(malformed)?;
+        let scalar_type = projection_type(self.structural_types().values(), structural_type, path)
+            .ok_or_else(malformed)?;
         let canonical_path = if writing {
             terminal_semantics::canonical_primitive_path
         } else {
             terminal_semantics::canonical_primitive_read_path
         };
-        let path = canonical_path(
-            self.program.structural_types().values(),
-            structural_type,
-            path,
-        )
-        .ok_or_else(malformed)?;
+        let path = canonical_path(self.structural_types().values(), structural_type, path)
+            .ok_or_else(malformed)?;
         let path = path.as_slice();
         if let Some(array) = scalar_array_values.backing(&place) {
             if array.structural_type != structural_type || structural_values.contains_key(&place) {
@@ -1419,29 +1507,18 @@ impl TerminalExecution<'_> {
                 let terminal_psi::StructuralTypeShape::FixedArray {
                     element,
                     length: terminal_psi::ArrayExtent::Literal(length),
-                } = self
-                    .program
-                    .structural_types()
-                    .get(&carrier)
-                    .ok_or_else(malformed)?
-                    .shape
+                } = self.structural_declaration(carrier)?.shape
                 else {
                     return Err(malformed());
                 };
                 if *index >= length {
                     return Err(malformed());
                 }
-                let leaf_count = match self
-                    .program
-                    .structural_types()
-                    .get(&element)
-                    .ok_or_else(malformed)?
-                    .shape
-                {
+                let leaf_count = match self.structural_declaration(element)?.shape {
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                     _ => {
                         terminal_semantics::scalar_array_leaf_shape(
-                            self.program.structural_types().values(),
+                            self.structural_types().values(),
                             element,
                         )
                         .ok_or_else(malformed)?
@@ -1524,7 +1601,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         if path.contains(&semantic_vocabulary::CanonicalStructuralPathSegment::Referent) {
             let physical = terminal_semantics::canonical_structural_storage_path(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 view.structural_type,
                 path,
             )
@@ -1546,11 +1623,7 @@ impl TerminalExecution<'_> {
         let mut carrier = view.structural_type;
         let mut selected_case = None;
         for (position, segment) in path.iter().enumerate() {
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&carrier)
-                .ok_or_else(malformed)?;
+            let declaration = self.structural_declaration(carrier)?;
             match (segment, &declaration.shape) {
                 (
                     semantic_vocabulary::CanonicalStructuralPathSegment::Case(case),
@@ -1747,13 +1820,8 @@ impl TerminalExecution<'_> {
                 (value.opaque_identity == view.opaque_identity).then_some(value.structural_type)
             })
             .ok_or_else(malformed)?;
-        let parent =
-            resolve_structural_path_type(&self.program.structural_types(), root, parent_path)?;
-        let declaration = self
-            .program
-            .structural_types()
-            .get(&parent)
-            .ok_or_else(malformed)?;
+        let parent = resolve_structural_path_type(&self.structural_types(), root, parent_path)?;
+        let declaration = self.structural_declaration(parent)?;
         let parent_place = StructuralRuntimePlace {
             opaque_identity: view.opaque_identity,
             path: parent_path.to_vec(),
@@ -1770,10 +1838,7 @@ impl TerminalExecution<'_> {
         let payload = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Sum { cases }
             | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
-                let stored = self
-                    .structural_cases
-                    .get(&parent_place)
-                    .ok_or_else(malformed)?;
+                let stored = self.structural_cases.require(&parent_place)?;
                 if stored.structural_type != parent {
                     return Err(malformed());
                 }
@@ -1795,8 +1860,8 @@ impl TerminalExecution<'_> {
             // the receiving scalar declaration. Its handback predicate was
             // checked by Psi; storage identity does not require manufacturing
             // an owned restricted scalar declaration for a bare formal.
-            let types = self.program.structural_types();
-            let expected = types.get(&view.structural_type).ok_or_else(malformed)?;
+            let types = self.structural_types();
+            let expected = types.declaration(&view.structural_type)?;
             let selected = field
                 .field_type
                 .borrowed_presentation_type(StructuralAccess::MutableBorrow, Some(expected))
@@ -1843,7 +1908,6 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(expected)) = self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .map(|entry| &entry.shape)
@@ -1852,7 +1916,6 @@ impl TerminalExecution<'_> {
         };
         let scalar = self.scalar_value(value)?;
         let restriction = self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .and_then(|declaration| declaration.scalar_restriction.as_ref());
@@ -1893,7 +1956,7 @@ impl TerminalExecution<'_> {
                 if backing == carrier.structural_type =>
             {
                 let (path, tip) = crate::reference::translate_aggregate_view_path(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     view,
                     backing,
                     field_path,
@@ -1913,17 +1976,18 @@ impl TerminalExecution<'_> {
                     return Ok(None);
                 };
                 carrier = crate::custody::project_shared_structural_observation(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     &carrier,
                     prefix,
                 )?;
                 translated = namespace.to_vec();
                 (translated.as_slice(), stored.logical_scalar)
             }
+            Some(crate::reference::AggregateViewTip::ScalarRegion { .. }) => return Ok(None),
             Some(_) => return Err(malformed()),
         };
         let Some(field) = terminal_semantics::runtime_structural_field(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             carrier.structural_type,
             field_path,
         ) else {
@@ -1981,8 +2045,15 @@ impl TerminalExecution<'_> {
         let (carrier, view) =
             self.resolve_live_view_projection(source, prefix, StructuralAccess::SharedBorrow)?;
         if let Some(view) = view {
-            let (storage, logical_scalar, shared_view) =
-                self.aggregate_view_primitive_access(&carrier, view, field_path)?;
+            let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
+                &carrier,
+                view,
+                field_path,
+                self.aggregate_argument_backings
+                    .get(&source)
+                    .and_then(|backing| backing.collection_home.as_ref()),
+                false,
+            )?;
             return self
                 .read_primitive_storage(source, storage, logical_scalar, scalar_type, shared_view)
                 .map(Some);
@@ -2082,13 +2153,10 @@ impl TerminalExecution<'_> {
             {
                 // Select this role from the actual declaration, before resolving
                 // storage. A failed home/loan query never falls back to metadata.
-                let current = self
-                    .structural_values
-                    .get(&argument.place)
-                    .ok_or_else(malformed)?;
+                let current = self.structural_value(argument.place)?;
                 if current != completed
                     || current.structural_type != parameter.structural_type
-                    || !matches!(self.program.structural_types().get(&parameter.structural_type).ok_or_else(malformed)?.shape,
+                    || !matches!(self.structural_declaration(parameter.structural_type)?.shape,
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if scalar == expected)
                 {
                     return Err(malformed());
@@ -2133,6 +2201,17 @@ impl TerminalExecution<'_> {
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
         if expected != scalar_type {
             return Err(malformed());
+        }
+        if let PrimitiveStorageEndpoint::Projection {
+            fragments,
+            logical,
+            stored,
+        } = &storage.endpoint
+        {
+            if *logical != scalar_type {
+                return Err(malformed());
+            }
+            return self.read_storage_projection(source, fragments, *stored, expected);
         }
         if let Some(encoding) = storage.encoding {
             if encoding.view != encoding.source {
@@ -2190,6 +2269,7 @@ impl TerminalExecution<'_> {
                     source,
                     field: field.field,
                 }),
+            PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
             PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                 let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
@@ -2264,7 +2344,7 @@ impl TerminalExecution<'_> {
             })
             .ok_or_else(malformed)?;
         let restriction = terminal_semantics::primitive_store_restriction(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             root,
             whole,
@@ -2273,7 +2353,7 @@ impl TerminalExecution<'_> {
         )
         .ok_or_else(malformed)?;
         let predicates = terminal_semantics::primitive_store_byte_predicates(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             root,
             whole,
@@ -2325,7 +2405,7 @@ impl TerminalExecution<'_> {
         array_path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         let declaration = terminal_semantics::runtime_structural_path_tip(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             root,
             array_path,
         )
@@ -2441,7 +2521,8 @@ impl TerminalExecution<'_> {
                 let byte = u8::try_from(value).map_err(|_| malformed())?;
                 self.stored_byte_array_write(&array, index, byte)?;
             }
-            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
+            PrimitiveStorageEndpoint::ViewByte { .. }
+            | PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
         }
         Ok(())
     }

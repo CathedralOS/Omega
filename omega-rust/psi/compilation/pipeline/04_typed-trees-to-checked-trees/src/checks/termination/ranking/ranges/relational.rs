@@ -10,6 +10,7 @@ use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
+use crate::flow::expressions;
 use typed_trees::state::State;
 use typed_trees::statement::TransitionGuardNode;
 
@@ -32,6 +33,10 @@ pub(in crate::checks::termination) enum RankArrivalFailure {
 
 #[derive(Clone)]
 pub(in crate::checks::termination) struct RankArrivalAdmission {
+    pub applications: Vec<(
+        symbols::SymbolHandle,
+        validation::IntegerApplicationFormation,
+    )>,
     pub premises: validation::RankingRangePremises,
     pub states: Vec<validation::RankStateBindings>,
     pub origins: Vec<validation::StateEntryCorrespondence>,
@@ -109,6 +114,7 @@ impl RankArrivalAdmission {
                 }),
         );
         Some(Self {
+            applications: Vec::new(),
             premises: validation::RankingRangePremises::RankInvariant,
             states: selected,
             origins,
@@ -215,7 +221,17 @@ fn admit_complete(
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
-    if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
+    let entry_proof = super::super::super::rank_inputs::prove_integer_entry_with_formation(
+        program,
+        machine,
+        range,
+        measure,
+        call_frames,
+    )
+    .or_else(|| {
+        validation::prove_ranking_range_entry_with_formation(program, machine, root, range, measure)
+    })?;
+    if !entry_proof.membership_and_pinning {
         return None;
     }
     // The judgment reads only these entry formals' arrival values; every
@@ -245,10 +261,12 @@ fn admit_complete(
             frames,
             premises,
             &premise_inputs,
+            entry_proof.application.clone(),
             accept,
             failure,
         )?;
         Some(RankArrivalAdmission {
+            applications: states.applications,
             premises,
             states: states.states,
             origins: states.origins,
@@ -348,6 +366,7 @@ fn prove_edges<'program>(
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
     premise_inputs: &[validation::RankPremiseInput],
+    entry_application: Option<validation::IntegerApplicationFormation>,
     accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
     failure: &mut RankArrivalFailure,
 ) -> Option<state_edges::SelectedCorrespondence> {
@@ -361,6 +380,10 @@ fn prove_edges<'program>(
     }
     let protected = protected_input_paths(program, machine, root, None, premise_inputs)?;
     let mut root_edges = Vec::new();
+    let mut root_applications = entry_application
+        .into_iter()
+        .map(|application| (root.symbol, application))
+        .collect::<Vec<_>>();
     for edge in edges {
         let Some(evaluated_prefix) = preserved_entry_prefix(
             program,
@@ -400,6 +423,9 @@ fn prove_edges<'program>(
             };
             return None;
         }
+        if let Some(application) = proof.arrival_application {
+            root_applications.push((root.symbol, application));
+        }
         root_edges.push(checked_trees::CheckedRankArrivalEdge {
             source: root.symbol,
             destination: root.symbol,
@@ -418,10 +444,12 @@ fn prove_edges<'program>(
         premises,
         premise_inputs,
         &root_edges,
+        &root_applications,
         accept,
         failure,
     )?;
     selected.edges.extend(root_edges);
+    selected.applications.extend(root_applications);
     Some(selected)
 }
 
@@ -434,9 +462,7 @@ fn preserved_entry_prefix<'program>(
     protected: &[validation::RankProtectedPath],
 ) -> Option<Vec<ExpressionHandle>> {
     let mut evaluated = Vec::new();
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
+    for statement in crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(statement + 1)
     {
@@ -573,10 +599,7 @@ fn pure_guard_or_calls(
     depth: usize,
     admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
 ) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
         return false;
     };
     let mut inert = |expression| {
@@ -645,19 +668,17 @@ fn pure_guard_or_calls(
                     expression,
                 ))
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| inert(field.value)),
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(items) => expressions(program)
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_all(dispatch, &mut inert),
+        ExpressionNode::Match(dispatch) => {
+            expressions(program).match_deep_all(dispatch, &mut inert)
+        }
         ExpressionNode::Call(call) => {
             // A call admitted by the caller's bar keeps every subterm pure
             // the way transition actuals are; the caller decides which
@@ -665,8 +686,7 @@ fn pure_guard_or_calls(
             // write frame separately.
             admit_call(call)
                 && (!call.receiver.is_valid() || inert(call.receiver))
-                && program
-                    .expression_table
+                && expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| inert(*argument))

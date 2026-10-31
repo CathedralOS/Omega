@@ -36,6 +36,9 @@ pub(super) struct StateValues {
     /// all-ASCII glyph table keeps a `u8` byte store provably in-class.
     bounds: Vec<ParameterBounds>,
     fields: Vec<fields::FieldValue>,
+    /// Every observed input edge, including ones carrying no field evidence.
+    /// A later field cannot forget an earlier unknown predecessor.
+    field_sources: Vec<fields::BoundsSource>,
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
     entry_paths: crate::facts::boolean_predicates::EntryPaths,
@@ -62,31 +65,6 @@ enum ArgumentInputs {
     Edges(Vec<ArgumentEdge>),
 }
 
-/// The greatest predicate set this state's incoming edges have ever jointly
-/// delivered for `root`/`segments` -- the co-inductive premise an element-store
-/// reseed may assume for the carrier. Empty when no edge has established any.
-///
-/// `root` is the destination-side carrier identity: the machine symbol for an
-/// attached `self` field, or the destination parameter's own symbol for a
-/// `&mut`/shared argument's storage.
-pub(super) fn field_predicate_ceiling<'a>(
-    build: &'a FlowBuildContext<'_>,
-    state: SymbolHandle,
-    root: facts::PlaceRoot,
-    segments: &[facts::PlaceSegment],
-) -> &'a [validation::field_domains::ByteSequencePredicate] {
-    let field = build
-        .state_value_inputs
-        .iter()
-        .find(|row| row.state == state)
-        .and_then(|row| {
-            row.fields
-                .iter()
-                .find(|field| field.root() == root && field.segments() == segments)
-        });
-    field.map_or(&[], |field| field.predicate_ceiling())
-}
-
 pub(super) fn entry_state_index(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -109,7 +87,9 @@ fn reachable(
     machine: &typed_trees::machine::Machine,
     state: SymbolHandle,
 ) -> bool {
-    entry_state(program, machine).is_some_and(|entry| entry.symbol == state)
+    let declared_entry = entry_state(program, machine).is_some_and(|entry| entry.symbol == state)
+        && !validation::private_invocation_entry_is_closed(program, machine);
+    declared_entry
         || build
             .state_value_inputs
             .iter()
@@ -135,15 +115,25 @@ fn join(
         .iter_mut()
         .find(|row| row.state == incoming.state)
     {
-        changed |= fields::meet(
-            program,
-            machine,
-            destination,
-            &mut previous.fields,
-            &incoming.fields,
-            source,
-            thresholds.as_slice(),
-        );
+        if !previous.field_sources.contains(&source) {
+            previous.field_sources.push(source);
+            build.new_state_field_input_height += 1;
+            changed = true;
+        }
+        // A fail-closed input row represents every possible predecessor, not
+        // an unreached entry which a later precise capture may narrow.
+        if !matches!(previous.argument_edges, ArgumentInputs::Unknown) {
+            changed |= fields::meet(
+                program,
+                machine,
+                destination,
+                &mut previous.fields,
+                &incoming.fields,
+                source,
+                &previous.field_sources,
+                thresholds.as_slice(),
+            );
+        }
         changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
         changed |= predicates::meet(&mut previous.predicates, &incoming.predicates);
         if previous.entry_paths.union(&incoming.entry_paths) {
@@ -186,6 +176,7 @@ fn join(
                 height.saturating_add(bound.height(thresholds.len()))
             });
         let mut incoming = incoming;
+        incoming.field_sources.push(source);
         for field in &mut incoming.fields {
             field.seed_delivery(source);
         }
@@ -210,6 +201,7 @@ pub(super) fn unknown_inputs(
                 .iter()
                 .map(|state| StateValues {
                     state: state.symbol,
+                    field_sources: Vec::new(),
                     fields: Vec::new(),
                     qualifications: Vec::new(),
                     predicates: Vec::new(),
@@ -363,7 +355,7 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
-    let path_contexts = crate::flow::active_context_handles(build, contexts);
+    let path_contexts = crate::flow::active_context_handles(&build.contexts, contexts);
     let entry_paths = crate::facts::boolean_predicates::EntryPaths::retained(
         semantic,
         &path_contexts,
@@ -387,6 +379,7 @@ pub(super) fn record_transition(
         fields::BoundsSource::transition(state.symbol, target),
         StateValues {
             state: destination.symbol,
+            field_sources: Vec::new(),
             values,
             bounds,
             fields,
@@ -468,6 +461,7 @@ pub(super) fn record_invocation<'plans>(
         source,
         StateValues {
             state: destination.symbol,
+            field_sources: Vec::new(),
             fields: Vec::new(),
             qualifications: Vec::new(),
             predicates: Vec::new(),
@@ -590,7 +584,7 @@ fn completed_argument_facts(
         }
     }
     let contexts = if live_view {
-        crate::flow::active_context_handles(build, invocation_contexts)
+        crate::flow::active_context_handles(&build.contexts, invocation_contexts)
     } else {
         build
             .contexts
@@ -713,6 +707,7 @@ fn ensure_input_row(
     }
     build.state_value_inputs.push(StateValues {
         state: destination.symbol,
+        field_sources: Vec::new(),
         values: program
             .state_parameters(destination)
             .iter()

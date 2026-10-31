@@ -4,6 +4,7 @@
 //! generational handles and arithmetic policies. This owner discovers uses;
 //! the transforming stage binds executable calls and publishes proof evidence.
 
+use crate::frozen_program::expression_table;
 use std::collections::HashSet;
 
 use arena::Arena;
@@ -45,7 +46,7 @@ pub fn collect_pre_specialization_operator_selections(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 
     let mut selections = Vec::new();
-    for operation in program.expression_table.selected_index_operations() {
+    for operation in expression_table(program).selected_index_operations() {
         if let Some(target) = crate::selection_resolution::declaration_target(operation.operator) {
             selections.push((operation.expression, target));
         }
@@ -60,7 +61,7 @@ pub fn collect_pre_specialization_operator_selections(
             crate::expression_traversal::collect_statement_expression_trees(program, statement, &mut expressions);
         }
         for expression in expressions {
-            let Some(binary) = program.expression_table.binary_node(expression) else {
+            let Some(binary) = expression_table(program).binary_node(expression) else {
                 continue;
             };
             let Some(spelling) = binary_operator_spelling(binary.operator) else {
@@ -92,7 +93,7 @@ pub fn collect_pre_specialization_operator_selections(
                     }
                     if !resolve_spelling_for_operands(
                         program, spelling, &operand_types,
-                        program.expression_table.source_span(expression),
+                        expression_table(program).source_span(expression),
                     ).is_empty() || !typed_trees::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling) {
                         continue;
                     }
@@ -170,7 +171,7 @@ fn collect_expression_operator_use(
         return;
     }
 
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     match node {
         // A case dispatch contributes one arm-local floating equality use ahead
         // of each arm, so its arms are walked here; the record/candidate facts
@@ -186,8 +187,7 @@ fn collect_expression_operator_use(
                 .is_some_and(|primitive| {
                     matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
                 });
-            for (ordinal, arm) in program
-                .expression_table
+            for (ordinal, arm) in expression_table(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .enumerate()
@@ -211,7 +211,7 @@ fn collect_expression_operator_use(
                         sink.uses.append(equality);
                     }
                 }
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+                for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                     collect_expression_operator_use(program, pattern, origin, sink);
                 }
                 collect_expression_operator_use(program, arm.value, origin, sink);
@@ -295,8 +295,7 @@ fn named_operator_use_fact(
             // Token-machine overloads use the same complete operand matching as
             // their spelled form. Namespace/arity candidates alone cannot choose
             // between, for example, the f32 and f64 requirements.
-            let operands: Vec<_> = program
-                .expression_table
+            let operands: Vec<_> = expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .map(|operand| expression_type_reference_for_origin(program, *operand, origin))
@@ -311,7 +310,7 @@ fn named_operator_use_fact(
                             program,
                             spelling,
                             &operands,
-                            program.expression_table.source_span(expression),
+                            expression_table(program).source_span(expression),
                         )
                         .iter()
                         .any(|selected| selected.operator.symbol == candidate.symbol)
@@ -322,7 +321,7 @@ fn named_operator_use_fact(
         })
         .filter(|operator| {
             program.symbols.source_reference_may_select_symbol(
-                program.expression_table.source_span(expression),
+                expression_table(program).source_span(expression),
                 operator.symbol,
             )
         })?;
@@ -384,8 +383,7 @@ pub(super) fn named_float_policy_adapter(
     if call.exact_coercion_target.is_valid() {
         return CheckedArithmeticPolicyAdapter::None;
     }
-    let operands: Vec<_> = program
-        .expression_table
+    let operands: Vec<_> = expression_table(program)
         .expression_handles(call.arguments)
         .iter()
         .map(|argument| expression_type_reference_for_origin(program, *argument, origin))
@@ -573,7 +571,7 @@ fn indexed_operator_spelling(
 ) -> OperatorSpelling {
     if index.is_valid()
         && matches!(
-            program.expression_table.expression(index),
+            expression_table(program).expression(index),
             ExpressionNode::Range(_)
         )
     {
@@ -594,7 +592,7 @@ pub fn indexed_operand_types(
         indexed.collection,
         origin,
     )];
-    match program.expression_table.expression(indexed.index) {
+    match expression_table(program).expression(indexed.index) {
         ExpressionNode::Range(range) => {
             operand_types.push(expression_type_reference_for_origin(
                 program,
@@ -638,7 +636,7 @@ fn operator_use_fact(
             candidate_facts,
         );
     }
-    let use_site = program.expression_table.source_span(expression);
+    let use_site = expression_table(program).source_span(expression);
     let candidates = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
@@ -656,7 +654,7 @@ fn operator_use_fact(
             status
         } else if candidates.is_empty() {
             let indexed_spelling = matches!(
-                program.expression_table.expression(expression),
+                expression_table(program).expression(expression),
                 ExpressionNode::Indexed(indexed)
                     if indexed_operator_spelling(program, indexed.index) == spelling
             );

@@ -8,9 +8,9 @@ MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }
 }
 public trait ReadContract { machine read() -> u64 reaches Mark invokes Mark; }
-public machine read_service() -> u64 satisfies ReadContract::read invokes Mark; { Mark::read() }
+public machine read_service() -> u64 satisfies ReadContract::read invokes Mark { Mark::read() }
 machine call_mark<machine Read>() -> u64
-where machine Read satisfies ReadContract::read;
+requires machine Read satisfies ReadContract::read;
 { Read() }
 
 linux_x86_64 machine read_mark() -> u64 {

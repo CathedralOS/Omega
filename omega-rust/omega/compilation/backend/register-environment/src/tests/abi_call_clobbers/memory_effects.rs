@@ -1,14 +1,15 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
-    scalar_abi_cases, validate_effects, validated_effects,
+    baseline_target_register_environment, binds_catalog_provenance, declaration_mut,
+    declared_pairs, encoded_mut, flags_view, produced_effects, row_and_declaration,
+    scalar_abi_cases, sole_alternative, stack_pointer_view, validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
-    MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
+    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior,
 };
 
 #[test]
@@ -431,25 +432,19 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         // Plain storage footprints belong exactly to ordinary memory rules
         // and the separately checked control envelopes above. Hosted I/O has
         // its own memory shapes; no other declaration may claim this storage.
-        let declared_memory = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                matches!(
-                    declaration.memory,
-                    MachineMemoryEffect::CopyBytesV1
-                        | MachineMemoryEffect::ZeroBytesV1
-                        | MachineMemoryEffect::ReadPointerV1
-                        | MachineMemoryEffect::WritePointerV1
-                        | MachineMemoryEffect::WriteFrameStorageV1
-                        | MachineMemoryEffect::ReadFrameStorageV1
-                )
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.memory,
+                MachineMemoryEffect::CopyBytesV1
+                    | MachineMemoryEffect::ZeroBytesV1
+                    | MachineMemoryEffect::ReadPointerV1
+                    | MachineMemoryEffect::WritePointerV1
+                    | MachineMemoryEffect::WriteFrameStorageV1
+                    | MachineMemoryEffect::ReadFrameStorageV1
+            )
+        });
         assert_eq!(
-            declared_memory,
+            declared,
             memory_rules
                 .iter()
                 .copied()
@@ -462,29 +457,10 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
             case.convention
         );
 
-        // The catalog is bound to this exact validated constraint catalog,
-        // target, and key selection — provenance, not a re-derived roster.
-        assert_eq!(catalog.catalog().target, case.target);
-        assert_eq!(
-            catalog.catalog().register_constraints,
-            environment.constraints().identity()
-        );
-        assert_eq!(catalog.catalog().selected_keys, keys);
+        binds_catalog_provenance(&catalog, case, &environment, keys);
 
-        let stack_pointer = named_view(
-            model,
-            case.target,
-            "rsp",
-            "sp",
-            "memory matrix names a stack-pointer view",
-        );
-        let flags = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "memory matrix names a flags view",
-        );
+        let stack_pointer = stack_pointer_view(model, case);
+        let flags = flags_view(model, case);
         // Every memory operand travels in the class the ABI declares for its
         // integer arguments, and frame custody reads the ABI-fixed stack
         // pointer.
@@ -500,13 +476,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
         for (key, semantic) in &memory_rules {
             let contract = memory_contract(*semantic);
-            let row = environment
-                .constraint(*key)
-                .unwrap_or_else(|| panic!("environment missing selected memory row {key:?}"));
-            let declaration = catalog
-                .catalog()
-                .declaration(*key)
-                .unwrap_or_else(|| panic!("effect catalog missing memory declaration {key:?}"));
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
@@ -579,15 +549,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
             // One canonical alternative replays the exact ABI memory
             // mechanism for this target.
-            assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
-            assert_eq!(alternative.key.variant, 0, "{key:?}");
-            assert_eq!(
-                alternative.applicability,
-                MachineAlternativeApplicability::Always,
-                "{key:?}"
-            );
+            let alternative = sole_alternative(declaration, *semantic, *key);
             assert_eq!(
                 alternative.size,
                 expected_size(*semantic, case.target.architecture),
@@ -639,16 +601,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer =
-            named_view(model, case.target, "rsp", "sp", "target names no such view").id;
-        let foreign_unit = named_view(
-            model,
-            case.target,
-            "rflags",
-            "nzcv",
-            "target names no such view",
-        )
-        .units[0];
+        let stack_pointer = stack_pointer_view(model, case).id;
+        let foreign_unit = flags_view(model, case).units[0];
         for (key, semantic) in selected_memory_rules(&environment) {
             let contract = memory_contract(semantic);
             let row = environment.constraint(key).unwrap();
@@ -668,13 +622,12 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // access encoded as none (or none encoded as a pointer write)
             // fails structural admission.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .memory = if contract.memory == MachineMemoryEffect::NoneV1 {
-                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-            } else {
-                MachineEncodedMemoryEffect::NoneV1
-            };
+            encoded_mut(&mut corrupted, key, semantic, 0).memory =
+                if contract.memory == MachineMemoryEffect::NoneV1 {
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+                } else {
+                    MachineEncodedMemoryEffect::NoneV1
+                };
             reject_encoded!(
                 corrupted,
                 "{key:?} memory-footprint substitution must reject"
@@ -725,9 +678,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             };
             if let Some(drifted) = drifted {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .memory = drifted;
+                encoded_mut(&mut corrupted, key, semantic, 0).memory = drifted;
                 reject_encoded!(corrupted, "{key:?} drifted footprint must reject");
             }
 
@@ -736,9 +687,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // a pure rule survives the fallthrough shape and needs canonical
             // ISA replay.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .trap = if contract.faulting {
+            encoded_mut(&mut corrupted, key, semantic, 0).trap = if contract.faulting {
                 MachineEncodedTrapBehavior::NeverV1
             } else {
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1
@@ -759,28 +708,25 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A memory rule encoded as a conditional branch fails the
             // control/barrier join.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .control = MachineEncodedControlEffect::ConditionalRelativeBranchV1;
+            encoded_mut(&mut corrupted, key, semantic, 0).control =
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1;
             reject_encoded!(corrupted, "{key:?} branch-encoded memory rule must reject");
 
             // A stack lifecycle cannot be forged onto a memory rule: no
             // admitted shape joins a byte pop with these semantics.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .stack = MachineEncodedStackEffect::PopBytesV1 {
-                stack_pointer,
-                byte_count: 8,
-            };
+            encoded_mut(&mut corrupted, key, semantic, 0).stack =
+                MachineEncodedStackEffect::PopBytesV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                };
             reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
             // Dropping encoded stack-pointer custody understates the row's
             // contracted uses and fails structural admission.
             if contract.uses_stack_pointer {
                 let mut corrupted = catalog.clone();
-                let encoded =
-                    &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+                let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
                 assert!(
                     !encoded.implicit_unit_uses.is_empty(),
                     "{key:?} declares no stack-pointer use"
@@ -794,8 +740,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // structural admission.
             if !row.clobbers.is_empty() {
                 let mut corrupted = catalog.clone();
-                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
+                encoded_mut(&mut corrupted, key, semantic, 0)
                     .implicit_unit_clobbers
                     .remove(0);
                 reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
@@ -804,8 +749,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A forged implicit definition outside the row's empty def set
             // fails structural admission before canonical replay runs.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_defs
                 .push(foreign_unit);
             reject_encoded!(corrupted, "{key:?} forged implicit def must reject");
@@ -815,9 +759,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // every memory rule.
             if let Some(&dropped) = contract.writes.last() {
                 let mut corrupted = catalog.clone();
-                let writes = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .external_operand_writes;
+                let writes =
+                    &mut encoded_mut(&mut corrupted, key, semantic, 0).external_operand_writes;
                 writes.retain(|write| *write != dropped);
                 reject_encoded!(corrupted, "{key:?} lost operand write must reject");
             }
@@ -827,9 +770,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // rows no longer admit the smaller set either.
             if let Some(&dropped) = contract.reads.last() {
                 let mut corrupted = catalog.clone();
-                let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                    .encoded
-                    .external_operand_reads;
+                let reads =
+                    &mut encoded_mut(&mut corrupted, key, semantic, 0).external_operand_reads;
                 reads.retain(|read| *read != dropped);
                 reject_encoded!(corrupted, "{key:?} lost operand read must reject");
             }

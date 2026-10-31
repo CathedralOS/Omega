@@ -11,6 +11,8 @@ pub struct DataDefinition {
     /// Exact structural origin for a concrete generic instance synthesized by
     /// normalization. Authored data declarations never populate this field.
     pub generic_instance: Option<crate::types::TypeReferenceHandle>,
+    /// Exact contracts for implementation operands in this data telescope.
+    pub conformance_bounds: Vec<crate::item::GenericConformanceBound>,
     pub properties: DataProperties,
     /// N6: a proof-only quotient declaration (`data Q = Carrier % relation;`).
     /// Quotients have no authored members: their values are equivalence classes
@@ -173,7 +175,7 @@ pub enum TypeParameterKind {
     Value {
         type_reference: crate::types::TypeReferenceHandle,
     },
-    /// A compile-time machine-symbol parameter. The authored `where machine`
+    /// A compile-time machine-symbol parameter. The authored `requires machine`
     /// requirement is mandatory and stored with the parameter rather than
     /// inferred from uses or instantiations. `None` exists only while the
     /// parser is between `<machine M>` and its declaration-site validation.
@@ -206,7 +208,7 @@ pub enum MachineParameterContract {
     /// executable machine contract.
     RequirementIdentity,
     Structural(StateSignature),
-    /// `where machine Step satisfies Visitor<Context>::visit;`: the exact
+    /// `requires machine Step satisfies Visitor<Context>::visit;`: the exact
     /// requirement path plus the trait application the binder's callable
     /// contract is instantiated under. Empty arguments for a parameterless
     /// trait.

@@ -367,9 +367,7 @@ pub(super) fn prepare_state(
         .trivial_locals
         .iter()
         .filter_map(|local| {
-            match program
-                .statement_table
-                .statements(state.statement_nodes)
+            match crate::flow::state_statements(program, state.statement_nodes)
                 .get(local.declaration_ordinal as usize)?
             {
                 typed_trees::statement::StatementNode::LocalData(source) => {

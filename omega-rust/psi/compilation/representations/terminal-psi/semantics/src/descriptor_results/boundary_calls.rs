@@ -14,6 +14,7 @@ use super::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,
 };
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 use terminal_psi::{
     BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult, OperationResult,
@@ -44,16 +45,11 @@ pub fn boundary_call_preserves_descriptor_storage(
     else {
         return false;
     };
-    let mut declarations = module
-        .boundary_machines
-        .iter()
-        .filter(|declaration| declaration.id == *boundary);
-    let Some(declaration) = declarations.next() else {
+    let Some(declaration) = exactly_one(module.boundary_machines.iter(), |declaration| {
+        declaration.id == *boundary
+    }) else {
         return false;
     };
-    if declarations.next().is_some() {
-        return false;
-    }
     let result = match &operation.result {
         OperationResult::Unit => BoundaryCompletionResult::Unit,
         OperationResult::Scalar(result) => BoundaryCompletionResult::Scalar(result.scalar_type),

@@ -36,6 +36,7 @@ pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
 pub use declaration_types::state_root_type;
 
+use crate::frozen_program::expression_table;
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
@@ -146,7 +147,7 @@ pub(crate) fn validate_assignment_target_handle(
     // interior storage, and the divergence this gate closes -- the stale
     // initializer fold -- only fires on whole-local rebinding).
     let target_is_bare_name = matches!(
-        program.expression_table.expression(target),
+        expression_table(program).expression(target),
         ExpressionNode::Name(_)
     );
 
@@ -196,7 +197,7 @@ fn is_mutable_place_handle(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Indexed(indexed) => is_mutable_place_handle(program, indexed.collection),
         ExpressionNode::Member(member) => is_mutable_place_handle(program, member.receiver),
         ExpressionNode::Name(_) => true,
@@ -208,16 +209,15 @@ fn expression_root_name_handle(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&str> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Indexed(indexed) => {
             expression_root_name_handle(program, indexed.collection)
         }
         ExpressionNode::Member(member) => {
-            match program.expression_table.expression(member.receiver) {
+            match expression_table(program).expression(member.receiver) {
                 ExpressionNode::Name(path)
                     if path.members.count() == 1
-                        && program
-                            .expression_table
+                        && expression_table(program)
                             .name_path_members(path.members)
                             .first()
                             .is_some_and(|name| name.is_self_receiver()) =>
@@ -227,8 +227,7 @@ fn expression_root_name_handle(
                 _ => expression_root_name_handle(program, member.receiver),
             }
         }
-        ExpressionNode::Name(path) => program
-            .expression_table
+        ExpressionNode::Name(path) => expression_table(program)
             .name_path_members(path.members)
             .first()
             .map(|name| name.as_str()),
@@ -243,19 +242,19 @@ pub(crate) fn direct_self_field_member(
     program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Option<&str> {
-    match program.expression_table.expression(target) {
+    match expression_table(program).expression(target) {
         ExpressionNode::Member(member) => {
             if member.case_variant.is_some() {
                 return None;
             }
-            let Some(path) = program.expression_table.name_path_node(member.receiver) else {
+            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
                 return None;
             };
-            let receiver = program.expression_table.name_path_members(path.members);
+            let receiver = expression_table(program).name_path_members(path.members);
             (receiver.len() == 1 && receiver[0].is_self_receiver()).then(|| member.member.as_str())
         }
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             (members.len() == 2 && members[0].is_self_receiver()).then(|| members[1].as_str())
         }
         _ => None,
@@ -313,7 +312,7 @@ pub fn declared_place_type_raw(
     argument: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut handle = argument;
-    if let Some(inner) = program.expression_table.borrow_expression(handle) {
+    if let Some(inner) = expression_table(program).borrow_expression(handle) {
         handle = inner.target;
     }
 
@@ -321,7 +320,7 @@ pub fn declared_place_type_raw(
     // descriptor or owned carrier of a selected match payload. Recover only
     // its authenticated producer for typing; this supplies no executable
     // read, transfer, or permission to repeat that producer.
-    if let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(handle) {
+    if let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(handle) {
         return program.saved_value_source(saved).and_then(|source| {
             crate::expression_result_type_reference(
                 program,
@@ -342,8 +341,8 @@ pub fn declared_place_type_raw(
         return Some(result.type_reference);
     }
 
-    if let Some(path) = program.expression_table.name_path_node(handle)
-        && program.expression_table.name_path_is_single_member(path)
+    if let Some(path) = expression_table(program).name_path_node(handle)
+        && expression_table(program).name_path_is_single_member(path)
         && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
         && let typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
@@ -362,18 +361,14 @@ pub fn declared_place_type_raw(
     // local, for instance, whose retained path keeps no member symbol -- owes its
     // type to the spelling resolver below, exactly as it did before symbol
     // resolution; answering `None` here erases that place's declared type.
-    if let Some(path) = program.expression_table.name_path_node(handle)
+    if let Some(path) = expression_table(program).name_path_node(handle)
         && path.symbol.is_valid()
         && path.head_symbol == path.symbol
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1
-        && program
-            .expression_table
-            .name_path_member_symbols(path.member_symbols)
-            == [path.symbol]
+        && expression_table(program).name_path_member_symbols(path.member_symbols) == [path.symbol]
         && let Some(state) = current_state
     {
         let mut matching = program
@@ -398,11 +393,10 @@ pub fn declared_place_type_raw(
         }
     }
 
-    if let Some(path) = program.expression_table.name_path_node(handle)
+    if let Some(path) = expression_table(program).name_path_node(handle)
         && path.head_symbol == path.symbol
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1
@@ -427,7 +421,7 @@ pub fn declared_place_type_raw(
 
     // Preserve the retained root while traversing ordinary member expressions.
     // Flattening first loses a bare inherited field's declaration identity.
-    if let Some(member) = program.expression_table.member_node(handle) {
+    if let Some(member) = expression_table(program).member_node(handle) {
         let receiver =
             declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
         // Read the selected field under this receiver's reaching application.
@@ -450,7 +444,7 @@ pub fn declared_place_type_raw(
     if let Some(members) = collect_member_path(program, handle) {
         return declared_member_path_type(program, current_machine, current_state, &members);
     }
-    match program.expression_table.expression(handle) {
+    match expression_table(program).expression(handle) {
         ExpressionNode::ArrayLiteral(_) => crate::declared_constant_array_type(program, handle),
         ExpressionNode::Call(_) => crate::machine_calls::calls::call_result_type(program, handle),
         ExpressionNode::Indexed(_) => {
@@ -470,7 +464,7 @@ pub(crate) fn declared_member_field_symbol(
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let member = program.expression_table.member_node(expression)?;
+    let member = expression_table(program).member_node(expression)?;
     if member.case_variant.is_some() {
         return None;
     }
@@ -598,7 +592,7 @@ pub(crate) fn declared_indexed_projection_type_raw(
     let mut handle = target;
     let mut projected_fields = Vec::new();
     loop {
-        match program.expression_table.expression(handle) {
+        match expression_table(program).expression(handle) {
             ExpressionNode::Borrow(inner) => handle = inner.target,
             ExpressionNode::Member(member) => {
                 projected_fields.push(member.member.as_str());
@@ -609,7 +603,7 @@ pub(crate) fn declared_indexed_projection_type_raw(
                 // shape is checked by the range-assignment rule that knows the
                 // normalized width; treating it as the element type turns
                 // `[u8; M]` replacement into a spurious array-to-`u8` store.
-                if program.expression_table.indexed_on_range(indexed) {
+                if expression_table(program).indexed_on_range(indexed) {
                     return None;
                 }
                 let collection_type = declared_place_type_raw(

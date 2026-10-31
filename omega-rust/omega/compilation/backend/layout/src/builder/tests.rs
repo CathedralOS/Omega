@@ -1,7 +1,7 @@
 //! Layout builder tests.
 
 use super::build_layout_plan;
-use crate::{DataShape, FieldLayout};
+use crate::{DataLayout, DataShape, FieldLayout, LayoutPlan};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -18,6 +18,10 @@ fn typed_fixture(source: &str) -> TypedTrees {
 
 fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees::PlanLaidLayout {
     typed_trees::typed_trees::PlanLaidLayout {
+        application: Default::default(),
+        semantic_type: Default::default(),
+        policy_application: Default::default(),
+        target_inputs: Vec::new(),
         data_name: "Spread<ForeignRecord>".to_owned(),
         data_symbol: symbols::SymbolHandle::from_arena_index(1),
         field_symbols: vec![symbols::SymbolHandle::from_arena_index(2)],
@@ -77,7 +81,7 @@ fn fixture_geometry_mut(
 ) -> &mut typed_trees::PlanLaidGeometry {
     match &mut plan.realizations {
         typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
-        typed_trees::PlanLaidRealizations::TargetFamily(_) => panic!("fixture must be invariant"),
+        typed_trees::PlanLaidRealizations::TargetInputs(_) => panic!("fixture must be invariant"),
     }
 }
 
@@ -89,6 +93,25 @@ fn private_callback_fields() -> [FieldLayout; 1] {
         layout: crate::type_layout(8, 8),
         ..FieldLayout::default()
     }]
+}
+
+/// The named declaration's catalog layout; a missing one is a fixture bug.
+fn data_layout<'a>(plan: &'a LayoutPlan, name: &str) -> &'a DataLayout {
+    plan.data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == name)
+        .unwrap_or_else(|| panic!("{name} should be laid out"))
+}
+
+/// A placement that runs past the addressable size, pinned to the step that
+/// overflowed so a rejection cannot pass on an unrelated message.
+fn assert_overflow(error: &diagnostics::Diagnostic, step: &str) {
+    assert!(
+        error.message.contains("overflows the addressable size") && error.message.contains(step),
+        "{}",
+        error.message
+    );
 }
 
 fn close_private_callback_demands(
@@ -265,12 +288,7 @@ fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
         "#,
     );
     let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
-    let message = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Message")
-        .expect("Message layout");
+    let message = data_layout(&plan, "Message");
     assert_eq!(message.layout.size, 8);
     assert_eq!(message.layout.alignment, 4);
     let DataShape::Enum {
@@ -320,12 +338,7 @@ fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
 
     let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a full-width capacity cannot place the trailing length field");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("aligning field `length`"),
-        "{}",
-        error.message
-    );
+    assert_overflow(&error, "aligning field `length`");
 }
 
 #[test]
@@ -346,12 +359,7 @@ fn full_width_case_payload_rejects_placement_instead_of_panicking() {
 
     let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a full-width payload cannot end within the addressable size");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("field `storage`"),
-        "{}",
-        error.message
-    );
+    assert_overflow(&error, "field `storage`");
 }
 
 #[test]
@@ -370,12 +378,7 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
 
     let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a record extent past usize::MAX must be rejected");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("record extent"),
-        "{}",
-        error.message
-    );
+    assert_overflow(&error, "record extent");
 }
 
 #[test]
@@ -426,19 +429,9 @@ fn quotient_of_quotient_realizes_through_the_root_carrier() {
     );
 
     let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
-    let carrier = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Carrier")
-        .expect("Carrier layout");
+    let carrier = data_layout(&plan, "Carrier");
     for name in ["Quotient", "CoarserQuotient"] {
-        let layout = plan
-            .data_layouts
-            .iter()
-            .map(|(_, layout)| layout)
-            .find(|layout| layout.name.as_str() == name)
-            .unwrap_or_else(|| panic!("{name} should be laid out"));
+        let layout = data_layout(&plan, name);
         assert_eq!(layout.layout, carrier.layout, "{name}");
         assert_eq!(layout.shape, carrier.shape, "{name}");
     }

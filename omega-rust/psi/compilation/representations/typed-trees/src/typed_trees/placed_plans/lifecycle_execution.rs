@@ -73,9 +73,7 @@ impl PlacementExecutionDeclaration {
                 "placement execution lost its retained invocation application",
             ));
         }
-        let source = program
-            .expression_table
-            .static_machine_application(application);
+        let source = program.static_machine_application(application);
         if source.lexical_owner != owner || source.binding_declaration != self.template {
             return Err(Diagnostic::error(
                 "placement execution application does not belong to this caller and declaration",
@@ -95,9 +93,7 @@ impl PlacementExecutionDeclaration {
                 "placement execution lost its original policy/schema/supply-role binders",
             ));
         };
-        let bindings = program
-            .expression_table
-            .static_machine_application_bindings(application);
+        let bindings = program.static_machine_application_bindings(application);
         if bindings.len() != parameters.len() {
             return Err(Diagnostic::error(
                 "placement execution lost its complete invocation-owned type operand roster",
@@ -190,7 +186,6 @@ impl PlacementExecutionDeclaration {
             ));
         };
         let mut bindings = program
-            .expression_table
             .static_machine_application_bindings(specialization.binding_application)
             .iter()
             .filter(|binding| binding.parameter == role.symbol);

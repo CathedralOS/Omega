@@ -2,6 +2,7 @@
 //! comparisons, and IEEE comparisons with exact literal endpoints. Each
 //! comparison operand is resolved once: its resolved carrier selects the
 //! integer or IEEE family and the same resolution lowers it.
+use crate::places::place_at;
 use crate::values::operator_is_builtin;
 
 mod logical_matches;
@@ -53,12 +54,7 @@ pub(crate) fn lower_current_state_predicate(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    if statement_index
-        > program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len()
-    {
+    if statement_index > crate::flow::state_statements(program, state.statement_nodes).len() {
         return None;
     }
     Reader {
@@ -130,12 +126,7 @@ pub(crate) fn lower_entry_scalar(
             state,
             expression,
             &mut |leaf| {
-                let place = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    before_statement,
-                    leaf,
-                )?;
+                let place = place_at(program, state.symbol, before_statement, leaf)?;
                 subjects(&place)
             },
         )

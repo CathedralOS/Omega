@@ -7,6 +7,7 @@ use super::{
     has_anonymous_operator_meaning, integer_landing_warning, land_integer_value,
 };
 use crate::expression_traversal::children;
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -20,8 +21,7 @@ pub(crate) fn anonymous_integer_landing_warnings(
     program: &dyn crate::CheckingInput,
 ) -> Vec<Diagnostic> {
     let has_potential_fractional_origin =
-        program
-            .expression_table
+        expression_table(program)
             .iter_expressions()
             .any(|(_, node)| match node {
                 ExpressionNode::Float(literal) => literal.landing().is_none(),
@@ -78,7 +78,7 @@ pub(crate) fn anonymous_integer_landing_warnings(
                         } else {
                             children(
                                 program,
-                                program.expression_table.expression(expression),
+                                expression_table(program).expression(expression),
                                 |child| pending.push(child),
                             );
                         }
@@ -87,13 +87,13 @@ pub(crate) fn anonymous_integer_landing_warnings(
             }
         }
     }
-    for (expression, node) in program.expression_table.iter_expressions() {
+    for (expression, node) in expression_table(program).iter_expressions() {
         let ExpressionNode::Binary(binary) = node else {
             continue;
         };
         let has_candidate_operand = [binary.left, binary.right].into_iter().any(|operand| {
             matches!(
-                program.expression_table.expression(operand),
+                expression_table(program).expression(operand),
                 ExpressionNode::Float(_) | ExpressionNode::Binary(_) | ExpressionNode::Match(_)
             )
         });
@@ -125,7 +125,7 @@ fn append_integer_landing_warning(
     warnings: &mut Vec<Diagnostic>,
 ) {
     if !matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Float(_) | ExpressionNode::Binary(_) | ExpressionNode::Match(_)
     ) || warned.contains(&expression)
     {
@@ -247,7 +247,7 @@ fn visit_destination_trees(
             crate::expression_traversal::visit_pre_order(program, pending, |expression, node| {
                 match node {
                         ExpressionNode::StructLiteral(literal) => {
-                            for field in program.expression_table.struct_fields(literal.fields) {
+                            for field in expression_table(program).struct_fields(literal.fields) {
                                 if let Some(destination) = crate::value_custody::struct_literals::selected_construction_field_type(program, expression, literal, field.field_symbol) {
                                     visit_result(destination, field.value);
                                 }
@@ -262,7 +262,7 @@ fn visit_destination_trees(
                         {
                             visit_call_arguments(
                                 program, call.target_symbol,
-                                program.expression_table.expression_handles(call.arguments),
+                                expression_table(program).expression_handles(call.arguments),
                                 &mut visit_result,
                             );
                         }

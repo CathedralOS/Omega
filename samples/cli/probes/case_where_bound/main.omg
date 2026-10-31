@@ -13,9 +13,11 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-data Interval {
+data Interval 
+    requires (self in Interval::Empty) || ((self in Interval::Range) && (self.lo <= self.hi))
+{
     case Empty;
-    case Range(lo: u64, hi: u64) where lo <= hi;
+    case Range(lo: u64, hi: u64);
 }
 
 data Main { interval: Interval; }

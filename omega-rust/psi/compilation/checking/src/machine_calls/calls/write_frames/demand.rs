@@ -27,6 +27,7 @@ use super::{
     receiver_member_chain,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::cycle_frames::summarize_state_written_paths_for_cycles;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
@@ -851,6 +852,13 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         state: SymbolHandle,
     ) -> Option<Vec<LocalWriteSource>> {
+        if let Some(machine) = self.program.machine_holding_state(state) {
+            crate::note_dependency_body_read(
+                self.program,
+                machine.symbol,
+                crate::DependencyBodyRead::ReturnOrigin,
+            );
+        }
         memoized(&self.caches.reference_result_origins, state, || {
             let state = self.program.state_by_symbol(state)?;
             let machine = self.program.machine_holding_state(state.symbol)?;
@@ -900,6 +908,11 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         expression: ExpressionHandle,
     ) -> bool {
+        crate::note_dependency_body_read(
+            self.program,
+            machine.symbol,
+            crate::DependencyBodyRead::BindingStability,
+        );
         memoized(
             &self.caches.stable_expression_bindings,
             (machine.symbol, expression),
@@ -917,6 +930,11 @@ impl<'program> CallFrameResolver<'program> {
     }
 
     pub fn call_reference_bindings_are_stable(&self, machine: &Machine, call: &TableCall) -> bool {
+        crate::note_dependency_body_read(
+            self.program,
+            machine.symbol,
+            crate::DependencyBodyRead::BindingStability,
+        );
         memoized(
             &self.caches.stable_call_bindings,
             (machine.symbol, std::ptr::from_ref(call).addr()),
@@ -1382,7 +1400,7 @@ impl<'program> CallFrameResolver<'program> {
             &mut expressions,
         );
         expressions.into_iter().all(|expression| {
-            match self.program.expression_table.expression(expression) {
+            match expression_table(self.program).expression(expression) {
                 ExpressionNode::Atomic(_) => false,
                 ExpressionNode::Binary(_) => builtin_operation(expression),
                 ExpressionNode::Call(call) => {
@@ -1445,9 +1463,7 @@ impl<'program> CallFrameResolver<'program> {
         // Operands have completed: substitute their captured origins, not the
         // statement prefix's old descriptor slots. Unknown origins remain in
         // their exact positions and matter only if a relative write uses them.
-        let completed_arguments = if self
-            .program
-            .expression_table
+        let completed_arguments = if expression_table(self.program)
             .call_node(expression)
             .is_some()
         {
@@ -1769,7 +1785,7 @@ pub(super) fn collect_expression_call_written_paths(
     let mut complete = Some(());
     crate::expression_traversal::executable_children(
         program,
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         |child| {
             if complete.is_some() {
                 complete = collect_expression_call_written_paths(
@@ -1815,7 +1831,7 @@ fn collect_operation_written_paths(
     origins: &CallOriginContext<'_>,
     completed_arguments: Option<&[Option<Vec<super::FramePlaceOrigin>>]>,
 ) -> Option<()> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             if crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
                 .is_some()
@@ -1919,7 +1935,7 @@ fn collect_operation_written_paths(
                 )
                 .is_none()
                 && !matches!(
-                    program.expression_table.expression(call.receiver),
+                    expression_table(program).expression(call.receiver),
                     ExpressionNode::Call(_) | ExpressionNode::Match(_)
                 )
             {
@@ -1946,7 +1962,7 @@ fn collect_operation_written_paths(
             {
                 return None;
             }
-            let arguments = program.expression_table.expression_handles(call.arguments);
+            let arguments = expression_table(program).expression_handles(call.arguments);
             let argument_types = super::call_targets::call_argument_types(
                 program,
                 current_machine,
@@ -2090,7 +2106,7 @@ pub(super) fn syntactic_call_written_paths(
         receiver_members.join(".")
     }];
     for argument in arguments {
-        let place = match program.expression_table.expression(*argument) {
+        let place = match expression_table(program).expression(*argument) {
             ExpressionNode::Borrow(place) if place.access.is_exclusive() => place.target,
             ExpressionNode::Borrow(_) => continue,
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {

@@ -18,9 +18,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::RemoveDeadScalarNode(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, RemoveDeadScalarNode, candidate);
     if candidate.node_decision_point() != Some(patch.location)
         || !candidate.substitutions().is_empty()
     {
