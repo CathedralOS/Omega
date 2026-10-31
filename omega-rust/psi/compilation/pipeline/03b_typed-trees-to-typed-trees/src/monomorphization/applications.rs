@@ -235,12 +235,7 @@ pub(super) fn retain_call(
     // Source checking needs inferred values before executable retargeting,
     // including inside an open generic caller. Reuse these exact expressions
     // when realization later appends the ordinary hidden operands.
-    let runtime = candidate
-        .runtime_value_bindings
-        .iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
+    let runtime = super::runtime_value_subjects(&candidate.runtime_value_bindings);
     let operands =
         super::body_rewriting::runtime_value_operands(program, selection.lexical_state, &runtime);
     let mut operands = operands.into_iter();

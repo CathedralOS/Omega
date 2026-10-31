@@ -3,6 +3,7 @@
 //! observations and arithmetic with unmodeled wrap behavior yield no relation.
 
 use super::{Relation, Term};
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
@@ -70,11 +71,7 @@ pub fn instantiate_contract_ordering(
                 value: IntegerValue::Unsigned(u128::from(value)),
             },
             Term::Value(formal) => {
-                let mut matching = bindings.iter().filter(|(value, _)| *value == formal);
-                let (_, actual) = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
+                let (_, actual) = exactly_one(bindings.iter(), |(value, _)| *value == formal)?;
                 index(actual)?;
                 actual.clone()
             }

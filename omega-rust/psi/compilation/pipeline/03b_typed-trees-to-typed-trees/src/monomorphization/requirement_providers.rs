@@ -5,7 +5,7 @@
 //! ordinary specialization retains its operands and immutable checking judges
 //! conformance. No private body supplies missing arguments or public premises.
 
-use super::{Diagnostic, TypedTrees, candidate, explicit_arguments, saved_calls};
+use super::{Diagnostic, TypedTrees, candidate, explicit_arguments, failed, saved_calls};
 use typed_trees::trait_definition::AppliedTraitScope;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
@@ -103,11 +103,7 @@ pub(crate) fn generate_requirement_provider_specializations(
             continue;
         }
         let identity = normalized_machine_identity(program, &program.machines()[index])
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "boundary provider has no normalized declaration identity",
-                )]
-            })?;
+            .ok_or_else(|| failed("boundary provider has no normalized declaration identity"))?;
         let commitment = accepted_template_commitment(program, index);
         let ordinal = program
             .machine_specializations

@@ -47,9 +47,7 @@ pub(crate) fn validate_total_scalar_identity_candidate(
         OptimizationSafetyClass::ExactOperationSemantics,
         Some(-1),
     )?;
-    let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, EliminateTotalScalarIdentity, candidate);
     let validator = exact_rule_validator_bytes(candidate.rule(), patch.identity)
         .ok_or(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)?;
     if candidate.node_decision_point() != Some(patch.location)

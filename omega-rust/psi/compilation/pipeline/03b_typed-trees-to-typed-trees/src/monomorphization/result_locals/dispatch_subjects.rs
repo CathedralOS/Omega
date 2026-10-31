@@ -29,13 +29,7 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
     let mut proof_only = None;
     for machine in program.machines() {
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            for (offset, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(local) = statement.as_local_data() else {
-                    continue;
-                };
+            for (offset, local) in super::local_bindings(program, state.statement_nodes) {
                 if local.role != LocalBindingRole::DispatchSubject {
                     continue;
                 }

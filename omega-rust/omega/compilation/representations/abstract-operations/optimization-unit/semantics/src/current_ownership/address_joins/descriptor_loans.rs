@@ -15,6 +15,7 @@
 
 use super::super::call_accesses::argument_storage_is_closed;
 use super::borrowed_regions::{Access, BorrowedRegions, Position, Projection, Region};
+use crate::unit_validation::structural_catalog::shared_view_declaration;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
@@ -845,12 +846,7 @@ fn descriptor_inputs(
                 && matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
                 && types
                     .get(&source.structural_type)
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ElementView { .. }
-                        ) || declaration.shape.is_borrowed_byte_view()
-                    })
+                    .is_some_and(|row| shared_view_declaration(row))
         });
         // Cleanup inputs follow ordinary operands in the common inventory.
         // Remove only this occurrence, preserving a simultaneous actual use.

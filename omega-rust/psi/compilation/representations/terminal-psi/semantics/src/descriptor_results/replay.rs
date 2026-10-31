@@ -27,6 +27,7 @@
 //! earlier captured value or symbolic incoming-family join observes.
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
+use crate::exactly_one::exactly_one;
 
 mod analysis;
 mod case_flow;
@@ -678,11 +679,7 @@ fn slot_inventory(
         if !active.insert(ty) || result.slots.len() + result.opaque_referents.len() > 4096 {
             return None;
         }
-        let mut matching = types.iter().filter(|declaration| declaration.id == ty);
-        let declaration = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
+        let declaration = exactly_one(types.iter(), |declaration| declaration.id == ty)?;
         if kind.is_slot(types, ty) {
             result.slots.push(location.clone());
             if !kind.tracks_references() || scope == DescriptorStorageScope::Owned {

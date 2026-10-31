@@ -1,3 +1,4 @@
+use crate::lowerer::name::lower_names;
 use crate::lowerer::{Lowerer, declaration_exposure};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::trait_definition::Conformance;
@@ -74,11 +75,7 @@ pub(crate) fn lower_conformance(
     let mut conformance = typed_trees::trait_definition::Conformance {
         symbol: conformance.symbol,
         is_public: conformance.is_public,
-        lifetime_parameters: conformance
-            .lifetime_parameters
-            .iter()
-            .map(crate::lowerer::name::lower_name)
-            .collect(),
+        lifetime_parameters: lower_names(&conformance.lifetime_parameters),
         type_parameters: arena::HandleSpan::empty(),
         trait_name: crate::lowerer::name::lower_name(&conformance.trait_name),
         trait_symbol: conformance.trait_symbol,

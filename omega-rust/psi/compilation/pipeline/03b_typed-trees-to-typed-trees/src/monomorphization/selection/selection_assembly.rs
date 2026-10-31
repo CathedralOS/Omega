@@ -341,6 +341,12 @@ pub(crate) fn type_reference_is_any_generic_parameter(
     })
 }
 
+/// How many slots of one binding roster carry a bound value. Evidence ranking
+/// weighs each roster by how much of its telescope the selection settled.
+fn bound_count<T>(bindings: &[Option<T>]) -> usize {
+    bindings.iter().filter(|item| item.is_some()).count()
+}
+
 pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: CallSelection) {
     if let Some(existing) = selections
         .iter_mut()
@@ -348,46 +354,14 @@ pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: C
     {
         let explicit_argument_overflow =
             existing.explicit_argument_overflow || selection.explicit_argument_overflow;
-        let existing_evidence = existing
-            .type_bindings
-            .iter()
-            .filter(|item| item.is_some())
-            .count()
-            + existing
-                .const_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + existing
-                .machine_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + existing
-                .evidence_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count();
-        let new_evidence = selection
-            .type_bindings
-            .iter()
-            .filter(|item| item.is_some())
-            .count()
-            + selection
-                .const_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + selection
-                .machine_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count()
-            + selection
-                .evidence_bindings
-                .iter()
-                .filter(|item| item.is_some())
-                .count();
+        let existing_evidence = bound_count(&existing.type_bindings)
+            + bound_count(&existing.const_bindings)
+            + bound_count(&existing.machine_bindings)
+            + bound_count(&existing.evidence_bindings);
+        let new_evidence = bound_count(&selection.type_bindings)
+            + bound_count(&selection.const_bindings)
+            + bound_count(&selection.machine_bindings)
+            + bound_count(&selection.evidence_bindings);
         if new_evidence >= existing_evidence {
             *existing = selection;
         }

@@ -16,7 +16,7 @@
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -26,6 +26,19 @@ mod reference_observations;
 pub(super) use dispatch_subjects::materialize as materialize_dispatch_subjects;
 pub(crate) use dispatch_subjects::require_complete as require_complete_dispatch_subjects;
 pub(super) use reference_observations::materialize as materialize_reference_observations;
+
+/// Walk one state body's locals in statement order. Derived result rows only
+/// ever visit local declarations; any other statement carries no inferred
+/// result and needs no row.
+fn local_bindings<'a>(
+    program: &'a TypedTrees,
+    statements: arena::HandleSpan<StatementNode>,
+) -> impl Iterator<Item = (usize, &'a TableLocalData)> {
+    program
+        .statement_table
+        .indexed_statements(statements)
+        .filter_map(|(offset, statement)| Some((offset, statement.as_local_data()?)))
+}
 
 #[derive(Clone, Copy)]
 struct InferredUpdate {
@@ -82,13 +95,7 @@ pub(super) fn refresh_generic_call_results(
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (offset, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(local) = statement.as_local_data() else {
-                    continue;
-                };
+            for (offset, local) in local_bindings(program, state.statement_nodes) {
                 if program
                     .expression_table
                     .call_node(local.initial_value)
@@ -268,13 +275,7 @@ pub(crate) fn refresh(
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (offset, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(local) = statement.as_local_data() else {
-                    continue;
-                };
+            for (offset, local) in local_bindings(program, state.statement_nodes) {
                 if !local.type_is_inferred || !local.role.has_ordinary_initializer() {
                     continue;
                 }

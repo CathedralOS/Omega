@@ -3,6 +3,7 @@ use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
 
+use crate::lowerer::name::lower_names;
 use crate::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
 pub(super) fn lower_type_reference_handle_with_context(
@@ -94,11 +95,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 .insert(typed::types::TypeReferenceNode::Generic {
                     base_symbol: generic.base_symbol,
                     base_name: crate::lowerer::name::lower_name(&generic.base_name),
-                    lifetime_arguments: generic
-                        .lifetime_arguments
-                        .iter()
-                        .map(crate::lowerer::name::lower_name)
-                        .collect(),
+                    lifetime_arguments: lower_names(&generic.lifetime_arguments),
                     arguments,
                 }))
         }

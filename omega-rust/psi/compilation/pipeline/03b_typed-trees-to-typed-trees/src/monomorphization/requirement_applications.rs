@@ -6,6 +6,7 @@
 //! only their exact admitted tuple; this pass neither grants membership nor
 //! chooses a provider. Invalid or open source tuples remain source obligations.
 
+use super::failed;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 mod calls;
@@ -65,11 +66,7 @@ pub(crate) fn instantiate_requirement_applications(
             })?;
         let (_, signature) = program
             .trait_machine_signature(requirement)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "boundary family lost its source requirement",
-                )]
-            })?;
+            .ok_or_else(|| failed("boundary family lost its source requirement"))?;
         let name = signature.name.clone();
         let parameters = program.state_signature_type_parameters(signature).to_vec();
         let tuples = if parameters.is_empty() {
@@ -182,11 +179,7 @@ pub(crate) fn instantiate_requirement_applications(
             // the earlier template normalization cannot describe this tuple.
             let signature = program
                 .closed_requirement_application(instance)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "closed requirement lost its produced callable signature",
-                    )]
-                })?
+                .ok_or_else(|| failed("closed requirement lost its produced callable signature"))?
                 .signature;
             let references =
                 typed_trees::references::collect_signature_references(program, signature);

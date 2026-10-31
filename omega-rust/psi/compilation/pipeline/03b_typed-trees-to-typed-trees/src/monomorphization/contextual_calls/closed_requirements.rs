@@ -1,5 +1,6 @@
 //! Derive closed requirement checking views from exact existing provider tuples.
 
+use super::super::failed;
 use super::{CallSite, Diagnostic, TypedTrees, invocations};
 
 /// Requirement closure substitutes the source demand after provider tuples
@@ -31,11 +32,7 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
         }
         let (_, signature) = program
             .trait_machine_signature(closed.template)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "closed requirement demand lost its source declaration",
-                )]
-            })?;
+            .ok_or_else(|| failed("closed requirement demand lost its source declaration"))?;
         let source_demands = invocations::machine_demands(
             program,
             program.state_signature_type_parameters(signature),
@@ -55,9 +52,7 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 .get(ordinal)
                 .filter(|source| source.parameter == demand.parameter)
                 .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "closed requirement demand lost its source machine binder",
-                    )]
+                    failed("closed requirement demand lost its source machine binder")
                 })?;
             let retained = program
                 .applied_machine_callable(

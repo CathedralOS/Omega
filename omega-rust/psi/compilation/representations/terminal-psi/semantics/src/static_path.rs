@@ -14,6 +14,7 @@
 //! grants the place any storage, view adapter, or type
 //! identity of its own.
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType,
     StructuralTypeId, ValueId,
@@ -27,16 +28,12 @@ use terminal_psi::{
 /// This establishes its exact coordinate, not its bounds or storage authority.
 /// Unknown computations and block parameters retain their runtime geometry.
 pub fn constant_runtime_index(machine: &TerminalMachine, index: ValueId) -> Option<u64> {
-    let mut producers = machine.operations().filter(|operation| {
+    let producer = exactly_one(machine.operations(), |operation| {
         operation
             .result
             .scalar_ref()
             .is_some_and(|result| result.id == index)
-    });
-    let producer = producers.next()?;
-    if producers.next().is_some() {
-        return None;
-    }
+    })?;
     let OperationKind::IntegerConstant { value } = producer.kind else {
         return None;
     };
@@ -326,11 +323,7 @@ fn canonical_projection_type<'a>(
                 else {
                     return None;
                 };
-                let mut matching = cases.iter().filter(|case| case.id == *identity);
-                case_fields = Some(&matching.next()?.fields);
-                if matching.next().is_some() {
-                    return None;
-                }
+                case_fields = Some(&exactly_one(cases.iter(), |case| case.id == *identity)?.fields);
                 if let Some(storage) = storage.as_mut() {
                     storage.push(StructuralPathSegment::Case(*identity));
                 }
@@ -343,9 +336,8 @@ fn canonical_projection_type<'a>(
                         _ => return None,
                     },
                 };
-                let mut matching = fields.iter().filter(|field| field.id == *identity);
-                let field = matching.next()?;
-                if matching.next().is_some() || field.relevance.is_erased() {
+                let field = exactly_one(fields.iter(), |field| field.id == *identity)?;
+                if field.relevance.is_erased() {
                     return None;
                 }
                 let child = match &field.field_type {
@@ -425,11 +417,7 @@ pub fn qualification_path_carrier<'types>(
         if count == cursor.len() {
             return Some(root);
         }
-        let mut declarations = types.clone().filter(|row| row.id == root);
-        let declaration = declarations.next()?;
-        if declarations.next().is_some() {
-            return None;
-        }
+        let declaration = exactly_one(types.clone(), |row| row.id == root)?;
         root = match declaration.shape {
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element, .. } => element,

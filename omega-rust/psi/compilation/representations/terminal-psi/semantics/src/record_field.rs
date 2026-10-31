@@ -1,3 +1,4 @@
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
@@ -29,13 +30,9 @@ pub fn sequence_field_allows_observation<'types>(
             }
         }
     } else if let Some(identity) = field.as_structural() {
-        let mut matching = types.filter(|row| row.id == identity);
-        let Some(declaration) = matching.next() else {
+        let Some(declaration) = exactly_one(types, |row| row.id == identity) else {
             return false;
         };
-        if matching.next().is_some() {
-            return false;
-        }
         match declaration.shape {
             StructuralTypeShape::ElementView { access, .. }
             | StructuralTypeShape::ByteSequence(
@@ -175,11 +172,7 @@ pub fn static_field_projection<'types>(
     let (mut canonical, carrier) = crate::canonical_static_projection(types.clone(), root, prefix)?;
     let fields = if let Some(case) = selected_case {
         let cases = carrier.shape.sum_cases()?;
-        let mut matching = cases.iter().filter(|candidate| candidate.id == case);
-        let selected = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
+        let selected = exactly_one(cases.iter(), |candidate| candidate.id == case)?;
         canonical.push(CanonicalStructuralPathSegment::Case(case));
         selected.fields.as_slice()
     } else {
@@ -235,15 +228,9 @@ fn projected_fields<'types>(
     };
     let carrier = crate::runtime_structural_path_tip(types, root, prefix)?;
     let fields = if let Some(case) = selected_case {
-        let mut matching = carrier
-            .shape
-            .sum_cases()?
-            .iter()
-            .filter(|candidate| candidate.id == case);
-        let selected = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
+        let selected = exactly_one(carrier.shape.sum_cases()?.iter(), |candidate| {
+            candidate.id == case
+        })?;
         selected.fields.as_slice()
     } else {
         carrier.shape.direct_fields()?

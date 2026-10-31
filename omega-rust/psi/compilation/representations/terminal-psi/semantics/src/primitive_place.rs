@@ -29,6 +29,7 @@
 //! path; observing a refined IEEE field transports its predicate rather than
 //! inventing a reflexive IEEE equality that would fail for NaN.
 
+use crate::exactly_one::exactly_one;
 use crate::static_path::canonical_structural_path_tip;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
@@ -56,9 +57,8 @@ pub fn primitive_place_type<'a>(
     if let Some((CanonicalStructuralPathSegment::Field(field), carrier)) = path.split_last() {
         let declaration = canonical_structural_path_tip(declarations.clone(), root, carrier)?;
         if let StructuralTypeShape::Record { fields, .. } = &declaration.shape {
-            let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
-            let field = matching.next()?;
-            if matching.next().is_some() || field.relevance.is_erased() {
+            let field = exactly_one(fields.iter(), |candidate| candidate.id == *field)?;
+            if field.relevance.is_erased() {
                 return None;
             }
             if let Some(scalar) = plain_scalar_field(&field.field_type) {
@@ -96,11 +96,7 @@ pub fn fixed_array_place_shape<'a>(
     else {
         return None;
     };
-    let mut matching = declarations.filter(|declaration| declaration.id == element);
-    let element_declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
+    let element_declaration = exactly_one(declarations, |declaration| declaration.id == element)?;
     match element_declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, length)),
         _ => None,
@@ -772,11 +768,7 @@ fn walk_primitive_projection_with_policy<'a>(
                 return None;
             }
             let cases = declaration.shape.sum_cases()?;
-            let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
-            let selected = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
+            let selected = exactly_one(cases.iter(), |candidate| candidate.id == *case)?;
             payload_fields = Some(selected.fields.as_slice());
             step(Some(CanonicalStructuralPathSegment::Case(*case)));
             continue;

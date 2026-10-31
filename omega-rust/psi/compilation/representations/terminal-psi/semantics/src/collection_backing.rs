@@ -6,6 +6,7 @@
 //! use the same operation for inline arrays and already borrowed backing.
 //! This query grants no access, initialization, bounds proof or lifetime.
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralTypeId};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
 
@@ -161,11 +162,7 @@ pub fn collection_view_backing<'a>(
     element: StructuralTypeId,
     access: terminal_psi::StructuralAccess,
 ) -> Option<CollectionBacking> {
-    let mut declarations = types.clone().filter(|row| row.id == collection);
-    let declaration = declarations.next()?;
-    if declarations.next().is_some() {
-        return None;
-    }
+    let declaration = exactly_one(types.clone(), |row| row.id == collection)?;
     collection_shape_view_backing(types, &declaration.shape, element, access)
 }
 
