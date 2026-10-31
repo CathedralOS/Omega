@@ -1286,7 +1286,8 @@ impl<'a, 's> Solver<'a, 's> {
                 span,
             } => {
                 if let Structure::Name { name, binder: None } = structure {
-                    self.require_closed_name_type(name, *span)?;
+                    validate_closed_name_type(self.syntax, self.selection, name)
+                        .map_err(|reason| self.reject(reason).with_source_span(*span))?;
                 }
                 if structure
                     .binder_mentions(self.syntax, self.base_info.parameter_names)
@@ -1410,15 +1411,6 @@ impl<'a, 's> Solver<'a, 's> {
             )
             .with_source_span(span)
         })
-    }
-
-    fn require_closed_name_type(
-        &self,
-        name: &Identifier,
-        span: SourceSpan,
-    ) -> Result<(), Diagnostic> {
-        validate_closed_name_type(self.syntax, self.selection, name)
-            .map_err(|reason| self.reject(reason).with_source_span(span))
     }
 
     /// The binder side is unbound: a closed name, an already bound type
