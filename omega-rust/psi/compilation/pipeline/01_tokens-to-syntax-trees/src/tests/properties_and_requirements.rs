@@ -335,21 +335,30 @@ fn parses_trait_owned_fixed_operator_requirements() {
 #[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
-        machine run() reaches Console suspends; blocks; {
+        machine run() reaches Console invokes First invokes Second suspends blocks {
         }
 
         trait Worker {
-            machine wait() reaches Clock suspends; blocks; ensures true;
+            machine wait() reaches Clock invokes First invokes Second suspends blocks ensures true;
         }
 
         machine schedule<machine Callback>()
-        requires machine Callback() suspends; blocks;
+        requires machine Callback() suspends blocks;
         {
         }
         "#;
 
     let parsed = super::parse_source(source, "operational clauses should parse");
     let machine = super::root_machine(&parsed, "machine item");
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(machine.invokes)
+            .iter()
+            .map(|binding| binding.as_str(&parsed))
+            .collect::<Vec<_>>(),
+        ["First", "Second"]
+    );
     assert!(machine.suspends);
     assert!(machine.blocks);
     assert_eq!(machine.suspends_keyword_source_spans.len(), 1);
@@ -363,6 +372,15 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let trait_definition = super::root_trait(&parsed, "trait item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(signature.invokes)
+            .iter()
+            .map(|binding| binding.as_str(&parsed))
+            .collect::<Vec<_>>(),
+        ["First", "Second"]
+    );
     assert!(signature.suspends);
     assert!(signature.blocks);
     assert_eq!(signature.suspends_keyword_source_spans.len(), 1);

@@ -284,6 +284,11 @@ fn take_invokes_signature_clause<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     allow_following_contract_clauses: bool,
 ) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
+    // The next header clause or body delimits an unseparated operational clause.
+    // Its owner still requires the final terminator on a bodyless declaration.
+    if !input.at_punctuation(PunctuationKind::Semicolon) {
+        return Ok(input);
+    }
     let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     // An explicit second semicolon belongs to the enclosing callable
     // contract. Consume this operational clause's separator and leave that

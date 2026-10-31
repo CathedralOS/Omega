@@ -580,6 +580,11 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
 fn take_invokes_clause_terminator<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
+    // The next header clause or body delimits an unseparated operational clause.
+    // Its owner still requires the final terminator on a bodyless declaration.
+    if !input.at_punctuation(PunctuationKind::Semicolon) {
+        return Ok(input);
+    }
     let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if continues_after_operational_clause(after_semicolon) {
         Ok(after_semicolon)
