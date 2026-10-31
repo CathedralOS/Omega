@@ -1543,6 +1543,39 @@ impl<'program> StructuralJudge<'program> {
                             .unwrap_or_else(|| observed.clone())
                         })
                 } else { None };
+                // A value-preserving conversion still completes in its target
+                // carrier. Retain that exact occurrence instead of publishing
+                // the source carrier under the receiver's primitive operators.
+                // Its equation and interval come from the completed operand;
+                // the conversion's own obligation uses the pre-operation cut.
+                let completed_cast = if judge.runtime_body_values
+                    && let ExpressionNode::Cast(cast) = node
+                    && let Some(source) = crate::expression_result_type_reference(
+                        program, scope.0, scope.1, cast.value,
+                    )
+                    && program.primitive_type_reference(source)
+                        .is_some_and(|primitive| primitive.is_fixed_integer())
+                    && program.primitive_type_reference(cast.target_type)
+                        .is_some_and(|primitive| primitive.is_fixed_integer())
+                    && super::super::structural_terms::denotation_preserving_conversion(
+                        program, cast, source,
+                    )
+                {
+                    let operand = inputs.iter()
+                        .find(|(input, _)| *input == cast.value)
+                        .and_then(|(_, path)| path.observed_value())?.clone();
+                    let range = judge.completed_integer_range_recipe(&operand);
+                    let mut converted = judge.capture_unknown_value(expression, scope)?;
+                    if let Some(range) = range
+                        && let StructuralTerm::CapturedValue { integer_range, .. } = &mut converted
+                    {
+                        let range = integer_range.as_deref()
+                            .map_or_else(|| range.clone(), |target| range.intersect(target));
+                        *integer_range = Some(std::sync::Arc::new(range));
+                    }
+                    judge.assume_normal_equation(converted.clone(), operand);
+                    Some(converted)
+                } else { None };
                 let mut value = if receiver_changed {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
@@ -1551,7 +1584,7 @@ impl<'program> StructuralJudge<'program> {
                         Some(value) => value,
                         None => judge.capture_unknown_value(expression, scope)?,
                     }
-                } else if let Some(value) = completed_borrow.or(completed_measure).or(completed_field) {
+                } else if let Some(value) = completed_borrow.or(completed_measure).or(completed_field).or(completed_cast) {
                     value
                 } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
