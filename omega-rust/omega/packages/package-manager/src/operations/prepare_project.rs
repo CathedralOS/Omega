@@ -2,10 +2,9 @@
 
 use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
-use crate::resolution::graph;
-use crate::resolution::graph::GitDependencyPins;
 use crate::resolution::graph::{
-    GitResolutionOptions, PackageRootSourceRequest, ResolvedPackageSourceClosure,
+    CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
+    ResolvedPackageSourceClosure,
 };
 use crate::resolution::source::AcquiredBuildSource;
 use package_compilation::PackageCompilationInputError;
@@ -340,7 +339,7 @@ impl LocalProjectPreparation {
             .and_then(|lock| lock.targets().first())
             .map(|target| target.source());
         if let Some(source) = source {
-            let matches_root = matches!(source.root().request(), graph::CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
+            let matches_root = matches!(source.root().request(), CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
                 if requested_root == self.canonical_root.as_os_str().as_encoded_bytes()
                     && source_context == &ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT));
             if !matches_root {
