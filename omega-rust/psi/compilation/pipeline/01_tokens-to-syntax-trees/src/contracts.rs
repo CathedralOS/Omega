@@ -119,27 +119,3 @@ pub(crate) fn publish_capability_contracts(
     }
     span.finish()
 }
-
-/// A semicolon belongs to the complete bodyless declaration, never a header
-/// clause. Concrete machine and trait-member owners call this before taking
-/// their terminator. Nested `requires machine` owners deliberately do not:
-/// after their own terminator, a following clause belongs to the outer scope.
-pub(crate) fn reject_machine_clause_separator(
-    syntax_trees: &mut syntax_trees::SyntaxTrees,
-    input: crate::input::token_cursor::Input<'_, '_>,
-) -> Result<(), crate::diagnostics::parse_error::ParseError> {
-    use tokens::PunctuationKind;
-    if !input.at_punctuation(PunctuationKind::Semicolon) {
-        return Ok(());
-    }
-    let after = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if !after.tokens.is_empty()
-        && !after.at_punctuation(PunctuationKind::RightBrace)
-        && !crate::declarations::parse_declaration::starts_following_item(syntax_trees, after)
-    {
-        return Err(input.error_here(
-            "machine header clauses have no trailing semicolons; one semicolon closes a complete bodyless declaration",
-        ));
-    }
-    Ok(())
-}

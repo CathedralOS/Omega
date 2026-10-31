@@ -180,7 +180,6 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             signature.type_parameters,
             rest,
         )?;
-        crate::contracts::reject_machine_clause_separator(syntax_trees, rest)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
