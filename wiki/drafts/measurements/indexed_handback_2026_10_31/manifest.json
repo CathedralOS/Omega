@@ -325,5 +325,163 @@
       "sha256": "8f5424cdb1ce6b32f0697354c811f2868d0a2d7663abfd35d04ccc186352db4a",
       "bytes": 1022
     }
+  },
+  "latest_qualification": "integration",
+  "integration": {
+    "source": "da19ac492c58292e9ae1e20f1337544d63788974",
+    "integrated_main": "02d6d92b37d4cee20861321d9ad0dfc58a0bb3d8",
+    "reason": "GitHub PR #1074 reported a real normal_returns.rs conflict",
+    "producer_sha256": "f823cda3cf4478e5df5db3aeafe20a9e0f9be146bfd39ff64c8c3cb520c9e191",
+    "opt_level": 1,
+    "unchanged_compiler_library_inputs": 7853,
+    "sample_gate": {
+      "positive_native_terminal_0_0": 11,
+      "intended_rejections": 15,
+      "exit": 0
+    },
+    "corpus": [
+      {
+        "leg": "runtime",
+        "counts": {
+          "fixtures": 33,
+          "by_status": {
+            "built": 31,
+            "rejected": 2
+          },
+          "wrong_reason": 0,
+          "wrong_reason_fixtures": [],
+          "fail_not_rejected": 0,
+          "fail_not_rejected_fixtures": [],
+          "lost_successes": 0,
+          "lost_success_fixtures": [],
+          "pinned_off_target": 2,
+          "pinned_off_target_fixtures": [
+            "pass/facts/nested_machine_statement_completion_namespaced_theorem_exit",
+            "pass/facts/nested_machine_statement_completion_target_body_exit"
+          ],
+          "by_verdict": {
+            "new": 22,
+            "perf_slower": 1
+          }
+        },
+        "gate_exit": 3
+      },
+      {
+        "leg": "rejects",
+        "counts": {
+          "fixtures": 43,
+          "by_status": {
+            "rejected": 43
+          },
+          "wrong_reason": 2,
+          "wrong_reason_fixtures": [
+            "fail/facts/nested_machine_statement_completion_private_guarantee_rejected",
+            "fail/facts/nested_machine_statement_completion_target_body_rejected"
+          ],
+          "fail_not_rejected": 0,
+          "fail_not_rejected_fixtures": [],
+          "lost_successes": 0,
+          "lost_success_fixtures": [],
+          "pinned_off_target": 0,
+          "pinned_off_target_fixtures": [],
+          "by_verdict": {
+            "perf_slower": 14,
+            "moved": 9
+          }
+        },
+        "gate_exit": 1
+      }
+    ],
+    "archive": "integration-evidence.tar.gz",
+    "archive_sha256": "765d251c8d3dd440adff816525cfaa549f02b51b49da85b8dec3ab5c3b33421e",
+    "archive_bytes": 803113,
+    "source_bundle": "integration-source-da19ac492c58292e9ae1e20f1337544d63788974.bundle",
+    "source_bundle_sha256": "f5bf613b45d9da6b295ce5f4557bad7358e001fd4db54947c7d183f7ac4b0c32",
+    "golden_guard": {
+      "tests/omega/corpus_outcomes.txt": {
+        "added_rows": 26,
+        "integrated_main_bytes_retained": true,
+        "current_sha256": "45880db76d8643b8c92b7a971453473ee42f9977a7160e7adbc5bb72f452c4a2"
+      },
+      "tests/omega/corpus_both_linux_x86_64.txt": {
+        "added_rows": 11,
+        "integrated_main_bytes_retained": true,
+        "current_sha256": "0f53072a098b245ec79a6a072f33abfbab511f9c9ffac090ff56f3a13e15f86b"
+      }
+    },
+    "files": {
+      "build/advance/build_integration.py": {
+        "sha256": "55e09a320e67c5c662d175cd851391df4804662fcbc84747e46e498513fccec2",
+        "bytes": 1655
+      },
+      "build/advance/integration-build.json": {
+        "sha256": "b33367820bbd216866a3f7e1b01be80ed310b1d030bd5309b608ecf708afa3d0",
+        "bytes": 2750692
+      },
+      "build/advance/integration-build.log": {
+        "sha256": "9fbc836c9288fff9b1dd7ab8c3d36f271d29875b4158f406f8f2595ed9bba00d",
+        "bytes": 37758
+      },
+      "build/advance/integration-corpus-rejects.json": {
+        "sha256": "d8a082ca42e9aab0295d4cad83c26541ca652e51baa6c7248a50a77b1f0ce5ac",
+        "bytes": 54083
+      },
+      "build/advance/integration-corpus-rejects.log": {
+        "sha256": "216d95500b05d09ba880cbc81bfe0eba26f6760dceebdf9600b806659b17dff1",
+        "bytes": 7951
+      },
+      "build/advance/integration-corpus-runtime.json": {
+        "sha256": "8eda66f72217f58db384f222da8850a3c30cff29933a3ffdb97786d5b67746d8",
+        "bytes": 32851
+      },
+      "build/advance/integration-corpus-runtime.log": {
+        "sha256": "a2829a6419b797de2566bb0a60f1a4f6d7729762a7b51d0fea8c0965a052ef6e",
+        "bytes": 3596
+      },
+      "build/advance/integration-corpus-summary.json": {
+        "sha256": "4971ddac5454a6e22e4210e2f74d28fa07c90569dabe644da398ae58fdaac4ad",
+        "bytes": 5957
+      },
+      "build/advance/integration-corpus.log": {
+        "sha256": "7c301af5b1ecf4919b48d293de53f8db232e66fee807c8903f484533cb1c1633",
+        "bytes": 1003
+      },
+      "build/advance/integration-implementation-context.json": {
+        "sha256": "7b2a036d06c923abeba140abf2e0164389b5553578f93102e4d907f8d003a917",
+        "bytes": 282235
+      },
+      "build/advance/integration-private-guarantee.json": {
+        "sha256": "a4b8fb2b39ab74608cf711eea79080694d8d3ef8940bdc8814c489dfb75e7097",
+        "bytes": 677
+      },
+      "build/advance/integration-resolution-review.json": {
+        "sha256": "f0013b251101759b80b9652d9994759c85bcf56570330796ba38991594108b61",
+        "bytes": 664
+      },
+      "build/advance/integration-sample-gate.log": {
+        "sha256": "69b01779ee9a13ec40d0d1a6aeb8d52616664ba995b2043daa3b61da97336b1a",
+        "bytes": 3399
+      },
+      "build/advance/integration-sample-results.json": {
+        "sha256": "e35a72359213acb78e390f937478b24e0807a55c24c32d7c7703412c903f01e1",
+        "bytes": 6118
+      },
+      "build/advance/pack_integration.py": {
+        "sha256": "f5cbf02e55e87f0d9cda39ea130b270406846ee8dd89a97797f36b7c9123e912",
+        "bytes": 4455
+      },
+      "build/advance/private-guarantee/build.omg": {
+        "sha256": "7f699752e1469b445bd7e33168e8e13d9e120a232ff713ca75dd58f13dc94d2d",
+        "bytes": 585
+      },
+      "build/advance/private-guarantee/main.omg": {
+        "sha256": "6815d6179ca8ab75d3dc9b4d9dab5ddc1177a466aa944518d4ce6b466aeb0c65",
+        "bytes": 453
+      },
+      "build/advance/run_integration_corpus.py": {
+        "sha256": "7d4e0723501309442381441984c8cc83f8fb5936481a03cd1f4f829992a437d7",
+        "bytes": 2478
+      }
+    }
   }
 }

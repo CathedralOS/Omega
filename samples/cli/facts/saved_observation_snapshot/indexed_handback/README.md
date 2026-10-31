@@ -104,7 +104,7 @@ identity are retained under `build/advance/` in the workbench and identified in
 the publication record. Baseline producer SHA-256:
 `e06aa2de036c83dbd5e87933c11dd007e4ba1f8ed5049f43684668a418139fa4`.
 
-The repair's optimized Linux x86-64 producer (opt-level 1), SHA-256
+Before conflict integration, the optimized Linux x86-64 producer (opt-level 1), SHA-256
 `d2e7d1cfd86c9f496f0bab20c15f8b5e2bb1e5fbe45eb69ba415a1449b44978a`,
 runs all nine places and both additional positives with native/Terminal exits
 0/0. All nine twins and all six additional invalid controls reject their own
@@ -141,6 +141,18 @@ scratch so its actual public-contract boundary can be checked. Eight older
 predicate-handback twins now report only the failed writer postcondition;
 their cascading caller errors disappear because normal calls transport the
 declared postcondition. None of those invalid writers becomes accepted.
+
+After resolving an actual shared-equation-intake conflict with main
+`02d6d92b37d4cee20861321d9ad0dfc58a0bb3d8`, source
+`da19ac492c58292e9ae1e20f1337544d63788974` repeats the full 11-positive /
+15-invalid gate and the same scoped corpus outcomes. Its fresh opt-level 1
+producer SHA-256 is
+`f823cda3cf4478e5df5db3aeafe20a9e0f9be146bfd39ff64c8c3cb520c9e191`;
+all 7,853 tracked compiler/library input hashes stay unchanged across its build.
+The manifest's `integration` entry retains these current receipts and exact
+source bundle separately from the earlier observations. Relative to integrated
+main, both goldens retain every preceding byte and record only the 26 new
+fixtures. The private-guarantee scratch control also rejects on this producer.
 
 The broader parent retains other predicate productions, recasts, customer
 migration, product-compiler parity and removal of range-suffix machinery. This
