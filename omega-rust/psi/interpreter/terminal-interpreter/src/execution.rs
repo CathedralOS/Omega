@@ -5,23 +5,32 @@
 //! `call_operations`, `structural_operations` and the earlier owners), then
 //! settles the block terminator through its `settle_*` method (`terminators`).
 
+use crate::activation_storage::RuntimeActivationStorage;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{
     bind_affine_frontier, bind_arguments, bind_entry_claims, bind_structural_arguments,
-    bind_structural_primitive_values,
+    bind_structural_primitive_values, verified_structural_place,
 };
+use crate::effects::original_storage::{OriginalByteCell, OriginalStorageAllocation};
 use crate::effects::{
     AdmittedAssumedBinding, TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
 };
 use crate::errors::{TerminalInterpretError, malformed};
+use crate::instance::ComponentBindings;
 use crate::program::ProgramDeclarations;
+use crate::provider_storage::RuntimeProviderStorage;
+use crate::reference::AggregateBacking;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::runtime_rows::RuntimeRows;
+use crate::scalar_array::empty_storage::EmptyArrayStorage;
+use crate::scalar_storage::ScalarStorageRows;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::structural_inputs::access_views::{AccessViewOccurrence, establish_access_view_inputs};
+use crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
-use crate::structural_inputs::scalar_fields;
+use crate::structural_inputs::{TerminalEstablishedErasedField, scalar_fields};
+use crate::structural_storage::HostStructuralPayload;
 use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
@@ -40,6 +49,7 @@ use terminal_psi::{
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
     TerminalAccessViewInput, Terminator,
 };
+use terminal_semantics::validate_empty_erased_invocation_inputs;
 
 /// What one settled terminator tells the interpreter loop to do next.
 pub(crate) enum TerminatorFlow {
@@ -72,11 +82,11 @@ pub struct TerminalExecution<'artifact> {
     /// A host fault is not a resumable pause. Retain its exact site and custody
     /// so retry cannot repeat an operation that may already have had effects.
     pub(crate) failure: Option<TerminalInterpretError>,
-    pub(crate) provider_storage: crate::provider_storage::RuntimeProviderStorage,
+    pub(crate) provider_storage: RuntimeProviderStorage,
     /// Entry storage may be supplied only before the first resume, including
     /// a resume which exhausts its fuel without executing an operation.
     pub(crate) entry_storage_open: bool,
-    pub(crate) activation_storage: crate::activation_storage::RuntimeActivationStorage,
+    pub(crate) activation_storage: RuntimeActivationStorage,
     // One immutable program owner survives suspension and is shared verbatim
     // across every independent instance admitted from the same module. A
     // resume or call borrows this owner independently of mutable runtime
@@ -103,19 +113,15 @@ pub struct TerminalExecution<'artifact> {
     /// inputs: an owned argument transfers custody and cannot be read back.
     pub(crate) borrowed_entry_storage: Vec<(u32, PlaceId, TerminalStructuralValue)>,
     pub(crate) private_entry_ram: Vec<crate::reference::placed::PrivateEntryRamAllocation>,
-    pub(crate) aggregate_argument_backings:
-        RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
+    pub(crate) aggregate_argument_backings: RuntimeRows<PlaceId, AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
     /// Original physical-allocation association of a complete owned subtree.
     /// Only constructor custody transfer relocates this seal; copies and
     /// projected pieces cannot infer a new whole allocation from resident bits.
-    pub(crate) original_storage_roots: RuntimeRows<
-        StructuralRuntimePlace,
-        crate::effects::original_storage::OriginalStorageAllocation,
-    >,
-    pub(crate) original_byte_cells:
-        RuntimeRows<(u64, usize), crate::effects::original_storage::OriginalByteCell>,
+    pub(crate) original_storage_roots:
+        RuntimeRows<StructuralRuntimePlace, OriginalStorageAllocation>,
+    pub(crate) original_byte_cells: RuntimeRows<(u64, usize), OriginalByteCell>,
     pub(crate) reference_referents:
         RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Homes whose bindings have retired may still supply a live descriptor's
@@ -124,8 +130,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) retired_descriptor_homes: Vec<StructuralRuntimePlace>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
-    pub(crate) structural_primitive_storage:
-        crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
+    pub(crate) structural_primitive_storage: ScalarStorageRows<StructuralRuntimePlace>,
     pub(crate) structural_primitive_entry_places: RuntimeRows<u32, StructuralRuntimePlace>,
     pub(crate) local_structural_identities: LocalStructuralIdentities,
     /// Amortized scalar-only storage reclamation, never an ownership frontier.
@@ -133,14 +138,11 @@ pub struct TerminalExecution<'artifact> {
     /// Scalar leaves written below aggregate structural values. Keys use the
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
-    pub(crate) structural_scalar_fields:
-        crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
+    pub(crate) structural_scalar_fields: ScalarStorageRows<StructuralScalarRuntimeField>,
     /// Byte fields retain either owned payloads or borrowed descriptors. Moving
     /// a record relocates the slot, never the descriptor's backing/window.
-    pub(crate) structural_byte_sequence_fields: RuntimeRows<
-        StructuralByteSequenceRuntimeField,
-        crate::byte_sequences::binding::ByteSequenceBinding,
-    >,
+    pub(crate) structural_byte_sequence_fields:
+        RuntimeRows<StructuralByteSequenceRuntimeField, ByteSequenceBinding>,
     /// Stored element descriptors retain their original backing and window.
     /// Their field homes survive borrowed calls independently of frame-local IDs.
     pub(crate) structural_element_view_fields:
@@ -149,23 +151,20 @@ pub struct TerminalExecution<'artifact> {
     /// aggregate slots. Bindings retain backing, window and access independently
     /// of descriptor ownership; activation-claim descriptors stay with their owner.
     pub(crate) structural_byte_descriptors:
-        RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+        RuntimeRows<StructuralRuntimePlace, ByteSequenceBinding>,
     /// Completed byte payloads addressed by exact typed storage home. Fixed
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
-    pub(crate) structural_byte_storage: RuntimeRows<
-        StructuralRuntimePlace,
-        crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage,
-    >,
-    pub(crate) empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage,
+    pub(crate) structural_byte_storage:
+        RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
+    pub(crate) empty_array_storage: EmptyArrayStorage,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
     pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
     /// Admitted opaque host payloads at their current typed storage homes.
     /// A storage relocation changes the key, not the host's forwarding token;
     /// this table grants no storage, loan, qualification or lifecycle authority.
-    pub(crate) structural_host_atoms:
-        RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
+    pub(crate) structural_host_atoms: RuntimeRows<StructuralRuntimePlace, HostStructuralPayload>,
     pub(crate) next_host_atom_collection_size: usize,
     pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayBindings,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
@@ -208,8 +207,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) process_domain: Option<std::sync::Arc<crate::instance::SimulatedProcessDomain>>,
     /// Host-established erased occurrence custody, separate from initialized
     /// data storage and retained through abandonment without discharge.
-    pub(crate) established_erased_fields:
-        Vec<crate::structural_inputs::TerminalEstablishedErasedField>,
+    pub(crate) established_erased_fields: Vec<TerminalEstablishedErasedField>,
     pub(crate) effects: Vec<TerminalEffect>,
     /// A refused frame capture may already own an outgoing value or successor
     /// bindings. Keep that custody in the failed activation, not a new unpaid
@@ -229,8 +227,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
-    pub(crate) aggregate_argument_backings:
-        RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
+    pub(crate) aggregate_argument_backings: RuntimeRows<PlaceId, AggregateBacking>,
     pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayBindings,
     pub(crate) byte_sequence_values: RuntimeRows<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loan_values: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
@@ -540,11 +537,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         // This host invocation supplies scalar/structural values and storage
         // custody, but no erased proof actuals. Loading/inspecting the same
         // retained Requires function is still valid; execution is the boundary.
-        terminal_semantics::validate_empty_erased_invocation_inputs(
-            &program.catalogs,
-            current_machine,
-        )
-        .map_err(
+        validate_empty_erased_invocation_inputs(&program.catalogs, current_machine).map_err(
             |reason| TerminalInterpretError::UnsuppliedErasedEntryInputs {
                 machine: current_machine,
                 reason,
@@ -634,9 +627,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
             memory_ordering: installation.and_then(|supplies| supplies.memory_ordering),
-            activation_storage: crate::activation_storage::RuntimeActivationStorage::new(
-                account.as_ref(),
-            ),
+            activation_storage: RuntimeActivationStorage::new(account.as_ref()),
             program: std::sync::Arc::clone(&program),
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
@@ -655,26 +646,18 @@ impl<'artifact> TerminalExecution<'artifact> {
             reference_referents: RuntimeRows::new(account.as_ref()),
             structural_element_view_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_descriptors: RuntimeRows::new(account.as_ref()),
-            structural_primitive_storage: crate::scalar_storage::ScalarStorageRows::new(
-                account.as_ref(),
-            ),
+            structural_primitive_storage: ScalarStorageRows::new(account.as_ref()),
             structural_primitive_entry_places: RuntimeRows::new(account.as_ref()),
             local_structural_identities,
             next_scalar_collection_identity: 1024,
             retired_descriptor_homes: Vec::new(),
-            structural_scalar_fields: crate::scalar_storage::ScalarStorageRows::new(
-                account.as_ref(),
-            ),
+            structural_scalar_fields: ScalarStorageRows::new(account.as_ref()),
             private_entry_ram: Vec::new(),
-            provider_storage: crate::provider_storage::RuntimeProviderStorage::new(
-                account.as_ref(),
-            ),
+            provider_storage: RuntimeProviderStorage::new(account.as_ref()),
             entry_storage_open: true,
             structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_storage: RuntimeRows::new(account.as_ref()),
-            empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage::new(
-                account.as_ref(),
-            ),
+            empty_array_storage: EmptyArrayStorage::new(account.as_ref()),
             structural_cases: RuntimeRows::new(account.as_ref()),
             structural_host_atoms: RuntimeRows::new(account.as_ref()),
             next_host_atom_collection_size: 1024,
@@ -715,11 +698,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .ok_or(TerminalInterpretError::ZeroInitializedArgumentInvalid {
                     argument_index: *argument_index,
                 })?;
-            let value = crate::custody::verified_structural_place(
-                &execution.structural_values,
-                parameter.place,
-            )
-            .cloned()?;
+            let value = verified_structural_place(&execution.structural_values, parameter.place)
+                .cloned()?;
             // Host-supplied erased establishments arrive as identity text;
             // resolve every segment against this module's sealed table —
             // anything the producer never interned is malformed input, not
@@ -839,11 +819,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .iter()
                     .any(|value| value.argument_index == index);
             let payload = if materialized {
-                crate::structural_storage::HostStructuralPayload::Materialized(
-                    value.opaque_identity,
-                )
+                HostStructuralPayload::Materialized(value.opaque_identity)
             } else {
-                crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity)
+                HostStructuralPayload::Opaque(value.opaque_identity)
             };
             self.structural_host_atoms
                 .insert(StructuralRuntimePlace::from(value), payload)?;
@@ -1009,18 +987,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-        self.resume_with_components(
-            meter,
-            handler,
-            &mut crate::instance::ComponentBindings::new(),
-        )
+        self.resume_with_components(meter, handler, &mut ComponentBindings::new())
     }
 
     pub(crate) fn resume_with_components(
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
-        components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
+        components: &mut ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
@@ -1058,7 +1032,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
-        components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
+        components: &mut ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(completion) = &self.external_completion {
             return Ok(TerminalExecutionStatus::ExternalCompletion(
