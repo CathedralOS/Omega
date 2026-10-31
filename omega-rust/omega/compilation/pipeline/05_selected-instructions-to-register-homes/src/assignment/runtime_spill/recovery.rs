@@ -634,7 +634,7 @@ impl<'ranges> FailedDomain<'ranges> {
         }
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
         (
             if function == self.function {
@@ -672,7 +672,7 @@ fn region_counts(
 // Long-lived blockers otherwise force recovery through many short failed
 // leaders and a whole-function analysis per victim. Equal scores retain roster
 // order. Intrinsic constraints still admit only the exact failed value.
-#[allow(dead_code)]
+#[cfg(test)]
 fn candidate_position<Priority: Ord + Copy>(
     failure: &crate::RegisterHomeError,
     roster: &[(usize, VirtualRegisterId)],
