@@ -12,6 +12,7 @@ use crate::declarations::BuildDeclarationKind;
 #[cfg(test)]
 use crate::declarations::dependencies::read::DependencyPurpose;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
+use std::iter::once;
 
 pub(super) fn project(
     target: &ExactTargetPackageSourceClosure<'_>,
@@ -138,9 +139,7 @@ pub(super) fn validate(
             alias,
             selected: selected.clone(),
         };
-        for graph in
-            std::iter::once(subject).chain(dependencies.iter().map(|entry| &entry.provider))
-        {
+        for graph in once(subject).chain(dependencies.iter().map(|entry| &entry.provider)) {
             if ResolvedSourceIdentity::index_in(&graph.packages, dependency.observer.key())
                 .is_some()
                 && !graph
