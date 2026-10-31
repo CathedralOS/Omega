@@ -296,6 +296,34 @@ fail/calls/retired_where_machine_requirement rejected 5ms expected @45fb2a705c96
 	tests/omega/fail/calls/retired_where_machine_requirement/main.omg:3:1: `where machine` is retired; write `requires machine` with its complete contract and terminating semicolon
 fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431042
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/facts/nested_machine_joint_rank_declared_call_call_result_rejected rejected 2046ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_const_name_rejected rejected 2234ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_crash_ceiling_rejected rejected 3644ms expected @f482ff56d451
+	specification call `rank` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+fail/facts/nested_machine_joint_rank_declared_call_field_rejected rejected 4756ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_local_rejected rejected 4196ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_match_join_rejected rejected 2427ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_nonterminating_rejected rejected 2572ms expected @f482ff56d451
+	specification call `rank` is not denotational: the selected machine is not unconditionally terminating
+fail/facts/nested_machine_joint_rank_declared_call_other_machine_rejected rejected 3312ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_other_state_rejected rejected 3444ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_parameter_rejected rejected 2635ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_precondition_rejected rejected 1736ms expected @f482ff56d451
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_self_establishment_rejected rejected 1922ms expected @f482ff56d451
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_call_target_body_rejected rejected 1899ms expected @f482ff56d451
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_declared_identity_non_decreasing_rejected rejected 861ms expected @b22c0a34ea0d
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_declared_measure_call_result_rejected rejected 774ms expected @b22c0a34ea0d
@@ -6704,6 +6732,17 @@ pass/facts/nested_machine_joint_rank_copied_payload_other_machine_exit checked 1
 pass/facts/nested_machine_joint_rank_copied_payload_other_state_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_copied_payload_parameter_exit checked 1050ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_copied_payload_target_body_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_declared_call_call_result_exit checked 4685ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_composition_exit checked 3631ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_const_name_exit checked 3148ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_field_exit checked 3723ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_local_exit checked 3763ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_match_join_exit checked 5879ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit checked 3132ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_other_state_exit checked 7523ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_parameter_exit checked 4834ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_probe_exit checked 4278ms check-target:macos_arm64 @f482ff56d451
+pass/facts/nested_machine_joint_rank_declared_call_target_body_exit checked 6065ms check-target:macos_arm64 @f482ff56d451
 pass/facts/nested_machine_joint_rank_declared_identity_view_exit checked 1208ms check-target:macos_arm64 @b22c0a34ea0d
 pass/facts/nested_machine_joint_rank_declared_measure_call_result_exit checked 1228ms check-target:macos_arm64 @b22c0a34ea0d
 pass/facts/nested_machine_joint_rank_declared_measure_const_name_exit checked 1060ms check-target:macos_arm64 @b22c0a34ea0d
