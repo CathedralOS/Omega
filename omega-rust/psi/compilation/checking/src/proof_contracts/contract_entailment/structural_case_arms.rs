@@ -29,6 +29,13 @@ use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
+/// Counts callee re-traversals for the nested-machine check scaling
+/// investigation (`OMEGA_PATH_COUNT=1`); read once per process.
+fn path_counting_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("OMEGA_PATH_COUNT").is_some())
+}
+
 /// One normal-return leaf of the structural proof path walker.
 /// Case refinements and selected public guarantees stay in the leaf's own
 /// frame. Calls retain exact selected owner handles and captured result
@@ -1971,6 +1978,15 @@ fn recognize_structural_state_leaves_from<'a>(
                         None
                     }
                     .unwrap_or_default();
+                    if path_counting_enabled() {
+                        eprintln!(
+                            "[paths] depth={} state={:?} frames={} remaining={}",
+                            path.len(),
+                            state.symbol,
+                            target_frames.len(),
+                            remaining_paths.len(),
+                        );
+                    }
                     for frame in target_frames {
                         let arguments = frame.observed_arguments()?;
                         let caller = frame.judge.clone();
@@ -2028,6 +2044,15 @@ fn recognize_structural_state_leaves_from<'a>(
                                     .clone()
                                     .complete_invocation(&caller, state, &subjects, writes)?;
                             }
+                        }
+                        if path_counting_enabled() {
+                            eprintln!(
+                                "[paths] depth={} state={:?} completed={} leaves_now={}",
+                                path.len(),
+                                target_state.symbol,
+                                completed.len(),
+                                leaves.len() + completed.len(),
+                            );
                         }
                         leaves.extend(completed);
                     }
