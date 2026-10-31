@@ -305,8 +305,12 @@ impl Predicate<'_> {
             ExpressionNode::Boolean(value) => Some(Boolean::Constant(*value)),
             ExpressionNode::Name(path)
                 if self.primitive == PrimitiveType::Bool
-                    && (crate::exact_domain_subject_type(self.program, self.domain, expression)
-                        .is_some()
+                    && (crate::exact_domain_subject_type(
+                        self.program,
+                        self.domain,
+                        expression,
+                    )
+                    .is_some()
                         || path.symbol == self.substituted_formal) =>
             {
                 self.subject_boolean()
@@ -315,6 +319,9 @@ impl Predicate<'_> {
             // the exact subject. The declaration owns that body; a matching
             // name or a later caller guard does not.
             ExpressionNode::Call(call) => self.declaration_call(call, depth),
+            // A field of that call is the same body under the subject. The
+            // receiver of the projection is the call, not a second value.
+            ExpressionNode::Member(member) => self.declaration_projection(member, depth),
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot
                     && crate::has_builtin_domain_decomposed_guard_meaning(
@@ -407,20 +414,104 @@ impl Predicate<'_> {
     }
 
     /// Project `callee(subject)` through the selected checked body. One formal
-    /// receives the subject; static, evidence, and receiver calls stay outside
-    /// this scalar predicate.
+    /// receives the subject. A declaration namespace is not a runtime receiver.
+    /// Static arguments, evidence, and value receivers stay outside this
+    /// scalar predicate.
     fn declaration_call(
         &self,
         call: &typed_trees::expression::TableCallExpression,
         depth: usize,
     ) -> Option<Boolean> {
-        if call.receiver.is_valid()
+        let (body, formal) = self.declaration_body(call)?;
+        self.clone_with_formal(formal).boolean(body, depth + 1)
+    }
+
+    /// `callee(subject).field` reads that field of the selected body. Nested
+    /// fields follow the literal; a case payload is a different observation.
+    fn declaration_projection(
+        &self,
+        member: &typed_trees::expression::TableMemberExpression,
+        depth: usize,
+    ) -> Option<Boolean> {
+        if member.case_variant.is_some() {
+            return None;
+        }
+        let mut fields = Vec::new();
+        let mut receiver = member.receiver;
+        fields.push((member.member_symbol, member.member.as_str().to_owned()));
+        let call = loop {
+            match self.program.expression_table.expression(receiver) {
+                ExpressionNode::Member(inner) if inner.case_variant.is_none() => {
+                    fields.push((inner.member_symbol, inner.member.as_str().to_owned()));
+                    receiver = inner.receiver;
+                }
+                ExpressionNode::Call(call) => break call.clone(),
+                _ => return None,
+            }
+        };
+        let (mut body, formal) = self.declaration_body(&call)?;
+        for (symbol, name) in fields.iter().rev() {
+            body = self.literal_field(body, *symbol, name)?;
+        }
+        self.clone_with_formal(formal).boolean(body, depth + 1)
+    }
+
+    fn literal_field(
+        &self,
+        expression: ExpressionHandle,
+        symbol: symbols::SymbolHandle,
+        name: &str,
+    ) -> Option<ExpressionHandle> {
+        let literal = self
+            .program
+            .expression_table
+            .struct_literal_node(expression)?;
+        if literal.case_name.is_some() {
+            return None;
+        }
+        let mut selected = None;
+        for field in self.program.expression_table.struct_fields(literal.fields) {
+            let matches = if symbol.is_valid() && field.field_symbol.is_valid() {
+                field.field_symbol == symbol
+            } else {
+                field.name.as_str() == name
+            };
+            if !matches {
+                continue;
+            }
+            if selected.is_some() {
+                return None;
+            }
+            selected = Some(field.value);
+        }
+        selected
+    }
+
+    /// The selected body's value and the formal that stands for the subject.
+    fn declaration_body(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Option<(ExpressionHandle, symbols::SymbolHandle)> {
+        if !self.call_receiver_is_declaration(call)
             || !call.machine_arguments.is_empty()
             || !call.evidence_arguments.is_empty()
-            || call.static_requirement_dispatch.is_some()
-            || !call.selects_only_nominal_route()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
         {
             return None;
+        }
+        // A direct conformance call's target is the selected body's entry.
+        // An evidence binder has no body here; the public requirement stays
+        // the contract and this projector does not invent one.
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            if dispatch.evidence_parameter.is_valid()
+                || !dispatch.realization_state.is_valid()
+                || dispatch.realization_state != call.target_symbol
+            {
+                return None;
+            }
         }
         let (machine, state) =
             crate::machine_calls::calls::machine_state_by_symbol(self.program, call.target_symbol)?;
@@ -428,7 +519,10 @@ impl Predicate<'_> {
             return None;
         }
         let parameters = self.program.state_parameters(state);
-        let arguments = self.program.expression_table.expression_handles(call.arguments);
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
         let [parameter] = parameters else {
             return None;
         };
@@ -445,7 +539,10 @@ impl Predicate<'_> {
         {
             return None;
         }
-        let statements = self.program.statement_table.statements(state.statement_nodes);
+        let statements = self
+            .program
+            .statement_table
+            .statements(state.statement_nodes);
         let [statement] = statements else {
             return None;
         };
@@ -471,8 +568,28 @@ impl Predicate<'_> {
         } else {
             return None;
         };
-        let mut projected = self.clone_with_formal(parameter.symbol);
-        projected.boolean(body, depth + 1)
+        Some((body, parameter.symbol))
+    }
+
+    /// Module, trait, and implementation qualifiers name the declaration.
+    /// A value, borrow, or projection is a runtime receiver and stays out.
+    fn call_receiver_is_declaration(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> bool {
+        if !call.receiver.is_valid() {
+            return true;
+        }
+        let Some(path) = self.program.expression_table.name_path_node(call.receiver) else {
+            return false;
+        };
+        matches!(
+            self.program.symbols.get(path.symbol).kind,
+            symbols::SymbolKind::Module
+                | symbols::SymbolKind::Trait
+                | symbols::SymbolKind::Conformance
+                | symbols::SymbolKind::ConformanceParameter
+        )
     }
 
     fn clone_with_formal(&self, formal: symbols::SymbolHandle) -> Self {
