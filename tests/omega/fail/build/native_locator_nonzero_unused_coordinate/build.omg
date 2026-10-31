@@ -1,0 +1,9 @@
+use omega::language::core::external_binding;
+machine bad_locator() -> ForeignBinding<12, 5, 1> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "Sleep" } }
+}
+machine build(builder: &mut Build) {
+    Build::application(builder, "nonzero_unused_native_coordinate");
+    Build::bind<Raw::sleep>(builder, windows_x86_64, bad_locator());
+    Build::bind(builder, macos_arm64::ProgramEntry, program);
+}

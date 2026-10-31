@@ -1,0 +1,1 @@
+native binding requires the exact compiler-owned `ForeignBinding` declaration
