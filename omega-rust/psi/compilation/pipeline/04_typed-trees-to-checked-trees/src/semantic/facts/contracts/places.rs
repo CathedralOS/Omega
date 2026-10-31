@@ -1,3 +1,6 @@
+use crate::facts::contract_occurrences::fact_referenced_occurrences_in_state;
+use crate::semantic::places::canonical_place_to_fact_place_in_state;
+use crate::semantic::places::instantiate_outcome_contract_expression_place;
 use validation::call_target_parameters;
 use validation::effective_member_symbol;
 
@@ -55,11 +58,7 @@ pub(crate) fn contract_fact_dependency_places(
         }
         _ => None,
     };
-    for expression in crate::facts::contract_occurrences::fact_referenced_occurrences_in_state(
-        program,
-        contract.fact,
-        state,
-    ) {
+    for expression in fact_referenced_occurrences_in_state(program, contract.fact, state) {
         if let Some(place) = contract_expression_place(program, proof, facts, contract, expression)
         {
             push_unique_place(facts, &mut places, place);
@@ -80,7 +79,7 @@ pub(crate) fn outcome_specific_fact_dependency_places(
     row: &checked_trees::OutcomeSpecificArmRowFact,
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
-    if let Some(result) = crate::semantic::places::canonical_place_to_fact_place_in_state(
+    if let Some(result) = canonical_place_to_fact_place_in_state(
         program,
         facts,
         arm.caller_state_symbol,
@@ -123,7 +122,7 @@ pub(crate) fn outcome_specific_fact_dependency_places(
         .chain(interface_occurrences)
         .map(|occurrence| &occurrence.occurrence)
     {
-        if let Some(place) = crate::semantic::places::instantiate_outcome_contract_expression_place(
+        if let Some(place) = instantiate_outcome_contract_expression_place(
             program,
             facts,
             call,

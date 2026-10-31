@@ -8,6 +8,7 @@
 //! contexts keep payload promises and whole-value snapshots from extending or
 //! shortening the discriminator lifetime; dynamic selectors remain dependencies.
 
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::semantic::facts::append_observation_context;
 use crate::semantic::places::instantiate_call_contract_expression_place;
 use checked_trees::{
@@ -217,11 +218,7 @@ fn selector_occurrences(
     subject: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        subject,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, subject, &mut occurrences);
     occurrences.retain(|occurrence| *occurrence != subject);
     occurrences
 }
