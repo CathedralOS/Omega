@@ -64,6 +64,37 @@ pub(super) fn literal_value(
     }
 }
 
+/// Whether every declared fact of `definition` is true for this valuation.
+pub(super) fn predicate_holds(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::data::DataDefinition,
+    fields: &[(String, Option<LiteralValue>)],
+    active_case: Option<symbols::SymbolHandle>,
+) -> bool {
+    let valuation = fields
+        .iter()
+        .map(|(name, value)| (name.as_str(), *value))
+        .collect::<Vec<_>>();
+    program
+        .conjunctive_proof_facts(definition.where_facts)
+        .all(|fact| {
+            let Some(expression) = fact.as_expression() else {
+                return false;
+            };
+            fold(
+                program,
+                definition,
+                &valuation,
+                &[],
+                &[],
+                false,
+                active_case,
+                *expression,
+            )
+            .is_some_and(|value| value != 0)
+        })
+}
+
 /// Literal and symbolic fields of one struct literal. A non-literal
 /// initializer contributes no field valuation.
 pub(super) fn struct_literal_snapshot(
