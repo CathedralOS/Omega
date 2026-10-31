@@ -75,10 +75,6 @@ impl MachineOverloadIndex {
             .get(&entry.arena_index())
             .and_then(|index| self.groups.get(*index))
     }
-
-    fn contains_entry(&self, entry: SymbolHandle) -> bool {
-        self.entry_to_group.contains_key(&entry.arena_index())
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -905,7 +901,9 @@ fn provisional_target_is_named_non_operator_callable(
     machine_overloads: &MachineOverloadIndex,
     target: SymbolHandle,
 ) -> bool {
-    machine_overloads.contains_entry(target)
+    machine_overloads
+        .entry_to_group
+        .contains_key(&target.arena_index())
         || program.traits().iter().any(|trait_definition| {
             program
                 .trait_machine_signatures(trait_definition)
