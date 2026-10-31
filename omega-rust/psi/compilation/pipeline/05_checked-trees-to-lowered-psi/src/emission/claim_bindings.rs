@@ -1086,12 +1086,9 @@ pub(crate) fn lower_owned_operand_claims(
             ))?;
             if !transfer.claims.is_empty()
                 || !evaluated_transfers.is_empty()
-                || !validation::reference_result_custody::source_value_is_copied(
-                    &checked.typed,
-                    source_type,
-                )
-                || !validation::reference_result_custody::source_value_is_copied(
-                    &checked.typed,
+                || !crate::reference_custody::source_value_is_copied(checked, source_type)
+                || !crate::reference_custody::source_value_is_copied(
+                    checked,
                     transfer.source_type_reference,
                 )
             {

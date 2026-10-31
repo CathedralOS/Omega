@@ -288,6 +288,7 @@ pub(super) fn append_contract_semantic_facts(
                 },
                 fact: guarantee.fact,
                 evidence_term: row.selected_term,
+                nominal_argument_roots: None,
                 qualification_authorization: None,
                 inherited_scope: None,
             };

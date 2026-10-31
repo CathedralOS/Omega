@@ -66,6 +66,7 @@ fn append_contract_operator_use(
                 },
                 fact,
                 evidence_term: None,
+                nominal_argument_roots: None,
                 qualification_authorization: None,
                 inherited_scope: None,
             });

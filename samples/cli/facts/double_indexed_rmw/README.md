@@ -131,9 +131,10 @@ and the nine `built ... exit:signal signal:5` traps, and
    `ProgramEntry` values. `Row` is a tagged-field record over a two-element
    `i32` array, and both arrays are locals whose addresses travel only as
    loans to the writing machine or state.
-7. **Instruction selection and frames:** the measured `linux_x86_64` images execute the
-   nested-index arithmetic, the field store between two runtime indices, and
-   the exit selection, including the runtime controls' `crash Trap` route. The other
+7. **Instruction selection and frames:** the measured `linux_x86_64` images
+   execute the nested-index arithmetic, the field store between two runtime
+   indices, and the exit selection, including the runtime controls' `crash
+   Trap` route. The other
    three authored targets are checked through their entry bindings and, for
    `target_body`, through their checked bodies; this host did not execute those
    images.
@@ -142,8 +143,8 @@ and the nine `built ... exit:signal signal:5` traps, and
 
 ### What remains open
 
-Native execution on `windows_x86_64`, `linux_x86_64`, and `linux_arm64` (this
-host pins `macos_arm64`; `omega run --target` is compile-publication only, so
-it supplies no runtime claim). The rest of PLACED-ACCESS-NATIVE-OPS — placed
+This revision has matching-host runtime evidence for `linux_x86_64` only.
+The earlier macOS measurements above are historical; this cloud run did not
+execute `windows_x86_64`, `macos_arm64`, or `linux_arm64` images. The rest of PLACED-ACCESS-NATIVE-OPS — placed
 MMIO access and the wider address-composition frontier — is not established
 here.

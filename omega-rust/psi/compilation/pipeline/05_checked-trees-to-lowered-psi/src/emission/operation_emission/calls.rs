@@ -1,6 +1,6 @@
 //! Evaluate scalar call operands in authored order, then emit the exact callee.
 
-use super::buffer::{OperationBuffer, SourceCallCoordinate, SourceInvocation};
+use super::buffer::{OperationBuffer, SourceInvocation};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::direct_calls::DirectCallResult;
 use crate::lowering_error::LoweringError;

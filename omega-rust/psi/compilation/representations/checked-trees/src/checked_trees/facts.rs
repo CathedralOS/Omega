@@ -79,7 +79,13 @@ pub use constant_recipe_obligations::{ConstantRecipeObligation, ConstantRecipeRe
 pub use specialization_identities::{
     CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
 };
+mod executable_bindings;
 mod state_locals;
+pub use executable_bindings::{
+    CheckedCaptureArgument, CheckedCaptureArgumentValue, CheckedCaptureInputs,
+    CheckedExecutableBindings, CheckedExpressionSource, CheckedRequirementMachines,
+    CheckedSelectedMachine, CheckedSourceCallTarget, CheckedSourceTransition,
+};
 mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 

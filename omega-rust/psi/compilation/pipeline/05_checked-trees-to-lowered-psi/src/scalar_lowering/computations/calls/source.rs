@@ -7,7 +7,6 @@ use crate::emission::operation_emission::buffer::{SourceCallCoordinate, SourceIn
 use checked_trees::expression::ExpressionHandle;
 
 pub(super) struct CallSource<'a> {
-    pub(super) statement: Option<&'a checked_trees::FlowCallFact>,
     pub(super) expression: ExpressionHandle,
     pub(super) arguments: &'a [ExpressionHandle],
     pub(super) coordinate: SourceInvocation,
@@ -45,7 +44,6 @@ impl<'a> Expansion<'a> {
                     return unsupported("scalar computation invocation coordinate disagrees");
                 }
                 Ok(CallSource {
-                    statement: Some(call),
                     expression,
                     arguments: control.call_arguments.span(call.authored_arguments).ok_or(
                         LoweringError::Unsupported(
@@ -62,62 +60,17 @@ impl<'a> Expansion<'a> {
             }
             checked_trees::CheckedCallOrigin::Declaration { application, call } => {
                 let plan = &self.checked.facts.termination.rank_arrivals;
-                let (formation, retained) = origin
+                let (_, retained) = origin
                     .declaration(plan, self.machine, site.state)
                     .map_err(LoweringError::Unsupported)?;
-                let owner = self.checked.typed.machine_by_symbol(self.machine).ok_or(
-                    LoweringError::Unsupported(
-                        "declaration invocation lost its runtime body owner",
-                    ),
-                )?;
-                let definition = self
-                    .checked
-                    .typed
-                    .measures()
-                    .iter()
-                    .find(|definition| definition.symbol == formation.application.measure)
-                    .ok_or(LoweringError::Unsupported(
-                        "declaration invocation lost its supplying definition",
-                    ))?;
-                let authored = self
-                    .checked
-                    .typed
-                    .expression_table
-                    .call_node(expression)
-                    .ok_or(LoweringError::Unsupported(
-                        "declaration invocation lost its authored call expression",
-                    ))?;
-                if formation.machine_body != owner.states
-                    || self
-                        .checked
-                        .typed
-                        .expression_table
-                        .expression_handles(definition.body)
-                        != [formation.application.definition_body]
-                    || formation
-                        .application
-                        .calls
-                        .handles()
-                        .position(|candidate| candidate == call)
-                        != Some(ordinal as usize)
-                    || retained.expression != expression
-                    || retained.arguments != authored.arguments
-                    || retained.authored_target != authored.target_symbol
-                    || !matches!(callee, checked_trees::CheckedScalarCallee::Body { machine, state }
-                        if *machine == retained.target_machine && *state == retained.target_state)
-                {
-                    return unsupported(
-                        "declaration invocation disagrees with its admitted body, source or selected callee",
-                    );
-                }
                 Ok(CallSource {
-                    statement: None,
                     expression,
-                    arguments: self
-                        .checked
-                        .typed
-                        .expression_table
-                        .expression_handles(retained.arguments),
+                    arguments: plan
+                        .application_call_arguments
+                        .span(retained.checked_arguments)
+                        .ok_or(LoweringError::Unsupported(
+                            "declaration invocation lost its checked argument roster",
+                        ))?,
                     coordinate: SourceInvocation::Declaration {
                         state: site.state,
                         application,

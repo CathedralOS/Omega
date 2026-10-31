@@ -37,16 +37,9 @@ impl StateGraphEmission<'_, '_> {
         let state = &self.plan.states[position];
         let owner = self.admitted.authored[position].0.symbol;
         let Some(transition) = checked
-            .statement_table
-            .statement_at(
-                checked
-                    .state_by_symbol(state.state)
-                    .ok_or(LoweringError::Unsupported(
-                        "selected payload state disappeared",
-                    ))?,
-                statement_ordinal as usize,
-            )
-            .and_then(|statement| statement.as_transition())
+            .facts
+            .executable_bindings
+            .transition(state.state, statement_ordinal as usize)
         else {
             return Ok(Vec::new());
         };
@@ -60,7 +53,7 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .filter(|outgoing| {
                 outgoing.statement_index == statement_ordinal as usize
-                    && outgoing.transition_target == transition.target
+                    && outgoing.transition_target == transition.primary
             });
         let Some(outgoing) = outgoing_rows.next() else {
             return Ok(Vec::new());

@@ -34,6 +34,7 @@ pub(crate) mod index_compatibility;
 mod integer_writes;
 pub(crate) use integer_writes::obligations::integer_write_obligation;
 mod access_views_and_uses;
+pub(crate) mod executable_bindings;
 mod machine_facts;
 pub(crate) mod operator_crashes;
 pub(crate) mod provider_closed_requirements;

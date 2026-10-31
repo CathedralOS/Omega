@@ -170,6 +170,7 @@ fn append_trait_contract_facts_for_machine(
                     },
                     fact,
                     evidence_term,
+                    nominal_argument_roots: None,
                     qualification_authorization,
                     inherited_scope: Some(scope),
                 });

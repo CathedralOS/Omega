@@ -20,7 +20,7 @@ pub fn lower_task_activation_demands(
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<TerminalTaskActivationDemands, Vec<Diagnostic>> {
     let typed = &checked.typed;
-    let selections = start_selections::task_start_selections(typed)?;
+    let selections = start_selections::task_start_selections(checked)?;
     if selections.is_empty() {
         return Ok(TerminalTaskActivationDemands::default());
     }

@@ -60,16 +60,23 @@ fn capture_view<'a>(
     checked: &'a CheckedTrees,
     capture: &'a typed_trees::typed_trees::CapturedMachineApplication,
 ) -> Result<ReachApplicationView<'a>, LoweringError> {
-    use typed_trees::static_applications::StaticMachineBindingValue;
+    use checked_trees::CheckedCaptureArgumentValue;
     let owner = checked
         .conformance_by_symbol(capture.conformance_application.declaration)
         .ok_or(LoweringError::Unsupported(
             "closed capture lost its selecting declaration",
         ))?;
     let parameters = checked.conformance_type_parameters(owner);
-    let bindings = checked
-        .expression_table
-        .static_machine_application_bindings(capture.binding_application);
+    let inputs = checked
+        .facts
+        .executable_bindings
+        .captures
+        .iter()
+        .find(|inputs| inputs.instance == capture.instance)
+        .ok_or(LoweringError::Unsupported(
+            "closed capture lost its checked operands",
+        ))?;
+    let bindings = inputs.arguments.as_slice();
     if bindings.len() != parameters.len() {
         return unsupported("closed capture lost its complete typed substitution");
     }
@@ -83,23 +90,19 @@ fn capture_view<'a>(
             return unsupported("closed capture has no unique exact parameter binding");
         };
         match &binding.value {
-            StaticMachineBindingValue::Type(reference) => {
-                types.push(checked.normalized_type_identity_text(*reference));
+            CheckedCaptureArgumentValue::Type(identity) => {
+                types.push(identity.clone());
             }
-            StaticMachineBindingValue::Const(reference) => {
-                constants.push(
-                    checked
-                        .static_const_type_reference_identity(*reference)
-                        .ok_or(LoweringError::Unsupported(
-                            "closed capture has an open const operand",
-                        ))?,
-                );
+            CheckedCaptureArgumentValue::Const(identity) => {
+                constants.push(identity.clone().ok_or(LoweringError::Unsupported(
+                    "closed capture has an open const operand",
+                ))?);
             }
-            StaticMachineBindingValue::Machine(_) => {}
-            StaticMachineBindingValue::RuntimeValue { .. } => {
+            CheckedCaptureArgumentValue::Machine => {}
+            CheckedCaptureArgumentValue::RuntimeValue => {
                 return unsupported("closed capture needs a static value operand");
             }
-            StaticMachineBindingValue::Conformance(_) => {
+            CheckedCaptureArgumentValue::Conformance => {
                 return unsupported("closed capture has no conformance-parameter route");
             }
         }
@@ -121,12 +124,7 @@ fn capture_view<'a>(
         normalized_template_identity: &capture.normalized_template_identity,
         type_argument_identities: types,
         const_argument_identities: constants,
-        machine_arguments: checked
-            .expression_table
-            .static_machine_application_selected_machines(capture.binding_application)
-            .iter()
-            .map(|argument| argument.symbol)
-            .collect(),
+        machine_arguments: inputs.machines.clone(),
         machine_contracts: identity.machine_argument_contract_commitments.to_vec(),
         evidence_bindings: Vec::new(),
     })

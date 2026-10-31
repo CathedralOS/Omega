@@ -48,15 +48,18 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
-    CheckedDeclarationCall, CheckedMachineRankCorrespondence, CheckedRankApplicationFacts,
-    CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge,
-    CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
-    CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
-    CheckedRankLocalCapture, CheckedRankObservation, CheckedRankPremiseRegime,
-    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeNaturalState,
+    CheckedCaptureArgument, CheckedCaptureArgumentValue, CheckedCaptureInputs,
+    CheckedDeclarationCall, CheckedExecutableBindings, CheckedExpressionSource,
+    CheckedMachineRankCorrespondence, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
+    CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
+    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
+    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRequirementMachines, CheckedRuntimeNaturalState,
     CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
-    CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedSelectedMachine, CheckedSourceCallTarget, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedSourceTransition,
+    CheckedStateRankCorrespondence,
 };
 pub use facts::{
     CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,

@@ -38,6 +38,8 @@ pub struct CheckFacts {
     /// Frozen executable place/result types and type-reference carriers.
     /// Lowering consumes these decisions instead of reconstructing them.
     pub resolved_types: crate::ResolvedTypeFacts,
+    /// Frozen source suppliers, static selections and transition coordinates.
+    pub executable_bindings: crate::CheckedExecutableBindings,
     /// Completed source assignments proved to fit their physical integer encoding.
     pub stored_integer_writes: arena::Arena<crate::CheckedStoredIntegerWrite>,
     /// Source `[]` occurrences whose every bounds check proved a scalar index
