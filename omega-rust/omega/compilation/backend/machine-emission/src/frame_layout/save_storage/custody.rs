@@ -2,6 +2,7 @@ use super::{
     NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStorageReceipt,
     non_authoritative_callee_save_storage_identity,
 };
+use crate::count_where;
 
 pub(super) fn seal(
     plan: &NonAuthoritativeCalleeSaveStoragePlan,
@@ -17,11 +18,9 @@ pub(super) fn seal(
         policy: plan.policy,
         usage: plan.usage,
         function_count: plan.functions.len(),
-        modified_function_count: plan
-            .functions
-            .iter()
-            .filter(|function| !function.slots.is_empty())
-            .count(),
+        modified_function_count: count_where(&plan.functions, |function| {
+            !function.slots.is_empty()
+        }),
         slot_count: plan
             .functions
             .iter()

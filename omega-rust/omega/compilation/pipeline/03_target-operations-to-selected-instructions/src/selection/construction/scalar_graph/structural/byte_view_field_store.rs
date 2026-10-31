@@ -61,10 +61,7 @@ pub(super) fn replace(
                     .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
             },
         )
-        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        )
+        || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
     {
         return Err(invalid());
     }

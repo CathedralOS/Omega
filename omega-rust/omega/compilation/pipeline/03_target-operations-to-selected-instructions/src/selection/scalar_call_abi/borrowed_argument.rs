@@ -133,9 +133,7 @@ pub(super) fn validate_borrowed_argument(
                     Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                 )
                 && target.source_byte_offset == offset
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices, &elements,
-                ))
+                && crate::structural_inputs::runtime_indices_match(indices, &elements))
             .then_some(shape)
         });
     // A fixed array presents its backing from an incoming parameter or
@@ -252,9 +250,7 @@ pub(super) fn validate_borrowed_argument(
                     || target.source_byte_offset != offset
                     || target.fixed_array_length.is_some()
                     || target.element_stride.is_some()
-                    || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                        indices, &elements,
-                    )
+                    || !crate::structural_inputs::runtime_indices_match(indices, &elements)
                 {
                     return None;
                 }
@@ -325,9 +321,7 @@ pub(super) fn validate_borrowed_argument(
                     target.structural_type,
                 )
                 || target.source_byte_offset != offset
-                || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices, &elements,
-                )
+                || !crate::structural_inputs::runtime_indices_match(indices, &elements)
             {
                 return None;
             }
@@ -588,9 +582,7 @@ fn projected_loan_shape(
     (target.root_structural_type == root.structural_type
         && target.structural_type == referent
         && target.source_byte_offset == offset
-        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices, &elements,
-        ))
+        && crate::structural_inputs::runtime_indices_match(indices, &elements))
     .then_some(shape)
 }
 

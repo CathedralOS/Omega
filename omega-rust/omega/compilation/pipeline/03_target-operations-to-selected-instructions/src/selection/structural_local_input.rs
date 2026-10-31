@@ -29,10 +29,7 @@ pub(super) fn storage<'a>(
                 result.structural_type,
             ))
         || !result.projected_qualifications.is_empty()
-        || crate::structural_inputs::structural_reference_input::shape(
-            result.structural_type,
-            declarations,
-        )? != *shape
+        || crate::structural_inputs::shape(result.structural_type, declarations)? != *shape
     {
         return None;
     }

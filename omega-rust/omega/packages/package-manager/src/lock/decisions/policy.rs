@@ -39,9 +39,7 @@ impl HistoricalPackagePolicyDecisions {
             return Err(Error::ByteLimitExceeded);
         }
         let mut decisions = Vec::new();
-        decisions
-            .try_reserve_exact(supplied.len())
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(decisions, supplied.len(), Error);
         decisions.extend(
             supplied
                 .iter()

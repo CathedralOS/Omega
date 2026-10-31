@@ -2,6 +2,7 @@
 //! A named implementation owns a selection, never a hidden receiver value.
 
 use crate::ProviderPlanningContext;
+use crate::provider_planning::entry_state;
 use checked_trees::typed_trees::trait_definition::Conformance;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 use symbols::SymbolHandle;
@@ -191,7 +192,7 @@ pub fn provider_row_matches(
         {
             return true;
         }
-        let Some(entry_state) = typed.machine_states(machine).first() else {
+        let Some(entry_state) = entry_state(typed, machine) else {
             return false;
         };
         if !typed.instantiated_machine_state_matches(

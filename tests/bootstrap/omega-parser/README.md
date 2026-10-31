@@ -66,9 +66,15 @@ The current customer reuses one parser across twenty invocations. Four header
 controls were added after the historical sixteen-invocation observations below:
 termination and reach clauses in both orders retain their exact ranges, and
 obsolete clause semicolons refuse without being consumed as separators.
-The new bound subject is awaiting its lower-chain execution; the historical
-timings and outcomes below retain their original subjects. Complete
-inputs cover decimal expressions and transition guards, a named struct literal,
+The bound twenty-invocation subject passed on macOS arm64 on 2026-10-31:
+receipt reconstruction took 148.663 seconds and the complete customer took
+6,529.480 seconds, returning exact `000000000041` (`Exit(0)`, stdout `A`) with
+host status zero and empty stderr. The observed customer is the 584,640-byte
+subject identified in [Bound customer entry](#bound-customer-entry); the original
+run log retained an obsolete sixteen-invocation success label, corrected after
+that observation without changing the customer or expected bytes. Historical
+timings and outcomes below retain their original subjects. Complete inputs cover
+decimal expressions and transition guards, a named struct literal,
 a cast domain, reference/array/constrained types, and an externally bound
 satisfying clause. Data predicates retain ordinary expression roots, repeated
 clauses, grouping, precedence, logical `self`, and ownership across adjacent

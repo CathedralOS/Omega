@@ -93,7 +93,7 @@ def main():
     if observation != expected:
         raise SystemExit(f"Interpreted D parser: expected {expected.hex()}, "
                          f"received {observation.hex()}")
-    print("Interpreted D parser: 16 invocations, exact Exit(0) and A", flush=True)
+    print("Interpreted D parser: 20 invocations, exact Exit(0) and A", flush=True)
 
 
 if __name__ == "__main__":

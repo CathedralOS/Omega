@@ -1,6 +1,6 @@
 //! Pause for an exact source query and retain only issued description custody.
 
-use super::{BindingState, TerminalBuildBindingHost};
+use super::{BindingState, TerminalBuildBindingHost, lock_state};
 use evaluation_accounting::EvaluationStorageLease;
 use language_semantics::declaration_selection::{
     DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
@@ -73,10 +73,7 @@ impl BindingState {
 
 impl TerminalBuildBindingHost {
     pub(crate) fn awaiting_query(&self) -> Result<Option<Arc<BuildProductQuery>>, String> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let state = lock_state(&self.state)?;
         Ok(state
             .query
             .as_ref()
@@ -89,10 +86,7 @@ impl TerminalBuildBindingHost {
         request: &BuildProductQuery,
         answer: BuildProductDescription,
     ) -> Result<(), String> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let mut state = lock_state(&self.state)?;
         let query = state
             .query
             .as_mut()
@@ -147,9 +141,7 @@ impl TerminalBuildBindingHost {
             return Ok(true);
         }
         let request = self.query_arguments(call.action, effect)?;
-        let mut state = self.state.lock().map_err(|_| {
-            TerminalEffectRejection::new("Build binding activation lock was poisoned")
-        })?;
+        let mut state = lock_state(&self.state).map_err(TerminalEffectRejection::new)?;
         if let Some(pending) = &state.query {
             if !request.matches(call, &pending.request) {
                 return Err(TerminalEffectRejection::new(
@@ -216,10 +208,7 @@ impl TerminalBuildBindingHost {
                 "Product query result is not its structural description",
             ));
         };
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let mut state = lock_state(&self.state).map_err(refuse)?;
         let pending = state
             .query
             .take()
@@ -323,10 +312,7 @@ impl TerminalBuildBindingHost {
                 "description inspection has an invalid argument roster",
             ));
         }
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let state = lock_state(&self.state).map_err(refuse)?;
         let issued = state
             .descriptions
             .iter()

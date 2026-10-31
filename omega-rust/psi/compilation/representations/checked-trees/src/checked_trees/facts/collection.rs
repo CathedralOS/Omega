@@ -191,6 +191,14 @@ impl CheckFacts {
         &self.finalized_selections
     }
 
+    /// The contract proof facts this `requires` or `ensures` span names.
+    pub(crate) fn contract_fact_refs(
+        &self,
+        refs: arena::HandleSpan<crate::ContractProofFactRef>,
+    ) -> &[crate::ContractProofFactRef] {
+        self.proof.contract_fact_refs.span_or_empty(refs)
+    }
+
     /// Retain typed occurrence identities and append checking-minted associations.
     /// Targets for both kinds of occurrence belong to the finalized ledger.
     pub fn authored_selection_occurrences<'input>(

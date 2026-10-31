@@ -65,8 +65,12 @@ materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
 D implements Omega. The header-delimiter revision changes only the existing
 termination/reach continuation and keeps unsupported forms incomplete. Its
-new twenty-invocation parser customer is awaiting lower-chain execution;
-historical observations retain their original source subjects.
+twenty-invocation parser customer passed through the lower chain on macOS arm64:
+receipt reconstruction took 148.663 seconds and the customer took 6,529.480 seconds,
+returning exact `000000000041` (`Exit(0)` and `A`) with host status zero and empty
+stderr. This observes the bound D and customer identified above and in the
+[parser gate](../../tests/bootstrap/omega-parser/README.md); historical
+observations retain their original source subjects.
 The authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 

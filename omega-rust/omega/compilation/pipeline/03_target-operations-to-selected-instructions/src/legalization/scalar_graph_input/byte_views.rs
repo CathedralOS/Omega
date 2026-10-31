@@ -96,11 +96,7 @@ pub(super) fn validate(
         // layout, independently of the entry's borrowed ABI. Exact incoming
         // bindings and ownership are replayed by target control flow; owned
         // arrivals use the ordinary structural block-parameter homes.
-        crate::structural_inputs::structural_reference_input::parameter_shape(
-            parameter,
-            &plan.structural_types,
-        )
-        .is_none()
+        crate::structural_inputs::parameter_shape(parameter, &plan.structural_types).is_none()
     }) {
         return Err(LegalizationError::custody());
     }

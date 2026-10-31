@@ -3,6 +3,7 @@ use super::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
     HistoricalPackagePolicyLimits, HistoricalPackagePolicyRecoveryUsage,
 };
+use crate::hex_digest;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::ReviewOnlyRootPolicyDisposition;
 use std::fmt::Write;
@@ -56,8 +57,7 @@ impl HistoricalPackagePolicyDecisions {
             return Err(Error::ByteLimitExceeded);
         }
         let mut text = String::new();
-        text.try_reserve_exact(length)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(text, length, Error);
         text.push_str(&prefix);
         for decision in &self.decisions {
             write!(
@@ -125,9 +125,7 @@ impl HistoricalPackagePolicyDecisions {
         let usage =
             HistoricalPackagePolicyRecoveryUsage::for_decisions(count, maximum_owned_bytes)?;
         let mut decisions = Vec::new();
-        decisions
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(decisions, count, Error);
         let mut lines = body.split('\n');
         for _ in 0..count {
             let line = lines.next().ok_or(Error::InvalidFraming)?;
@@ -188,9 +186,7 @@ fn validate_decisions(
     // One exact conflict has one owner even when a record tries to repeat it
     // under another valid package index.
     let mut fingerprints = Vec::new();
-    fingerprints
-        .try_reserve_exact(decisions.len())
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(fingerprints, decisions.len(), Error);
     fingerprints.extend(
         decisions
             .iter()
@@ -214,22 +210,7 @@ pub(super) fn parse_number(text: &str) -> Result<usize, Error> {
 }
 
 pub(super) fn parse_digest(text: &str) -> Result<[u8; 32], Error> {
-    if text.len() != 64 {
-        return Err(Error::InvalidFraming);
-    }
-    let mut digest = [0; 32];
-    for (index, pair) in text.as_bytes().as_chunks::<2>().0.iter().enumerate() {
-        digest[index] = nibble(pair[0])? * 16 + nibble(pair[1])?;
-    }
-    Ok(digest)
-}
-
-fn nibble(byte: u8) -> Result<u8, Error> {
-    match byte {
-        b'0'..=b'9' => Ok(byte - b'0'),
-        b'a'..=b'f' => Ok(byte - b'a' + 10),
-        _ => Err(Error::InvalidFraming),
-    }
+    hex_digest(text).ok_or(Error::InvalidFraming)
 }
 
 fn decimal_digits(mut number: usize) -> usize {

@@ -33,6 +33,7 @@ use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
+use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
@@ -174,11 +175,7 @@ fn mint_toolchain_settled_plan(
         return Ok(None);
     }
     let plan = ProviderPlan {
-        name: crate::satisfies_plan_name(
-            target_name,
-            schema.identity_text(schema.declaration.trait_name),
-            provider,
-        ),
+        name: crate::satisfies_plan_name(target_name, trait_name_text(&schema), provider),
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
         provider_application: Default::default(),

@@ -161,11 +161,7 @@ pub(super) fn establishment(
     let signature = function.structural.as_ref()?;
     let declarations = &signature.structural_types;
     if row.result.is_some()
-        || Some(*shape)
-            != crate::structural_inputs::structural_reference_input::shape(
-                result.structural_type,
-                declarations,
-            )
+        || Some(*shape) != crate::structural_inputs::shape(result.structural_type, declarations)
         || result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
@@ -219,10 +215,7 @@ pub(super) fn establishment(
             path,
             declarations,
         )?;
-    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-        indices,
-        &geometry.elements,
-    ) {
+    if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
         return None;
     }
     for (position, segment) in path.iter().enumerate() {
@@ -545,10 +538,7 @@ pub(super) fn borrowed_argument(
             } else {
                 ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
             }
-        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &projection.elements,
-        )
+        && crate::structural_inputs::runtime_indices_match(indices, &projection.elements)
         && target.fixed_array_length.is_none()
         && target.element_stride.is_none())
     .then_some(BorrowedReferenceAddress {

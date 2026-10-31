@@ -72,9 +72,7 @@ pub(crate) fn recover_package_policy_review(
     let mut subjects = template.subjects.iter();
     let mut decisions = Vec::new();
     let mut unresolved = None;
-    decisions
-        .try_reserve_exact(template.subjects.len())
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(decisions, template.subjects.len(), Error);
     for expected in template.text.lines() {
         let line = actual.next().ok_or(Error::ChangedFindings)?;
         if expected.starts_with("comparison ") && line != expected {

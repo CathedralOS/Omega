@@ -1028,20 +1028,8 @@ pub(super) fn instruction_scratch(
     operand: u16,
     sign: IntegerSign,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(
-        builder
-            .registers
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
+    let id = VirtualRegisterId(super::next_index(builder.registers.len())?);
+    let instruction = SelectedInstructionId(super::next_index(builder.instructions.len())?);
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: ScalarType::Integer(

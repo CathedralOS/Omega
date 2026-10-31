@@ -5,7 +5,7 @@ use crate::custody::platform::same_capability_file_identity;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 #[cfg(unix)]
 use crate::limits::CANONICAL_DIRECTORY_MODE;
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 #[cfg(test)]
 use crate::tree::filesystem::is_executable;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
@@ -22,20 +22,14 @@ pub(crate) fn verify_open_snapshot_tree_modes(
     root: &CapabilityDirectory,
     display_root: &Path,
 ) -> Result<(), SourceResolveError> {
-    let root_metadata = root
-        .dir_metadata()
-        .map_err(|error| io_error(display_root, error))?;
+    let root_metadata = root.dir_metadata().at(display_root)?;
     verify_capability_snapshot_directory_mode(kind, display_root, &root_metadata)?;
-    let entries = root
-        .entries()
-        .map_err(|error| io_error(display_root, error))?;
+    let entries = root.entries().at(display_root)?;
     for entry in entries {
-        let entry = entry.map_err(|error| io_error(display_root, error))?;
+        let entry = entry.at(display_root)?;
         let name = entry.file_name();
         let path = display_root.join(&name);
-        let metadata = root
-            .symlink_metadata(&name)
-            .map_err(|error| io_error(&path, error))?;
+        let metadata = root.symlink_metadata(&name).at(&path)?;
         if metadata.is_dir() {
             let directory = root.open_dir_nofollow(&name).map_err(|error| {
                 cache_custody_invalid(
@@ -44,9 +38,7 @@ pub(crate) fn verify_open_snapshot_tree_modes(
                     format!("snapshot directory changed during verification: {error}"),
                 )
             })?;
-            let opened = directory
-                .dir_metadata()
-                .map_err(|error| io_error(&path, error))?;
+            let opened = directory.dir_metadata().at(&path)?;
             if !same_capability_file_identity(&metadata, &opened) {
                 return Err(cache_custody_invalid(
                     kind,
@@ -71,7 +63,7 @@ pub(crate) fn verify_open_snapshot_tree_modes(
                     format!("snapshot file changed during verification: {error}"),
                 )
             })?;
-            let opened = file.metadata().map_err(|error| io_error(&path, error))?;
+            let opened = file.metadata().at(&path)?;
             if !same_capability_file_identity(&metadata, &opened) {
                 return Err(cache_custody_invalid(
                     kind,
@@ -157,16 +149,12 @@ pub(crate) fn make_open_snapshot_read_only(
     root: &CapabilityDirectory,
     display_root: &Path,
 ) -> Result<(), SourceResolveError> {
-    let entries = root
-        .entries()
-        .map_err(|error| io_error(display_root, error))?;
+    let entries = root.entries().at(display_root)?;
     for entry in entries {
-        let entry = entry.map_err(|error| io_error(display_root, error))?;
+        let entry = entry.at(display_root)?;
         let name = entry.file_name();
         let path = display_root.join(&name);
-        let metadata = root
-            .symlink_metadata(&name)
-            .map_err(|error| io_error(&path, error))?;
+        let metadata = root.symlink_metadata(&name).at(&path)?;
         if metadata.is_dir() {
             let directory = root.open_dir_nofollow(&name).map_err(|error| {
                 cache_custody_invalid(
@@ -175,9 +163,7 @@ pub(crate) fn make_open_snapshot_read_only(
                     format!("snapshot directory changed during finalization: {error}"),
                 )
             })?;
-            let opened = directory
-                .dir_metadata()
-                .map_err(|error| io_error(&path, error))?;
+            let opened = directory.dir_metadata().at(&path)?;
             if !same_capability_file_identity(&metadata, &opened) {
                 return Err(cache_custody_invalid(
                     kind,
@@ -196,7 +182,7 @@ pub(crate) fn make_open_snapshot_read_only(
                     format!("snapshot file changed during finalization: {error}"),
                 )
             })?;
-            let opened = file.metadata().map_err(|error| io_error(&path, error))?;
+            let opened = file.metadata().at(&path)?;
             if !same_capability_file_identity(&metadata, &opened) {
                 return Err(cache_custody_invalid(
                     kind,
@@ -231,7 +217,7 @@ fn set_open_snapshot_directory_read_only(
 
     directory
         .set_permissions(".", cap_std::fs::Permissions::from_mode(0o555))
-        .map_err(|error| io_error(path, error))
+        .at(path)
 }
 
 #[cfg(not(windows))]
@@ -250,10 +236,10 @@ pub(crate) fn make_open_snapshot_root_publishable(
     use std::os::unix::fs::PermissionsExt;
 
     root.try_clone()
-        .map_err(|error| io_error(display_root, error))?
+        .at(display_root)?
         .into_std_file()
         .set_permissions(std::fs::Permissions::from_mode(0o700))
-        .map_err(|error| io_error(display_root, error))
+        .at(display_root)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -277,17 +263,14 @@ fn set_snapshot_file_mode(path: &Path, executable: bool) -> Result<(), SourceRes
     use std::os::unix::fs::PermissionsExt;
 
     let mode = if executable { 0o555 } else { 0o444 };
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
-        .map_err(|error| io_error(path, error))
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).at(path)
 }
 
 #[cfg(all(test, not(unix)))]
 fn set_snapshot_file_mode(path: &Path, _executable: bool) -> Result<(), SourceResolveError> {
-    let mut permissions = std::fs::metadata(path)
-        .map_err(|error| io_error(path, error))?
-        .permissions();
+    let mut permissions = std::fs::metadata(path).at(path)?.permissions();
     permissions.set_readonly(true);
-    std::fs::set_permissions(path, permissions).map_err(|error| io_error(path, error))
+    std::fs::set_permissions(path, permissions).at(path)
 }
 
 #[cfg(test)]
@@ -297,11 +280,10 @@ pub(crate) fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveEr
     while cursor < directories.len() {
         let directory = directories[cursor].clone();
         cursor += 1;
-        for entry in std::fs::read_dir(&directory).map_err(|error| io_error(&directory, error))? {
-            let entry = entry.map_err(|error| io_error(&directory, error))?;
+        for entry in std::fs::read_dir(&directory).at(&directory)? {
+            let entry = entry.at(&directory)?;
             let path = entry.path();
-            let metadata =
-                std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+            let metadata = std::fs::symlink_metadata(&path).at(&path)?;
             if metadata.is_dir() {
                 directories.push(path);
             } else if metadata.is_file() {
@@ -319,8 +301,7 @@ pub(crate) fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveEr
 fn set_snapshot_directory_read_only(path: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::PermissionsExt;
 
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555))
-        .map_err(|error| io_error(path, error))
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555)).at(path)
 }
 
 #[cfg(all(test, not(unix)))]

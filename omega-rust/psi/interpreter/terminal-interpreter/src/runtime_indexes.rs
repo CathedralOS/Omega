@@ -46,7 +46,7 @@ impl TerminalExecution<'_> {
                 operation.kind,
                 terminal_psi::OperationKind::ElementViewRead { .. }
             ) {
-                match self.program.structural_declaration(root_type)?.shape {
+                match self.structural_declaration(root_type)?.shape {
                     StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return Err(malformed()),
                 }
@@ -78,14 +78,14 @@ impl TerminalExecution<'_> {
             // root. Resolve their selectors here too, before dispatch, so
             // every consumer receives the same checked static projection.
             let array = resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 root_type,
                 // The declared path retains the bounds discharged by
                 // checking. Earlier selected indices are physical runtime
                 // coordinates, not new static bounds on a descriptor.
                 &declared_path[..position],
             )?;
-            let length = match self.program.structural_declaration(array)?.shape {
+            let length = match self.structural_declaration(array)?.shape {
                 StructuralTypeShape::FixedArray {
                     length: terminal_psi::ArrayExtent::Literal(length),
                     ..

@@ -8,6 +8,7 @@
 //! still precede attaching the selected target's calling evidence.
 
 use super::NativeBuildSupply;
+use crate::provider_planning::trait_name_text;
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
 };
@@ -87,13 +88,10 @@ pub(crate) fn derive(
                     .iter()
                     .map(|byte| format!("{byte:02x}"))
                     .collect::<String>();
-                let provider = format!(
-                    "native-build:{supplier}:{}",
-                    schema.identity_text(schema.declaration.trait_name)
-                );
+                let provider = format!("native-build:{supplier}:{}", trait_name_text(&schema));
                 let name = crate::satisfies_plan_name(
                     target.target_name(),
-                    schema.identity_text(schema.declaration.trait_name),
+                    trait_name_text(&schema),
                     &provider,
                 );
                 plans.push(DerivedProviderPlan {

@@ -12,7 +12,7 @@
 //! A home lookup preserves the result's domain metadata without interpreting
 //! it as a storage restriction: an authorized boundary result occupies the
 //! same home as any other value of its declared representation.
-use crate::selection::place_declaration::declares_block_parameter;
+use crate::selection::place_declaration::{arrivals, declares_block_parameter};
 
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -516,10 +516,7 @@ pub(super) fn returned_parameter<'a>(
         return None;
     }
     let placement = source.call_plan.result.as_ref()?;
-    let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
-        semantic,
-        &signature.structural_types,
-    )?;
+    let shape = crate::structural_inputs::parameter_shape(semantic, &signature.structural_types)?;
     if parameter.target.shape != shape
         || parameter.target.placement.shape != shape
         || placement.shape != shape
@@ -1033,10 +1030,7 @@ pub(super) fn block_parameter_transport(
                 declarations,
             )?;
         if !geometry.readable
-            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices,
-                &geometry.elements,
-            )
+            || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
             || geometry
                 .pointer_slots
                 .iter()
@@ -1227,10 +1221,7 @@ pub(super) fn home(
     // this completed value has a native home. In particular a mixed value's
     // common fields, discriminator and overlay belong to one ordinary home.
     // The producer/declaration and permission checks above remain independent.
-    crate::structural_inputs::structural_reference_input::shape(
-        result.structural_type,
-        &signature.structural_types,
-    )?;
+    crate::structural_inputs::shape(result.structural_type, &signature.structural_types)?;
     Some((operation, result))
 }
 
@@ -1243,13 +1234,7 @@ pub(super) fn block_home(
     semantic_vocabulary::BlockId,
     &terminal_psi::StructuralParameterDeclaration,
 )> {
-    let mut matching = source.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = arrivals(source, place);
     let (block, parameter) = matching.next()?;
     let signature = source.structural.as_ref()?;
     if matching.next().is_some()

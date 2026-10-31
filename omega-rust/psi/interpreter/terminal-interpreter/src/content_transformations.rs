@@ -108,7 +108,7 @@ impl TerminalExecution<'_> {
                 &accounted,
                 &|path, case| {
                     crate::structural_inputs::case_membership::stored_case_at_projection(
-                        &self.program.structural_types(),
+                        &self.structural_types(),
                         root,
                         self.structural_cases.as_map(),
                         path,
@@ -149,7 +149,7 @@ impl TerminalExecution<'_> {
                     for segment in relative {
                         if let terminal_psi::StructuralPathSegment::Case(case) = segment
                             && crate::structural_inputs::case_membership::stored_case_at_projection(
-                                &self.program.structural_types(),
+                                &self.structural_types(),
                                 root,
                                 self.structural_cases.as_map(),
                                 &path,

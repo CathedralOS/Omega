@@ -153,7 +153,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 BoundaryMachineResult::Structural(right),
                 TerminalExecutionResult::Structural(returned),
             ) => {
-                let types = self.program.structural_types();
+                let types = self.structural_types();
                 let receiver_type = types
                     .get(&left.structural_type)
                     .ok_or_else(|| reject("component receiver lost its result type".to_owned()))?;

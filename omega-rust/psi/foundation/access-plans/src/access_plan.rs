@@ -4,6 +4,7 @@
 
 pub(crate) mod diagnostic;
 
+use self::diagnostic::reject_when;
 use crate::plan_policy::authorization::authorize_descriptor;
 use crate::plan_policy::normalized_identities::authoritative_access_layout_commitment;
 use crate::{AccessOperation, AccessPlanDiagnostic, BorrowPolarity};
@@ -157,42 +158,27 @@ impl FieldAccess {
         match self {
             FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
             FieldAccess::Region { permissions, .. } => {
-                let mut operations = Vec::new();
-                if permissions.read {
-                    operations.push("read");
-                }
-                if permissions.take {
-                    operations.push("take");
-                }
-                if permissions.write {
-                    operations.push("write");
-                }
-                operations
+                ordinary_operation_names(permissions.read, permissions.take, permissions.write)
             }
             FieldAccess::Stable { read, write, .. } => {
-                let mut operations = Vec::new();
-                if *read {
-                    operations.push("read");
-                }
-                if *write {
-                    operations.push("write");
-                }
-                operations
+                ordinary_operation_names(*read, false, *write)
             }
-            FieldAccess::External { read, write, .. } => {
-                let mut operations = Vec::new();
-                match read {
-                    ExternalRead::None => {}
-                    ExternalRead::Read => operations.push("read"),
-                    ExternalRead::Take => operations.push("take"),
-                }
-                if *write {
-                    operations.push("write");
-                }
-                operations
-            }
+            FieldAccess::External { read, write, .. } => ordinary_operation_names(
+                *read == ExternalRead::Read,
+                *read == ExternalRead::Take,
+                *write,
+            ),
         }
     }
+}
+
+/// The ordinary operation names one permission triple admits, in the fixed
+/// order every diagnostic reports them: read, take, write.
+fn ordinary_operation_names(read: bool, take: bool, write: bool) -> Vec<&'static str> {
+    [("read", read), ("take", take), ("write", write)]
+        .into_iter()
+        .filter_map(|(name, admitted)| admitted.then_some(name))
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
@@ -256,11 +242,7 @@ impl AccessPlan {
         let mut presentation_names = BTreeMap::new();
         let mut presentation_identities = BTreeMap::new();
         for entry in &layout.entries {
-            if entry.field.is_empty() {
-                return Err(AccessPlanDiagnostic(
-                    "layout field name cannot be empty".into(),
-                ));
-            }
+            reject_when! { entry.field.is_empty() => "layout field name cannot be empty" }
             let identity = match entry.member_identity {
                 Some(identity) => CanonicalFieldIdentity::Numbered(identity),
                 None => CanonicalFieldIdentity::Positional(entry.field.clone()),
@@ -339,11 +321,7 @@ impl AccessPlan {
         let entry = self.entries.get_mut(key.slot as usize).ok_or_else(|| {
             AccessPlanDiagnostic("access field key is outside the schema cardinality".into())
         })?;
-        if entry.key != key {
-            return Err(AccessPlanDiagnostic(
-                "access field key does not identify this schema slot".into(),
-            ));
-        }
+        reject_when! { entry.key != key => "access field key does not identify this schema slot" }
         entry.access = access;
         Ok(())
     }

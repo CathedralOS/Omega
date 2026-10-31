@@ -8,6 +8,7 @@
 //! Unrelated same-leaf traits cannot redirect selection, including when Build and
 //! product retain separate package instances.
 
+use crate::provider_planning::entry_state;
 pub use build_time_evaluation::product_entries::RootBinding;
 use build_time_evaluation::product_entries::{
     ArrivalRequirementContract, arrival_requirement_contract, core_arrival_requirement_contract,
@@ -156,7 +157,7 @@ fn validate_selected_program_entry_shape(
         .ok_or_else(|| vec![Diagnostic::error(format!(
             "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
         ))])?;
-    let entry = typed.machine_states(machine).first().ok_or_else(|| {
+    let entry = entry_state(typed, machine).ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "entry machine `{machine_name}` has no executable entry state"
         ))]
@@ -341,10 +342,7 @@ impl SelectedCompilerProgramEntry {
                             "selected physical entry adapter is absent",
                         )]
                     })?;
-                if typed
-                    .machine_states(machine)
-                    .first()
-                    .is_none_or(|entry| !entry.symbol.is_valid())
+                if entry_state(typed, machine).is_none_or(|entry| !entry.symbol.is_valid())
                     || !typed.machine_type_parameters(machine).is_empty()
                 {
                     return Err(vec![Diagnostic::error(
