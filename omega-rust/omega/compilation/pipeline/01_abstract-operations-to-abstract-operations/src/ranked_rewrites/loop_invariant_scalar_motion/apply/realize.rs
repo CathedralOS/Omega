@@ -5,13 +5,16 @@ use super::super::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
+use crate::validation::member_blocks as shared_entry_source;
 use crate::validation::relocation_rewrites as relocations;
 use abstract_operations::{
     AbstractCallTarget, AbstractOperation as O, AbstractStructuralCallResult,
 };
 use optimization_unit::{OptimizationFact, OptimizerCycleComponent};
+use semantic_vocabulary::BlockId;
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralMultiplicity;
 
 /// Remove every planned scalar node at its exact source location, rebind any
 /// invariant-parameter operands to their entry representatives, and insert the
@@ -156,8 +159,7 @@ pub(crate) fn realize(
             Ok(node)
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
-    let Some(preheader_source) = crate::validation::member_blocks::shared_entry_source(component)
-    else {
+    let Some(preheader_source) = shared_entry_source::shared_entry_source(component) else {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     };
     let preheader = function.block_mut(preheader_source).ok_or(
@@ -185,9 +187,7 @@ pub(crate) fn realize(
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
-            } if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine => {
-                Some(result.place)
-            }
+            } if result.multiplicity == StructuralMultiplicity::Affine => Some(result.place),
             O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
             _ => None,
         })
@@ -220,8 +220,7 @@ pub(crate) fn realize(
         // relocated results: member-internal edges keep the persistent place
         // live while exit edges and member returns dispose it — the same
         // rewrite the relocation freeze replays against the seed.
-        let members: BTreeSet<semantic_vocabulary::BlockId> =
-            component.members.iter().copied().collect();
+        let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
         let structural_places = function.structural_places.clone();
         for member in &component.members {
             let block =
