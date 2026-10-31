@@ -292,6 +292,33 @@ pub(crate) fn recognize_structural_case_arms<'a>(
             machine.name, site, driver
         );
     }
+    let visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)] = match requirement.as_mut() {
+        Some(requirement) => std::slice::from_mut(requirement),
+        None => &mut [],
+    };
+    recognize_structural_case_arms_batched(
+        program,
+        machine,
+        judge,
+        classification,
+        diagnostics,
+        visitors,
+    )
+}
+
+/// The multi-visitor entry: one cone walk delivers to every visitor in
+/// `visitors`, each receiving the events its own solo walk would have
+/// produced. Per-visitor site gating inside the nested walker keeps delivery
+/// exact; a visitor whose site is unreachable from a descent simply receives
+/// nothing from it.
+pub(super) fn recognize_structural_case_arms_batched<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &Machine,
+    judge: &StructuralJudge<'a>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
     let parameter_names: Vec<String> = program
@@ -321,10 +348,10 @@ pub(crate) fn recognize_structural_case_arms<'a>(
         false,
         &mut path,
         &mut fresh,
-        &mut requirement,
+        visitors,
         CitationFacts::default(),
     )?;
-    (!arms.is_empty() || requirement.is_some()).then_some(arms)
+    (!arms.is_empty() || !visitors.is_empty()).then_some(arms)
 }
 
 /// A runtime call obligation is local to one state invocation. All arrivals
@@ -338,7 +365,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     judge: &StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
-    requirement: &mut dyn StructuralPrefixVisitor,
+    mut requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
     if path_counting_enabled() {
         let site = requirement.site();
@@ -397,7 +424,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
         false,
         &mut Vec::new(),
         &mut 0,
-        &mut Some(requirement),
+        std::slice::from_mut(&mut requirement),
         CitationFacts::default(),
     )
 }
@@ -1166,7 +1193,7 @@ pub(super) fn recognize_structural_state_leaves<'a>(
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
-    requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     established_guarantees: CitationFacts,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
     recognize_structural_state_leaves_from(
@@ -1185,7 +1212,7 @@ pub(super) fn recognize_structural_state_leaves<'a>(
         collect_citations,
         path,
         fresh,
-        requirement,
+        visitors,
         established_guarantees,
         0,
     )
@@ -1208,7 +1235,7 @@ fn recognize_structural_state_leaves_from<'a>(
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
-    requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     mut established_guarantees: CitationFacts,
     start_index: usize,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
@@ -1220,10 +1247,7 @@ fn recognize_structural_state_leaves_from<'a>(
     // to the exact body owner, not to the theorem's lexical namespace.
     let (invocation, _) =
         crate::machine_calls::calls::machine_state_by_symbol(program, state.symbol)?;
-    if requirement
-        .as_deref()
-        .is_some_and(StructuralPrefixVisitor::is_complete)
-    {
+    if !visitors.is_empty() && visitors.iter().all(|visitor| visitor.is_complete()) {
         return Some(Vec::new());
     }
     if start_index == 0 {
@@ -1259,11 +1283,30 @@ fn recognize_structural_state_leaves_from<'a>(
             }
         };
         let start_position = position(start_index)?;
-        let observation_position = match requirement.as_deref() {
-            Some(requirement) if requirement.site().state == state.symbol => {
-                Some(position(requirement.site().statement_index)?)
+        let mut observation_position = None;
+        for visitor in visitors.iter() {
+            if visitor.site().state == state.symbol {
+                observation_position =
+                    observation_position.max(Some(position(visitor.site().statement_index)?));
             }
-            _ => None,
+        }
+        // A carried member still owns deliveries on this path while it is
+        // incomplete and its site lies ahead in this state, sits on a
+        // transition the loop has yet to hand over, or lives in a body this
+        // path may still enter.
+        let member_live_in_statements = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+                                         at_position: usize,
+                                         path: &[SymbolHandle]| {
+            !visitor.is_complete()
+                && if visitor.site().state == state.symbol {
+                    match statements.get(visitor.site().statement_index) {
+                        Some(StatementNode::Transition(_)) => true,
+                        _ => position(visitor.site().statement_index)
+                            .is_some_and(|pending| pending > at_position),
+                    }
+                } else {
+                    !path.contains(&visitor.site().state)
+                }
         };
         let mut transitions = Vec::new();
         let mut saw_transition = false;
@@ -1271,7 +1314,7 @@ fn recognize_structural_state_leaves_from<'a>(
             execution.iter().copied().enumerate().skip(start_position)
         {
             let statement = &statements[statement_index];
-            if super::struct_trace() && requirement.is_some() {
+            if super::struct_trace() && !visitors.is_empty() {
                 let kind = match statement {
                     StatementNode::LocalData(_) => "local",
                     StatementNode::Assignment(_) => "assignment",
@@ -1295,25 +1338,33 @@ fn recognize_structural_state_leaves_from<'a>(
             if is_arm_pattern_marker(statement) {
                 continue;
             }
-            if let Some(requirement) = requirement.as_deref_mut()
-                && requirement.site().state == state.symbol
-                && requirement.site().statement_index == statement_index
-                && !matches!(statement, StatementNode::Transition(_))
+            for visitor in visitors.iter_mut() {
+                if visitor.site().state == state.symbol
+                    && visitor.site().statement_index == statement_index
+                    && !matches!(statement, StatementNode::Transition(_))
+                    && !visitor.is_complete()
+                {
+                    visitor.visit(
+                        program,
+                        invocation,
+                        judge,
+                        &environment,
+                        &case_hypotheses,
+                        &case_equations,
+                        &established_guarantees,
+                    );
+                }
+            }
+            // Nothing after this call can establish its entry premises.
+            // Other incoming paths are still visited by the parent.
+            if !visitors.is_empty()
+                && !visitors.iter().any(|visitor| {
+                    member_live_in_statements(visitor, execution_position, path)
+                })
             {
-                requirement.visit(
-                    program,
-                    invocation,
-                    judge,
-                    &environment,
-                    &case_hypotheses,
-                    &case_equations,
-                    &established_guarantees,
-                );
-                // Nothing after this call can establish its entry premises.
-                // Other incoming paths are still visited by the parent.
                 return Some(Vec::new());
             }
-            if !matches!(statement, StatementNode::Transition(_)) && requirement.is_some() {
+            if !matches!(statement, StatementNode::Transition(_)) && !visitors.is_empty() {
                 // This observes callee entry before the statement completes or
                 // imports its guarantees. Hoisted calls and authored locals own
                 // the same ordered operation entries as terminal calls.
@@ -1334,7 +1385,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     &pending_citations,
                     path,
                     fresh,
-                    requirement,
+                    visitors,
                     &established_guarantees,
                 )?;
             }
@@ -1370,7 +1421,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         collect_citations,
                         path,
                         fresh,
-                        requirement,
+                        &mut *visitors,
                         established_guarantees.clone(),
                         next_statement,
                     )?);
@@ -1403,7 +1454,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 citation_preserves_values = complete && writes.is_empty();
                 judge.observe_storage_effects(state, complete.then_some(writes.as_slice()))?;
             }
-            if (requirement.is_some() || judge.has_runtime_body_values())
+            if (!visitors.is_empty() || judge.has_runtime_body_values())
                 && citation_preserves_values
                 && !saw_transition
                 && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
@@ -1505,15 +1556,16 @@ fn recognize_structural_state_leaves_from<'a>(
                             &execution,
                             execution_position + 1,
                             local.symbol,
-                            requirement.as_deref().is_some_and(|observer| {
-                                observer.site().state == state.symbol
-                                    && !observer.site().in_transition_target
-                                    && observer.site().statement_index < statements.len()
-                                    && !matches!(
-                                        statements[observer.site().statement_index],
-                                        StatementNode::Transition(_)
-                                    )
-                            }),
+                            !visitors.is_empty()
+                                && visitors.iter().all(|observer| {
+                                    observer.site().state == state.symbol
+                                        && !observer.site().in_transition_target
+                                        && observer.site().statement_index < statements.len()
+                                        && !matches!(
+                                            statements[observer.site().statement_index],
+                                            StatementNode::Transition(_)
+                                        )
+                                }),
                         );
                         if dead_local {
                             let judge_refs: Vec<_> = outcomes
@@ -1531,15 +1583,16 @@ fn recognize_structural_state_leaves_from<'a>(
                                 &execution,
                                 execution_position + 1,
                                 local.symbol,
-                                requirement.as_deref().is_some_and(|observer| {
-                                    observer.site().state == state.symbol
-                                        && !observer.site().in_transition_target
-                                        && observer.site().statement_index < statements.len()
-                                        && !matches!(
-                                            statements[observer.site().statement_index],
-                                            StatementNode::Transition(_)
-                                        )
-                                }),
+                                !visitors.is_empty()
+                                    && visitors.iter().all(|observer| {
+                                        observer.site().state == state.symbol
+                                            && !observer.site().in_transition_target
+                                            && observer.site().statement_index < statements.len()
+                                            && !matches!(
+                                                statements[observer.site().statement_index],
+                                                StatementNode::Transition(_)
+                                            )
+                                    }),
                             )
                         {
                             let judge_refs: Vec<_> = outcomes
@@ -1607,7 +1660,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             collect_citations,
                             path,
                             fresh,
-                            requirement,
+                            &mut *visitors,
                             established_guarantees.clone(),
                             next_statement,
                         )?);
@@ -1642,7 +1695,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             collect_citations,
                             path,
                             fresh,
-                            requirement,
+                            &mut *visitors,
                             established_guarantees.clone(),
                             next_statement,
                         )?);
@@ -1706,7 +1759,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             collect_citations,
                             path,
                             fresh,
-                            requirement,
+                            &mut *visitors,
                             established_guarantees.clone(),
                             next_statement,
                         )?);
@@ -1789,22 +1842,24 @@ fn recognize_structural_state_leaves_from<'a>(
             // whether another statement follows or the body returns Unit.
             // Explicit transitions own their paths below and never use this
             // synthetic end coordinate.
-            if let Some(requirement) = requirement.as_deref_mut()
-                && requirement.site().state == state.symbol
-                && requirement.site().statement_index == state.statement_nodes.count() as usize
-                && !requirement.site().in_transition_target
-            {
-                requirement.visit(
-                    program,
-                    invocation,
-                    judge,
-                    &environment,
-                    &case_hypotheses,
-                    &case_equations,
-                    &established_guarantees,
-                );
+            for visitor in visitors.iter_mut() {
+                if visitor.site().state == state.symbol
+                    && visitor.site().statement_index == state.statement_nodes.count() as usize
+                    && !visitor.site().in_transition_target
+                    && !visitor.is_complete()
+                {
+                    visitor.visit(
+                        program,
+                        invocation,
+                        judge,
+                        &environment,
+                        &case_hypotheses,
+                        &case_equations,
+                        &established_guarantees,
+                    );
+                }
             }
-            if requirement.is_some() {
+            if !visitors.is_empty() {
                 return Some(Vec::new());
             }
             let completions = judge.terminal_completion_paths(
@@ -1839,26 +1894,61 @@ fn recognize_structural_state_leaves_from<'a>(
         let _s_trans = phase_profile::guard("05.d.7.3b.1.cap.2d.transitions");
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
-        for (statement_index, transition) in transitions {
+        let transition_order: Vec<usize> =
+            transitions.iter().map(|(index, _)| *index).collect();
+        // The same liveness question as in the statement loop, resolved
+        // against the collected transitions: a member sited on a later
+        // transition still waits for its arm, while a member sited on this
+        // transition's target side is served just below.
+        let member_live_in_transitions = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+                                          at_position: usize,
+                                          include_current_target: bool,
+                                          path: &[SymbolHandle]| {
+            !visitor.is_complete()
+                && if visitor.site().state == state.symbol {
+                    transition_order
+                        .iter()
+                        .position(|index| *index == visitor.site().statement_index)
+                        .is_some_and(|pending| {
+                            pending > at_position
+                                || (include_current_target
+                                    && pending == at_position
+                                    && visitor.site().in_transition_target)
+                        })
+                } else {
+                    !path.contains(&visitor.site().state)
+                }
+        };
+        for (transition_position, (statement_index, transition)) in
+            transitions.into_iter().enumerate()
+        {
             let mut next_remaining = Vec::new();
             let mut selected_paths = Vec::new();
             for (incoming, remaining_equations) in remaining_paths {
-                if let Some(requirement) = requirement.as_deref_mut()
-                    && requirement.site().state == state.symbol
-                    && requirement.site().statement_index == statement_index
-                    && !requirement.site().in_transition_target
+                for visitor in visitors.iter_mut() {
+                    if visitor.site().state == state.symbol
+                        && visitor.site().statement_index == statement_index
+                        && !visitor.site().in_transition_target
+                        && !visitor.is_complete()
+                    {
+                        // The requested guard call has not returned. Only earlier
+                        // guards and preceding operands can establish its premises.
+                        visitor.visit(
+                            program,
+                            invocation,
+                            &incoming,
+                            &environment,
+                            &case_hypotheses,
+                            &remaining_equations,
+                            &established_guarantees,
+                        );
+                    }
+                }
+                if !visitors.is_empty()
+                    && !visitors.iter().any(|visitor| {
+                        member_live_in_transitions(visitor, transition_position, true, path)
+                    })
                 {
-                    // The requested guard call has not returned. Only earlier
-                    // guards and preceding operands can establish its premises.
-                    requirement.visit(
-                        program,
-                        invocation,
-                        &incoming,
-                        &environment,
-                        &case_hypotheses,
-                        &remaining_equations,
-                        &established_guarantees,
-                    );
                     continue;
                 }
                 let TransitionGuardNode::When(guard) = transition.guard else {
@@ -2014,11 +2104,11 @@ fn recognize_structural_state_leaves_from<'a>(
                     ));
                 }
             }
-            if requirement.as_deref().is_some_and(|requirement| {
-                requirement.site().state == state.symbol
-                    && requirement.site().statement_index == statement_index
-                    && !requirement.site().in_transition_target
-            }) {
+            if !visitors.is_empty()
+                && !visitors.iter().any(|visitor| {
+                    member_live_in_transitions(visitor, transition_position, true, path)
+                })
+            {
                 return Some(Vec::new());
             }
             remaining_paths = next_remaining;
@@ -2027,20 +2117,28 @@ fn recognize_structural_state_leaves_from<'a>(
             {
                 let judge = &captured;
 
-                if let Some(requirement) = requirement.as_deref_mut()
-                    && requirement.site().state == state.symbol
-                    && requirement.site().statement_index == statement_index
-                    && requirement.site().in_transition_target
+                for visitor in visitors.iter_mut() {
+                    if visitor.site().state == state.symbol
+                        && visitor.site().statement_index == statement_index
+                        && visitor.site().in_transition_target
+                        && !visitor.is_complete()
+                    {
+                        visitor.visit(
+                            program,
+                            invocation,
+                            judge,
+                            &branch_environment,
+                            &branch_hypotheses,
+                            &branch_equations,
+                            &established_guarantees,
+                        );
+                    }
+                }
+                if !visitors.is_empty()
+                    && !visitors.iter().any(|visitor| {
+                        member_live_in_transitions(visitor, transition_position, false, path)
+                    })
                 {
-                    requirement.visit(
-                        program,
-                        invocation,
-                        judge,
-                        &branch_environment,
-                        &branch_hypotheses,
-                        &branch_equations,
-                        &established_guarantees,
-                    );
                     continue;
                 }
                 // A crash closes this selected execution path without a normal
@@ -2063,7 +2161,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     target,
                     transition.source_target,
                     classification,
-                    requirement.is_some(),
+                    !visitors.is_empty(),
                     judge.requires_value_preservation(),
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
@@ -2072,10 +2170,12 @@ fn recognize_structural_state_leaves_from<'a>(
                     // the body again would either loop or assume its result.
                     && !(call_expression.is_some() && path.contains(&target_state.symbol))
                 {
-                    if requirement.as_deref().is_some_and(|observer| {
-                        observer.site().state == state.symbol
-                            || !prefix_site_is_reachable(program, target_state, observer)
-                    }) {
+                    if !visitors.is_empty()
+                        && visitors.iter().all(|observer| {
+                            observer.site().state == state.symbol
+                                || !prefix_site_is_reachable(program, target_state, &**observer)
+                        })
+                    {
                         // A jump leaves this state invocation; a cycle back
                         // is a new arrival, not execution of its later arm.
                         // Other states are traversed only when they can
@@ -2169,8 +2269,22 @@ fn recognize_structural_state_leaves_from<'a>(
                                 captured.field_size_report(),
                             );
                         }
-                        if let Some(observer) = requirement.as_deref_mut() {
-                            observer.entered_body(
+                        let mut eligible: Vec<&mut (dyn StructuralPrefixVisitor + '_)> = visitors
+                            .iter_mut()
+                            .filter_map(|member| {
+                                (member.site().state != state.symbol
+                                    && !path.contains(&member.site().state)
+                                    && !member.is_complete()
+                                    && prefix_site_is_reachable(
+                                        program,
+                                        target_state,
+                                        &**member,
+                                    ))
+                                .then_some(&mut **member)
+                            })
+                            .collect();
+                        for member in eligible.iter_mut() {
+                            member.entered_body(
                                 state.symbol,
                                 statement_index,
                                 call_expression,
@@ -2193,7 +2307,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             true,
                             path,
                             fresh,
-                            requirement,
+                            eligible.as_mut_slice(),
                             established_guarantees.clone(),
                         )?;
                         if let Some(writes) = &writes {
@@ -2216,7 +2330,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         leaves.extend(completed);
                     }
                 } else {
-                    if requirement.is_some() && matches!(target, TransitionTargetNode::Value(_)) {
+                    if !visitors.is_empty() && matches!(target, TransitionTargetNode::Value(_)) {
                         continue;
                     }
                     let mut branch_judge =
@@ -2230,7 +2344,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     // A non-calling Unit arm closes only its own path. Keep
                     // visiting every alternative that can reach the queried
                     // occurrence, including repeated visits to one call site.
-                    if requirement.is_some() {
+                    if !visitors.is_empty() {
                         continue;
                     }
                     for outcome in completions {
@@ -2249,10 +2363,11 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                 }
             }
-            if requirement.as_deref().is_some_and(|observer| {
-                observer.site().state == state.symbol
-                    && observer.site().statement_index == statement_index
-            }) {
+            if !visitors.is_empty()
+                && !visitors.iter().any(|visitor| {
+                    member_live_in_transitions(visitor, transition_position, false, path)
+                })
+            {
                 // All normal guard outcomes at the requested occurrence were
                 // visited above. Later arms cannot establish or invalidate it;
                 // in particular, do not unroll their recurrent successors.
@@ -2262,7 +2377,7 @@ fn recognize_structural_state_leaves_from<'a>(
         Some(leaves)
     })();
 
-    if result.is_none() && super::struct_trace() && requirement.is_some() {
+    if result.is_none() && super::struct_trace() && !visitors.is_empty() {
         eprintln!(
             "STRUCT prefix-incomplete root={} body={} state={} start={start_index}",
             machine.name, invocation.name, state.name,
@@ -2280,7 +2395,7 @@ fn recognize_structural_state_leaves_from<'a>(
 pub(super) fn prefix_site_is_reachable(
     program: &dyn crate::CheckingInput,
     source: &typed_trees::state::State,
-    observer: &dyn StructuralPrefixVisitor,
+    observer: &(dyn StructuralPrefixVisitor + '_),
 ) -> bool {
     let mut pending = vec![source.symbol];
     let mut visited = Vec::new();
