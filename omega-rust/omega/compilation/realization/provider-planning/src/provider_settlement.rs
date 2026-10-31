@@ -220,6 +220,9 @@ pub struct SettledProviderDefaults {
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
+    /// Final selected invocation population, separate from all-body Source
+    /// checking and the conservative candidate demand used during choice.
+    pub application_declarations: checked_trees::typed_trees::references::DeclarationSelection,
     pub settlement: ProviderSettlement<crate::UnpreparedProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
@@ -372,26 +375,27 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
 /// conservative until ordinary whole-map selection below: it supplies no authority.
 /// An explicit nomination narrows its schema's candidate edges and retains the
 /// nominated map's complete member roster, including uncalled members.
-fn provider_application_declarations(
+fn provider_application_declarations<'plans>(
     checked: &checked_trees::CheckedTrees,
-    candidates: &[crate::DerivedProviderPlan],
+    candidates: impl IntoIterator<Item = (&'plans ProviderPlan, &'plans crate::ProviderPlanProvenance)>,
     target: &str,
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
     application_roots: &[symbols::SymbolHandle],
+    assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
 ) -> checked_trees::typed_trees::references::DeclarationSelection {
     let mut roots = application_roots.to_vec();
     let mut edges = Vec::new();
-    for candidate in candidates {
+    for (plan, provenance) in candidates {
         let covers_schema = |selection: &&ProviderSelection| {
             selection
                 .target
                 .is_none_or(|profile| profile.canonical_name() == target)
-                && candidate.plan.rows.iter().any(|row| {
+                && plan.rows.iter().any(|row| {
                     selection.subject.selects_schema(
-                        candidate.provenance.schema.symbol(),
-                        candidate.plan.identity_text(row.requirement_identity),
-                        candidate.plan.schema.root_application_identity(),
+                        provenance.schema.symbol(),
+                        plan.identity_text(row.requirement_identity),
+                        plan.schema.root_application_identity(),
                     )
                 })
         };
@@ -399,17 +403,16 @@ fn provider_application_declarations(
         if choices.is_empty() {
             choices.extend(defaults.iter().filter(covers_schema));
         }
-        let nominated = choices.iter().any(|selection| {
-            candidate.provenance.provider_type == Some(selection.provider_type.symbol)
-        });
+        let nominated = choices
+            .iter()
+            .any(|selection| provenance.provider_type == Some(selection.provider_type.symbol));
         if !choices.is_empty() && !nominated {
             continue;
         }
-        for (requirement, realization) in candidate
-            .provenance
+        for (requirement, realization) in provenance
             .row_requirements
             .iter()
-            .zip(&candidate.provenance.row_realizations)
+            .zip(&provenance.row_realizations)
         {
             if let Some(machine) = realization.authored() {
                 edges.push((*requirement, machine));
@@ -419,19 +422,36 @@ fn provider_application_declarations(
                     selection
                         .target
                         .is_none_or(|profile| profile.canonical_name() == target)
-                        && candidate.provenance.provider_type
-                            == Some(selection.provider_type.symbol)
-                        && candidate.plan.rows.iter().any(|row| {
+                        && provenance.provider_type == Some(selection.provider_type.symbol)
+                        && plan.rows.iter().any(|row| {
                             selection.subject.selects_schema(
-                                candidate.provenance.schema.symbol(),
-                                candidate.plan.identity_text(row.requirement_identity),
-                                candidate.plan.schema.root_application_identity(),
+                                provenance.schema.symbol(),
+                                plan.identity_text(row.requirement_identity),
+                                plan.schema.root_application_identity(),
                             )
                         })
                 }) {
                     roots.push(machine);
                 }
             }
+        }
+    }
+    // Exact authored assumed bindings forward demand, not implementation
+    // identity. Close only those retained symbol correspondences over the
+    // existing source edges; Native admission still validates every contract.
+    loop {
+        let before = edges.len();
+        for binding in assumed_bindings {
+            for index in 0..edges.len() {
+                let (requirement, realization) = edges[index];
+                let forwarded = (binding.required, realization);
+                if binding.supplied == requirement && !edges.contains(&forwarded) {
+                    edges.push(forwarded);
+                }
+            }
+        }
+        if edges.len() == before {
+            break;
         }
     }
     checked_trees::typed_trees::references::DeclarationSelection::from_symbols(
@@ -580,11 +600,14 @@ pub fn settle_checked_providers(
     let native_binding_identities = identities.build();
     let application_declarations = provider_application_declarations(
         checked,
-        &derived_provider_plans,
+        derived_provider_plans
+            .iter()
+            .map(|candidate| (&candidate.plan, &candidate.provenance)),
         target_name.unwrap_or_default(),
         target_provider_defaults,
         build_provider_selections,
         application_roots,
+        assumed_bindings,
     );
     let requirements = provider_inventory
         .requirements_for_declarations(checked, &application_declarations)
@@ -916,7 +939,22 @@ pub fn settle_checked_providers(
             &boundary_calling_plan_realizations,
             opaque_representation_selections,
         )?;
+    // Reuse the same application policy after choice, now with only exact
+    // selected provenance. An inactive candidate cannot donate its applications
+    // to this activation's review or borrow the chosen provider's plan.
+    let application_declarations = provider_application_declarations(
+        checked,
+        selected_provider_provenance
+            .iter()
+            .map(|selected| (&selected.plan, &selected.provider)),
+        target_name.unwrap_or_default(),
+        target_provider_defaults,
+        build_provider_selections,
+        application_roots,
+        assumed_bindings,
+    );
     Ok(CheckedProviderSelection {
+        application_declarations,
         settlement: ProviderSettlement {
             authored_providers,
             planning_target_profile: planning_target,

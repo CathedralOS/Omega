@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 /// Realization choices joined to a completed source judgment.
 pub struct ProviderBindingRequest<'a> {
+    pub application_declarations: checked_trees::typed_trees::references::DeclarationSelection,
     pub provider_inventory: &'a Arc<psi_terminal_production::PreparedProviderInventory>,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
@@ -112,6 +113,7 @@ pub fn prepare_selected_execution(
     let provider_source = Arc::new(provider_planning::SelectedProviderSource::new(
         Arc::clone(settlement.provider_inventory),
         selected_provider_plan_facts,
+        settlement.application_declarations,
     ));
     let selected_provider_plan_facts = provider_source.plans();
     // Close the existing exact source association once. Native ABI publication

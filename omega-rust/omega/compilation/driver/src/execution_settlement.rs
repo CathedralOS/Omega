@@ -334,6 +334,7 @@ fn select_checked_providers(
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let provider_planning::CheckedProviderSelection {
+        application_declarations,
         settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
@@ -356,6 +357,7 @@ fn select_checked_providers(
         Arc::clone(&source.program),
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
+            application_declarations,
             provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),

@@ -14,6 +14,7 @@ use std::sync::{Arc, OnceLock};
 pub struct SelectedProviderSource {
     inventory: Arc<checked_trees::PreparedProviderInventory>,
     plans: effects::SelectedProviderPlanFacts,
+    application_declarations: checked_trees::typed_trees::references::DeclarationSelection,
     declarations: OnceLock<PreparedProviderInstances>,
 }
 
@@ -35,7 +36,9 @@ impl PartialEq for SelectedProviderSource {
     fn eq(&self, other: &Self) -> bool {
         // As with the external-declaration product, equal-looking source from
         // another checked owner is not interchangeable. Derived cache state is.
-        Arc::ptr_eq(self.program(), other.program()) && self.plans == other.plans
+        Arc::ptr_eq(self.program(), other.program())
+            && self.plans == other.plans
+            && self.application_declarations == other.application_declarations
     }
 }
 impl Eq for SelectedProviderSource {}
@@ -44,10 +47,12 @@ impl SelectedProviderSource {
     pub fn new(
         inventory: Arc<checked_trees::PreparedProviderInventory>,
         plans: effects::SelectedProviderPlanFacts,
+        application_declarations: checked_trees::typed_trees::references::DeclarationSelection,
     ) -> Self {
         Self {
             inventory,
             plans,
+            application_declarations,
             declarations: OnceLock::new(),
         }
     }
@@ -60,6 +65,14 @@ impl SelectedProviderSource {
     }
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
         &self.plans
+    }
+
+    /// This selected invocation population belongs to the same immutable checked
+    /// owner and complete plan roster. Retaining a declaration is not activation.
+    pub fn application_declarations(
+        &self,
+    ) -> &checked_trees::typed_trees::references::DeclarationSelection {
+        &self.application_declarations
     }
 
     /// Admission remains consumer-owned. Preparing declarations neither reports
