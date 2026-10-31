@@ -12,6 +12,7 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, ScalarType, StructuralCaseId, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use structural_layout::{direct_scalar_field_geometry, structural_shape};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape,
@@ -95,7 +96,7 @@ fn capture_declared_type(
     root: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<NativeBorrowedStorageLayout> {
-    let shape = structural_layout::structural_shape(
+    let shape = structural_shape(
         root,
         declarations,
         &mut BTreeMap::new(),
@@ -286,13 +287,7 @@ impl StorageRecipes<'_> {
                     )
                     .ok()?
                 } else {
-                    structural_layout::direct_scalar_field_geometry(
-                        root,
-                        member.id,
-                        scalar,
-                        self.declarations,
-                    )
-                    .ok()?
+                    direct_scalar_field_geometry(root, member.id, scalar, self.declarations).ok()?
                 };
                 if matches!(
                     member.storage,

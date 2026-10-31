@@ -15,6 +15,7 @@ use terminal_psi::{
     BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
     StructuralAccess, StructuralTypeDeclaration,
 };
+use terminal_semantics::{canonical_structural_path_tip, observed_field_declaration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DescriptorInputGuard {
@@ -236,36 +237,29 @@ fn scalar_prefix(
             prefix,
         )) = path.split_last()
         {
-            terminal_semantics::observed_field_declaration(
-                types.iter(),
-                layout.structural_type,
-                prefix,
-                *identity,
-            )
-            .is_some_and(|field| {
-                matches!(
-                    field.field_type,
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(_))
-                        | terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
-                        | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                )
-            })
+            observed_field_declaration(types.iter(), layout.structural_type, prefix, *identity)
+                .is_some_and(|field| {
+                    matches!(
+                        field.field_type,
+                        terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(_))
+                            | terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
+                            | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                    )
+                })
         } else {
-            terminal_semantics::canonical_structural_path_tip(
-                types.iter(),
-                layout.structural_type,
-                &path,
-            )
-            .is_some_and(|declaration| {
-                declaration.scalar_restriction.is_none()
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(_))
-                            | terminal_psi::StructuralTypeShape::PrimitiveScalar(
+            canonical_structural_path_tip(types.iter(), layout.structural_type, &path).is_some_and(
+                |declaration| {
+                    declaration.scalar_restriction.is_none()
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                                ScalarType::Integer(_)
+                            ) | terminal_psi::StructuralTypeShape::PrimitiveScalar(
                                 ScalarType::IeeeFloat(_)
                             )
-                    )
-            })
+                        )
+                },
+            )
         };
         // Atomic residents, Boolean validation and refined domains are not
         // unrestricted byte replacement recipes. No guard grants that authority.
