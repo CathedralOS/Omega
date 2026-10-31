@@ -77,6 +77,11 @@ pub(crate) fn view_of(name: &str) -> &'static RegisterView {
         .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
 }
 
+/// Units of the canonical view named `name`.
+pub(crate) fn units(name: &str) -> Vec<RegisterUnitId> {
+    view_of(name).units.clone()
+}
+
 /// Sorted, deduplicated units of every canonical view named in `names`.
 pub(crate) fn units_of(names: &[&str]) -> Vec<RegisterUnitId> {
     sorted_units(
