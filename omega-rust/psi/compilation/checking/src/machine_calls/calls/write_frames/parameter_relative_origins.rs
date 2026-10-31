@@ -368,96 +368,134 @@ fn parameter_relative_call_result_origins(
     {
         return None;
     }
-    let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
-    // A receiver is owed only when the attachment names a data definition:
-    // boundary-attached operations such as `Slice::range` bind the collection
-    // as an ordinary positional operand and record no call receiver.
-    if call.receiver.is_valid() != program.attached_data_definition(callee_machine).is_some() {
-        return None;
-    }
-    // A requirement target has no body of its own. Its single checked
-    // satisfier supplies the result relation the operand substitution below
-    // instantiates; the call's own receiver topology is already judged above.
-    let (callee_machine, callee_state) = if !callee_machine.body_is_present {
-        let satisfiers = crate::requirement_satisfiers(
+    let alternatives = if program
+        .closed_requirement_application(call.target_symbol)
+        .is_some()
+    {
+        let associations = crate::declarations::traits::closed_requirement_provider_associations(
             program,
-            program.symbols.authored_origin(callee_machine.symbol),
-        );
-        let [satisfier] = satisfiers.as_slice() else {
-            return None;
-        };
-        let satisfier_machine = program.machine_by_symbol(*satisfier)?;
-        let satisfier_state = program.machine_states(satisfier_machine).first()?;
-        (satisfier_machine, satisfier_state)
-    } else {
-        (callee_machine, callee_state)
-    };
-    let callee_origins = transparent_callee_result_origins(
-        program,
-        callee_machine,
-        callee_state,
-        symbols,
-        inference,
-    )?;
-    let callee_parameters = program.state_parameters(callee_state);
-    let mut origins = Vec::new();
-    for callee_origin in callee_origins {
-        // A literal-produced image route is independent of formal inputs.
-        // Preserve that authenticated route across every helper boundary;
-        // an absent parameter alone never makes a local origin static.
-        if !callee_origin.parameter_symbol.is_valid() && callee_origin.place.source.is_static() {
-            push_unique_parameter_relative(&mut origins, callee_origin);
-            continue;
-        }
-        let callee_parameter = callee_parameters
-            .iter()
-            .find(|parameter| parameter.symbol == callee_origin.parameter_symbol)?;
-        let actual = {
-            let (argument_index, _) = callee_parameters
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| parameter.symbol == callee_parameter.symbol)?;
-            *expression_table(program)
-                .expression_handles(call.arguments)
-                .get(argument_index)?
-        };
-        // A route rooted in a by-value carrier parameter's declared leaf
-        // needs the actual's carrier place, not a reference-typed origin;
-        // carrier roots stay admitted for that actual regardless of the
-        // enclosing query's mode.
-        let actual_origins = parameter_relative_place_origins_in(
-            query,
-            actual,
-            inference,
-            admit_carrier_roots
-                || !type_reference_is_reference(program, callee_parameter.type_reference),
+            call.target_symbol,
         )?;
-        for actual_origin in actual_origins {
-            let (_, suffix) = split_place_root(&callee_origin.place.path);
-            let source = actual_origin
-                .place
-                .source
-                .append_relative(program, &callee_origin.place.source);
-            push_unique_parameter_relative(
-                &mut origins,
-                match actual_origin.place.precision {
-                    FramePathPrecision::Exact => ParameterRelativeFrameOrigin {
-                        place: FramePlaceOrigin {
-                            path: append_place_suffix(&actual_origin.place.path, suffix),
-                            precision: callee_origin.place.precision,
-                            source,
-                        },
-                        parameter_symbol: actual_origin.parameter_symbol,
-                    },
-                    FramePathPrecision::CollectionCoarse => ParameterRelativeFrameOrigin {
-                        place: FramePlaceOrigin {
-                            source,
-                            ..actual_origin.place
-                        },
-                        parameter_symbol: actual_origin.parameter_symbol,
-                    },
-                },
+        let mut alternatives = Vec::with_capacity(associations.len());
+        for association in &associations {
+            let (machine, state, arguments) =
+                super::super::argument_correspondence::requirement_realization_arguments(
+                    program,
+                    query.current_machine.symbol,
+                    call,
+                    association,
+                )
+                .ok()?;
+            alternatives.push((
+                machine,
+                state,
+                arguments
+                    .into_iter()
+                    .map(|argument| argument.expression)
+                    .collect::<Vec<_>>(),
+            ));
+        }
+        alternatives
+    } else {
+        let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
+        // A receiver is owed only when the attachment names a data definition:
+        // boundary-attached operations such as `Slice::range` bind the collection
+        // as an ordinary positional operand and record no call receiver.
+        if call.receiver.is_valid() != program.attached_data_definition(callee_machine).is_some() {
+            return None;
+        }
+        // A requirement target has no body of its own. Its single checked
+        // satisfier supplies the result relation the operand substitution below
+        // instantiates; the call's own receiver topology is already judged above.
+        let (callee_machine, callee_state) = if !callee_machine.body_is_present {
+            let satisfiers = crate::requirement_satisfiers(
+                program,
+                program.symbols.authored_origin(callee_machine.symbol),
             );
+            let [satisfier] = satisfiers.as_slice() else {
+                return None;
+            };
+            let satisfier_machine = program.machine_by_symbol(*satisfier)?;
+            let satisfier_state = program.machine_states(satisfier_machine).first()?;
+            (satisfier_machine, satisfier_state)
+        } else {
+            (callee_machine, callee_state)
+        };
+        vec![(
+            callee_machine,
+            callee_state,
+            expression_table(program)
+                .expression_handles(call.arguments)
+                .to_vec(),
+        )]
+    };
+    let mut origins = Vec::new();
+    for (callee_machine, callee_state, actuals) in alternatives {
+        let callee_origins = transparent_callee_result_origins(
+            program,
+            callee_machine,
+            callee_state,
+            symbols,
+            inference,
+        )?;
+        let callee_parameters = program.state_parameters(callee_state);
+        for callee_origin in callee_origins {
+            // A literal-produced image route is independent of formal inputs.
+            // Preserve that authenticated route across every helper boundary;
+            // an absent parameter alone never makes a local origin static.
+            if !callee_origin.parameter_symbol.is_valid() && callee_origin.place.source.is_static()
+            {
+                push_unique_parameter_relative(&mut origins, callee_origin);
+                continue;
+            }
+            let callee_parameter = callee_parameters
+                .iter()
+                .find(|parameter| parameter.symbol == callee_origin.parameter_symbol)?;
+            let actual = {
+                let (argument_index, _) = callee_parameters
+                    .iter()
+                    .enumerate()
+                    .find(|(_, parameter)| parameter.symbol == callee_parameter.symbol)?;
+                *actuals.get(argument_index)?
+            };
+            // A route rooted in a by-value carrier parameter's declared leaf
+            // needs the actual's carrier place, not a reference-typed origin;
+            // carrier roots stay admitted for that actual regardless of the
+            // enclosing query's mode.
+            let actual_origins = parameter_relative_place_origins_in(
+                query,
+                actual,
+                inference,
+                admit_carrier_roots
+                    || !type_reference_is_reference(program, callee_parameter.type_reference),
+            )?;
+            for actual_origin in actual_origins {
+                let (_, suffix) = split_place_root(&callee_origin.place.path);
+                let source = actual_origin
+                    .place
+                    .source
+                    .append_relative(program, &callee_origin.place.source);
+                push_unique_parameter_relative(
+                    &mut origins,
+                    match actual_origin.place.precision {
+                        FramePathPrecision::Exact => ParameterRelativeFrameOrigin {
+                            place: FramePlaceOrigin {
+                                path: append_place_suffix(&actual_origin.place.path, suffix),
+                                precision: callee_origin.place.precision,
+                                source,
+                            },
+                            parameter_symbol: actual_origin.parameter_symbol,
+                        },
+                        FramePathPrecision::CollectionCoarse => ParameterRelativeFrameOrigin {
+                            place: FramePlaceOrigin {
+                                source,
+                                ..actual_origin.place
+                            },
+                            parameter_symbol: actual_origin.parameter_symbol,
+                        },
+                    },
+                );
+            }
         }
     }
     Some(origins)

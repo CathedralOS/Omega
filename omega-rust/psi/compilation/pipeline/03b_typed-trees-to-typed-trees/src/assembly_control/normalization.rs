@@ -26,6 +26,9 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{TypedTrees, machine::Machine, name::Identifier, state::State};
+use validation::expression_traversal::{
+    collect_expression_tree, collect_statement_expression_trees,
+};
 
 #[derive(Clone)]
 struct Binding {
@@ -130,14 +133,10 @@ fn target_reads(
         ExpressionNode::Member(member) => target_reads(program, member.receiver, reads),
         ExpressionNode::Indexed(indexed) => {
             target_reads(program, indexed.collection, reads);
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                indexed.index,
-                reads,
-            );
+            collect_expression_tree(program, indexed.index, reads);
         }
         ExpressionNode::Borrow(borrow) => target_reads(program, borrow.target, reads),
-        _ => validation::expression_traversal::collect_expression_tree(program, expression, reads),
+        _ => collect_expression_tree(program, expression, reads),
     }
 }
 
@@ -237,16 +236,10 @@ fn check_register_flow(
         {
             let mut reads = Vec::new();
             if let StatementNode::Assignment(assignment) = statement {
-                validation::expression_traversal::collect_expression_tree(
-                    program,
-                    assignment.value,
-                    &mut reads,
-                );
+                collect_expression_tree(program, assignment.value, &mut reads);
                 target_reads(program, assignment.target, &mut reads);
             } else {
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program, statement, &mut reads,
-                );
+                collect_statement_expression_trees(program, statement, &mut reads);
             }
             for expression in reads {
                 if let ExpressionNode::Name(path) = expressions_of(program).expression(expression)
@@ -331,7 +324,7 @@ fn rereads_mutable_capture(
     mutable_captures: &[SymbolHandle],
 ) -> bool {
     let mut expressions = Vec::new();
-    validation::expression_traversal::collect_expression_tree(program, value, &mut expressions);
+    collect_expression_tree(program, value, &mut expressions);
     expressions.iter().any(|expression| {
         matches!(
             expressions_of(program).expression(*expression),
@@ -745,11 +738,7 @@ fn normalize_graph(
             None
         };
         let mut expressions = Vec::new();
-        validation::expression_traversal::collect_statement_expression_trees(
-            source,
-            statement,
-            &mut expressions,
-        );
+        collect_statement_expression_trees(source, statement, &mut expressions);
         for expression in expressions {
             let ExpressionNode::Name(path) = expressions_of(source).expression(expression) else {
                 continue;

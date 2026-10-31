@@ -1,8 +1,8 @@
 //! Exact live-byte copy with explicit scratch registers and local control flow.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
-    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{
@@ -130,13 +130,8 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 5], X86_64SelectedFormEncodingError> {
-    let registers = byte_loop_registers::<5>(
-        physical,
-        alternative,
-        MachineAlternativeFamily::CopyBytes,
-        operands,
-        3,
-    )?;
+    let registers =
+        byte_loop_registers::<5>(physical, alternative, Family::CopyBytes, operands, 3)?;
     if displacement != 0 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -146,10 +141,10 @@ fn request(
 #[cfg(test)]
 mod tests {
     use super::super::{
-        SelectedInstructionKind, encode_x86_64_selected_form,
+        SelectedInstructionKind as Kind, encode_x86_64_selected_form,
         validate_x86_64_selected_form_encoding,
     };
-    use super::{MachineAlternativeFamily, MachineAlternativeKey, encode, validate};
+    use super::{Family, MachineAlternativeKey, encode, validate};
 
     #[test]
     fn copy_bytes_catalog_requires_both_early_clobbers_and_exact_dynamic_effect() {
@@ -195,7 +190,7 @@ mod tests {
         )
         .unwrap();
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::CopyBytes,
+            family: Family::CopyBytes,
             variant: 0,
         };
         for names in [
@@ -205,18 +200,13 @@ mod tests {
             let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
             let encoded = encode(&physical, alternative, &operands, 0).unwrap();
             assert_eq!(
-                encode_x86_64_selected_form(
-                    &physical,
-                    SelectedInstructionKind::CopyBytes,
-                    alternative,
-                    &operands
-                )
-                .unwrap(),
+                encode_x86_64_selected_form(&physical, Kind::CopyBytes, alternative, &operands)
+                    .unwrap(),
                 encoded
             );
             validate_x86_64_selected_form_encoding(
                 &physical,
-                SelectedInstructionKind::CopyBytes,
+                Kind::CopyBytes,
                 alternative,
                 &operands,
                 encoded.bytes(),

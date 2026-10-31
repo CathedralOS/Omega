@@ -1,5 +1,6 @@
 //! Authored root/dependency requests, selection, and package navigation.
 
+use super::super::request_view::Request;
 use super::super::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalRootSourceSelection,
 };
@@ -105,15 +106,10 @@ pub(super) fn read_root(
     })
 }
 
-pub(super) fn write_request(
-    writer: &mut Writer,
-    request: super::super::request_view::Request<'_>,
-) -> Result<(), Error> {
+pub(super) fn write_request(writer: &mut Writer, request: Request<'_>) -> Result<(), Error> {
     match request {
-        super::super::request_view::Request::Path { location, .. } => {
-            writer.row("request path", &[location.as_bytes()])?
-        }
-        super::super::request_view::Request::Git {
+        Request::Path { location, .. } => writer.row("request path", &[location.as_bytes()])?,
+        Request::Git {
             repository,
             revision,
             selection,

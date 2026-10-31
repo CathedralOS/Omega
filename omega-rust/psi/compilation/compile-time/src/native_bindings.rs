@@ -133,12 +133,76 @@ pub fn collect_captured(
     intents: &[language_semantics::declaration_selection::CapturedNativeIntent],
 ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
     let mut resolved = Vec::with_capacity(declarations.len());
+    let program = typed.product_declarations();
     for declaration in declarations {
-        let selected = typed_trees::product_operand::resolve_captured_product_path(typed, declaration, ProductOperandRole::Requirement)
-            .ok_or_else(|| vec![Diagnostic::error(format!("captured native requirement `{}` has no unique visible Product declaration in its supplying package", declaration.requirement_path))])?;
-        resolved.push(
-            requirement_owner(typed, selected).map_err(|reason| vec![Diagnostic::error(reason)])?,
-        );
+        let refuse = |reason: &str| {
+            vec![Diagnostic::error(format!(
+                "captured native requirement `{}`: {reason}",
+                declaration.source.requirement_path,
+            ))]
+        };
+        let selected = declaration
+            .requirement
+            .rejoin(
+                &program.symbols,
+                program
+                    .traits()
+                    .iter()
+                    .filter(|owner| owner.is_boundary)
+                    .flat_map(|owner| {
+                        program
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .filter(|signature| {
+                                program.symbols.symbol_source_is_selected(signature.symbol)
+                            })
+                            .map(|signature| signature.symbol)
+                    }),
+            )
+            .map_err(refuse)?;
+        let (subject, requirement) =
+            requirement_owner(program, selected).map_err(|reason| refuse(&reason))?;
+        let (owner, signature) = program
+            .trait_machine_signature(requirement)
+            .ok_or_else(|| refuse("lost its exact Product signature"))?;
+        if program.trait_requirement_callable_identity_text(owner, signature)
+            != declaration.requirement_identity
+        {
+            return Err(refuse("changed its retained complete requirement identity"));
+        }
+        let sources = program
+            .symbols
+            .source_map()
+            .ok_or_else(|| refuse("has no receiving Product source custody"))?;
+        let supplier = declaration.source.producer.package;
+        let dependency = declaration
+            .source
+            .requirement_path
+            .split_once("::")
+            .and_then(|(alias, _)| {
+                sources
+                    .product_dependency_target(supplier, alias)
+                    .map(|package| (alias, package))
+            });
+        if dependency.map(|(alias, _)| alias) != declaration.dependency_alias.as_deref() {
+            return Err(refuse(
+                "changed its original direct Product dependency scope",
+            ));
+        }
+        let target = dependency.map_or(supplier, |(_, package)| package);
+        if program.symbols.symbol_product_package_identity(requirement) != Some(target)
+            || dependency.is_some() && !owner.is_public
+            || !source::SourceMap::captured_reference_can_see_stratum(
+                supplier,
+                declaration.source.resolution_stratum,
+                declaration.requirement.source(),
+            )
+        {
+            return Err(refuse(
+                "is not visible under its original Product package and temporal scope",
+            ));
+        }
+        resolved.push((subject, requirement));
     }
     intents
         .iter()
@@ -164,9 +228,9 @@ pub fn collect_captured(
                 requirement,
                 target: intent.target,
                 locator: intent.locator.clone(),
-                producer: declaration.producer.clone(),
-                supplier_package: declaration.producer.package,
-                source_occurrence_digest: declaration.source_occurrence_digest,
+                producer: declaration.source.producer.clone(),
+                supplier_package: declaration.source.producer.package,
+                source_occurrence_digest: declaration.source.source_occurrence_digest,
                 source_span: span,
             })
         })

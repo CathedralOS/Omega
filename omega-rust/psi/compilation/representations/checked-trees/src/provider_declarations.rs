@@ -17,10 +17,18 @@ pub enum ProviderApplicationView {
     External,
 }
 
+/// The selected row's source owner. A native Build binding supplies the exact
+/// public requirement, not an authored realization or a new binder telescope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderDeclarationOrigin {
+    Authored(symbols::SymbolHandle),
+    BuildNative { requirement: symbols::SymbolHandle },
+    Toolchain,
+}
+
 pub struct ProviderDeclarationRow<'identity> {
     pub requirement: symbols::SymbolHandle,
-    /// Zero denotes a non-authored realization.
-    pub realization: symbols::SymbolHandle,
+    pub origin: ProviderDeclarationOrigin,
     pub requirement_identity: &'identity str,
     pub application: ProviderApplicationView,
 }
@@ -100,7 +108,11 @@ impl crate::CheckedTrees {
         if !bounded {
             return Ok(None);
         }
-        let realization = typed.machine_by_symbol(row.realization).ok_or_else(|| format!(
+        let realization = match row.origin {
+            ProviderDeclarationOrigin::Authored(symbol) => typed.machine_by_symbol(symbol),
+            ProviderDeclarationOrigin::BuildNative { .. }
+            | ProviderDeclarationOrigin::Toolchain => None,
+        }.ok_or_else(|| format!(
             "selected provider row `{identity}` has no authored realization for its installation-bound reach"
         ))?;
         let envelope = facts
@@ -155,56 +167,85 @@ impl crate::CheckedTrees {
         {
             return Err("selected Import template identity disagrees with its provenance".into());
         }
-        if !row.realization.is_valid() {
-            return Err(
-                "closed Import application requires its complete retained source application"
-                    .into(),
-            );
-        }
-        let realization = typed
-            .machine(row.realization)
-            .ok_or("selected Import provenance lost its realization declaration")?;
-        let scope = if let Some(named) = named {
-            let declaration = typed
-                .conformance_by_symbol(named.declaration)
-                .ok_or("selected Import lost its exact named implementation row")?;
-            declaration
-                .rows
-                .get(row_index)
-                .filter(|entry| {
-                    entry.requirement == row.requirement && entry.declaring_trait == owner.symbol
-                })
-                .ok_or("selected Import lost its exact named implementation row")?;
-            // Derivation retains the row before resolving captures/target members.
-            // This reader consumes that association, never repeats target selection.
-            if named.capture.is_valid() {
-                if !typed.captured_machine_applications.is_valid(named.capture) {
+        let realization = match row.origin {
+            ProviderDeclarationOrigin::Authored(symbol) => Some(
+                typed
+                    .machine(symbol)
+                    .ok_or("selected Import provenance lost its realization declaration")?,
+            ),
+            ProviderDeclarationOrigin::BuildNative { requirement } => {
+                if !requirement.is_valid() || requirement != row.requirement {
+                    return Err("native Import origin names another exact requirement".into());
+                }
+                if named.is_some() {
                     return Err(
-                        "selected Import lost its captured implementation application".into(),
+                        "native Import origin cannot substitute a named implementation".into(),
                     );
                 }
-                let capture = typed.captured_machine_applications.get(named.capture);
-                if capture.conformance_application.declaration != declaration.symbol {
-                    return Err(
-                        "selected Import captured application names another implementation".into(),
-                    );
+                // Native intent admission currently requires this closed outer
+                // declaration. Local method operands remain in the complete
+                // checked requirement applications below, including consts.
+                if !owner.is_boundary
+                    || !typed.trait_type_parameters(owner).is_empty()
+                    || !owner.lifetime_parameters.is_empty()
+                {
+                    return Err("native Import origin lost its closed boundary declaration".into());
                 }
-                capture.conformance_application.trait_scope.scope(typed)
+                None
+            }
+            ProviderDeclarationOrigin::Toolchain => {
+                return Err("selected Import has no retained source owner".into());
+            }
+        };
+        let scope = if let Some(realization) = realization {
+            if let Some(named) = named {
+                let declaration = typed
+                    .conformance_by_symbol(named.declaration)
+                    .ok_or("selected Import lost its exact named implementation row")?;
+                declaration
+                    .rows
+                    .get(row_index)
+                    .filter(|entry| {
+                        entry.requirement == row.requirement
+                            && entry.declaring_trait == owner.symbol
+                    })
+                    .ok_or("selected Import lost its exact named implementation row")?;
+                // Derivation retains the row before resolving captures/target members.
+                // This reader consumes that association, never repeats target selection.
+                if named.capture.is_valid() {
+                    if !typed.captured_machine_applications.is_valid(named.capture) {
+                        return Err(
+                            "selected Import lost its captured implementation application".into(),
+                        );
+                    }
+                    let capture = typed.captured_machine_applications.get(named.capture);
+                    if capture.conformance_application.declaration != declaration.symbol {
+                        return Err(
+                            "selected Import captured application names another implementation"
+                                .into(),
+                        );
+                    }
+                    capture.conformance_application.trait_scope.scope(typed)
+                } else {
+                    AppliedTraitScope::from_conformance(typed, declaration)
+                }
             } else {
-                AppliedTraitScope::from_conformance(typed, declaration)
+                let mut edges =
+                    typed
+                        .machine_trait_conformances(realization)
+                        .iter()
+                        .filter(|edge| {
+                            edge.requirement_symbol == row.requirement
+                                && edge.symbol == owner.symbol
+                        });
+                let edge = edges
+                    .next()
+                    .filter(|_| edges.next().is_none())
+                    .ok_or("selected Import lost its unique external satisfaction")?;
+                AppliedTraitScope::from_machine_conformance(typed, realization, edge)
             }
         } else {
-            let mut edges = typed
-                .machine_trait_conformances(realization)
-                .iter()
-                .filter(|edge| {
-                    edge.requirement_symbol == row.requirement && edge.symbol == owner.symbol
-                });
-            let edge = edges
-                .next()
-                .filter(|_| edges.next().is_none())
-                .ok_or("selected Import lost its unique external satisfaction")?;
-            AppliedTraitScope::from_machine_conformance(typed, realization, edge)
+            Some(AppliedTraitScope::abstract_scope(owner))
         }
         .ok_or("selected Import lost its complete declaring application")?;
         let mut identities = Vec::new();
@@ -217,13 +258,15 @@ impl crate::CheckedTrees {
             })
         {
             let required = typed.state_signature_type_parameters(signature);
-            let actual = typed.machine_type_parameters(realization);
-            if required.len() != actual.len()
-                || application.local_arguments.len() != required.len()
-                || required.iter().zip(actual).any(|(required, actual)| {
-                    std::mem::discriminant(&required.kind) != std::mem::discriminant(&actual.kind)
-                })
-            {
+            let realization_matches = realization.is_none_or(|realization| {
+                let actual = typed.machine_type_parameters(realization);
+                required.len() == actual.len()
+                    && required.iter().zip(actual).all(|(required, actual)| {
+                        std::mem::discriminant(&required.kind)
+                            == std::mem::discriminant(&actual.kind)
+                    })
+            });
+            if application.local_arguments.len() != required.len() || !realization_matches {
                 return Err(
                     "selected Import closed application lost its complete declaration telescope"
                         .into(),

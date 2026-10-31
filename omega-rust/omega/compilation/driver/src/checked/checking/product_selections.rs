@@ -39,14 +39,14 @@ pub(super) fn admit(
             evaluation,
         });
     }
-    for bundle in package_inputs
-        .into_iter()
-        .flat_map(|inputs| inputs.product_dependency_native_handoffs())
-    {
-        let selections = source.admit_captured_native_bindings(
-            bundle.native_declarations(),
-            bundle.native_intents(),
-        )?;
+    for (inputs, bundle) in package_inputs.into_iter().flat_map(|inputs| {
+        inputs
+            .product_dependency_native_handoffs()
+            .map(move |bundle| (inputs, bundle))
+    }) {
+        let declarations = inputs.admit_package_native_declarations(bundle)?;
+        let selections =
+            source.admit_captured_native_bindings(&declarations, bundle.native_intents())?;
         for selection in selections {
             let evaluation = bundle.native_evaluation().cloned().ok_or_else(|| {
                 vec![Diagnostic::error(

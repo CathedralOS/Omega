@@ -193,13 +193,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         fd: i32,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemOpen>> {
-        let Some((sponsor, descriptor)) = self.sponsor_context(fd) else {
+        if self.sponsor_context(fd).is_none() {
             return Ok(SponsorPreparation::Unsponsored);
-        };
-        let _ = (sponsor, descriptor);
-        sponsor_value(Err(
-            crate::FilesystemSponsorError::UnsupportedStagingOperation("duplicate writer"),
-        ))
+        }
+        Self::refuse_staged("duplicate writer")
     }
 
     pub(super) fn prepare_sponsored_close(
@@ -215,15 +212,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     pub(super) fn prepare_sponsored_set_extent(
         &mut self,
         fd: i32,
-        extent: u64,
+        _extent: u64,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let Some((sponsor, descriptor)) = self.sponsor_context(fd) else {
+        if self.sponsor_context(fd).is_none() {
             return Ok(SponsorPreparation::Unsponsored);
-        };
-        let _ = (sponsor, descriptor, extent);
-        sponsor_value(Err(
-            crate::FilesystemSponsorError::UnsupportedStagingOperation("truncate writer"),
-        ))
+        }
+        Self::refuse_staged("truncate writer")
     }
 
     pub(super) fn prepare_sponsored_write(
@@ -304,13 +298,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         path: &Path,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let Some((sponsor, path)) = self.sponsor_path(path)? else {
+        if self.sponsor_path(path)?.is_none() {
             return Ok(SponsorPreparation::Unsponsored);
-        };
-        let _ = (sponsor, path);
-        sponsor_value(Err(
-            crate::FilesystemSponsorError::UnsupportedStagingOperation("remove staging entry"),
-        ))
+        }
+        Self::refuse_staged("remove staging entry")
     }
 
     pub(super) fn prepare_sponsored_rename(
@@ -346,14 +337,19 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     pub(super) fn prepare_sponsored_symlink(
         &mut self,
         link: &Path,
-        target_spelling: &[u8],
+        _target_spelling: &[u8],
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let Some((sponsor, link)) = self.sponsor_path(link)? else {
+        if self.sponsor_path(link)?.is_none() {
             return Ok(SponsorPreparation::Unsponsored);
-        };
-        let _ = (sponsor, link, target_spelling);
+        }
+        Self::refuse_staged("symlink staging entry")
+    }
+
+    /// Refuse a staging operation the sponsor does not model; the operation's
+    /// name is the diagnostic.
+    fn refuse_staged<T>(operation: &'static str) -> EvalResult<SponsorPreparation<T>> {
         sponsor_value(Err(
-            crate::FilesystemSponsorError::UnsupportedStagingOperation("symlink staging entry"),
+            crate::FilesystemSponsorError::UnsupportedStagingOperation(operation),
         ))
     }
 

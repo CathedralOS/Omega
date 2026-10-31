@@ -65,12 +65,14 @@
 //! leaving a selection without executable supply could silently substitute
 //! builtin arithmetic, which the contract forbids.
 
+use crate::monomorphization::insert_subject_name;
 use crate::tables::{expressions_of, expressions_of_mut};
 use checked_trees::{
     CheckedOperatorOccurrence, CheckedOperatorResolutionStatus, CheckedValueOrigin,
 };
 use diagnostics::Diagnostic;
 use numerics::literals::IntegerLiteral;
+use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -79,8 +81,7 @@ use typed_trees::expression::{
 };
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-use std::collections::HashSet;
+use validation::expression_traversal::collect_expression_tree;
 use validation::expression_type_reference_for_origin;
 
 /// Bind resolved token machines to calls, retaining
@@ -143,11 +144,7 @@ pub(crate) fn bind_selected_operator_calls(
         .filter(|(_, value)| value.origin.machine_symbol().is_some())
     {
         expressions.clear();
-        validation::expression_traversal::collect_expression_tree(
-            program,
-            value.expression,
-            &mut expressions,
-        );
+        collect_expression_tree(program, value.expression, &mut expressions);
         for expression in expressions.iter().copied() {
             let Some(binary) = expressions_of(program).binary_node(expression) else {
                 continue;
@@ -236,11 +233,7 @@ pub(crate) fn bind_selected_operator_calls(
         let mut seen_named = HashSet::with_hasher(symbols::BuildSymbolHasher);
         for (_, value) in values.values.iter() {
             expressions.clear();
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                value.expression,
-                &mut expressions,
-            );
+            collect_expression_tree(program, value.expression, &mut expressions);
             for expression in expressions.iter().copied() {
                 let Some(call) = expressions_of(program).call_node(expression) else {
                     continue;
@@ -390,11 +383,7 @@ pub(crate) fn bind_selected_operator_calls(
         let receiver = if target.binder.is_valid() {
             let binder_name =
                 typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
-            crate::monomorphization::insert_subject_name(
-                expressions_of_mut(program),
-                binder_name,
-                target.binder,
-            )
+            insert_subject_name(expressions_of_mut(program), binder_name, target.binder)
         } else {
             ExpressionHandle::invalid()
         };
@@ -520,11 +509,7 @@ fn rewrite_match_equality(
         let receiver = if target.binder.is_valid() {
             let binder_name =
                 typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
-            crate::monomorphization::insert_subject_name(
-                expressions_of_mut(program),
-                binder_name,
-                target.binder,
-            )
+            insert_subject_name(expressions_of_mut(program), binder_name, target.binder)
         } else {
             ExpressionHandle::invalid()
         };

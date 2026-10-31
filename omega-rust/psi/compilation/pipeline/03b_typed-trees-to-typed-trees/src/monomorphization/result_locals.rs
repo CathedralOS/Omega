@@ -20,6 +20,7 @@ use typed_trees::TypedTrees;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
+use validation::expression_result_type_reference;
 
 mod dispatch_subjects;
 mod operand_captures;
@@ -303,12 +304,7 @@ pub(crate) fn refresh(
                         .constructed_value_type_reference(local.initial_value);
                     retained.is_valid().then_some(retained)
                 } else {
-                    validation::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        local.initial_value,
-                    )
+                    expression_result_type_reference(program, machine, state, local.initial_value)
                 };
                 let Some(type_reference) = reference else {
                     continue;

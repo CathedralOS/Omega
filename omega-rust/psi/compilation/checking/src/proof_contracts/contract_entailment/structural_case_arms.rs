@@ -248,6 +248,24 @@ pub(crate) fn recognize_structural_case_arms<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: Option<&mut dyn StructuralPrefixVisitor>,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() {
+        let site = requirement
+            .as_deref()
+            .map(|visitor| {
+                let site = visitor.site();
+                let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+                    program, site.state,
+                )
+                .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+                .unwrap_or_else(|| format!("{:?}", site.state));
+                format!(
+                    "{}.{}.{}",
+                    state_name, site.statement_index, site.in_transition_target
+                )
+            })
+            .unwrap_or_else(|| "none".to_owned());
+        eprintln!("[walk] case_arms machine={} site={}", machine.name, site);
+    }
     let states = program.machine_states(machine);
     let root = states.first()?;
     let parameter_names: Vec<String> = program
@@ -296,6 +314,18 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() {
+        let site = requirement.site();
+        let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+            program, site.state,
+        )
+        .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+        .unwrap_or_else(|| format!("{:?}", site.state));
+        eprintln!(
+            "[walk] prefix machine={} site={}.{}.{}",
+            machine.name, state_name, site.statement_index, site.in_transition_target
+        );
+    }
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()

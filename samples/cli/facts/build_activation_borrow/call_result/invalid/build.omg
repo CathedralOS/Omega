@@ -1,0 +1,15 @@
+data Configuration<'activation> { builder: &'activation Build; }
+machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'activation> {
+    Configuration { builder: builder }
+}
+machine bind_configuration(configuration: &mut Configuration) {
+    Build::bind(configuration.builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+    Build::bind(configuration.builder, macos_arm64::ProgramEntry, main);
+    Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
+}
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_activation_borrow_call_result");
+    let mut configuration: Configuration = wrap(builder);
+    bind_configuration(&mut configuration);
+}

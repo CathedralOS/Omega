@@ -487,6 +487,7 @@ fn lower_terminal_selection(
     phase_profile::scope("05.11_evidence_artifacts", || {
         lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
     })?;
+    lowered.source_boundary_declarations = source_boundary_ids;
     Ok((lowered, completion))
 }
 

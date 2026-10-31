@@ -2,6 +2,7 @@
 //! This consumes its owned graph, resolves names in the original source scope,
 //! and uses the ordinary application owners before immutable checking. It does
 //! not execute a source call, choose a provider, or manufacture a new telescope.
+use crate::monomorphization::normalize_const_arguments;
 use crate::tables::expressions_of_mut;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -9,12 +10,20 @@ use language_semantics::declaration_selection::{
     ProductDeclarationOperand, ProductOperandRole, product_operands::*,
 };
 use symbols::SymbolHandle;
+use typed_trees::product_operand::resolve_product_path;
 use typed_trees::{
     TypedTrees, expression as expr,
     name::Identifier,
     trait_definition::{AppliedTraitScope, RetainedTraitScope},
     types::{self, TypeReferenceHandle, TypeReferenceNode},
 };
+
+/// A declaration table's symbols beside the visibility their owner carries.
+macro_rules! public_symbols {
+    ($table:expr) => {
+        $table.iter().map(|value| (value.symbol, value.is_public))
+    };
+}
 
 mod nominal;
 pub use nominal::{prepare_product_operand_application, prepare_retained_product_application};
@@ -41,7 +50,7 @@ pub fn prepare_product_requirement_operand(
     let refuse =
         |reason: &str| vec![Diagnostic::error(reason).with_source_span(operand.source_span)];
     let Some(graph) = operand.application.as_deref() else {
-        return typed_trees::product_operand::resolve_product_path(
+        return resolve_product_path(
             program,
             &operand.path,
             operand.source_span,
@@ -68,7 +77,7 @@ pub fn prepare_product_requirement_operand(
     let root_application = graph.applications.get(root.application).clone();
     let (requirement, environment, method) = if root_application.member.is_valid() {
         let path = lower.path(root.path)?;
-        let owner = typed_trees::product_operand::resolve_product_path(
+        let owner = resolve_product_path(
             lower.program,
             &path,
             operand.source_span,
@@ -101,7 +110,7 @@ pub fn prepare_product_requirement_operand(
         );
         // Closure consumes a derived tuple. Keep the source reference above
         // intact so immutable checking still judges every supplying recipe.
-        crate::monomorphization::normalize_const_arguments(
+        normalize_const_arguments(
             lower.program,
             author,
             std::slice::from_mut(&mut owner_argument),
@@ -131,7 +140,7 @@ pub fn prepare_product_requirement_operand(
             "{}::{member_path}",
             lower.program.symbols.display_path(owner, "::")
         );
-        let requirement = typed_trees::product_operand::resolve_product_path(
+        let requirement = resolve_product_path(
             lower.program,
             &joined,
             operand.source_span,
@@ -151,7 +160,7 @@ pub fn prepare_product_requirement_operand(
         }
         (requirement, Some(environment), member.application)
     } else {
-        let requirement = typed_trees::product_operand::resolve_product_path(
+        let requirement = resolve_product_path(
             lower.program,
             &operand.path,
             operand.source_span,
@@ -216,12 +225,8 @@ pub fn prepare_product_requirement_operand(
             member: Handle::invalid(),
         });
         let authored_arguments = supplied.arguments.clone();
-        crate::monomorphization::normalize_const_arguments(
-            lower.program,
-            author,
-            &mut supplied.arguments,
-        )
-        .map_err(|reason| refuse(&reason))?;
+        normalize_const_arguments(lower.program, author, &mut supplied.arguments)
+            .map_err(|reason| refuse(&reason))?;
         let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
             lower.program,
             author,
@@ -353,10 +358,7 @@ impl Lower<'_> {
     }
     fn candidates(&self) -> Vec<(SymbolHandle, bool)> {
         let program = self.program.product_declarations();
-        program
-            .data_definitions()
-            .iter()
-            .map(|value| (value.symbol, value.is_public))
+        public_symbols!(program.data_definitions())
             .chain(program.data_definitions().iter().flat_map(|owner| {
                 program
                     .data_members(owner)
@@ -377,36 +379,11 @@ impl Lower<'_> {
                         }
                     })
             }))
-            .chain(
-                program
-                    .traits()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .conformances()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .const_declarations()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .domain_definitions()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .machines()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
+            .chain(public_symbols!(program.traits()))
+            .chain(public_symbols!(program.conformances()))
+            .chain(public_symbols!(program.const_declarations()))
+            .chain(public_symbols!(program.domain_definitions()))
+            .chain(public_symbols!(program.machines()))
             .chain(program.traits().iter().flat_map(|owner| {
                 program
                     .trait_machine_signatures(owner)

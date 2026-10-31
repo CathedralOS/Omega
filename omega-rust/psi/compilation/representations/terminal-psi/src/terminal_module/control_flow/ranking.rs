@@ -12,7 +12,7 @@ pub enum TerminalRankedScc {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalNaturalCycle {
     pub rank_type: IntegerType,
-    /// Canonical block order; rank values are actual unsigned SSA observations.
+    /// Canonical block order; rank values are actual fixed-width signed or unsigned SSA observations.
     pub ranks: Vec<TerminalBlockNaturalRank>,
     /// Canonical edge order, including preserving implementation-staging edges.
     pub edges: Vec<TerminalNaturalRankEdge>,

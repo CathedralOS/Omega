@@ -6,6 +6,7 @@
 use symbols::SymbolHandle;
 use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::canonical_place_from_expression_in_state;
 
 /// Read the complete source occurrence before field storage elaboration.
 /// Missing prefixes withhold inference; an ordinary value has an empty roster.
@@ -15,12 +16,8 @@ pub(super) fn source_application(
     state: &typed_trees::state::State,
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<(TypeReferenceHandle, Vec<TypeReferenceHandle>)> {
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        usize::MAX,
-        argument,
-    )?;
+    let place =
+        canonical_place_from_expression_in_state(program, state.symbol, usize::MAX, argument)?;
     validation::canonical_place_source_type_application(program, state.symbol, usize::MAX, &place)
 }
 

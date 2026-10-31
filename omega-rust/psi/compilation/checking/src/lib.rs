@@ -22,6 +22,9 @@ pub use declarations::operators::{
 };
 pub use declarations::traits::refinement_fit;
 pub use declarations::traits::{
+    ProviderApplicationAssociation, ProviderApplicationIdentity, provider_application_associations,
+};
+pub use declarations::traits::{
     ProviderRegionCorrespondence, closed_provider_region_correspondence,
     provider_region_correspondence,
 };

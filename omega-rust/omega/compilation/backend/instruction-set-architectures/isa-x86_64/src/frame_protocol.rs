@@ -79,7 +79,9 @@ pub fn encode_system_v_amd64_frame_protocol(
         loop {
             let chunk = remaining.min(X86_64_STACK_PROBE_INTERVAL_BYTES);
             append_stack_adjust(&mut prologue, chunk, true)?;
-            append_probe_touch(&mut prologue);
+            // `cmp byte ptr [rsp], 0` reads the lowest newly committed byte: a
+            // read faults on the guard region and writes no register or memory.
+            prologue.extend_from_slice(&[0x80, 0x3c, 0x24, 0x00]);
             remaining -= chunk;
             if remaining == 0 {
                 break;
@@ -124,12 +126,6 @@ fn validate_probe(
         return Err(X86_64FrameProtocolError::NonCanonicalProbe);
     }
     Ok(())
-}
-
-/// `cmp byte ptr [rsp], 0` reads the lowest newly committed byte: a read is
-/// enough to fault on the guard region, and it writes no register or memory.
-fn append_probe_touch(bytes: &mut Vec<u8>) {
-    bytes.extend_from_slice(&[0x80, 0x3c, 0x24, 0x00]);
 }
 
 fn validate_slots(

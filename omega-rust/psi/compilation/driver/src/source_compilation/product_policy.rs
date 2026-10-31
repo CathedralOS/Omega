@@ -35,6 +35,23 @@ pub struct AdmittedProductPolicy {
 }
 
 impl SourceContinuation {
+    /// Select exact native declarations from this ordinary Product frontier.
+    /// Product bodies remain pending; this is the same source-selection owner
+    /// used by Build's declaration queries, not a final checking prerequisite.
+    pub fn capture_package_native_bindings(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        formations: &[language_semantics::declaration_selection::NativeBindingFormation],
+        executed: &[ExecutedNativeBinding],
+    ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>> {
+        build_time_evaluation::native_bindings::capture_package_intents(
+            self.typed(),
+            package,
+            formations,
+            executed,
+        )
+    }
+
     /// Form every authored request, then retain only executed choices. Provider
     /// application preparation may extend typing; all later judgments borrow
     /// that same completed source view. No Product body executes here.

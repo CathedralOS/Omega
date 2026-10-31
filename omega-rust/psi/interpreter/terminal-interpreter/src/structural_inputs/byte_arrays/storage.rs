@@ -65,10 +65,6 @@ impl StructuralByteArrayStorage {
         }
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub(crate) fn local_view(&self) -> Option<&ByteSequenceView> {
         match &self.backing {
             StructuralByteArrayBacking::Local(bytes) => Some(bytes),

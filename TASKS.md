@@ -163,7 +163,7 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms and signed cross-carrier bodies, nonscalar orders,
+    other declared body forms, nonscalar orders,
     or dependent distances
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
@@ -179,9 +179,8 @@ retired-syntax deletions to completion.
   twins. Reject inaccessible descendants, accidental capture, stale parent
   facts, mismatched results, missing exact call markers, unclosed restoration,
   invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
-  live borrowed backing and completion cleanup, and finish the full affected
-  sample/corpus migration and both compiler implementations before closure.
+  `state` syntax. Finish the full affected sample/corpus migration and both
+  compiler implementations before closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -1546,14 +1545,14 @@ defines the complete product bar.
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
   04–07` and `Omega 00–09`) under
   [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
-  - Reuse `add_placed_accessor_attachment` in
+  - Reuse `add_accessor_attachment` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,
-    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/placed_views.rs`.
+    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/access_views.rs`.
   - Extend native publication in
     `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/{fragment_object_publication,entry_receiver}.rs`
     and target-operation lowering in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/placed_view_inputs.rs`
+    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/access_view_inputs.rs`
     so direct-entry and subordinate placed-view loans establish, access, and
     retire with exact original backing and qualifications across Terminal Psi
     and native execution.

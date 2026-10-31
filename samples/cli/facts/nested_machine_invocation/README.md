@@ -39,6 +39,13 @@ Additional witnesses exercise [static constants](const_context/main.omg),
 [Runtime capture](capture_rejected/main.omg) rejects an unsupplied parent value.
 [Ancestor cycles](ancestor_cycle/main.omg) execute 100,000 terminal cycles while
 retaining a caller-owned mutable borrow, then return to the ordinary caller.
+[Sibling cycles](sibling_cycle/main.omg) do the same through two sibling helpers
+that call each other 100,001 times, so the component contains neither's
+ancestor. Only `ping` carries `terminates by remaining`: it decrements, `pong`
+preserves the rank, and every complete cycle strictly descends. The caller's
+counter reads 300,003 (1 per `ping`, 2 per `pong`) in Terminal Psi and native
+execution. Its [twin](sibling_cycle/invalid/main.omg) removes the decrement and
+rejects with no strict descent.
 
 [Attached declarations](attached_context/main.omg) use the same terminal-call
 contract as free declarations. [Private crash inference](inferred_crash/main.omg)

@@ -135,6 +135,52 @@ paths carry real ordered writes, only stamp-equivalent.
 Probe N in {26, 28} reproduces the cliff in < 60 s without hitting swap;
 `OMEGA_PATH_COUNT=1` counts re-traversals directly.
 
+## Traversal census (2026-11-03) — the memo target moved
+
+`[walk]` instrumentation at the `recognize_structural_case_arms` /
+`recognize_structural_state_prefix` entries resolves where the events
+actually come from. At N=26 there are **1,899 obligation traversals**
+(1,521 `case_arms`, 378 `prefix`), and the earlier per-caller quadratic
+`4·T(n−k)` decomposes exactly:
+
+- **Every site is walked from every ancestor root.** Each machine
+  `mk.entry.{0,1}` site (the two `%` writes' obligation sites) is the
+  target of a traversal rooted at *each* of `m0..mk` — ~2 walks per
+  (root, site) pair (the runtime-prefix walk plus the private-arrivals
+  coordinator). Θ(N²) root×site pairs × Θ(N) nested-call events per
+  walk = the measured Θ(N³) total.
+- **The pairs are semantically distinct.** A walk rooted at `m0` reaches
+  `m9.entry` under m0's accumulated path context; the `m1`-rooted walk
+  reaches it under a different prefix context. The site judges differ
+  legitimately — cross-traversal key dedup has nothing to hit on.
+- **Judge-scope memoization measured zero.** An occurrence-canonical
+  memo keyed on (state, env, canonical judge, path, hypotheses,
+  citations) was built inside `recognize_structural_state_leaves`
+  (worktree `psat-fix`): 13,953 lookups, **0 hits** — 13,252 of them
+  against empty maps because ~905 distinct `StructuralJudge` memo
+  families exist (one per traversal). Within one traversal the
+  identical-call multiplicity is already bounded; the redundancy lives
+  *between* traversals, where the contexts legitimately differ.
+
+Consequence: the repair is **demand-batched composite walks**, not
+memoization. One walk rooted at `mk` already emits prefix events at
+every descendant site — but each site's obligation drives its own walk
+(~25 sites × ~2 kinds per root). Attaching *all* site visitors for one
+root to a single traversal (`observe_runtime_state_prefixes` already
+implements the multi-visitor mechanics for `numeric_observations`)
+collapses walks per root from Θ(sites) to Θ(1): total work Θ(N²·1)
+instead of Θ(N³). The open problem is demand laziness: drivers
+(`operand_fits`, `call_requirements`, `stored_predicates`,
+`collection_bounds`, …) create per-site visitors synchronously and read
+verdicts immediately, so batching needs a per-(root, state) preparation
+step that enumerates the demand set up front — all sites are
+enumerable `(state, statement_index, in_transition_target)` positions
+in the typed trees — then serves driver queries from the completed
+batch. `'static` verdict caching in `CheckingMemos` (which stores no
+`'program` borrows) is only sound per (driver-tag, machine, state,
+site, request-context) and yields only the ~2× runtime/private split;
+the composite walk is the structural fix.
+
 ## Blocks
 
 `samples/gui/windowed_calculator` checking on every host — the GUI

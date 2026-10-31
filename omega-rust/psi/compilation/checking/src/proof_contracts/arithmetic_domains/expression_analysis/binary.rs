@@ -133,8 +133,7 @@ pub(super) fn analyze(
             // its result's landing (for example, 1000 / 2 does not fit u8).
             // Reuse the complete decision instead of replaying private arrivals.
             && ((division_formed
-                && operation.left.primitive == Some(primitive)
-                && operation.right.primitive == Some(primitive))
+                && operation.landed_operand_carriers == [Some(primitive); 2])
                 || operation.result_fits(primitive, range, interval, false)
                 || operation.relationally_fits_carrier(Some(primitive))
                 || {
@@ -300,6 +299,10 @@ struct Operation<'w, 'a> {
     binary: TableBinaryExpression,
     left: Analysis,
     right: Analysis,
+    /// Completed operand admissions, independent of this operation's result.
+    /// A successful anonymous landing supplies its carrier without changing
+    /// the operand's original source meaning or arithmetic policy.
+    landed_operand_carriers: [Option<PrimitiveType>; 2],
 }
 
 impl<'w, 'a> Operation<'w, 'a> {
@@ -326,12 +329,15 @@ impl<'w, 'a> Operation<'w, 'a> {
             environment: right_environment.as_ref().unwrap_or(walk.environment),
             ..*walk
         };
+        let right = right_walk.analyze(binary.right, diagnostics, decisions);
+        let landed_operand_carriers = [left.primitive, right.primitive];
         Operation {
             walk,
             expression,
             binary: *binary,
             left,
-            right: right_walk.analyze(binary.right, diagnostics, decisions),
+            right,
+            landed_operand_carriers,
         }
     }
 }
@@ -570,6 +576,12 @@ impl Operation<'_, '_> {
                 .and_then(|value| literals::land_integer_value(&value, primitive))
             {
                 analysis.interval = literal_interval(&literal);
+                if analysis.primitive.is_none() {
+                    // Selecting a peer carrier alone is not admission. The
+                    // integral, in-range landing above has now established it;
+                    // retain that result for the operation's formation owner.
+                    self.landed_operand_carriers[position] = Some(primitive);
+                }
             } else {
                 diagnostics.push(
                     Diagnostic::error(format!(

@@ -21,6 +21,7 @@ use typed_trees::expression::{
 };
 use typed_trees::statement::{StatementNode, StatementRootRole};
 use typed_trees::types::TypeReferenceNode;
+use validation::expression_traversal::collect_expression_tree;
 
 pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<SymbolHandle> {
     let mut pending = Vec::new();
@@ -163,11 +164,7 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                     for (role, root) in program.tables.expression_roots(statement) {
                         if role == StatementRootRole::TransitionGuard {
                             let mut observed = Vec::new();
-                            validation::expression_traversal::collect_expression_tree(
-                                program,
-                                root,
-                                &mut observed,
-                            );
+                            collect_expression_tree(program, root, &mut observed);
                             guards.extend(observed);
                         }
                     }
@@ -319,7 +316,7 @@ fn normalized_place_aliases(
     for &(symbol, source) in aliases {
         let source = expressions_of_mut(program).insert_copy(source);
         let mut nodes = Vec::new();
-        validation::expression_traversal::collect_expression_tree(program, source, &mut nodes);
+        collect_expression_tree(program, source, &mut nodes);
         for expression in nodes {
             if let Some((path, source)) = place_alias_replacement(program, &normalized, expression)
             {

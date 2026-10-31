@@ -233,7 +233,7 @@ mod tests {
         );
         child.shape = StructuralTypeShape::FixedArray {
             element: outer.id,
-            length: 1,
+            length: terminal_psi::ArrayExtent::Literal(1),
         };
         assert!(
             !contains_only_scalars([&outer, &child].into_iter(), outer.id),

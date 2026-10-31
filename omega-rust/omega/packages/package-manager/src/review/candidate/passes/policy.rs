@@ -1,5 +1,6 @@
 //! Aggregate canonical-policy accounting and package context for projection failures.
 
+use super::super::semantic_bindings::projection_error;
 use super::CompileResolvedPackageReviewsError;
 use crate::declarations::PackageKey;
 use package_evidence::PackageReviewProjectionError;
@@ -33,9 +34,7 @@ pub(super) fn projection_failure(
             package: key.clone(),
             maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
         },
-        Error::SemanticBinding(error) => {
-            super::super::semantic_bindings::projection_error(key, error)
-        }
+        Error::SemanticBinding(error) => projection_error(key, error),
     }
 }
 

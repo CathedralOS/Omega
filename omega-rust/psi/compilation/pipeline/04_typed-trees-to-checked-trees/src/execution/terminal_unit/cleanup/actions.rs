@@ -285,10 +285,14 @@ pub(super) fn disposition_actions(
                 None,
             )
             .ok_or("cleanup cannot lower its excluded relative path")?;
+        // The excluded subtree is a stored field or element: a stored loan keeps
+        // its Reference shape exactly as the owner's field plan registered it,
+        // so the residual walk compares like identities. `add_type` would peel
+        // the loan to its referent and never match the field.
         moved.push((
             relative_path,
             shapes
-                .add_type(reference, &binders, &[])
+                .add_stored_type(reference, &binders, &[])
                 .ok_or("cleanup cannot lower its excluded type")?,
         ));
     }

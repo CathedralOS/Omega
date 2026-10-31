@@ -413,7 +413,8 @@ impl<'program> Encoder<'program> {
                 };
             return Ok(Value::Float { format, bits });
         }
-        let carrier = integer_carrier(atom)
+        let carrier = (atom.is_fixed_integer() || atom == BuiltinTypeAtom::Address)
+            .then_some(atom.symbol_name())
             .ok_or("materialized initializer has an unsupported builtin carrier")?;
         let ExpressionNode::Integer(literal) = node else {
             return Err("materialized initializer conflicts with integer carrier".into());
@@ -612,8 +613,4 @@ fn float_format(atom: Option<BuiltinTypeAtom>) -> Option<FloatFormat> {
         Some(BuiltinTypeAtom::F64) => Some(FloatFormat::F64),
         _ => None,
     }
-}
-
-fn integer_carrier(atom: BuiltinTypeAtom) -> Option<&'static str> {
-    (atom.is_fixed_integer() || atom == BuiltinTypeAtom::Address).then_some(atom.symbol_name())
 }
