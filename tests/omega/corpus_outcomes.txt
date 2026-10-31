@@ -380,6 +380,8 @@ fail/providers/implicit_method_conflicting_array_counts rejected 332ms expected 
 	public method inference has conflicting structural operands for `Count`
 fail/providers/implicit_method_unused_const_count rejected 306ms expected @a889c2d8b84c
 	static method application requires its complete invocation telescope
+fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @7a28fce028fa
+	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
