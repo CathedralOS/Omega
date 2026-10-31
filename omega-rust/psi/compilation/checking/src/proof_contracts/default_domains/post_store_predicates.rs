@@ -48,18 +48,9 @@ pub(super) fn post_store_predicate_holds(
     written_value: ExpressionHandle,
     predicate: ExpressionHandle,
 ) -> bool {
-    if crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
-        program,
-        machine,
-        state,
-        statement_index,
-        receiver,
-        place.definition,
-        place.active_case,
-        predicate,
-    ) {
-        return true;
-    }
+    // Exact scalar substitution can finish without reconstructing private
+    // arrivals. Both queries are independently sufficient proofs; replay the
+    // execution prefix only when the scalar query cannot establish the fact.
     let mut arrivals = Vec::new();
     for parameter in program.state_parameters(state) {
         if !parameter.is_mutable
@@ -251,6 +242,16 @@ pub(super) fn post_store_predicate_holds(
             bindings: fields,
         },
     ) == StrictArithmeticImplicationJudgment::Proven
+        || crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
+            program,
+            machine,
+            state,
+            statement_index,
+            receiver,
+            place.definition,
+            place.active_case,
+            predicate,
+        )
 }
 
 fn scalar_binding(
