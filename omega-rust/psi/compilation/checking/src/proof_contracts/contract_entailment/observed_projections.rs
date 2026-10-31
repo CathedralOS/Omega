@@ -8,6 +8,29 @@ use super::structural_judgment::StructuralTerm;
 use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Select from a complete uniform value without executing a machine or
+/// observing storage. Both restricted declaration substitution and runtime
+/// normalization use this same closed, independently in-bounds projection.
+pub(super) fn uniform_element(
+    collection: &StructuralTerm,
+    index: &StructuralTerm,
+) -> Option<StructuralTerm> {
+    let StructuralTerm::RepeatedArray {
+        length,
+        element: Some(element),
+    } = collection
+    else {
+        return None;
+    };
+    let StructuralTerm::Integer(index) = index else {
+        return None;
+    };
+    index
+        .to_u64()
+        .filter(|index| index < length)
+        .map(|_| (**element).clone())
+}
+
 pub(super) fn project_observed_value(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -373,18 +396,6 @@ pub(super) fn integer_storage_read(
                     program.expression_table.expression(expression),
                     typed_trees::expression::ExpressionNode::Member(_)
                 ))
-    })
-}
-
-pub(super) fn declared_integer_field_read(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<ResolvedScalarStorageRead> {
-    declared_scalar_field_read(program, machine, state, expression).filter(|read| {
-        read.primitive.is_fixed_integer()
-            || read.primitive == typed_trees::types::PrimitiveType::Addr
     })
 }
 

@@ -9,7 +9,7 @@ boundary trait Completion { machine complete(ack: Ack) reaches; }
 proposition acknowledged(ack: Ack) = atomic_release_written<AtomicU64, u64>(&ack.holder.word.value, 1);
 data Confirmation {}
 machine Confirmation::finish(ack: Ack) satisfies Completion::complete
-ensures acknowledged(ack);
+ensures acknowledged(ack)
 { let nonce: u64 = 1; ack.holder.word.value.store(nonce, Publish); }
 CompletionProvider satisfies Completion { Completion::complete = Confirmation::finish; }
 machine main() {}

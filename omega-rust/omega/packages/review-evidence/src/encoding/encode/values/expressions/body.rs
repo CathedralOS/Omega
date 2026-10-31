@@ -58,9 +58,7 @@ pub(super) fn encode_contract_expression_body(
         }
         PackageReviewContractExpression::Array(values) => {
             encoder.tag("array", 14);
-            encoder.field("values", |encoder| {
-                encoder.sequence(values, encode_contract_expression)
-            })?;
+            encoder.sequence_field("values", values, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Constructor { data, case, fields } => {
             encoder.tag("constructor", 15);
@@ -273,9 +271,7 @@ pub(super) fn encode_contract_expression_body(
             encoder.field("evidence_arguments", |encoder| {
                 encoder.sequence(evidence_arguments, encode_contract_evidence_argument)
             })?;
-            encoder.field("arguments", |encoder| {
-                encoder.sequence(arguments, encode_contract_expression)
-            })?;
+            encoder.sequence_field("arguments", arguments, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Binary {
             meaning,

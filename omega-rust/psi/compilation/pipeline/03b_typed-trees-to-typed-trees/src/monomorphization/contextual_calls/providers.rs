@@ -3,6 +3,7 @@
 //! telescopes are universal schemas, never permission to choose one instance.
 
 use super::super::application_lifetimes as lifetime_arguments;
+use crate::tables::expressions_of;
 
 use super::super::{
     Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees, candidate,
@@ -24,16 +25,14 @@ pub(super) fn close(
     // Executable rewriting consumes nested tuples. Admission always reads
     // the occurrence's retained authored provider, including erased regions,
     // rather than treating a private instance as a new source declaration.
-    let mut source_selection = program
-        .expression_table
+    let mut source_selection = expressions_of(program)
         .static_machine_application_arguments(application)
         .iter()
         .filter(|argument| super::invocations::is_machine(program, argument.symbol))
         .nth(ordinal)
         .cloned()
         .unwrap_or_else(|| selection.clone());
-    let owner = program
-        .expression_table
+    let owner = expressions_of(program)
         .static_machine_application(application)
         .lexical_owner;
     super::super::body_rewriting::normalize_const_arguments(
@@ -186,9 +185,7 @@ pub(super) fn close(
         &lifetimes,
         expected,
         caller_types,
-        program
-            .expression_table
-            .static_machine_application_lifetimes(application),
+        expressions_of(program).static_machine_application_lifetimes(application),
     ) {
         return Ok(None);
     }

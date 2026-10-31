@@ -6,7 +6,7 @@ machine corrupt(mut bytes: [u8; 4] in Ascii) -> bool {
         _ -> false
     }
     machine rewrite(mut bytes: [u8; 4] in Ascii) -> bool
-    requires bytes.len == 4;
+    requires bytes.len == 4
     {
         bytes[0] = 255;
         transition { _ -> observe(bytes) }

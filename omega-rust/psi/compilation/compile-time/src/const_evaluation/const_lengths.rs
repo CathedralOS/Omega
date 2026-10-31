@@ -19,6 +19,7 @@
 //! host widths.
 
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::build_time_evaluation::type_reference_table;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
@@ -124,9 +125,7 @@ pub(crate) fn evaluate_selected_array_lengths(
         if let TypeReferenceNode::FixedArray {
             length: FixedArrayLength::Literal(value),
             ..
-        } = execution
-            .type_reference_table
-            .type_reference(type_reference)
+        } = type_reference_table(&execution).type_reference(type_reference)
         {
             typed
                 .type_reference_table

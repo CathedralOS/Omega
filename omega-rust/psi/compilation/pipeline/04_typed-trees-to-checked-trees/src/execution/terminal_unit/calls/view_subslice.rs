@@ -21,6 +21,7 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
 use crate::execution::terminal_unit::Multiplicity;
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::StatementNode;
@@ -97,13 +98,8 @@ impl ViewSubslice {
         let fixed_projection = bodyless_signature
             && !(self.range.kind == ViewKind::Bytes && self.range.collection.is_empty())
             && matches!(
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    self.expression,
-                )
-                .and_then(|place| place.segments.last().cloned()),
+                place_at(program, state.symbol, statement_index, self.expression)
+                    .and_then(|place| place.segments.last().cloned()),
                 Some(facts::PlaceSegment::FixedRange { .. })
             );
         (!fixed_projection).then(|| self.argument())
@@ -319,12 +315,7 @@ fn lends_collection(
     // range's own index segment, spelled by the same canonicalization that
     // produced it — a whole-collection window keeps its backing spelling
     // rather than a redundant full-extent selector.
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        expression,
-    ) else {
+    let Some(place) = place_at(program, state.symbol, statement_index, expression) else {
         return false;
     };
 
@@ -558,12 +549,7 @@ fn collection_storage(
     let target_view = validation::slice_view_shell(program, target, &[])?;
     let element = target_view.element;
     let mutable = target_view.access == language_core::ReferenceAccess::Mutable;
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        collection,
-    )?;
+    let place = place_at(program, state.symbol, statement_index, collection)?;
 
     let symbol = place.root.as_symbol()?;
     let (root, root_type_identity) = if let Some(position) =

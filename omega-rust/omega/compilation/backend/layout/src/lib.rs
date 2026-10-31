@@ -7,10 +7,11 @@
 //! payloads. `callback_layout` retains and checks private callback field paths and
 //! their target geometry independently of source-parameter association;
 //! `boundary_values` constructs bounded native signature graphs and selected
-//! opaque carrier occurrences from already-typed boundary applications.
+//! opaque carrier occurrences from Psi's target-neutral value recipes.
 //! Layout never authorizes an access; it only fixes
-//! where a value's bytes live. It consumes typed declarations and installed layout
-//! plans, never check facts; callers must not manufacture a checked program to
+//! where a value's bytes live. General layout still consumes typed declarations
+//! and installed layout plans; boundary-value materialization does not. Neither
+//! consumes check facts; callers must not manufacture a checked program to
 //! request geometry before checking.
 
 mod boundary_values;
@@ -25,8 +26,7 @@ pub use target_context::LayoutTarget;
 
 pub use boundary_values::{
     BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueRepresentationUse,
-    BoundaryTypeBinding, BoundaryValueLayout, append_boundary_value_shape,
-    substitute_boundary_type_reference,
+    BoundaryValueLayout, append_boundary_value_shape,
 };
 pub use builder::{
     build_layout_plan, build_layout_plan_for_roots, layout_type_reference,

@@ -4,7 +4,7 @@ machine selected_pair<machine First, machine Second>(left: Nat, right: Nat) -> N
 requires machine First(value: Nat) -> Nat;
 requires machine Second(value: Nat) -> Nat;
 requires
-    (saturating_sub(First(left), left)) == Nat::Zero;
+    (saturating_sub(First(left), left)) == Nat::Zero,
     (saturating_sub(Second(right), right)) == Nat::Zero
 { left }
 
@@ -12,7 +12,7 @@ machine reordered<machine Left, machine Right>(left: Nat, right: Nat)
 requires machine Left(value: Nat) -> Nat;
 requires machine Right(value: Nat) -> Nat;
 requires
-    (saturating_sub(Left(left), left)) == Nat::Zero;
+    (saturating_sub(Left(left), left)) == Nat::Zero,
     (saturating_sub(Right(right), right)) == Nat::Zero
 ensures selected_pair<Right, Left>(right, left) == right
 {}

@@ -82,7 +82,7 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let fixed_array_formal = matches!(
             types.get(&parameter.structural_type).map(|row| &row.shape),
             Some(StructuralTypeShape::FixedArray { .. })
@@ -128,7 +128,7 @@ impl TerminalExecution<'_> {
         let Some(collection_type) = self.lent_collection_type(structural_type, argument) else {
             return Ok(None);
         };
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let fixed_array_formal = matches!(
             types.get(&structural_type).map(|row| &row.shape),
             Some(StructuralTypeShape::FixedArray { .. })
@@ -148,7 +148,7 @@ impl TerminalExecution<'_> {
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = self.program.structural_declaration(collection_type)?.shape
+        } = self.structural_declaration(collection_type)?.shape
         else {
             return Err(malformed());
         };
@@ -233,7 +233,7 @@ impl TerminalExecution<'_> {
             self.array_storage_root_staged(argument.place, identity_cursor, local_roots)?;
         let (referent, captured_home) = if self.scalar_array_values.contains_key(&argument.place) {
             (
-                project_structural_value(&self.program.structural_types(), &root, &argument.path)?,
+                project_structural_value(&self.structural_types(), &root, &argument.path)?,
                 None,
             )
         } else {
@@ -290,7 +290,7 @@ impl TerminalExecution<'_> {
                 {
                     return Err(malformed());
                 }
-                loan.captured_storage_home(&self.program.structural_types(), &argument.path)?
+                loan.captured_storage_home(&self.structural_types(), &argument.path)?
             }
             None => Some(ElementViewHome {
                 storage: self.capture_primitive_home(argument.place)?,
@@ -314,7 +314,7 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
         argument: &StructuralArgument,
     ) -> Option<StructuralTypeId> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         match types.get(&structural_type)?.shape {
             StructuralTypeShape::FixedArray { .. } => {
                 terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)?;

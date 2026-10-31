@@ -10,7 +10,7 @@ boundary trait OpaqueWrite {
 }
 machine forward(holder: LoanHolder)
 reaches OpaqueWrite
-invokes OpaqueWrite;
+invokes OpaqueWrite
 {
     OpaqueWrite::overwrite(holder);
 }

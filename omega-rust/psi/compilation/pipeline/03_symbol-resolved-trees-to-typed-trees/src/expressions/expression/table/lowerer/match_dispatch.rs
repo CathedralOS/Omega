@@ -3,6 +3,7 @@
 //! guards, comparisons and bodies keep the same completed subject relation.
 
 use super::{Diagnostic, ExpressionTableLowerer, lower_name, resolved, typed};
+use crate::tables::expression_table;
 use arena::Handle;
 
 impl ExpressionTableLowerer<'_, '_, '_> {
@@ -107,9 +108,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                 capture,
                 pattern_head: head,
             }));
-        let case = self
-            .target_trees
-            .expression_table
+        let case = expression_table(&self.target_trees)
             .name_path_node(head)
             .map(|name| name.symbol)
             .filter(|symbol| {

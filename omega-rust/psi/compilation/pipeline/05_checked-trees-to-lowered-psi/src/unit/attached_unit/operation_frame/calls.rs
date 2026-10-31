@@ -148,9 +148,11 @@ impl OperationFrame<'_, '_> {
         // could select a replacement binding; walking prior operations would
         // borrow consumption from mutually exclusive sibling bodies.
         if let Some(emitted) = self.operations.source_calls.iter().find(|emitted| {
-            emitted.source_state == self.state
-                && emitted.statement_index == call.coordinate.statement_index as usize
-                && emitted.call_ordinal == call.coordinate.call_ordinal as usize
+            emitted.matches_statement(
+                self.state,
+                call.coordinate.statement_index as usize,
+                call.coordinate.call_ordinal as usize,
+            )
         }) {
             if let lowered_psi::LoweredSourceCallSite::Operation(operation) = emitted.terminal_site
             {
@@ -527,7 +529,7 @@ impl OperationFrame<'_, '_> {
             let (coordinate, frontier) = self.source_call_record(*coordinate)?;
             self.operations.invocation_completion = Some(
                 crate::emission::operation_emission::buffer::PendingInvocationCompletion {
-                    coordinate, frontier, source_site: call.source_site(),
+                    coordinate: coordinate.into(), frontier, source_site: call.source_site(),
                     target: call.target.machine,
                     outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::ModuleNoNormal { callee, inputs: prepared },
                 });

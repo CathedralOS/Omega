@@ -74,6 +74,7 @@ use super::{
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
+use crate::register_model::units;
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
 use selected_instructions::{
@@ -94,21 +95,13 @@ const RIGHT_SCRATCH: u8 = 5;
 /// The fused multiply-add addend; volatile under both System V and Microsoft x64.
 const ADDEND_SCRATCH: u8 = 3;
 
-fn view_units(name: &str) -> Vec<RegisterUnitId> {
-    crate::x86_64_physical_register_model_ref()
-        .view_named(name)
-        .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
-        .units
-        .clone()
-}
-
 /// MXCSR selects the rounding mode the operations honor.
 pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
-    sorted_units(view_units("mxcsr"))
+    sorted_units(units("mxcsr"))
 }
 
 pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
-    sorted_units(view_units("xmm4").into_iter().chain(view_units("xmm5")))
+    sorted_units(units("xmm4").into_iter().chain(units("xmm5")))
 }
 
 fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
@@ -143,12 +136,8 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     if form.operation.rounding_direction().is_some() {
         let model = crate::x86_64_physical_register_model();
         let stack_pointer = model.view_named("rsp").expect("canonical stack pointer").id;
-        encoded.implicit_unit_uses = sorted_units(
-            encoded
-                .implicit_unit_uses
-                .into_iter()
-                .chain(view_units("rsp")),
-        );
+        encoded.implicit_unit_uses =
+            sorted_units(encoded.implicit_unit_uses.into_iter().chain(units("rsp")));
         encoded.memory =
             selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
                 stack_pointer,
@@ -162,12 +151,11 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     }
     if conversion_control(form) {
         encoded.implicit_unit_clobbers =
-            sorted_units(clobbers().into_iter().chain(view_units("rflags")));
+            sorted_units(clobbers().into_iter().chain(units("rflags")));
     }
     // Both ternary forms hold their addend in xmm3, as their shared row states.
     if form.operand_count() == 3 {
-        encoded.implicit_unit_clobbers =
-            sorted_units(clobbers().into_iter().chain(view_units("xmm3")));
+        encoded.implicit_unit_clobbers = sorted_units(clobbers().into_iter().chain(units("xmm3")));
     }
     if ieee_float_arithmetic_is_trapping(form) {
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
@@ -1746,7 +1734,7 @@ mod tests {
                     .is_err()
                 );
             }
-            let xmm3 = super::view_units("xmm3");
+            let xmm3 = crate::register_model::units("xmm3");
             assert!(
                 xmm3.iter()
                     .all(|unit| super::effects(form).implicit_unit_clobbers.contains(unit))

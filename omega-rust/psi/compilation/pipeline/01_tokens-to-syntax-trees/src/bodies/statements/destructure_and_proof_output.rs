@@ -3,6 +3,7 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::Input;
+use crate::tables::{exprs, exprs_of, items, stmts};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -95,7 +96,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
         syntax_trees: &SyntaxTrees,
         expression: syntax_trees::expression::ExpressionHandle,
     ) -> bool {
-        match syntax_trees.expressions.expression(expression) {
+        match exprs_of(syntax_trees).expression(expression) {
             ExpressionNode::Name(_) => true,
             ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
             _ => false,
@@ -126,7 +127,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             is_mutable: false,
             relevance: language_core::BindingRelevance::Relevant,
         }));
-    let marker = syntax_trees.items.append_statement_handle(marker);
+    let marker = items(syntax_trees).append_statement_handle(marker);
     let mut statements = crate::handle_spans::HandleSpanBuilder::new();
     statements.push(marker);
 
@@ -134,15 +135,12 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
         let Some(binding) = binding else {
             continue; // waived: spelled in the marker, no binding minted
         };
-        let member =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver: value,
-                    access_source_span: Default::default(),
-                    member: field,
-                    case_variant: None,
-                }));
+        let member = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: value,
+            access_source_span: Default::default(),
+            member: field,
+            case_variant: None,
+        }));
         let statement = syntax_trees
             .statements
             .insert(StatementNode::LocalData(TableLocalData {
@@ -153,7 +151,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
             }));
-        statements.push(syntax_trees.items.append_statement_handle(statement));
+        statements.push(items(syntax_trees).append_statement_handle(statement));
     }
 
     Some((statements.finish(), rest))
@@ -220,7 +218,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     rest = rest.take_punctuation(PunctuationKind::Equal, "=").ok()?;
     let (call, next) = parse_expression_handle(syntax_trees, rest).ok()?;
     if !matches!(
-        syntax_trees.expressions.expression(call),
+        exprs_of(syntax_trees).expression(call),
         ExpressionNode::Call(_)
     ) {
         return None;
@@ -228,7 +226,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     rest = next
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
-    let statement = syntax_trees.statements.insert(
+    let statement = stmts(syntax_trees).insert(
         syntax_trees::statement::StatementNode::ProofOutputBindingStatement(
             TableProofOutputBindingStatement {
                 bindings: bindings.into_boxed_slice(),
@@ -236,7 +234,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
             },
         ),
     );
-    let statement = syntax_trees.items.append_statement_handle(statement);
+    let statement = items(syntax_trees).append_statement_handle(statement);
     Some((HandleSpan::from_parts(statement, 1), rest))
 }
 

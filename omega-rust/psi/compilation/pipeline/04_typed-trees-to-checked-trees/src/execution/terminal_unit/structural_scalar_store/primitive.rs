@@ -27,6 +27,8 @@ use super::super::{
     CheckedUnitEffectOperationPlan, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
     TypeConstraintNode, TypeReferenceNode,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 /// Find primitive storage established by an initializer or its declaration's
 /// plain zero value before this occurrence.
@@ -41,9 +43,7 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     let (_, local) = program
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if (!program
-        .expression_table
-        .expression_is_valid(local.initial_value)
+    if (!expressions(program).expression_is_valid(local.initial_value)
         && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
         || !super::super::types::supports_primitive_storage(program, local.type_reference)
         || program
@@ -138,7 +138,7 @@ pub(super) fn store_at(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffe
             _ => {}
         }
     }
-    let authored = validation::canonical_place_from_expression_in_state(
+    let authored = place_at(
         program,
         state.symbol,
         statement_index as usize,

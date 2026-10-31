@@ -3,6 +3,7 @@
 //! the hook may transition between its own states: those exact selections
 //! select control-flow destinations, not another invocation of the hook.
 
+use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
@@ -29,6 +30,7 @@ pub(crate) struct CleanupTypeQueries {
 #[derive(Default)]
 struct CleanupTypeAnswers {
     plain_without_nominal_cleanup: OnceLock<bool>,
+    no_code_cleanup_contents: OnceLock<bool>,
     no_owned_cleanup_obligations: OnceLock<bool>,
 }
 
@@ -86,6 +88,28 @@ pub fn has_plain_contents_without_nominal_cleanup(
     };
     match cleanup_type_answers(program, reference) {
         Some(answers) => *answers.plain_without_nominal_cleanup.get_or_init(compute),
+        None => compute(),
+    }
+}
+
+/// Exact qualified contents require no executable cleanup. Descriptor leaves
+/// retain their referents and loan obligations; this supplies no copying,
+/// ownership transfer, claim discharge or source completion authority.
+/// The contents owner checks selected hooks throughout the owned graph.
+pub fn has_no_code_cleanup_contents(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let compute = || {
+        super::storage_contents::has_contents(
+            program,
+            reference,
+            &[],
+            super::storage_contents::ContentsRequirement::DescriptorCleanup,
+        )
+    };
+    match cleanup_type_answers(program, reference) {
+        Some(answers) => *answers.no_code_cleanup_contents.get_or_init(compute),
         None => compute(),
     }
 }
@@ -684,8 +708,7 @@ fn owner_type_matches(
                             TypeReferenceNode::ConstExpression(expression)
                                 if parameter.kind.is_const_or_value() =>
                             {
-                                program
-                                    .expression_table
+                                expression_table(program)
                                     .name_path_node(*expression)
                                     .is_some_and(|name| name.symbol == parameter.symbol)
                             }
@@ -713,7 +736,7 @@ pub(crate) fn validate_cleanup_delivery(
     // Casts do not execute cleanup. Follow their exact operand rather than
     // using the erased result as evidence that no obligation existed.
     while let typed_trees::expression::ExpressionNode::Cast(cast) =
-        program.expression_table.expression(value)
+        expression_table(program).expression(value)
     {
         value = cast.value;
     }

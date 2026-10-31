@@ -3,7 +3,7 @@
 // fields yet hosts the crossing's contract surface.
 public boundary data WaitSubstrate;
 
-boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
+boundary machine WaitSubstrate::park(word: u64) suspends blocks;
 boundary machine WaitSubstrate::wake_one(word: u64);
 boundary machine WaitSubstrate::wake_all(word: u64);
 

@@ -7,6 +7,7 @@ use super::{
     frame_place_path, local_aliases, reference_origins, stored_origins,
     type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
 };
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
@@ -30,7 +31,7 @@ pub(super) fn owned_borrow_origin(
     current_machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<FramePlaceOrigin> {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Borrow(borrow) = expression_table(program).expression(expression) else {
         return None;
     };
     let (state, _, index) = caller_aliases::caller_statement_owner(
@@ -804,10 +805,8 @@ fn declared_initializer_origins(
     if let Some(formation) = formation {
         expression = formation.source;
     }
-    expression = program
-        .expression_table
-        .peeled_expression_handle(expression);
-    if let Some(_) = program.expression_table.call_node(expression) {
+    expression = expression_table(program).peeled_expression_handle(expression);
+    if let Some(_) = expression_table(program).call_node(expression) {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,

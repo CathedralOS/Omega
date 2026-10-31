@@ -10,8 +10,8 @@ reaches Console
 {}
 public machine impossible()
 reaches Console
-invokes Console;
-ensures false;
+invokes Console
+ensures false
 {
     Console::exit_process(0);
 }

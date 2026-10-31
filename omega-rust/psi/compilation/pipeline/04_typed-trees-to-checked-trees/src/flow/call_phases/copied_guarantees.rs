@@ -5,6 +5,7 @@
 
 mod captured_aliases;
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use super::super::FlowBuildContext;
@@ -350,7 +351,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                 if super::super::operand_binds_live_view(self.program, capture.type_reference) {
                     return true;
                 }
-                let Some(mut source) = validation::canonical_place_from_expression_in_state(
+                let Some(mut source) = place_at(
                     self.program,
                     self.state,
                     self.statement,
@@ -377,12 +378,9 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                     &mut occurrences,
                 );
                 occurrences.into_iter().all(|occurrence| {
-                    let Some(dependency) = validation::canonical_place_from_expression_in_state(
-                        self.program,
-                        self.state,
-                        self.statement,
-                        occurrence,
-                    ) else {
+                    let Some(dependency) =
+                        place_at(self.program, self.state, self.statement, occurrence)
+                    else {
                         return false;
                     };
                     // The selected value was checked at its exact projected path;

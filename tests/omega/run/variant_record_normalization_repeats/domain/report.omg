@@ -4,7 +4,7 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 public machine number(value: u64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition { _ -> digit(value, 10000000000000000000, false) }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
@@ -40,13 +40,13 @@ invokes Console;
     machine stop() { }
 }
 public machine separator() reaches Console
-invokes Console;
+invokes Console
 { Console::write_byte(124); }
 public machine newline() reaches Console
-invokes Console;
+invokes Console
 { Console::write_byte(10); }
 public machine bases(sequence: &Sequence) reaches Console
-invokes Console;
+invokes Console
 {
     transition sequence.length == 0 {
         true -> empty()
@@ -76,7 +76,7 @@ invokes Console;
     machine stop() { }
 }
 public machine variant_row(variant: &Variant) reaches Console
-invokes Console;
+invokes Console
 {
     number(variant.contig); separator(); number(variant.position); separator();
     number(variant.removed); separator(); bases(&variant.inserted); separator();

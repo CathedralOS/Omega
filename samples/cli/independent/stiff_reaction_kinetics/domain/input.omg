@@ -12,9 +12,9 @@ public data Input {
 }
 
 public machine Input::read(input: &mut Input)
-invokes Console;
+invokes Console
 reaches Console
-blocks;
+blocks
 crashes Trap
 {
     input.count = 0;

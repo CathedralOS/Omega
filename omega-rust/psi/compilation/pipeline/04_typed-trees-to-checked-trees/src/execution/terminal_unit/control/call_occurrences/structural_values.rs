@@ -6,6 +6,7 @@
 //! callers keep this walk inside the selected operand's own ledger.
 use super::collecting::collect_structural_argument_calls;
 use super::{CheckFacts, SymbolHandle};
+use crate::flow::expressions;
 
 pub(super) fn collect<'facts>(
     program: &dyn validation::CheckingInput,
@@ -84,8 +85,7 @@ pub(super) fn collect<'facts>(
                     || call.statement_index != statement_index
                     || call.call_ordinal < minimum_call_ordinal as usize
                     || facts.flow.control.is_retired(state, call)
-                    || program
-                        .expression_table
+                    || expressions(program)
                         .call_node(request)?
                         .quotient_operation
                         .is_none()

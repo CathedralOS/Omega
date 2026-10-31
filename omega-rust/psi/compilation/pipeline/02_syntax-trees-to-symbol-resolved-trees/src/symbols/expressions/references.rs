@@ -1,3 +1,4 @@
+use crate::tables::body_expressions;
 use diagnostics::Diagnostic;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
@@ -34,10 +35,7 @@ pub(crate) fn reject_unqualified_case_values(
     // A name used as a call or member receiver is a qualified-path head, not a
     // value: `Float::meaning32(...)` reads `Float` as a namespace segment that
     // never carries a symbol, so it must not be judged a bare case spelling.
-    let path_heads = program
-        .tables
-        .bodies
-        .expressions
+    let path_heads = body_expressions(&program)
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
             symbol_resolved_trees::expression::ExpressionNode::Call(call) => Some(call.receiver),
@@ -48,10 +46,7 @@ pub(crate) fn reject_unqualified_case_values(
         })
         .filter(|handle| handle.is_valid())
         .collect::<std::collections::HashSet<_>>();
-    let diagnostics = program
-        .tables
-        .bodies
-        .expressions
+    let diagnostics = body_expressions(&program)
         .iter_expressions()
         .filter_map(|(expression_handle, expression)| {
             if path_heads.contains(&expression_handle) {
@@ -60,20 +55,12 @@ pub(crate) fn reject_unqualified_case_values(
             let symbol_resolved_trees::expression::ExpressionNode::Name(path) = expression else {
                 return None;
             };
-            let [name] = program
-                .tables
-                .bodies
-                .expressions
-                .name_path_members(path.members)
-            else {
+            let [name] = body_expressions(&program).name_path_members(path.members) else {
                 return None;
             };
             (!path.head_symbol.is_valid()
                 && !path.symbol.is_valid()
-                && program
-                    .tables
-                    .bodies
-                    .expressions
+                && body_expressions(&program)
                     .authored_expression_exposure(expression_handle)
                     .is_some()
                 && case_names.contains(name.as_str()))

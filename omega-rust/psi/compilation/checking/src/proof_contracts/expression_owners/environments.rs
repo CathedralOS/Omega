@@ -4,6 +4,7 @@
 use super::indexing::{proof_fact_contains_expression, proof_fact_value_contains_expression};
 use super::inference::type_reference_contains_expression;
 use super::{Binding, InferredType, OwnerEnvironmentIndex, TypeEnvironment};
+use crate::frozen_program::expression_table;
 use checked_trees::ContractProofFactOwner;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
@@ -228,7 +229,7 @@ pub(super) fn exact_owner_environments(
         ]
         .into_iter()
         .any(|root| {
-            program.expression_table.expression_is_valid(root)
+            expression_table(program).expression_is_valid(root)
                 && super::expression_contains(program, root, expression)
         }) {
             environments.push(TypeEnvironment {
@@ -248,8 +249,7 @@ pub(super) fn collect_measure_environments(
     environments: &mut Vec<TypeEnvironment>,
 ) {
     for measure in program.measures() {
-        if !program
-            .expression_table
+        if !expression_table(program)
             .expression_handles(measure.body)
             .iter()
             .any(|root| super::expression_contains(program, *root, expression))
@@ -280,8 +280,7 @@ pub(super) fn collect_proposition_environments(
             continue;
         };
         let contains = match body {
-            PropositionFormula::Application(application) => program
-                .expression_table
+            PropositionFormula::Application(application) => expression_table(program)
                 .expression_handles(application.arguments)
                 .iter()
                 .any(|root| super::expression_contains(program, *root, expression)),

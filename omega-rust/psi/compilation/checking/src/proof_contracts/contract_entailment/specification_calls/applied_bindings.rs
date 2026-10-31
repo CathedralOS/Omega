@@ -5,6 +5,7 @@
 //! the caller's same-spelled parameters as missing callee operands.
 
 use super::{SelectedCallContract, StructuralTerm, call_machine_substitution, owner_symbol};
+use crate::frozen_program::expression_table;
 use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
@@ -292,7 +293,7 @@ impl AppliedProofBindings {
             crate::CallSite::TransitionNamed { .. } => return None,
         };
         if handle.is_valid() {
-            let application = program.expression_table.static_machine_application(handle);
+            let application = expression_table(program).static_machine_application(handle);
             if super::super::struct_trace() && !arguments.is_empty() {
                 eprintln!(
                     "STRUCT selected static call caller={caller:?} lexical={:?} owner={:?} declaration={:?} registration={:?} arguments={arguments:?}",
@@ -460,11 +461,9 @@ impl AppliedProofBindings {
         }
         let declaration = program.machine_by_symbol(correspondence.declaration)?;
         let entry = program.machine_states(declaration).first()?;
-        let header = program
-            .expression_table
-            .static_machine_application(call.authored_machine_application);
-        let selections = program
-            .expression_table
+        let header =
+            expression_table(program).static_machine_application(call.authored_machine_application);
+        let selections = expression_table(program)
             .static_machine_application_arguments(call.authored_machine_application);
         if declaration.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
             || !declaration.body_is_present
@@ -501,8 +500,7 @@ impl AppliedProofBindings {
             .data_type_parameters
             .span_or_empty(selected.template_parameters)
             != parameters
-            || program
-                .expression_table
+            || expression_table(program)
                 .static_machine_application(selected.binding_application)
                 .binding_declaration
                 != declaration.symbol
@@ -516,9 +514,7 @@ impl AppliedProofBindings {
         // telescopes require their own application authority and stay excluded.
         use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
         let tuple = |handle, source: bool| {
-            let bindings = program
-                .expression_table
-                .static_machine_application_bindings(handle);
+            let bindings = expression_table(program).static_machine_application_bindings(handle);
             if bindings.len() != parameters.len() {
                 return None;
             }
@@ -641,10 +637,9 @@ impl AppliedProofBindings {
         // an empty registration shell does not erase those exact selections.
         // Once any binding roster/declaration is published it is authoritative.
         let registration_only = !handle.is_valid() || {
-            let application = program.expression_table.static_machine_application(handle);
+            let application = expression_table(program).static_machine_application(handle);
             !application.binding_declaration.is_valid()
-                && program
-                    .expression_table
+                && expression_table(program)
                     .static_machine_application_bindings(handle)
                     .is_empty()
         };
@@ -667,7 +662,7 @@ impl AppliedProofBindings {
         if !handle.is_valid() {
             return None;
         }
-        let application = program.expression_table.static_machine_application(handle);
+        let application = expression_table(program).static_machine_application(handle);
         if super::super::struct_trace() {
             eprintln!(
                 "STRUCT application intake handle={handle:?} expected={declaration:?} actual={:?} registration={:?} parameters={} bounds={} retained={}",
@@ -675,8 +670,7 @@ impl AppliedProofBindings {
                 application.registration_operation,
                 parameters.len(),
                 conformance_bounds.len(),
-                program
-                    .expression_table
+                expression_table(program)
                     .static_machine_application_bindings(handle)
                     .len()
             );
@@ -684,9 +678,7 @@ impl AppliedProofBindings {
         if application.binding_declaration != declaration {
             return None;
         }
-        let authored = program
-            .expression_table
-            .static_machine_application_bindings(handle);
+        let authored = expression_table(program).static_machine_application_bindings(handle);
         let retained: std::borrow::Cow<
             '_,
             [typed_trees::static_applications::StaticMachineBinding],
@@ -840,15 +832,14 @@ impl AppliedProofBindings {
                             TypeReferenceNode::Named { symbol, .. } => *symbol,
                             TypeReferenceNode::ConstExpression(expression) => {
                                 let typed_trees::expression::ExpressionNode::Name(path) =
-                                    program.expression_table.expression(*expression)
+                                    expression_table(program).expression(*expression)
                                 else {
                                     return None;
                                 };
                                 // Only a direct resolved binder leaf is
                                 // admitted here, never an unevaluated expression
                                 // or the head of a projected/qualified path.
-                                if program
-                                    .expression_table
+                                if expression_table(program)
                                     .name_path_members(path.members)
                                     .len()
                                     != 1
@@ -1072,11 +1063,9 @@ impl AppliedProofBindings {
         let mut header = Vec::new();
         let mut header_owner = SymbolHandle::invalid();
         if call.authored_machine_application.is_valid() {
-            let application = program
-                .expression_table
+            let application = expression_table(program)
                 .static_machine_application(call.authored_machine_application);
-            let retained = program
-                .expression_table
+            let retained = expression_table(program)
                 .static_machine_application_bindings(call.authored_machine_application);
             if retained.is_empty() {
                 if requires_header {
@@ -1207,8 +1196,7 @@ impl AppliedProofBindings {
         };
         let declared = super::owner_return_type(owner);
         let static_bindings = if call.authored_machine_application.is_valid() {
-            program
-                .expression_table
+            expression_table(program)
                 .static_machine_application_bindings(call.authored_machine_application)
         } else if self.types.is_empty()
             && self.constants.is_empty()
@@ -1239,7 +1227,7 @@ impl AppliedProofBindings {
             })
             .collect::<Vec<_>>();
         let static_count = application.len();
-        let arguments = program.expression_table.expression_handles(call.arguments);
+        let arguments = expression_table(program).expression_handles(call.arguments);
         // The producer applies ordinary operands only under this exact
         // CallSite public/applied telescope and complete explicit arity.
         // Missing or nonmatching rosters retain declaration vocabulary there,

@@ -9,6 +9,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
 use crate::checks::multiplicity::projected_affine;
+use crate::places::place_at;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -668,12 +669,8 @@ pub(super) fn move_event_is_production_target(
             segments: Vec::new(),
         },
         StatementNode::Assignment(assignment) => {
-            let Some(target) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                assignment.target,
-            ) else {
+            let Some(target) = place_at(program, state.symbol, statement_index, assignment.target)
+            else {
                 return false;
             };
             target

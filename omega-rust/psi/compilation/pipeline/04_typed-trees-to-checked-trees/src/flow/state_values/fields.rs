@@ -1,6 +1,7 @@
 //! Live attached-field facts at ordinary state edges. No declaration seeds them.
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::expressions;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -202,8 +203,7 @@ pub(in crate::flow) fn integer_literal_thresholds(
     program: &dyn ::validation::CheckingInput,
 ) -> Vec<numerics::bignum::BigInt> {
     use typed_trees::expression::BinaryOperator;
-    let mut literals: Vec<numerics::bignum::BigInt> = program
-        .expression_table
+    let mut literals: Vec<numerics::bignum::BigInt> = expressions(program)
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
             ExpressionNode::Binary(binary)

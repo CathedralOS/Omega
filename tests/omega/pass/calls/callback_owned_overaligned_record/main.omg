@@ -160,7 +160,7 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
 
 
 public Aligned satisfies FixedLayout<OwnedRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
@@ -252,9 +252,9 @@ data Main {
     input: LayoutStorage<OwnedRecord, Aligned>; result: LayoutStorage<OwnedRecord, Aligned>;
 }
 machine Main::main(main: &mut Main) reaches Prepare + Invoke + Transform + Console
-invokes Prepare;
-invokes Invoke;
-invokes Console;
+invokes Prepare
+invokes Invoke
+invokes Console
 {
     let integer: IntegerType = IntegerType { size: 8, alignment: 8, kind: 11, elements: 0 };
     let elements: TypeElements = TypeElements { first: &integer, second: &integer, third: &integer, terminator: 0 };
@@ -462,9 +462,9 @@ linux_x86_64 machine ffi_abi() -> u32 { 2 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Prepare + Invoke + Transform + Console
-invokes Prepare;
-invokes Invoke;
-invokes Console;
+invokes Prepare
+invokes Invoke
+invokes Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

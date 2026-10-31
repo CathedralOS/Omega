@@ -11,6 +11,7 @@
 //! The specialization driver recollects consumers after these types settle;
 //! no selected call consumes a provisional dispatch purpose.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::HandleSpan;
 use language_core::{LocalBindingRole, Multiplicity, ReferenceAccess};
 use symbols::SymbolHandle;
@@ -193,14 +194,12 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
     for (owner, body, offset, initial, observation) in pending {
         let observed = observation.map(|referee| {
             let expression =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Borrow(TableBorrowExpression {
-                        target: initial,
-                        access: ReferenceAccess::Shared,
-                    }));
-            let span = program.expression_table.source_span(initial);
-            program.expression_table.set_source_span(expression, span);
+                expressions_of_mut(program).insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target: initial,
+                    access: ReferenceAccess::Shared,
+                }));
+            let span = expressions_of(program).source_span(initial);
+            expressions_of_mut(program).set_source_span(expression, span);
             let reference = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Reference {
@@ -259,7 +258,7 @@ fn completed_subject_type(
     if matches!(
         program.type_reference_table.type_reference(actual),
         typed_trees::types::TypeReferenceNode::Unit
-    ) && let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+    ) && let ExpressionNode::Name(path) = expressions_of(program).expression(expression)
         && let Some((_, local)) = path
             .resolved_symbol()
             .and_then(|symbol| program.state_local_declaration(state, symbol))
@@ -284,8 +283,7 @@ fn replace_place_aliases(
     if aliases.is_empty() {
         return;
     }
-    let occurrences = program
-        .expression_table
+    let occurrences = expressions_of(program)
         .expression_entries()
         .filter_map(|(expression, _)| {
             if guards
@@ -319,7 +317,7 @@ fn normalized_place_aliases(
 ) -> Vec<(SymbolHandle, ExpressionHandle)> {
     let mut normalized = Vec::with_capacity(aliases.len());
     for &(symbol, source) in aliases {
-        let source = program.expression_table.insert_copy(source);
+        let source = expressions_of_mut(program).insert_copy(source);
         let mut nodes = Vec::new();
         validation::expression_traversal::collect_expression_tree(program, source, &mut nodes);
         for expression in nodes {
@@ -344,7 +342,7 @@ fn place_alias_replacement(
     aliases: &[(SymbolHandle, ExpressionHandle)],
     expression: ExpressionHandle,
 ) -> Option<(TableNamePath, ExpressionHandle)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Name(path) = expressions_of(program).expression(expression) else {
         return None;
     };
     let symbol = path.resolved_symbol()?;
@@ -367,37 +365,30 @@ fn replace_place_alias(
     // captured source. Index operands remain typed occurrences; no index is
     // encoded in a generated name or evaluated again while adding the suffix.
     let mut source = if path.members.count() > 1 {
-        program.expression_table.insert_copy(source)
+        expressions_of_mut(program).insert_copy(source)
     } else {
         source
     };
-    let occurrences = program
-        .expression_table
+    let occurrences = expressions_of(program)
         .authored_selection_occurrences(source)
         .collect::<Vec<_>>();
     for offset in 1..path.members.count() as usize {
-        let member = program.expression_table.name_path_members(path.members)[offset].clone();
-        let member_symbol = program
-            .expression_table
+        let member = expressions_of(program).name_path_members(path.members)[offset].clone();
+        let member_symbol = expressions_of(program)
             .name_path_member_symbols(path.member_symbols)
             .get(offset)
             .copied()
             .unwrap_or_default();
-        source = program
-            .expression_table
-            .insert(ExpressionNode::Member(TableMemberExpression {
+        source =
+            expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: source,
                 member_symbol,
                 member,
                 case_variant: None,
             }));
     }
-    program
-        .expression_table
-        .attach_authored_selection_occurrences(source, occurrences);
-    program
-        .expression_table
-        .replace_with_existing(expression, source);
+    expressions_of_mut(program).attach_authored_selection_occurrences(source, occurrences);
+    expressions_of_mut(program).replace_with_existing(expression, source);
 }
 
 pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -415,9 +406,7 @@ pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnosti
                             machine.name.as_str(),
                             state.name.as_str(),
                         ))
-                        .with_source_span(
-                            program.expression_table.source_span(local.initial_value),
-                        ),
+                        .with_source_span(expressions_of(program).source_span(local.initial_value)),
                     );
                 }
             }

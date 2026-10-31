@@ -3,18 +3,18 @@
 data Cell { value: u64; }
 data Holder<'storage> { child: &'storage mut Cell; }
 machine retarget<'storage>(output: &mut Holder<'storage>, incoming: &'storage mut Cell) -> u64
-requires incoming.value > 0;
-ensures output.child.value > 0;
+requires incoming.value > 0
+ensures output.child.value > 0
 {
     output.child = incoming;
     0
 }
 machine observe(ignored: u64, value: u64) -> u64
-ensures result == value;
+ensures result == value
 { value }
 machine clear(value: &mut Cell) { value.value = 0; }
 machine require_positive(value: u64)
-requires value > 0;
+requires value > 0
 {}
 machine main() crashes Trap {
     let mut first: Cell = Cell { value: 7 };

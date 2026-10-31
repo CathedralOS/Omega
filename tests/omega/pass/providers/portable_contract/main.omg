@@ -3,9 +3,9 @@
 // reconstruct every obligation after the checked-tree state is
 // discarded.
 machine observed(low: u32, high: u32) -> u32
-requires low <= high;
-ensures true == true;
-terminates;
+requires low <= high
+ensures true == true
+terminates
 {
     high - low
 }
@@ -13,7 +13,7 @@ terminates;
 data Main {}
 
 machine Main::main(main: &mut Main)
-terminates;
+terminates
 {
     let diff: u32 = observed(3u32, 9u32);
     transition diff == 6u32 { true -> ok() _ -> wrong() }

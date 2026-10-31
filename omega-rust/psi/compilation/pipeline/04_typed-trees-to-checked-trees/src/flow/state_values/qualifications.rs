@@ -6,6 +6,7 @@
 //! incoming joins can only weaken claims, and root entry is never narrowed.
 use super::TransitionTargetNode;
 use crate::flow::FlowBuildContext;
+use crate::flow::expressions;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
@@ -215,8 +216,7 @@ pub(super) fn height(
     program: &dyn ::validation::CheckingInput,
     inputs: &[QualifiedInput],
 ) -> usize {
-    let float_height = program
-        .expression_table
+    let float_height = expressions(program)
         .expression_count()
         .saturating_mul(5)
         .saturating_add(2);

@@ -8,6 +8,7 @@ use super::{
     Arena, BorrowLoanFact, BorrowLoanOwnerSegment, CheckFacts, FlowCallFact, FlowOperandFact,
     FlowStateFact, Handle, ResourceDraft,
 };
+use crate::places::place_at;
 use checked_trees::{
     CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowParentLifetime,
 };
@@ -188,13 +189,12 @@ pub(super) fn collect(
                                             .is_valid()
                                 })
                         })
-                        && let Some(source_place) =
-                            validation::canonical_place_from_expression_in_state(
-                                program,
-                                owner.state_symbol,
-                                owner.statement_index,
-                                owner.expression,
-                            )
+                        && let Some(source_place) = place_at(
+                            program,
+                            owner.state_symbol,
+                            owner.statement_index,
+                            owner.expression,
+                        )
                     {
                         // This is the private frozen inventory's exact original loan cut,
                         // not a recovery from the consumer's current source slot. Geometry

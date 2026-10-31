@@ -4,9 +4,8 @@
 use omega_language_std::console;
 data Main {
 }
-machine rot(k: u64, a: u64, b: u64, c: u64)
-terminates by k;
--> u64
+machine rot(k: u64, a: u64, b: u64, c: u64) -> u64
+terminates by k
 {
     transition k > 0 {
         true -> rot(k - 1, b, c, a)

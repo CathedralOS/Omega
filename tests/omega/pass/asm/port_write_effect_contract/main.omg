@@ -6,7 +6,7 @@ proposition model_set(marker: u64) = model_specific_written(2059, 0);
 data Main { port: u16; byte: u8; }
 machine emit(port: u16, byte: u8)
 reaches PortIo
-ensures port_written(port, byte);
+ensures port_written(port, byte)
 { asm where ensures port_written(port, byte) { out port, byte } }
 machine Main::main(main: &mut Main) reaches PortIo {
     main.port = 32;
@@ -33,7 +33,7 @@ machine another_state(port: u16, byte: u8) reaches PortIo {
 }
 
 machine model_register(marker: u64) reaches MachineControl
-ensures model_set(marker);
+ensures model_set(marker)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
@@ -66,14 +66,14 @@ machine reverse_edge(port: u16, byte: u8) reaches PortIo {
 }
 
 machine helper_alias(port: u16, byte: u8) reaches PortIo
-ensures reported(port, byte);
+ensures reported(port, byte)
 {
     emit(port, byte);
 }
 
 data PortCell { port: u16; }
 machine emit_and_replace(port: u16, cell: &mut PortCell, byte: u8) reaches PortIo
-ensures port_written(port, byte);
+ensures port_written(port, byte)
 {
     asm where ensures port_written(port, byte) { out port, byte }
     cell.port = 33;
@@ -86,7 +86,7 @@ machine helper_captured_value(cell: &mut PortCell) reaches PortIo {
 }
 
 machine replace_and_emit(cell: &mut PortCell, byte: u8) reaches PortIo
-ensures port_written(cell.port, byte);
+ensures port_written(cell.port, byte)
 {
     cell.port = 33;
     asm where ensures port_written(cell.port, byte) { out cell.port, byte }

@@ -4,9 +4,9 @@
 // Expected rejection: not provably representable
 
 machine compute_sat_diff(l: i64, r: i64) -> i64
-    requires l >= 80i64 && l <= 125i64;
-    requires r >= 20i64 && r <= 40i64;
-    ensures result >= 40i64 && result <= 105i64;
+    requires l >= 80i64 && l <= 125i64
+    requires r >= 20i64 && r <= 40i64
+    ensures result >= 40i64 && result <= 105i64
 {
     let a: i64 in Saturating = l as i64 in Saturating;
     let b: i64 in Saturating = r as i64 in Saturating;
@@ -15,8 +15,8 @@ machine compute_sat_diff(l: i64, r: i64) -> i64
 }
 
 machine subtract_call_result(lhs: i64, rhs: i64) -> i32
-    requires lhs >= 80i64 && lhs <= 125i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 125i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let diff: i64 = compute_sat_diff(lhs, rhs);
     let headroom: i64 = 100i64 - diff;

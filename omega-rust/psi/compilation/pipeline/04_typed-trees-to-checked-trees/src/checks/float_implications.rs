@@ -8,6 +8,8 @@
 use validation::{CanonicalPlace, canonical_place_from_expression};
 
 use crate::checks::operators::closed_operators_are_builtin;
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::CheckedOperatorFacts;
 use facts::{FactPayload, FactPlace, FactPlan, FloatPredicate, ProgramPoint};
 use numerics::literals::FloatFormat;
@@ -44,12 +46,7 @@ pub(crate) fn contexts_prove_comparison(
                 let Some(path) = program.expression_table.name_path_node(projection.subject) else {
                     return false;
                 };
-                if program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    != 1
-                {
+                if expressions(program).name_path_members(path.members).len() != 1 {
                     return false;
                 }
                 let Some(parameter) = parameters.iter().find(|parameter| {
@@ -349,9 +346,7 @@ fn stored_operand_proves_comparison(
                 )
             });
     }
-    if !program
-        .expression_table
-        .expression_is_valid(stored.expression)
+    if !expressions(program).expression_is_valid(stored.expression)
         || !stored.type_reference.is_valid()
     {
         return false;
@@ -381,7 +376,7 @@ fn stored_operand_proves_comparison(
             {
                 return false;
             }
-            let Some(mut source_place) = validation::canonical_place_from_expression_in_state(
+            let Some(mut source_place) = place_at(
                 program,
                 child.state_symbol,
                 child.statement_index,
@@ -449,13 +444,7 @@ fn place_selectors_agree(
         }
     }
     reads.into_iter().all(|read| {
-        validation::canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            first.statement_index,
-            read,
-        )
-        .is_some_and(|place| {
+        place_at(program, state_symbol, first.statement_index, read).is_some_and(|place| {
             crate::flow::operand_observations_agree(program, flow, first, second, &place)
         })
     })
@@ -498,12 +487,7 @@ fn required_comparison(
         ) {
             continue;
         }
-        if program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        {
+        if expressions(program).name_path_members(path.members).len() != 1 {
             continue;
         }
         let position =

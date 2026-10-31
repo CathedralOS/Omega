@@ -4,6 +4,7 @@
 //! with ordinary claim receipts, before disposing its backing dependencies.
 use super::{SourceCompletion, StatementOccurrence, StatementStep};
 use crate::checks::multiplicity::temporary_results::{self, TemporaryOwner};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEvaluation};
 use symbols::SymbolHandle;
 
@@ -205,12 +206,7 @@ pub(super) fn append(
             continue;
         }
         let receiver = facts.flow.control.operands.get(observation.receiver);
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state,
-            statement_index,
-            receiver.expression,
-        ) else {
+        let Some(place) = place_at(program, state, statement_index, receiver.expression) else {
             continue;
         };
         let Some(source) = place.root.as_expression() else {
@@ -232,10 +228,7 @@ pub(super) fn append(
         if observations.iter().any(|later| {
             later.evaluation == evaluation
                 && facts.flow.control.operands.is_valid(later.receiver)
-                && validation::canonical_place_from_expression_in_state(
-                    program, state, statement_index,
-                    facts.flow.control.operands.get(later.receiver).expression,
-                ).is_some_and(|later_place| later_place.root == place.root)
+                && place_at(program, state, statement_index, facts.flow.control.operands.get(later.receiver).expression).is_some_and(|later_place| later_place.root == place.root)
                 && occurrences[end + 1..].iter().any(|occurrence| {
                     matches!(occurrence.step, StatementStep::Complete(completed) if completed == later.expression)
                 })

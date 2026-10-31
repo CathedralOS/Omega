@@ -23,6 +23,8 @@ public data IdentityScope [copy] {
     kind: IdentityScopeKind;
     first: u64 in Trapping;
     count: u64 in Trapping;
+    // Declaration index for Fields/Cases, exact case index for PayloadFields.
+    owner: u64 in Trapping;
 }
 
 // One member of a scope: its name and, when numbered, its literal's span.
@@ -53,10 +55,46 @@ crashes Trap
 
     machine declaration(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
+        transition item.field_count > 0 && item.case_count > 0 {
+            true -> mixed_retirements(resolver, sources, syntax, index, item, 0)
+            _ -> fields(resolver, sources, syntax, index, item)
+        }
+    }
+
+    // A bare declaration retirement cannot choose between a mixed shape's
+    // independent field and case scopes. Keep the existing refusal rather
+    // than donating the number to both scopes.
+    machine mixed_retirements(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        index: u64 in Trapping, item: DataItem, offset: u64 in Trapping)
+    {
+        transition offset < syntax.retired_identity_count {
+            true -> mixed_retirement(resolver, sources, syntax, index, item, offset)
+            _ -> fields(resolver, sources, syntax, index, item)
+        }
+    }
+
+    machine mixed_retirement(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        index: u64 in Trapping, item: DataItem, offset: u64 in Trapping)
+    {
+        let retired: RetiredIdentity = SyntaxTrees::retired_identity(syntax, offset);
+        transition retired.owner_kind == RetiredIdentityOwner::Declaration && retired.owner == index {
+            true -> ambiguous_retirement(resolver, retired.source_span)
+            _ -> mixed_retirements(resolver, sources, syntax, index, item, offset + 1)
+        }
+    }
+
+    machine ambiguous_retirement(resolver: &mut Resolver, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnsupportedDeclaration, source_span);
+    }
+
+    machine fields(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        index: u64 in Trapping, item: DataItem)
+    {
         Resolver::check_identity_scope(resolver, sources, syntax, IdentityScope {
             kind: IdentityScopeKind::Fields,
             first: item.first_field,
-            count: item.field_count
+            count: item.field_count,
+            owner: index
         });
         transition resolver.output.accepted {
             true -> cases(resolver, sources, syntax, index, item)
@@ -68,7 +106,8 @@ crashes Trap
         Resolver::check_identity_scope(resolver, sources, syntax, IdentityScope {
             kind: IdentityScopeKind::Cases,
             first: item.first_case,
-            count: item.case_count
+            count: item.case_count,
+            owner: index
         });
         transition { _ -> payload(resolver, sources, syntax, index, item, 0) }
     }
@@ -85,7 +124,8 @@ crashes Trap
         Resolver::check_identity_scope(resolver, sources, syntax, IdentityScope {
             kind: IdentityScopeKind::PayloadFields,
             first: data_case.first_payload_field,
-            count: data_case.payload_field_count
+            count: data_case.payload_field_count,
+            owner: item.first_case + offset
         });
         transition { _ -> payload(resolver, sources, syntax, index, item, offset + 1) }
     }
@@ -99,12 +139,16 @@ crashes Trap
 machine Resolver::check_identity_scope(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope)
 crashes Trap
 {
-    transition { _ -> numbered(resolver, sources, syntax, scope, 0) }
+    let retired: bool = Resolver::identity_scope_has_retirements(syntax, scope);
+    transition retired {
+        true -> member_at(resolver, sources, syntax, scope, 0)
+        _ -> numbered(resolver, sources, syntax, scope, 0)
+    }
 
     machine numbered(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) {
         transition offset < scope.count {
             true -> numbered_member(resolver, sources, syntax, scope, offset)
-            _ -> done()
+            _ -> retired_at(resolver, sources, syntax, scope, 0)
         }
     }
 
@@ -119,7 +163,7 @@ crashes Trap
     machine member_at(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) {
         transition offset < scope.count {
             true -> member(resolver, sources, syntax, scope, offset)
-            _ -> done()
+            _ -> retired_at(resolver, sources, syntax, scope, 0)
         }
     }
 
@@ -171,6 +215,91 @@ crashes Trap
         transition earlier_value.value == decoded {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateStableIdentity, identity.identity)
             _ -> prior(resolver, sources, syntax, scope, offset, identity, decoded, earlier + 1)
+        }
+    }
+
+    machine retired_at(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping)
+    {
+        transition offset < syntax.retired_identity_count && resolver.output.accepted {
+            true -> retired_member(resolver, sources, syntax, scope, offset)
+            _ -> done()
+        }
+    }
+
+    machine retired_member(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping)
+    {
+        let retired: RetiredIdentity = SyntaxTrees::retired_identity(syntax, offset);
+        let selected: bool = Resolver::retirement_in_scope(syntax, scope, retired);
+        transition selected {
+            true -> retired_value(resolver, sources, syntax, scope, offset, retired)
+            _ -> retired_at(resolver, sources, syntax, scope, offset + 1)
+        }
+    }
+
+    machine retired_value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity)
+    {
+        let decoded: IdentityValue = Resolver::identity_value(sources, retired.identity);
+        transition decoded.valid {
+            true -> retired_live(resolver, sources, syntax, scope, offset, retired, decoded.value, 0)
+            _ -> reject(resolver, ResolveDiagnosticCode::InvalidStableIdentity, retired.identity)
+        }
+    }
+
+    machine retired_live(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity,
+        decoded: u64 in Trapping, live: u64 in Trapping)
+    {
+        transition live < scope.count {
+            true -> retired_compare_live(resolver, sources, syntax, scope, offset, retired, decoded, live)
+            _ -> retired_prior(resolver, sources, syntax, scope, offset, retired, decoded, 0)
+        }
+    }
+
+    machine retired_compare_live(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity,
+        decoded: u64 in Trapping, live: u64 in Trapping)
+    {
+        let member: MemberIdentity = Resolver::member_identity(syntax, scope, live);
+        let value: IdentityValue = Resolver::identity_value(sources, member.identity);
+        transition value.value == decoded {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateStableIdentity, retired.identity)
+            _ -> retired_live(resolver, sources, syntax, scope, offset, retired, decoded, live + 1)
+        }
+    }
+
+    machine retired_prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity,
+        decoded: u64 in Trapping, prior: u64 in Trapping)
+    {
+        transition prior < offset {
+            true -> retired_compare_prior(resolver, sources, syntax, scope, offset, retired, decoded, prior)
+            _ -> retired_at(resolver, sources, syntax, scope, offset + 1)
+        }
+    }
+
+    machine retired_compare_prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity,
+        decoded: u64 in Trapping, prior: u64 in Trapping)
+    {
+        let previous: RetiredIdentity = SyntaxTrees::retired_identity(syntax, prior);
+        let selected: bool = Resolver::retirement_in_scope(syntax, scope, previous);
+        transition selected {
+            true -> retired_compare_value(resolver, sources, syntax, scope, offset, retired, decoded, prior, previous)
+            _ -> retired_prior(resolver, sources, syntax, scope, offset, retired, decoded, prior + 1)
+        }
+    }
+
+    machine retired_compare_value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
+        scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity,
+        decoded: u64 in Trapping, prior: u64 in Trapping, previous: RetiredIdentity)
+    {
+        let value: IdentityValue = Resolver::identity_value(sources, previous.identity);
+        transition value.value == decoded {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateStableIdentity, retired.identity)
+            _ -> retired_prior(resolver, sources, syntax, scope, offset, retired, decoded, prior + 1)
         }
     }
 
@@ -345,4 +474,55 @@ machine Resolver::digit_value(byte: u8) -> u64 in Trapping {
     machine other() -> u64 in Trapping {
         16
     }
+}
+
+// Retirements activate numbered mode without contributing live members.
+machine Resolver::identity_scope_has_retirements(syntax: &SyntaxTrees, scope: IdentityScope) -> bool
+crashes Trap
+{
+    transition { _ -> next(syntax, scope, 0) }
+    machine next(syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) -> bool {
+        transition offset < syntax.retired_identity_count {
+            true -> inspect(syntax, scope, offset)
+            _ -> absent()
+        }
+    }
+    machine inspect(syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping) -> bool {
+        let retired: RetiredIdentity = SyntaxTrees::retired_identity(syntax, offset);
+        let selected: bool = Resolver::retirement_in_scope(syntax, scope, retired);
+        transition selected {
+            true -> present()
+            _ -> next(syntax, scope, offset + 1)
+        }
+    }
+    machine present() -> bool { true }
+    machine absent() -> bool { false }
+}
+
+machine Resolver::retirement_in_scope(syntax: &SyntaxTrees, scope: IdentityScope, retired: RetiredIdentity) -> bool
+crashes Trap
+{
+    transition retired.owner == scope.owner {
+        true -> kind(syntax, scope, retired)
+        _ -> absent()
+    }
+    machine kind(syntax: &SyntaxTrees, scope: IdentityScope, retired: RetiredIdentity) -> bool {
+        transition scope.kind {
+            IdentityScopeKind::Fields -> fields(syntax, scope, retired)
+            IdentityScopeKind::Cases -> cases(syntax, scope, retired)
+            IdentityScopeKind::PayloadFields -> payload(retired)
+        }
+    }
+    machine fields(syntax: &SyntaxTrees, scope: IdentityScope, retired: RetiredIdentity) -> bool {
+        let item: DataItem = SyntaxTrees::data_item(syntax, scope.owner);
+        retired.owner_kind == RetiredIdentityOwner::Declaration && item.case_count == 0
+    }
+    machine cases(syntax: &SyntaxTrees, scope: IdentityScope, retired: RetiredIdentity) -> bool {
+        let item: DataItem = SyntaxTrees::data_item(syntax, scope.owner);
+        retired.owner_kind == RetiredIdentityOwner::Declaration && item.field_count == 0
+    }
+    machine payload(retired: RetiredIdentity) -> bool {
+        retired.owner_kind == RetiredIdentityOwner::Payload
+    }
+    machine absent() -> bool { false }
 }

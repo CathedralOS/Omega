@@ -7,6 +7,7 @@
 //! and retains complete requirement applications through local/helper calls.
 
 use crate::declarations::data_queries::data_definition_by_symbol;
+use crate::frozen_program::expression_table;
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolMap};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -377,9 +378,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         // explicit in Terminal, but is not a new authored `invokes` obligation.
         // The common traversal still visits every operand's ordinary calls;
         // selecting a product cannot hide a helper's actual service invocations.
-        if self
-            .program
-            .expression_table
+        if expression_table(self.program)
             .build_selection_request(call.build_selection)
             .is_some()
         {
@@ -390,9 +389,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             call.target_symbol,
             call.static_machine_parameter,
             receiver,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
+            expression_table(self.program).expression_handles(call.arguments),
         );
     }
 
@@ -672,7 +669,7 @@ fn origin_for_expression(
     if !expression.is_valid() {
         return None;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => origin_for_symbol(program, machine, state, path.symbol),
         ExpressionNode::Member(member) => {
             origin_for_symbol(program, machine, state, member.member_symbol)

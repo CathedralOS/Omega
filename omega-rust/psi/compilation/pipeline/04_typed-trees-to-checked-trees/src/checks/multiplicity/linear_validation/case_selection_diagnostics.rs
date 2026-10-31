@@ -4,6 +4,7 @@
 //! store/loan query; neither a matching label nor a missing claim proves absence.
 
 use super::super::linear_obligations::LinearPlace;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowClaimJoinExit, FlowClaimJoinExitKind};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -116,12 +117,7 @@ fn selected_subject_detail(
     variant: SymbolHandle,
     place: &LinearPlace,
 ) -> String {
-    let direct = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement,
-        subject,
-    );
+    let direct = place_at(program, state.symbol, statement, subject);
     let describe = |subject: &CanonicalPlace| {
         let relation = if subject.root != place.root || !place.path.starts_with(&subject.segments) {
             "authenticated unequal canonical subject"
@@ -156,7 +152,7 @@ fn selected_subject_detail(
     ) {
         Ok(captured) => {
             let source = facts.flow.control.operands.get(captured.source);
-            validation::canonical_place_from_expression_in_state(
+            place_at(
                 program,
                 state.symbol,
                 source.statement_index,

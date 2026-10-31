@@ -1,6 +1,7 @@
 //! Facts about scalar expressions the lowerings share: parameter and local
 //! positions, expression types, builtin operators and arithmetic domains.
 
+use crate::flow::expressions;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
@@ -92,11 +93,7 @@ pub(crate) fn local_position(
     if path.symbol.is_valid() && path.head_symbol.is_valid() && path.symbol != path.head_symbol {
         return None;
     }
-    (program
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        == 1)
+    (expressions(program).name_path_members(path.members).len() == 1)
         .then(|| {
             locals.iter().rposition(|local| {
                 if local.is_mutable {

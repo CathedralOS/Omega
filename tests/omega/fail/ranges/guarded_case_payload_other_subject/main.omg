@@ -4,6 +4,6 @@ data Text {
     case Long(length: u64);
 }
 machine read(first: &Text, second: &Text)
-    requires (first in Text::Short) && second.length <= 4u64;
+    requires (first in Text::Short) && second.length <= 4u64
 {}
 machine main() {}

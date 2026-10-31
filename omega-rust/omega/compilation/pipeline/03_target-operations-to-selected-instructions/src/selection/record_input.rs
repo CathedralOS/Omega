@@ -45,10 +45,7 @@ pub(super) fn fields(
     // Claims and memberships retain source identities but add no bytes. Geometry
     // follows the complete carrier, including affine records with linear fields.
     if row.result.is_some()
-        || crate::structural_inputs::structural_reference_input::shape(
-            result.structural_type,
-            declarations,
-        )? != *shape
+        || crate::structural_inputs::shape(result.structural_type, declarations)? != *shape
     {
         return None;
     }

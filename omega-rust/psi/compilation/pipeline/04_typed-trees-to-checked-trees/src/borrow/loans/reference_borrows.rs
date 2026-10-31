@@ -6,6 +6,7 @@ use super::StatementBorrowLoan;
 use super::call_views::*;
 use super::types::{is_reference_type, reference_borrow_access_kind};
 use crate::borrow::view_link::is_borrow_carrying_data;
+use crate::flow::expressions;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -50,9 +51,8 @@ pub(super) fn reference_local_borrow_loans(
     // permission supplied by that exact invocation. Checked bodies must prove
     // their own return escape; opaque providers still require admission.
     // The descriptor local stores this permission, rather than lending itself.
-    if let checked_trees::expression::ExpressionNode::Call(call) = program
-        .expression_table
-        .expression(local_data.initial_value)
+    if let checked_trees::expression::ExpressionNode::Call(call) =
+        expressions(program).expression(local_data.initial_value)
         && let Some(contract) = call_view_return_contract(program, state.symbol, call)
         && matches!(
             contract.source(program),
@@ -126,14 +126,12 @@ pub(super) fn reference_local_borrow_loans(
     // carried the borrow, so each source stays constrained as if that edge
     // ran. Non-borrow arms contribute no loan rather than a fabricated source;
     // result admission elsewhere keeps the selected set uniform.
-    if let checked_trees::expression::ExpressionNode::Match(dispatch) = program
-        .expression_table
-        .expression(local_data.initial_value)
+    if let checked_trees::expression::ExpressionNode::Match(dispatch) =
+        expressions(program).expression(local_data.initial_value)
     {
         // An arm can forward a name, project a descriptor, call a helper or
         // form a new borrow. Syntax does not select another provenance rule.
-        return program
-            .expression_table
+        return expressions(program)
             .match_arms(dispatch.arms)
             .iter()
             .flat_map(|arm| {
@@ -165,10 +163,7 @@ pub(super) fn reference_local_borrow_loans(
                 machine_symbol,
             )
         });
-    let inferred_place = match program
-        .expression_table
-        .expression(local_data.initial_value)
-    {
+    let inferred_place = match expressions(program).expression(local_data.initial_value) {
         checked_trees::expression::ExpressionNode::String(_) => borrow_access_place(
             program,
             state.symbol,
@@ -192,9 +187,7 @@ pub(super) fn reference_local_borrow_loans(
             // storing a scalar's bits lends nothing, so no loan roots at a
             // non-borrow source place.
             let windowed = matches!(
-                program
-                    .expression_table
-                    .expression(local_data.initial_value),
+                expressions(program).expression(local_data.initial_value),
                 checked_trees::expression::ExpressionNode::Indexed(indexed)
                     if matches!(
                         program.expression_table.expression(indexed.index),
@@ -234,9 +227,7 @@ pub(super) fn reference_local_borrow_loans(
 
     let is_call_result = !is_placed_formation(program, local_data.initial_value)
         && matches!(
-            program
-                .expression_table
-                .expression(local_data.initial_value),
+            expressions(program).expression(local_data.initial_value),
             checked_trees::expression::ExpressionNode::Call(_)
         );
     let retained_access = geometry.retained_access(program, &local_access);

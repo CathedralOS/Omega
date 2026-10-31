@@ -11,6 +11,7 @@
 
 use super::super::indexes::{NormalizedBound, normalized_bound};
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
+use crate::flow::expressions;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::proposition::{PropositionApplication, PropositionBody, PropositionFormula};
@@ -37,9 +38,7 @@ pub(super) fn append_proposition_premises(
         return;
     };
     let parameters = program.proposition_parameters(definition);
-    let arguments = program
-        .expression_table
-        .expression_handles(application.arguments);
+    let arguments = expressions(program).expression_handles(application.arguments);
     if parameters.len() != arguments.len() {
         return;
     }

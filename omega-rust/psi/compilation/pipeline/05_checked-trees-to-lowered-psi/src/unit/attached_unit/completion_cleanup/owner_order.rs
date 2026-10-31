@@ -1,6 +1,7 @@
 //! Merge checked root deaths with anonymous production chronology. A covering
 //! write changes the value occupying a declaration, never its declaration order.
 use super::{CleanupRegion, Evaluation, LoweringError, OperationBuffer};
+use crate::checked_facts::flow_facts;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::PlaceId;
 
@@ -66,9 +67,7 @@ pub(super) fn declaring_order(
                     "captured cleanup belongs to another state",
                 ));
             }
-            let candidate = checked
-                .facts
-                .flow
+            let candidate = flow_facts(checked)
                 .ownership
                 .selection_sources
                 .span_or_empty(receipt.sources)

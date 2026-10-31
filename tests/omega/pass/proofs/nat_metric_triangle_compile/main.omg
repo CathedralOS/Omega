@@ -27,7 +27,7 @@ ensures
 
 machine positive_multiplication_reflects_order(a: Nat, b: Nat, factor: Nat)
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero,
     (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 ensures
     (saturating_sub(a, b)) == Nat::Zero

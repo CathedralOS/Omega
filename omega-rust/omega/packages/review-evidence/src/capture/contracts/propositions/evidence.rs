@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -42,11 +43,7 @@ pub(crate) fn project_evidence_interface(
     };
     let definition = compilation
         .trait_definition_by_symbol(trait_symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "reviewed witness proposition has an unresolved evidence trait",
-            )]
-        })?;
+        .or_evidence("reviewed witness proposition has an unresolved evidence trait")?;
     if !definition.lifetime_parameters.is_empty() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed witness proposition uses lifetime-parameterized evidence trait `{}` without retained lifetime arguments",
@@ -103,11 +100,7 @@ pub(crate) fn collect_evidence_requirements(
 ) -> Result<(), Vec<Diagnostic>> {
     let definition = compilation
         .trait_definition_by_symbol(trait_symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "reviewed evidence interface inherits an unresolved trait",
-            )]
-        })?;
+        .or_evidence("reviewed evidence interface inherits an unresolved trait")?;
     if definition.lifetime_parameters.len() != trait_lifetime_arguments.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed evidence interface trait `{}` has {} lifetime parameter(s), but its checked application retains {}",
@@ -222,12 +215,13 @@ pub(crate) fn collect_evidence_requirements(
                         argument.as_str(),
                     ))]);
                 };
-                trait_lifetime_arguments.get(ordinal).cloned().ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
+                trait_lifetime_arguments
+                    .get(ordinal)
+                    .cloned()
+                    .or_evidence(format!(
                         "reviewed evidence trait `{}` parent lifetime substitution is incomplete",
                         definition.name
-                    ))]
-                })
+                    ))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let parent_arguments = compilation

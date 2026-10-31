@@ -1,4 +1,5 @@
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{items, type_refs};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -74,7 +75,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             }
         }
 
-        let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
+        let handle = items(syntax_trees).append_satisfies_clause(SatisfiesClause {
             trait_name,
             lifetime_arguments,
             arguments,
@@ -123,9 +124,7 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
 
         let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
         return Ok((
-            syntax_trees
-                .type_references
-                .insert_type_reference_handles(arguments),
+            type_refs(syntax_trees).insert_type_reference_handles(arguments),
             input,
         ));
     }
@@ -150,7 +149,7 @@ pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
                 rest = next;
             }
             let name = crate::input::paths::join_path_identifier(syntax_trees, &members);
-            return Ok((syntax_trees.type_references.insert_named(name), rest));
+            return Ok((type_refs(syntax_trees).insert_named(name), rest));
         }
     }
     parse_type_reference_handle(syntax_trees, input)
@@ -201,9 +200,7 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
             rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
             break;
         }
-        syntax_trees
-            .type_references
-            .insert_type_reference_handles(arguments)
+        type_refs(syntax_trees).insert_type_reference_handles(arguments)
     } else {
         HandleSpan::empty()
     };

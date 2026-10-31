@@ -3,7 +3,7 @@ data Entry [copy] { value: [u64; 1]; }
 data Main { entries: [Entry; 2]; }
 machine observe(selected: Entry) -> u64 { selected.value[0] }
 machine read_entry(entries: &[Entry], index: u64) -> u64
-requires index < entries.len;
+requires index < entries.len
 {
     observe(entries[index])
 }

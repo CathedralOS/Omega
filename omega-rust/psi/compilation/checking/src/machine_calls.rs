@@ -27,3 +27,12 @@ pub mod static_bindings;
 pub(crate) mod static_machine_call_contracts;
 pub(crate) mod structural_call_custody;
 pub(crate) mod terminal_transitions;
+
+/// Record a reference once; a repeated visit adds no obligation.
+pub(crate) fn record_reference<T: PartialEq>(recorded: &mut Vec<T>, reference: T) -> bool {
+    let fresh = !recorded.contains(&reference);
+    if fresh {
+        recorded.push(reference);
+    }
+    fresh
+}

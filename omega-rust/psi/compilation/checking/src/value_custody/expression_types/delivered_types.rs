@@ -33,6 +33,7 @@ use super::{
     ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference, reference_values,
 };
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -69,10 +70,10 @@ pub(super) fn delivered_value_type(
             });
     }
     let mut substitutions = Vec::new();
-    let reference = match program.expression_table.expression(value) {
-        ExpressionNode::Call(_) => program
-            .expression_table
-            .constructed_value_type_reference(value),
+    let reference = match expression_table(program).expression(value) {
+        ExpressionNode::Call(_) => {
+            expression_table(program).constructed_value_type_reference(value)
+        }
         ExpressionNode::Name(path) => named_value_type_reference(program, path)?,
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             reference_values::declared_value_type(program, value, &mut substitutions)?
@@ -422,9 +423,8 @@ fn delivered_type_conflict(
     value: ExpressionHandle,
     destination: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    if let Some(dispatch) = program.expression_table.match_node(value) {
-        return program
-            .expression_table
+    if let Some(dispatch) = expression_table(program).match_node(value) {
+        return expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .find_map(|arm| delivered_type_conflict(program, scope, arm.value, destination));

@@ -6,6 +6,6 @@ public boundary trait Driver {
     machine drive() reaches MotorControl + DependencyOnly + Untaken;
 }
 
-public machine drive() reaches MotorControl + DependencyOnly + Untaken invokes Driver; {
+public machine drive() reaches MotorControl + DependencyOnly + Untaken invokes Driver {
     Driver::drive();
 }

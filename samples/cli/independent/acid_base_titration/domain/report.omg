@@ -71,7 +71,7 @@ machine emit_number(value: f64) reaches Console {
     }
 }
 public machine report(volume: f64, result: &Equilibrium) reaches Console
-invokes Console;
+invokes Console
 crashes Trap
 {
     Console::write("volume="); emit_number(volume);

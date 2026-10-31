@@ -10,6 +10,7 @@
 //! checked requirement commitment rather than replaying a contract shape gate.
 
 use crate::execution::terminal_unit::calls::view_subslice;
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
@@ -334,14 +335,8 @@ pub(super) fn build(
         // receiver path which supplied its contents. Ordinary calls make the
         // same distinction between evaluated operands and source storage.
         phase("call operation: boundary argument place");
-        let place = produced_place.or_else(|| {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                call.statement_index,
-                *argument,
-            )
-        })?;
+        let place = produced_place
+            .or_else(|| place_at(program, state.symbol, call.statement_index, *argument))?;
         if let Some((result, _)) = caller_structural_results
             .iter()
             .find(|(_, root)| *root == place.root)

@@ -13,7 +13,7 @@ machine contains_marker(bytes: &[u8], position: u64) -> bool {
     }
 
     machine inspect(bytes: &[u8], position: u64) -> bool
-    requires position < bytes.len;
+    requires position < bytes.len
     {
         bytes[position] == 70
     }

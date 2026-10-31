@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::unwrapped_type_reference;
 use crate::value_custody::type_references::type_references_match;
 use checked_trees::BoundaryQualificationAuthorization;
@@ -79,16 +80,12 @@ pub fn boundary_provider_qualification_obligations(
                 if !membership.domain_symbol.is_valid() {
                     continue;
                 }
-                let parameter = if program
-                    .expression_table
-                    .names_reserved_result(membership.value)
+                let parameter = if expression_table(program).names_reserved_result(membership.value)
                 {
                     SymbolHandle::invalid()
                 } else {
                     let Some(position) = formal.iter().position(|parameter| {
-                        program
-                            .expression_table
-                            .names_parameter(membership.value, parameter)
+                        expression_table(program).names_parameter(membership.value, parameter)
                     }) else {
                         continue;
                     };
@@ -191,9 +188,7 @@ fn validate_boundary_requirements(
                         program,
                         membership.domain,
                     ) {
-                        if !program
-                            .expression_table
-                            .names_reserved_result(membership.value)
+                        if !expression_table(program).names_reserved_result(membership.value)
                             && !expression_is_mutable_parameter(
                                 program,
                                 signature,
@@ -214,8 +209,7 @@ fn validate_boundary_requirements(
                         continue;
                     };
 
-                    let subject = if program
-                        .expression_table
+                    let subject = if expression_table(program)
                         .names_reserved_result(membership.value)
                     {
                         Some((signature.return_type, "result"))
@@ -377,9 +371,7 @@ fn mutable_parameter<'a>(
         .iter()
         .find(|parameter| {
             is_mutable_reference(program, parameter.type_reference)
-                && program
-                    .expression_table
-                    .names_parameter(expression, parameter)
+                && expression_table(program).names_parameter(expression, parameter)
         })
 }
 
@@ -422,10 +414,7 @@ pub fn boundary_qualification_authorization(
     }
 
     let membership = fact.as_membership()?;
-    let subject_carrier = if program
-        .expression_table
-        .names_reserved_result(membership.value)
-    {
+    let subject_carrier = if expression_table(program).names_reserved_result(membership.value) {
         signature.return_type
     } else {
         mutable_parameter(program, signature, membership.value)?.type_reference

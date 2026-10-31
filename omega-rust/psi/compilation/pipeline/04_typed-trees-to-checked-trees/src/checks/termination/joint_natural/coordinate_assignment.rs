@@ -116,6 +116,7 @@ fn search(
                 primitive_type: coordinate.primitive,
                 observation: coordinate.observation,
                 function: order.function(),
+                application: candidates[position][chosen[position]].formation.clone(),
             })
         })
         .collect::<Option<Vec<_>>>();

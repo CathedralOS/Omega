@@ -2,6 +2,7 @@
 //! Closed copies still enter ordinary plan discovery; names in unrelated
 //! declarations never acquire template status from another scope.
 
+use crate::build_time_evaluation::type_references;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use syntax_trees::item::{
@@ -93,19 +94,14 @@ pub(super) fn scoped_template_applications(
                     &binders,
                     &mut deferred,
                 );
-                for parent in syntax
-                    .type_references
-                    .type_reference_handles(definition.parents)
-                {
+                for parent in type_references(syntax).type_reference_handles(definition.parents) {
                     visit_type(syntax, *parent, &binders, &mut deferred);
                 }
                 if let Some(reference) = definition.refines {
                     visit_type(syntax, reference, &binders, &mut deferred);
                 }
                 for bound in &definition.conformance_bounds {
-                    for argument in syntax
-                        .type_references
-                        .type_reference_handles(bound.arguments)
+                    for argument in type_references(syntax).type_reference_handles(bound.arguments)
                     {
                         visit_type(syntax, *argument, &binders, &mut deferred);
                     }
@@ -153,9 +149,8 @@ pub(super) fn scoped_template_applications(
                     &binders,
                     &mut deferred,
                 );
-                for argument in syntax
-                    .type_references
-                    .type_reference_handles(definition.trait_arguments)
+                for argument in
+                    type_references(syntax).type_reference_handles(definition.trait_arguments)
                 {
                     visit_type(syntax, *argument, &binders, &mut deferred);
                 }
@@ -265,10 +260,7 @@ fn visit_machine(
         deferred,
     );
     for clause in syntax.items.satisfies_clauses(machine.satisfies) {
-        for argument in syntax
-            .type_references
-            .type_reference_handles(clause.arguments)
-        {
+        for argument in type_references(syntax).type_reference_handles(clause.arguments) {
             visit_type(syntax, *argument, &binders, deferred);
         }
         visit_expression(syntax, clause.via_expression, &binders, deferred);
@@ -293,10 +285,7 @@ fn visit_machine(
         deferred,
     );
     for bound in &machine.conformance_bounds {
-        for argument in syntax
-            .type_references
-            .type_reference_handles(bound.arguments)
-        {
+        for argument in type_references(syntax).type_reference_handles(bound.arguments) {
             visit_type(syntax, *argument, &binders, deferred);
         }
     }
@@ -351,9 +340,7 @@ fn visit_type(
                     visit_expression(syntax, *maximum, binders, deferred);
                 }
                 if let TypeConstraintNode::Domain(domain) = constraint {
-                    for argument in syntax
-                        .type_references
-                        .type_reference_handles(domain.arguments)
+                    for argument in type_references(syntax).type_reference_handles(domain.arguments)
                     {
                         depends |= visit_type(syntax, *argument, binders, deferred);
                     }
@@ -379,10 +366,7 @@ fn visit_type(
             trait_arguments, ..
         } => {
             let mut depends = false;
-            for argument in syntax
-                .type_references
-                .type_reference_handles(*trait_arguments)
-            {
+            for argument in type_references(syntax).type_reference_handles(*trait_arguments) {
                 depends |= visit_type(syntax, *argument, binders, deferred);
             }
             depends
@@ -515,9 +499,8 @@ fn visit_expression(
         }
         ExpressionNode::Cast(cast) => {
             visit_type(syntax, cast.target_type, binders, deferred);
-            for argument in syntax
-                .type_references
-                .type_reference_handles(cast.semantic_domain_arguments)
+            for argument in
+                type_references(syntax).type_reference_handles(cast.semantic_domain_arguments)
             {
                 visit_type(syntax, *argument, binders, deferred);
             }
@@ -578,9 +561,8 @@ fn visit_facts(
             }
             syntax_trees::item::ProofFact::Membership(membership) => {
                 visit_expression(syntax, membership.value, binders, deferred);
-                for argument in syntax
-                    .type_references
-                    .type_reference_handles(membership.domain_arguments)
+                for argument in
+                    type_references(syntax).type_reference_handles(membership.domain_arguments)
                 {
                     visit_type(syntax, *argument, binders, deferred);
                 }

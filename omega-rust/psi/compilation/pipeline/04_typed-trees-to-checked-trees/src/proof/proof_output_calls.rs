@@ -1,5 +1,6 @@
 //! Proof-output call facts, open requirement checks and named witness lanes.
 
+use crate::flow::expressions;
 use crate::proof::proposition_vocabulary::{
     contract_proposition_labels, lower_checked_proposition_application,
 };
@@ -615,8 +616,7 @@ fn check_open_proof_output_requirement(
         program.primitive_type_reference(requirement.return_type),
         Some(typed_trees::types::PrimitiveType::I32 | typed_trees::types::PrimitiveType::Bool)
     ) && program.state_signature_parameters(requirement).is_empty()
-        && program
-            .expression_table
+        && expressions(program)
             .expression_handles(call.arguments)
             .is_empty()
         && program
@@ -781,8 +781,7 @@ fn checked_static_requirement_dispatch<'program>(
         )
         && program.state_signature_parameters(requirement).is_empty()
         && program.state_parameters(realization_state).is_empty()
-        && program
-            .expression_table
+        && expressions(program)
             .expression_handles(call.arguments)
             .is_empty()
         && !call.receiver.is_valid()
@@ -886,8 +885,7 @@ fn check_public_named_witness_lanes(
             return Err("each public named lane must contain one witness-bearing proposition");
         };
         if !proposition.binder_arguments.is_empty()
-            || !program
-                .expression_table
+            || !expressions(program)
                 .expression_handles(proposition.arguments)
                 .is_empty()
         {

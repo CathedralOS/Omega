@@ -19,7 +19,7 @@ use crate::git::objects::GitTreeEntry;
 use crate::limits::LocalSourceLimits;
 #[cfg(test)]
 use crate::limits::STAGING_SEQUENCE;
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 use bounded_process::BoundedProcessInput;
 
 #[cfg(test)]
@@ -51,10 +51,7 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
         let request_path = request.display_path.clone();
         write_git_batch_request(request.file_mut(), &request_path, &request_bytes)?;
         request.verify_current()?;
-        let stdin = request
-            .file()
-            .try_clone()
-            .map_err(|error| io_error(&request.display_path, error))?;
+        let stdin = request.file().try_clone().at(&request.display_path)?;
         execute_git_blob_batch(executor, repository.path(), stdin, entries, stdout_limit)
     })();
     let namespace_result = repository
@@ -91,7 +88,7 @@ pub(crate) fn read_git_blobs_batch_from_path(
         .write(true)
         .create_new(true)
         .open(&request_path)
-        .map_err(|error| io_error(&request_path, error))?;
+        .at(&request_path)?;
     write_git_batch_request(&mut request, &request_path, &request_bytes)?;
 
     let result = execute_git_blob_batch(executor, repository, request, entries, stdout_limit);
@@ -117,13 +114,11 @@ fn write_git_batch_request(
     request_path: &Path,
     bytes: &[u8],
 ) -> Result<(), SourceResolveError> {
-    request
-        .write_all(bytes)
-        .map_err(|error| io_error(request_path, error))?;
+    request.write_all(bytes).at(request_path)?;
     request
         .seek(SeekFrom::Start(0))
         .map(|_| ())
-        .map_err(|error| io_error(request_path, error))
+        .at(request_path)
 }
 
 fn execute_git_blob_batch(

@@ -8,18 +8,16 @@ machine Main::main(main: &mut Main) reaches Console {
     machine good(main: &mut Main) { Console::exit_process(70); }
     machine bad(main: &mut Main) { Console::exit_process(1); }
 }
-machine Main::ping(main: &mut Main, n: u64)
-terminates by n;
--> u64
+machine Main::ping(main: &mut Main, n: u64) -> u64
+terminates by n
 {
     transition n == 0 {
         true -> (0)
         _ -> Main::pong(main, n)
     }
 }
-machine Main::pong(main: &mut Main, n: u64)
-terminates by n;
--> u64
+machine Main::pong(main: &mut Main, n: u64) -> u64
+terminates by n
 {
     transition n == 0 {
         true -> (0)

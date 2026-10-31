@@ -17,6 +17,7 @@ use super::inference::FrameInference;
 use super::local_aliases::stable_alias_place_origins;
 use super::place_paths::{FramePlaceOrigin, coarse_place_path};
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::declared_place_type_raw;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
@@ -49,7 +50,7 @@ pub(super) fn known_wire_codec_call_written_paths(
 ) -> Option<Vec<String>> {
     let mut written = Vec::new();
     for argument in program.statement_table.expression_handles(call.arguments) {
-        match program.expression_table.expression(*argument) {
+        match expression_table(program).expression(*argument) {
             ExpressionNode::Borrow(borrow) => {
                 if !borrow.access.is_exclusive() {
                     continue;
@@ -83,10 +84,9 @@ pub(super) fn known_wire_codec_call_written_paths(
                 }
                 // A stable binding may carry a finite union in the caller's
                 // prefix. Projections use the shared declared-leaf resolver.
-                let binding = program
-                    .expression_table
+                let binding = expression_table(program)
                     .name_path_node(*argument)
-                    .is_some_and(|name| program.expression_table.name_path_is_single_member(name));
+                    .is_some_and(|name| expression_table(program).name_path_is_single_member(name));
                 let origins = (binding && access.is_some_and(|access| access.is_exclusive()))
                     .then(|| {
                         stable_alias_place_origins(

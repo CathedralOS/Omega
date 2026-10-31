@@ -23,11 +23,8 @@ use crate::SourceResolveError;
 pub(crate) fn open_canonical_source_root(
     canonical_root: &Path,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(canonical_root)
-        .map_err(|error| io_error(canonical_root, error))?;
-    let metadata = directory
-        .dir_metadata()
-        .map_err(|error| io_error(canonical_root, error))?;
+    let directory = open_absolute_directory_nofollow(canonical_root).at(canonical_root)?;
+    let metadata = directory.dir_metadata().at(canonical_root)?;
     if !metadata.is_dir() {
         return Err(SourceResolveError::NotDirectory {
             path: canonical_root.to_path_buf(),
@@ -83,12 +80,8 @@ pub(crate) fn open_captured_directory(
     name: &OsStr,
     display_path: &Path,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let child = directory
-        .open_dir_nofollow(name)
-        .map_err(|error| io_error(display_path, error))?;
-    let metadata = child
-        .dir_metadata()
-        .map_err(|error| io_error(display_path, error))?;
+    let child = directory.open_dir_nofollow(name).at(display_path)?;
+    let metadata = child.dir_metadata().at(display_path)?;
     if !metadata.is_dir() {
         return Err(SourceResolveError::UnsupportedFileType {
             path: display_path.to_path_buf(),
@@ -106,12 +99,8 @@ pub(crate) fn read_capability_file_bounded(
 ) -> Result<(Vec<u8>, bool), SourceResolveError> {
     let mut options = CapabilityOpenOptions::new();
     options.read(true).follow(FollowSymlinks::No);
-    let mut file = directory
-        .open_with(name, &options)
-        .map_err(|error| io_error(display_path, error))?;
-    let metadata = file
-        .metadata()
-        .map_err(|error| io_error(display_path, error))?;
+    let mut file = directory.open_with(name, &options).at(display_path)?;
+    let metadata = file.metadata().at(display_path)?;
     let bytes = read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit)?;
     source::read_accounting::record_source_file_read(
         "tree_capture",
@@ -120,9 +109,7 @@ pub(crate) fn read_capability_file_bounded(
     );
     // Resolve the final name through the retained parent, never the diagnostic
     // path: the parent may have been renamed since acquisition.
-    let final_entry = directory
-        .symlink_metadata(name)
-        .map_err(|error| io_error(display_path, error))?;
+    let final_entry = directory.symlink_metadata(name).at(display_path)?;
     require_unchanged_source_file(&metadata, &final_entry, display_path)?;
     Ok((bytes, capability_metadata_is_executable(&metadata)))
 }
@@ -151,9 +138,7 @@ fn read_opened_file_bounded(
         .map_err(|_| SourceResolveError::TooManyBytes { limit })?;
     let mut chunk = [0_u8; 64 * 1024];
     loop {
-        let count = file
-            .read(&mut chunk)
-            .map_err(|error| io_error(display_path, error))?;
+        let count = file.read(&mut chunk).at(display_path)?;
         if count == 0 {
             break;
         }
@@ -171,9 +156,7 @@ fn read_opened_file_bounded(
             path: display_path.to_path_buf(),
         });
     }
-    let completed = file
-        .metadata()
-        .map_err(|error| io_error(display_path, error))?;
+    let completed = file.metadata().at(display_path)?;
     require_unchanged_source_file(metadata, &completed, display_path)?;
     Ok(bytes)
 }
@@ -223,12 +206,8 @@ pub(crate) fn require_unchanged_entry(
                 if initial_volume == observed_volume && initial_index == observed_index
         )
     };
-    let same_modified = initial
-        .modified()
-        .map_err(|error| io_error(display_path, error))?
-        == observed
-            .modified()
-            .map_err(|error| io_error(display_path, error))?;
+    let same_modified =
+        initial.modified().at(display_path)? == observed.modified().at(display_path)?;
     #[cfg(unix)]
     let same_change_time = {
         use cap_fs_ext::OsMetadataExt;
@@ -285,6 +264,17 @@ pub(crate) fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError
     SourceResolveError::Io {
         path: path.to_path_buf(),
         message: error.to_string(),
+    }
+}
+
+/// Attributes a failed host operation to the path the caller was working on.
+pub(crate) trait IoResultAt<T> {
+    fn at(self, path: &Path) -> Result<T, SourceResolveError>;
+}
+
+impl<T> IoResultAt<T> for Result<T, std::io::Error> {
+    fn at(self, path: &Path) -> Result<T, SourceResolveError> {
+        self.map_err(|error| io_error(path, error))
     }
 }
 

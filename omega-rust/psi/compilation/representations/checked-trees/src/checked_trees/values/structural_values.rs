@@ -583,6 +583,23 @@ impl CheckedStructuralValuePlans {
             .with_rows(&self.roots, |root| root.machine, &machine, run)
     }
 
+    /// The one root in `state` `keep` selects; `None` when its bucket holds
+    /// none or more than one, so an ambiguous coordinate never resolves.
+    fn unique_state_root(
+        &self,
+        state: SymbolHandle,
+        keep: impl Fn(&CheckedStructuralValueRoot) -> bool,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        self.with_state_roots(state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| keep(root));
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
+    }
+
     pub fn with_state_nodes<R>(
         &self,
         state: SymbolHandle,
@@ -634,18 +651,11 @@ impl CheckedStructuralValuePlans {
         statement_ordinal: u32,
         expression: ExpressionHandle,
     ) -> Option<&CheckedStructuralValueRoot> {
-        self.with_state_roots(state, |handles| {
-            let mut roots = handles
-                .iter()
-                .map(|handle| self.roots.get(*handle))
-                .filter(|root| {
-                    !root.captured_copy.is_valid()
-                        && root.state == state
-                        && root.statement_ordinal == statement_ordinal
-                        && root.expression == expression
-                });
-            let root = roots.next()?;
-            roots.next().is_none().then_some(root)
+        self.unique_state_root(state, |root| {
+            !root.captured_copy.is_valid()
+                && root.state == state
+                && root.statement_ordinal == statement_ordinal
+                && root.expression == expression
         })
     }
 
@@ -735,17 +745,8 @@ impl CheckedStructuralValuePlans {
         if !copy.is_valid() {
             return None;
         }
-        self.with_state_roots(state, |handles| {
-            let mut roots = handles
-                .iter()
-                .map(|handle| self.roots.get(*handle))
-                .filter(|root| {
-                    root.state == state
-                        && root.statement_ordinal == statement
-                        && root.captured_copy == copy
-                });
-            let root = roots.next()?;
-            roots.next().is_none().then_some(root)
+        self.unique_state_root(state, |root| {
+            root.state == state && root.statement_ordinal == statement && root.captured_copy == copy
         })
     }
 
@@ -759,14 +760,7 @@ impl CheckedStructuralValuePlans {
             return None;
         }
         let node = self.nodes.get(value);
-        self.with_state_roots(node.state, |handles| {
-            let mut roots = handles
-                .iter()
-                .map(|handle| self.roots.get(*handle))
-                .filter(|root| root.root == value);
-            let root = roots.next()?;
-            roots.next().is_none().then_some(root)
-        })
+        self.unique_state_root(node.state, |root| root.root == value)
     }
 
     pub fn root_at(
@@ -774,17 +768,10 @@ impl CheckedStructuralValuePlans {
         state: SymbolHandle,
         statement_ordinal: u32,
     ) -> Option<&CheckedStructuralValueRoot> {
-        self.with_state_roots(state, |handles| {
-            let mut roots = handles
-                .iter()
-                .map(|handle| self.roots.get(*handle))
-                .filter(|root| {
-                    !root.captured_copy.is_valid()
-                        && root.state == state
-                        && root.statement_ordinal == statement_ordinal
-                });
-            let root = roots.next()?;
-            roots.next().is_none().then_some(root)
+        self.unique_state_root(state, |root| {
+            !root.captured_copy.is_valid()
+                && root.state == state
+                && root.statement_ordinal == statement_ordinal
         })
     }
 }

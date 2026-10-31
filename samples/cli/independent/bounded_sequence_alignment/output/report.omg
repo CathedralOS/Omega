@@ -13,7 +13,7 @@ ensures result.len == count as u64
 }
 
 public machine number(value: i32 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition value >= 0 && value <= 48 { true -> digits(value) false -> bad() }
     machine digits(value: i32 in Wrapping) {
@@ -28,7 +28,7 @@ invokes Console;
 }
 
 public machine report(result: &alignment::local::Alignment) reaches Console
-invokes Console;
+invokes Console
 {
     transition result.columns >= 0 && result.columns <= 32 {
         true -> windows(result)

@@ -38,10 +38,7 @@ impl TerminalExecution<'_> {
                 let (owner, _) = self.mutable_byte_sequence_storage(*destination)?;
                 let terminal_psi::StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                ) = self
-                    .program
-                    .structural_declaration(value.structural_type)?
-                    .shape
+                ) = self.structural_declaration(value.structural_type)?.shape
                 else {
                     return Err(malformed());
                 };

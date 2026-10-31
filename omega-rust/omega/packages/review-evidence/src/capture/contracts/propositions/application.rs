@@ -27,10 +27,9 @@ fn require_exact_reference_argument(
         argument,
         expected_type,
     ) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` reference argument does not match its proposition parameter type",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(
+            context.rejected("reference argument does not match its proposition parameter type")
+        );
     }
     Ok(())
 }
@@ -49,26 +48,21 @@ pub(crate) fn project_contract_proposition(
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     if depth >= 64 {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` proposition expansion exceeds the package-review depth limit",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(
+            context.rejected("proposition expansion exceeds the package-review depth limit")
+        );
     }
     if visiting.contains(&application.proposition) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` proposition expansion is cyclic",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("proposition expansion is cyclic"));
     }
     if application.proposition.is_valid()
         && compilation.typed.symbols.get(application.proposition).kind
             == symbols::SymbolKind::PropositionParameter
     {
         if !application.binder_arguments.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` generic proposition endpoint has unexpected static arguments",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(
+                context.rejected("generic proposition endpoint has unexpected static arguments")
+            );
         }
         let matching_parameters = compilation
             .typed
@@ -78,18 +72,15 @@ pub(crate) fn project_contract_proposition(
             .filter(|parameter| parameter.symbol == application.proposition)
             .collect::<Vec<_>>();
         let [parameter] = matching_parameters.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` generic proposition endpoint rejoins {} declaration parameters; expected exactly one",
-                context.subject_kind,
-                context.subject_name,
-                matching_parameters.len()
-            ))]);
+            return Err(context.rejected(format!(
+                "generic proposition endpoint rejoins {} declaration parameters; expected exactly one",
+                matching_parameters.len(),
+            )));
         };
         let typed_trees::data::TypeParameterKind::Proposition { contract } = &parameter.kind else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` generic proposition endpoint does not rejoin a proposition-family signature",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected(
+                "generic proposition endpoint does not rejoin a proposition-family signature",
+            ));
         };
         let argument_handles = compilation
             .expression_table
@@ -99,10 +90,9 @@ pub(crate) fn project_contract_proposition(
             .state_parameters
             .span_or_empty(contract.parameters);
         if argument_handles.len() != parameters.len() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` generic proposition endpoint has inconsistent checked arity",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(
+                context.rejected("generic proposition endpoint has inconsistent checked arity")
+            );
         }
         for (argument, parameter) in argument_handles.iter().zip(parameters) {
             require_exact_reference_argument(
@@ -128,12 +118,10 @@ pub(crate) fn project_contract_proposition(
             }
         }
         let [binder_ordinal] = matching_ordinals.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` generic proposition endpoint rejoins {} callable static binders; expected exactly one",
-                context.subject_kind,
-                context.subject_name,
-                matching_ordinals.len()
-            ))]);
+            return Err(context.rejected(format!(
+                "generic proposition endpoint rejoins {} callable static binders; expected exactly one",
+                matching_ordinals.len(),
+            )));
         };
         let arguments = argument_handles
             .iter()
@@ -160,10 +148,7 @@ pub(crate) fn project_contract_proposition(
     let declaration = compilation
         .proposition_definition_by_symbol(application.proposition)
         .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract refers to an unresolved or generic proposition endpoint",
-                context.subject_kind, context.subject_name
-            ))]
+            context.rejected("contract refers to an unresolved or generic proposition endpoint")
         })?;
     let declaration_binders = compilation.proposition_binders(declaration);
     let declaration_parameters = compilation.proposition_parameters(declaration);
@@ -174,10 +159,10 @@ pub(crate) fn project_contract_proposition(
                 .expression_handles(application.arguments)
                 .len()
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` proposition `{}` has inconsistent checked arity",
-            context.subject_kind, context.subject_name, declaration.name
-        ))]);
+        return Err(context.rejected(format!(
+            "proposition `{}` has inconsistent checked arity",
+            declaration.name
+        )));
     }
     let binder_arguments = declaration_binders
         .iter()
@@ -195,10 +180,10 @@ pub(crate) fn project_contract_proposition(
                 }
             };
             if argument.kind != expected {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` proposition `{}` binder kind changed during typing",
-                    context.subject_kind, context.subject_name, declaration.name
-                ))]);
+                return Err(context.rejected(format!(
+                    "proposition `{}` binder kind changed during typing",
+                    declaration.name
+                )));
             }
             project_proposition_binder_argument(
                 compilation,

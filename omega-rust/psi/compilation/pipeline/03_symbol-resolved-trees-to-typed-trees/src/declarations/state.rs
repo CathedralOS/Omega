@@ -1,5 +1,8 @@
 use crate::expressions::statement::lower_statement;
 use crate::lowerer::Lowerer;
+use crate::tables::expression_table;
+use crate::tables::resolved_statements;
+use crate::tables::statement_table_mut;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -60,12 +63,7 @@ pub(crate) fn complete_state_body(
             "state body completion does not match its retained declaration",
         ));
     }
-    let statements = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .statements
-        .statements(state.statement_nodes);
+    let statements = resolved_statements(lowerer.source_trees).statements(state.statement_nodes);
     let mut pending = Vec::new();
     for (index, statement) in statements.iter().enumerate() {
         let closes_run = matches!(statement,
@@ -131,10 +129,8 @@ pub(crate) fn complete_state_body(
         )?);
     }
 
-    typed_state.statement_nodes = lowerer
-        .typed_trees
-        .statement_table
-        .insert_statements(pending);
+    typed_state.statement_nodes =
+        statement_table_mut(&mut lowerer.typed_trees).insert_statements(pending);
     Ok(())
 }
 
@@ -173,13 +169,8 @@ fn proof_output_runtime_call(
     lowerer: &mut Lowerer,
     call_handle: typed::expression::ExpressionHandle,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
-    let source_span = lowerer
-        .typed_trees
-        .expression_table
-        .source_span(call_handle);
-    let typed::expression::ExpressionNode::Call(call) = lowerer
-        .typed_trees
-        .expression_table
+    let source_span = expression_table(&lowerer.typed_trees).source_span(call_handle);
+    let typed::expression::ExpressionNode::Call(call) = expression_table(&lowerer.typed_trees)
         .expression(call_handle)
         .clone()
     else {
@@ -188,10 +179,8 @@ fn proof_output_runtime_call(
         ));
     };
     let mut call_occurrences = Vec::new();
-    for occurrence in lowerer
-        .typed_trees
-        .expression_table
-        .authored_selection_occurrences(call_handle)
+    for occurrence in
+        expression_table(&lowerer.typed_trees).authored_selection_occurrences(call_handle)
     {
         let Some(selection) = lowerer
             .typed_trees
@@ -226,10 +215,7 @@ fn proof_output_runtime_call(
             .ok_or_else(|| Diagnostic::error("proof-output call receiver must be a name path"))?;
     let mut receiver = arena::HandleSpan::empty();
     for member in receiver_members {
-        lowerer
-            .typed_trees
-            .statement_table
-            .push_name_path_member(&mut receiver, member);
+        statement_table_mut(&mut lowerer.typed_trees).push_name_path_member(&mut receiver, member);
     }
     // Expression and statement calls own distinct argument-list arenas. Keep
     // the expression identities, but allocate the list in its new owner.
@@ -287,8 +273,7 @@ fn proof_output_receiver_parts(
         typed::expression::ExpressionNode::Name(path) => Some((
             path.head_symbol,
             path.symbol,
-            program
-                .expression_table
+            expression_table(program)
                 .name_path_members(path.members)
                 .to_vec(),
         )),

@@ -6,7 +6,7 @@ use configuration::ROOM_HEIGHT;
 use configuration::MAX_MOVEMENT_STEP;
 
 public machine step_x(position: Position, direction: i32, speed: i32) -> i32
-terminates;
+terminates
 requires direction >= 0 && direction < 4 && speed >= 0 && speed <= MAX_MOVEMENT_STEP
 ensures result >= -MAX_MOVEMENT_STEP && result < ROOM_WIDTH + MAX_MOVEMENT_STEP {
     transition direction {
@@ -17,7 +17,7 @@ ensures result >= -MAX_MOVEMENT_STEP && result < ROOM_WIDTH + MAX_MOVEMENT_STEP 
 }
 
 public machine step_y(position: Position, direction: i32, speed: i32) -> i32
-terminates;
+terminates
 requires direction >= 0 && direction < 4 && speed >= 0 && speed <= MAX_MOVEMENT_STEP
 ensures result >= -MAX_MOVEMENT_STEP && result < ROOM_HEIGHT + MAX_MOVEMENT_STEP {
     transition direction {

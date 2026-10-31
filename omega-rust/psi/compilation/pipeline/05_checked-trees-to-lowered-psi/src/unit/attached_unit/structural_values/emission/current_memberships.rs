@@ -2,6 +2,7 @@
 //! Unchanged Contents receipts preserve producer guarantees, while changed subjects
 //! require live contextual or completed Content evidence. Receiver types mint nothing.
 use super::{Emission, LoweringError, StructuralArgument};
+use crate::checked_facts::flow_facts;
 use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
 
 mod descriptor_bindings;
@@ -193,18 +194,14 @@ impl Emission<'_, '_, '_> {
             .operations
             .structural_materialization_statement(source.place, self.state)?
             .and_then(|birth| {
-                self.checked
-                    .facts
-                    .flow
+                flow_facts(&self.checked)
                     .control
                     .states
                     .iter()
                     .find_map(|(_, state)| {
                         (state.state_symbol == self.state)
                             .then(|| {
-                                self.checked
-                                    .facts
-                                    .flow
+                                flow_facts(&self.checked)
                                     .control
                                     .statements
                                     .span_or_empty(state.statements)
@@ -277,10 +274,7 @@ impl Emission<'_, '_, '_> {
                 {
                     return true;
                 }
-                let contexts = self
-                    .checked
-                    .facts
-                    .flow
+                let contexts = flow_facts(&self.checked)
                     .contexts
                     .semantic_constraint_contexts(operand.constraints)
                     .collect::<Vec<_>>();

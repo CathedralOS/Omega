@@ -1,13 +1,26 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedScope, CheckedScope>(builder, linux_x86_64);
+    Build::select_provider<SelectedScope, CheckedScope>(builder, linux_arm64);
+    Build::select_provider<SelectedScope, CheckedScope>(builder, macos_arm64);
+    Build::select_provider<SelectedScope, CheckedScope>(builder, windows_x86_64);
+
  Build::application(builder, "nominal_loan_target_body");
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, linux_arm64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, linux_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, macos_arm64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, macos_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, windows_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, uefi_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, cross_platform_cli);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, local_unchecked);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, alpha_bootstrap);
+ Build::select_provider<Console, PosixConsoleWrite>(builder, linux_arm64);
+ Build::select_provider<Console, PosixConsoleWrite>(builder, linux_x86_64);
+ Build::select_provider<Console, PosixConsoleWrite>(builder, macos_arm64);
+
+ Build::select_provider<Console, WindowsConsoleWrite>(builder, windows_x86_64);
+
  Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<PosixConsoleIo::write>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } });
+ Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "msvcrt.dll", export: "_write"
+    } });
+
+ Build::bind<PosixConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+ Build::bind<PosixConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
 }

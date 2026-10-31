@@ -35,9 +35,7 @@ pub(crate) fn encode_value_placement(
     })?;
     encoder.u32_field("byte_size", shape.byte_size())?;
     encoder.u16_field("alignment", shape.alignment())?;
-    encoder.field("locations", |encoder| {
-        encoder.sequence(placement.locations(), encode_value_location)
-    })
+    encoder.sequence_field("locations", placement.locations(), encode_value_location)
 }
 
 fn encode_value_location(

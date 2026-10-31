@@ -44,6 +44,9 @@ mod symbols;
 // Not a phase: reached from preparation, lowering and the route alike.
 mod constant;
 
+// Read views onto the carrier's tables, reached from every phase.
+mod tables;
+
 // The entrance, its post-base re-entry, and the requests and carriers both
 // name.
 pub use resolution::{

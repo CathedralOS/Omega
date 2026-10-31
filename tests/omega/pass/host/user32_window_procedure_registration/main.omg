@@ -35,7 +35,7 @@ satisfies CallingPolicy::plan {
  _ -> reject()
  }
  machine build(signature: BoundarySignature, p0: u64, p1: u64, p2: u64, p3: u64, p4: u64, p5: u64, p6: u64, p7: u64, p8: u64, p9: u64, p10: u64, p11: u64, result: u64) -> BoundaryPlanResult
- requires p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && p4 < 256 && p5 < 256 && p6 < 256 && p7 < 256 && p8 < 256 && p9 < 256 && p10 < 256 && p11 < 256 && result < 256 && signature.parameter_count <= 12 && signature.parameter_count == signature.native_parameter_count && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1; {
+ requires p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && p4 < 256 && p5 < 256 && p6 < 256 && p7 < 256 && p8 < 256 && p9 < 256 && p10 < 256 && p11 < 256 && result < 256 && signature.parameter_count <= 12 && signature.parameter_count == signature.native_parameter_count && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1 {
  let mut output: BoundaryEntryPlan = User32Policy::initial(signature.parameter_count);
  output.call.parameters[0] = User32Policy::word(signature.shapes[p0].byte_size, signature.shapes[p0].alignment, MachineRegister::X86Rcx);
  output.call.parameters[1] = User32Policy::word(signature.shapes[p1].byte_size, signature.shapes[p1].alignment, MachineRegister::X86Rdx);
@@ -51,7 +51,7 @@ satisfies CallingPolicy::plan {
  output.call.parameters[11] = User32Policy::stack_word(signature.shapes[p11].byte_size, signature.shapes[p11].alignment, 88);
  transition signature.has_result { true -> with_result(signature, output, result) _ -> callbacks(signature, output) }
  }
- machine with_result(signature: BoundarySignature, output: BoundaryEntryPlan, result: u64) -> BoundaryPlanResult requires result < 256; {
+ machine with_result(signature: BoundarySignature, output: BoundaryEntryPlan, result: u64) -> BoundaryPlanResult requires result < 256 {
  let mut bound: BoundaryEntryPlan = output;
  bound.call.has_result = true;
  bound.call.result = User32Policy::word(signature.shapes[result].byte_size, signature.shapes[result].alignment, MachineRegister::X86Rax);
@@ -85,7 +85,7 @@ machine User32Policy::word(bytes: u64, alignment: u64, register: MachineRegister
  placement
 }
 
-machine User32Policy::initial(count: u64) -> BoundaryEntryPlan requires count <= 32; {
+machine User32Policy::initial(count: u64) -> BoundaryEntryPlan requires count <= 32 {
     let mut plan: BoundaryEntryPlan;
     plan.call.parameter_count = count;
     plan.call.convention = CallingConvention::MicrosoftX64;
@@ -122,7 +122,7 @@ boundary trait WindowProcedure: Calling<User32PolicyCalling> {
 
 ProcedureSlot satisfies PrivateCallbackSlot<ClassHeader, ClassLayout, WindowProcedure::call> { }
 ClassLayout satisfies FixedLayout<ClassHeader> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
  let mut entries: [FieldEntry; 64];
  entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
  entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
@@ -295,10 +295,10 @@ boundary trait Registrar {
  machine register<machine Selected>(name: &[u8; 13], capacity: Registration in Registration::Available, extra_window_bytes: i32) -> Outcome
  requires machine Selected satisfies WindowProcedure::call;
  reaches ClassApi + ModuleApi
- invokes ClassApi;
+ invokes ClassApi
  invokes ModuleApi;
  machine unregister(registration: Registration in Registration::Installed) -> Removal reaches ClassApi + ModuleApi
- invokes ClassApi;
+ invokes ClassApi
  invokes ModuleApi;
 }
 data RegistrarProvider { }
@@ -363,11 +363,11 @@ reaches ContextApi {
 data Main { name: [u8; 13]; message: [u64; 6]; }
 machine Main::main(main: &mut Main)
 reaches Registrar + ModuleApi + ClassApi + ContextApi + WindowProcedure + Console
-invokes ClassApi;
-invokes Registrar;
-invokes ModuleApi;
-invokes ContextApi;
-invokes Console;
+invokes ClassApi
+invokes Registrar
+invokes ModuleApi
+invokes ContextApi
+invokes Console
 {
  main.name[0] = 79;
  main.name[1] = 109;
@@ -481,11 +481,11 @@ invokes Console;
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start()
 reaches Registrar + ModuleApi + ClassApi + ContextApi + WindowProcedure + Console
-invokes ClassApi;
-invokes Registrar;
-invokes ModuleApi;
-invokes ContextApi;
-invokes Console;
+invokes ClassApi
+invokes Registrar
+invokes ModuleApi
+invokes ContextApi
+invokes Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

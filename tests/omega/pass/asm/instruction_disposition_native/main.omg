@@ -11,7 +11,7 @@ proposition finished(token: Token) = model_specific_written(2059, 0);
 machine finish(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
@@ -42,7 +42,7 @@ machine main() reaches MachineControl {
 machine finish_at_exit(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
@@ -50,7 +50,7 @@ ensures finished(token);
 }
 
 machine write_eoi() reaches MachineControl
-ensures model_specific_written(2059, 0);
+ensures model_specific_written(2059, 0)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
@@ -59,7 +59,7 @@ ensures model_specific_written(2059, 0);
 machine finish_via_helper(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     write_eoi();
 }
@@ -91,7 +91,7 @@ reaches MachineControl
 }
 
 machine write_two_eoi() reaches MachineControl
-ensures model_specific_written(2059, 0);
+ensures model_specific_written(2059, 0)
 {
     write_eoi();
     write_eoi();
@@ -120,7 +120,7 @@ reaches MachineControl
 }
 
 machine write_eoi_by_choice(enabled: bool) reaches MachineControl
-ensures model_specific_written(2059, 0);
+ensures model_specific_written(2059, 0)
 {
     transition enabled { true -> left() false -> right() }
     machine left() { write_eoi(); }
@@ -133,7 +133,7 @@ ChoiceFinisher satisfies FinishByChoice { FinishByChoice::finish = finish_by_cho
 machine finish_by_choice(token: Token, enabled: bool)
 satisfies FinishByChoice::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 { write_eoi_by_choice(enabled); }
 
 machine forward(token: Token) -> Token {
@@ -143,7 +143,7 @@ machine forward(token: Token) -> Token {
 machine finish_via_result(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     let forwarded: Token = forward(token);
     write_eoi();
@@ -152,8 +152,8 @@ ensures finished(token);
 }
 
 machine write_eoi_bool() -> bool reaches MachineControl
-ensures model_specific_written(2059, 0);
-ensures result == true;
+ensures model_specific_written(2059, 0)
+ensures result == true
 {
     write_eoi();
     true
@@ -161,7 +161,7 @@ ensures result == true;
 machine finish_via_match(token: Token)
 satisfies Finish::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     let selected: u32 = match write_eoi_bool() { true -> 0, false -> 1 };
     let mut marker: u32 = selected;

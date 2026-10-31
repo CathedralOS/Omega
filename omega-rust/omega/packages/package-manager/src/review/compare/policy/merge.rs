@@ -31,9 +31,7 @@ pub(super) fn append_rows(
         Ok(())
     })?;
     budget.changed(count, bytes)?;
-    result
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    super::limits::reserve(&mut *result, count)?;
     let mut old = baseline.into_iter().peekable();
     let mut new = candidate.into_iter().peekable();
     while old.peek().is_some() || new.peek().is_some() {

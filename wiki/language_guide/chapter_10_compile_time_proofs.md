@@ -240,7 +240,7 @@ The machine contract is the same whether you execute it or use it in a proof:
 
 ```omega
 machine remaining(total: Nat, used: Nat) -> Nat
-requires used <= total;
+requires used <= total
 {
     transition { _ -> (total - used) }
 }
@@ -448,7 +448,7 @@ An extraction theorem can connect such a definition to arbitrary elements:
 machine sorted_extracts(items: &[i32], i: u64, j: u64)
 requires sorted(items) == true && i < j && j < items.len
 ensures items[i] <= items[j]
-terminates by i -> Nat::IncreasingTo(j);
+terminates by i -> Nat::IncreasingTo(j)
 {
     ... // induction and supporting definition omitted
 }
@@ -533,7 +533,7 @@ or a member of service reach. A ranking chooses subjects and a well-founded view
 
 ```omega
 machine walk(items: &[Nat])
-terminates by items -> Slice::Length;
+terminates by items -> Slice::Length
 {
     ... // traversal omitted
 }

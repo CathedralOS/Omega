@@ -2,7 +2,7 @@ data Item { code: u64; }
 proposition valid<Type>(value: &Type);
 
 machine inspect(value: Item)
-requires valid<Item>(&value);
+requires valid<Item>(&value)
 {}
 
 machine main() {}

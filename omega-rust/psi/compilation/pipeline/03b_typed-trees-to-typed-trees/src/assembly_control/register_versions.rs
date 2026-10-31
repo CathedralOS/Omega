@@ -2,6 +2,7 @@
 //! register data flow, not an optimization: retaining the pre-write symbol
 //! keeps arithmetic premises and ZF's exact result relation alive independently
 //! of later writes to that register. Edges transport only the latest versions.
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
@@ -31,7 +32,7 @@ pub(super) fn destination(
     else {
         return Ok(None);
     };
-    if !matches!(program.expression_table.expression(target), ExpressionNode::Name(path)
+    if !matches!(expressions_of(program).expression(target), ExpressionNode::Name(path)
         if path.head_symbol == root && path.symbol == root && path.members.len() == 1)
     {
         return Err(Diagnostic::error(
@@ -67,7 +68,7 @@ pub(super) fn statement(
     );
     for expression in expressions {
         let typed_trees::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(expression)
+            expressions_of(program).expression(expression)
         else {
             continue;
         };
@@ -79,11 +80,9 @@ pub(super) fn statement(
         }
         let mut members = HandleSpan::empty();
         let identifier = Identifier::generated(program.symbols.name(path.symbol));
-        program
-            .expression_table
-            .push_name_path_member(&mut members, identifier);
+        expressions_of_mut(program).push_name_path_member(&mut members, identifier);
         let typed_trees::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression_mut(expression)
+            expressions_of_mut(program).expression_mut(expression)
         else {
             unreachable!()
         };

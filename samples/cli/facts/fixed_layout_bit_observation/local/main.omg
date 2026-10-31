@@ -5,7 +5,7 @@ public domain u64::Delivered requires self >= 5u64 && self <= 7u64;
 public domain u64::Nibble requires self <= 15u64;
 public data PackedFlags [copy] { present: bool; mode: u64 in Delivered; code: u64 in Nibble; }
 CompactBits satisfies FixedLayout<PackedFlags> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

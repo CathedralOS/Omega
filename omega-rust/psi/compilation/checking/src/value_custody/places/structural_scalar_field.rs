@@ -22,6 +22,7 @@
 //! Resolve members beneath that shell while retaining the qualified source
 //! type. This read establishes no membership and discharges no owner claim.
 
+use crate::frozen_program::expression_table;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
@@ -206,7 +207,7 @@ fn structural_field_observation(
     let mut visits = 0;
     let local = loop {
         visits += 1;
-        if visits > program.expression_table.expression_count() {
+        if visits > expression_table(program).expression_count() {
             return None;
         }
         if !steps.is_empty()
@@ -215,11 +216,10 @@ fn structural_field_observation(
         {
             break source;
         }
-        match program.expression_table.expression(receiver) {
+        match expression_table(program).expression(receiver) {
             ExpressionNode::Name(name)
                 if name.head_symbol == name.symbol
-                    && program
-                        .expression_table
+                    && expression_table(program)
                         .name_path_members(name.members)
                         .len()
                         == 1
@@ -231,7 +231,7 @@ fn structural_field_observation(
                     return None;
                 }
                 receiver = *actual;
-                if steps.len() + 1 >= program.expression_table.expression_count() {
+                if steps.len() + 1 >= expression_table(program).expression_count() {
                     return None;
                 }
             }
@@ -299,8 +299,7 @@ fn structural_field_observation(
                 if !value_coordinate(*occurrence, carrier) {
                     return None;
                 }
-                let index = program
-                    .expression_table
+                let index = expression_table(program)
                     .constant_integer_value(*index)
                     .and_then(|index| u64::try_from(index).ok())?;
                 if usize::try_from(index).ok()? >= *length {
@@ -341,8 +340,7 @@ fn structural_field_observation(
             if !value_coordinate(occurrence, carrier) {
                 return None;
             }
-            let index = program
-                .expression_table
+            let index = expression_table(program)
                 .constant_integer_value(index)
                 .and_then(|index| u64::try_from(index).ok())?;
             if usize::try_from(index).ok()? >= *length {
@@ -604,7 +602,7 @@ fn expression_at_statement(
     statement: &StatementNode,
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return false;
     }
     let mut pending =
@@ -620,7 +618,7 @@ fn expression_at_statement(
         visited.push(handle);
         crate::expression_traversal::children(
             program,
-            program.expression_table.expression(handle),
+            expression_table(program).expression(handle),
             |child| pending.push(child),
         );
     }
@@ -639,7 +637,7 @@ pub fn saved_dispatch_subject(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<(usize, ExpressionHandle)> {
-    let table = &program.expression_table;
+    let table = expression_table(program);
     if !table.expression_is_valid(expression)
         || !matches!(table.expression(expression), ExpressionNode::Call(_))
     {
@@ -678,7 +676,7 @@ pub fn saved_dispatch_call(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<(usize, ExpressionHandle)> {
-    let table = &program.expression_table;
+    let table = expression_table(program);
     if !table.expression_is_valid(expression)
         || !matches!(table.expression(expression), ExpressionNode::Call(_))
     {
@@ -761,7 +759,7 @@ fn same_authored_call(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    let table = &program.expression_table;
+    let table = expression_table(program);
     if !matches!(table.expression(left), ExpressionNode::Call(_))
         || !matches!(table.expression(right), ExpressionNode::Call(_))
         || !table.expressions_structurally_equal(left, right)
@@ -782,7 +780,7 @@ fn dispatch_case_subject(
     let TransitionGuardNode::When(mut guard) = transition.guard else {
         return None;
     };
-    let table = &program.expression_table;
+    let table = expression_table(program);
     for _ in 0..table.expression_count() {
         let Some(binary) = table.binary_node(guard) else {
             return None;
@@ -829,7 +827,7 @@ pub fn structural_source(
 ) -> Option<StructuralSource> {
     if !machine.is_valid()
         || !state.is_valid()
-        || !program.expression_table.expression_is_valid(expression)
+        || !expression_table(program).expression_is_valid(expression)
     {
         return None;
     }
@@ -858,9 +856,9 @@ pub fn structural_source(
         return None;
     }
     let (root, receiver_value, ordinal, source_type) = if let ExpressionNode::SavedSubject(saved) =
-        program.expression_table.expression(receiver_expression)
+        expression_table(program).expression(receiver_expression)
         && matches!(
-            program.expression_table.value_capture(saved.capture).owner,
+            expression_table(program).value_capture(saved.capture).owner,
             typed_trees::expression::ValueCaptureOwner::Match
         ) {
         // The match's subject producer dominates this observation. Its capture
@@ -870,8 +868,7 @@ pub fn structural_source(
         let reference = crate::expression_result_type_reference(program, machine, state, source)?;
         (
             facts::PlaceRoot::Expression(
-                program
-                    .expression_table
+                expression_table(program)
                     .value_capture(saved.capture)
                     .value_anchor,
             ),
@@ -888,18 +885,15 @@ pub fn structural_source(
             reference,
         )
     } else {
-        match program.expression_table.expression(receiver_expression) {
+        match expression_table(program).expression(receiver_expression) {
             ExpressionNode::Name(receiver) => {
                 if !receiver.symbol.is_valid()
                     || receiver.head_symbol != receiver.symbol
-                    || program
-                        .expression_table
+                    || expression_table(program)
                         .name_path_members(receiver.members)
                         .len()
                         != 1
-                    || program
-                        .expression_table
-                        .name_path_member_symbols(receiver.member_symbols)
+                    || expression_table(program).name_path_member_symbols(receiver.member_symbols)
                         != [receiver.symbol]
                 {
                     return None;

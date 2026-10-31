@@ -20,22 +20,17 @@ pub(crate) fn project_contract_cast(
     let semantic_domain = if cast.semantic_domain_symbol.is_valid() {
         let domain = compilation
             .domain_definition(cast.semantic_domain_symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` cast refers to an unresolved semantic domain",
-                    context.subject_kind, context.subject_name
-                ))]
-            })?;
+            .ok_or_else(|| context.rejected("cast refers to an unresolved semantic domain"))?;
         let identity = nominal_identity(compilation, domain.symbol)?;
         let reviewed_package = reviewed_package(compilation, "package")?;
         if context.requires_public_nominals()
             && reviewed_package_owns(&identity, reviewed_package)?
             && !domain.is_public
         {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` exposes non-public semantic domain `{}` in a cast",
-                context.subject_kind, context.subject_name, domain.name
-            ))]);
+            return Err(context.rejected(format!(
+                "exposes non-public semantic domain `{}` in a cast",
+                domain.name
+            )));
         }
         Some(identity)
     } else {

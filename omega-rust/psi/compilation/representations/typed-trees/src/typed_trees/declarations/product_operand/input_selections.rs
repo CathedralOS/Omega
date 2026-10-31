@@ -129,10 +129,7 @@ impl ProductInputSelection {
                         "Product type selection is not a retained input of its actual argument",
                     );
                 }
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(*reference)
-                {
+                if !program.contains_type_reference(*reference) {
                     return Err("Product input selection has a foreign type reference");
                 }
                 match (

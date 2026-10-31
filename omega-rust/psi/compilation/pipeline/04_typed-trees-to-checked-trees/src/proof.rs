@@ -33,6 +33,7 @@ use checked_trees::{
     BorrowFacts, CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 
+use crate::flow::expressions;
 use crate::proof::proposition_vocabulary::{build_checked_proposition_vocabulary, fact_handles};
 use contracts::{
     ContractEvidenceLanes, append_inherited_trait_contract_facts, append_machine_contract_facts,
@@ -117,8 +118,7 @@ pub(crate) fn build_proof_facts(
                                 .map(|state| (application, state))
                         })
                         .map(|(application, state)| {
-                            program
-                                .expression_table
+                            expressions(program)
                                 .expression_handles(application.arguments)
                                 .iter()
                                 .map(|argument| {

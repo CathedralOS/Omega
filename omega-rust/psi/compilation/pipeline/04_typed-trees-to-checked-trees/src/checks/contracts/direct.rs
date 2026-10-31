@@ -4,7 +4,9 @@ use symbols::SymbolHandle;
 
 use super::labels::{ContractTargetParameters, instantiate_call_contract_expression_label};
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
+use crate::flow::expressions;
 use crate::labels::semantic_boolean_fact_label;
+use crate::places::place_at;
 
 mod guard_values;
 mod match_patterns;
@@ -77,11 +79,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
             return expression;
         };
         if !path.symbol.is_valid()
-            || program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
+            || expressions(program).name_path_members(path.members).len() != 1
         {
             return expression;
         }
@@ -218,11 +216,7 @@ fn instantiated_live_value_proves(
             let argument = match program.expression_table.expression(formal) {
                 ExpressionNode::Name(path)
                     if path.symbol.is_valid()
-                        && program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            == 1 =>
+                        && expressions(program).name_path_members(path.members).len() == 1 =>
                 {
                     let position =
                         typed_trees::signature::state_parameter_position(parameters, path.symbol)?;
@@ -254,25 +248,23 @@ fn instantiated_live_value_proves(
                     // snapshots which survived the scheduled argument effects. Live
                     // scalar facts are spread across the entry contexts, so reads run
                     // over their union just like `assigned_values`' domain prover.
-                    if let Some(place) = validation::canonical_place_from_expression_in_state(
-                        program,
-                        caller_state_symbol,
-                        statement_index,
-                        leaf,
-                    ) && let Some(value) = scalar_value_at_observation(
-                        program,
-                        semantic,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
-                        validation::expression_result_type_reference(
+                    if let Some(place) =
+                        place_at(program, caller_state_symbol, statement_index, leaf)
+                        && let Some(value) = scalar_value_at_observation(
                             program,
-                            program.machine_holding_state(caller_state_symbol)?,
-                            program.state_by_symbol(caller_state_symbol)?,
-                            leaf,
-                        )?,
-                        &place,
-                    ) {
+                            semantic,
+                            contexts,
+                            caller_state_symbol,
+                            statement_index,
+                            validation::expression_result_type_reference(
+                                program,
+                                program.machine_holding_state(caller_state_symbol)?,
+                                program.state_by_symbol(caller_state_symbol)?,
+                                leaf,
+                            )?,
+                            &place,
+                        )
+                    {
                         return Some(value);
                     }
                     semantic.context_view(context).facts().find_map(|fact| {
@@ -320,8 +312,7 @@ fn projected_formal_leaf_value(
     // Keep substitution and selector narrowing identical to ordinary scalar
     // reads; a declared extent and a surviving value snapshot are distinct
     // sources of evidence, and neither replays a local initializer.
-    let length_receiver = program
-        .expression_table
+    let length_receiver = expressions(program)
         .member_node(leaf)
         .filter(|member| {
             member.case_variant.is_none()
@@ -342,12 +333,7 @@ fn projected_formal_leaf_value(
         parameters[position].type_reference,
         &required.segments,
     )?;
-    let mut actual = validation::canonical_place_from_expression_in_state(
-        program,
-        caller_state_symbol,
-        statement_index,
-        argument,
-    )?;
+    let mut actual = place_at(program, caller_state_symbol, statement_index, argument)?;
     let actual_prefix_length = actual.segments.len();
     actual.segments.append(&mut required.segments);
     for segment in &mut actual.segments {
@@ -357,12 +343,8 @@ fn projected_formal_leaf_value(
         // A stored selector narrows to the fixed element it currently names.
         // The read below rejects anything the live evidence cannot pin down,
         // and mutation invalidation has already retired a stale selector.
-        let Some(selector) = validation::canonical_place_from_expression_in_state(
-            program,
-            caller_state_symbol,
-            statement_index,
-            expression,
-        ) else {
+        let Some(selector) = place_at(program, caller_state_symbol, statement_index, expression)
+        else {
             continue;
         };
         let Some(facts::ScalarValue::Integer(value)) = scalar_value_at_observation(

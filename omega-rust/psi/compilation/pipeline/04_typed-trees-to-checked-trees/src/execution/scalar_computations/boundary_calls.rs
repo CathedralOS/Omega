@@ -17,11 +17,13 @@
 //! structural places, selector snapshots, and scalar computations retain their
 //! formal order. Their published boundary signature still owns access, claims,
 //! completion and contract requirements independently of evaluation.
-use super::call_arguments::ComputedCallOperands;
+use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode, PrimitiveType,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 impl Builder<'_, '_> {
     pub(super) fn is_bodyless_boundary_call(&self, mut expression: ExpressionHandle) -> bool {
@@ -112,20 +114,14 @@ impl Builder<'_, '_> {
                 state,
                 call.receiver,
             )?;
-            if validation::canonical_place_from_expression_in_state(
-                program,
-                self.state,
-                self.statement_index,
-                call.receiver,
-            )
-            .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
+            if place_at(program, self.state, self.statement_index, call.receiver)
+                .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
             {
                 authority_value = self.structural_value(call.receiver, reference)?;
                 self.retain_structural_value_root(authority_value, reference)?;
             }
         }
-        let operands = program
-            .expression_table
+        let operands = expressions(program)
             .expression_handles(call.arguments)
             .to_vec();
         self.boundary_application(
@@ -170,8 +166,10 @@ impl Builder<'_, '_> {
             mut temporary_cleanups,
             claim_transfers,
         } = self.call_operands(
-            source_call,
-            self.flow.control.calls.get(source_call).argument_operands(),
+            CallOperandCustody::Statement {
+                call: source_call,
+                captures: self.flow.control.calls.get(source_call).argument_operands(),
+            },
             operands,
             parameters,
         )?;
@@ -206,7 +204,8 @@ impl Builder<'_, '_> {
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
-                source_call,
+                source_expression: expression,
+                source_call: source_call.into(),
                 callee: checked_trees::CheckedScalarCallee::Boundary {
                     machine: target_machine,
                     state: target_state,

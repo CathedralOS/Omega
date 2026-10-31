@@ -1,5 +1,6 @@
 //! Final totality obligation for scalar calls used as requirement terms.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
@@ -40,9 +41,7 @@ pub fn validate_ordered_requirement_call_totality(
                     ProofFact::Expression(expression) => pending.push(*expression),
                     ProofFact::Membership(membership) => pending.push(membership.value),
                     ProofFact::Proposition(application) => pending.extend_from_slice(
-                        program
-                            .expression_table
-                            .expression_handles(application.arguments),
+                        expression_table(program).expression_handles(application.arguments),
                     ),
                 }
             }

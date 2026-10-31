@@ -245,8 +245,8 @@ unproved relationship as though it were checked conformance evidence.
 public trait LocalLogger = Logger {
     machine *
         reaches
-        suspends false;
-        blocks false;
+        suspends false
+        blocks false
         terminates;
 }
 ```

@@ -6,12 +6,11 @@
 machine main() -> u64 {
     transition { _ -> walk(0, 4, 0) }
 }
-machine walk(index: u64, limit: u64, mut count: u64)
+machine walk(index: u64, limit: u64, mut count: u64) -> u64
 requires
-    limit <= 10;
-    index <= limit;
-terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
--> u64 {
+    limit <= 10,
+    index <= limit
+terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1) {
     count = index;
     transition index < limit {
         true -> walk(index + 1, limit, count)

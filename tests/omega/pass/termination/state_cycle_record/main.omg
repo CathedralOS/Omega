@@ -4,9 +4,8 @@
 // one source.
 data Main {}
 data Payload { value: u64; }
-machine Main::walk(remaining: u32, payload: Payload, spare: u32)
-terminates by remaining in 0..=5;
--> u32
+machine Main::walk(remaining: u32, payload: Payload, spare: u32) -> u32
+terminates by remaining in 0..=5
 requires remaining <= 5
 {
     transition remaining > 2 {

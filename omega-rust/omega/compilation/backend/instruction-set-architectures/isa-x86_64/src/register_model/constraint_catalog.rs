@@ -38,8 +38,8 @@ use register_model::{
     PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog, sorted_units,
-    validate_register_constraint_catalog,
+    RegisterUnitId, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    sorted_units, validate_register_constraint_catalog,
 };
 use target::Architecture;
 
@@ -60,14 +60,14 @@ pub fn x86_64_register_constraint_catalog(
             .view_named(name)
             .unwrap_or_else(|| panic!("validated x86-64 model must define {name}"))
     };
-    let merged_units = |base: Vec<register_model::RegisterUnitId>, names: &[&str]| {
-        let mut units = base;
-        for name in names {
-            units.extend(view(name).units.iter().copied());
-        }
-        units.sort_unstable();
-        units.dedup();
-        units
+    let merged_units = |base: Vec<RegisterUnitId>, names: &[&str]| {
+        sorted_units(
+            base.into_iter().chain(
+                names
+                    .iter()
+                    .flat_map(|name| view(name).units.iter().copied()),
+            ),
+        )
     };
     let fixed = |operand: u16, access: RegisterOperandAccess, name: &str| {
         super::fixed_operand(operand, access, view(name))

@@ -9,6 +9,7 @@ mod bindings;
 mod case_subjects;
 pub(crate) use availability::CasePremiseAvailability;
 pub(crate) use case_subjects::fold_cases;
+mod integer_intervals;
 mod normalization;
 mod paths;
 mod retention;

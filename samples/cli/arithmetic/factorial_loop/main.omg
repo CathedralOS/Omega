@@ -9,9 +9,8 @@
 // Expected exit: 120
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-machine fact(n: u64, acc: u64 in Wrapping)
-terminates by n;
--> u64
+machine fact(n: u64, acc: u64 in Wrapping) -> u64
+terminates by n
 {
     transition n > 0 {
         true -> fact(n - 1, acc * (n as u64 in Wrapping))

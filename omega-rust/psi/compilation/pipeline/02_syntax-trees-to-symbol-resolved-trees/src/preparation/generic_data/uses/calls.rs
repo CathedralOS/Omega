@@ -7,6 +7,8 @@ use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_statement_expression_handles, named_type_name,
     relabel_data_literal_for_expected_type,
 };
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 
 use crate::preparation::generic_data::Instantiation;
 
@@ -37,15 +39,11 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
         let Some(entry) = syntax.tables.items.state_handles(machine.states).first() else {
             continue;
         };
-        let parameters = syntax
-            .tables
-            .items
+        let parameters = syntax_items(&syntax)
             .state_parameters(syntax.tables.items.state(*entry).parameters)
             .iter()
             .map(|parameter| {
-                syntax
-                    .tables
-                    .items
+                syntax_items(&syntax)
                     .state_parameter(*parameter)
                     .type_reference
             })
@@ -328,14 +326,8 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
                     .eq(right_lifetimes.iter().map(|name| name.as_str(syntax)))
                 && call_context_parameter_types_agree(
                     syntax,
-                    syntax
-                        .tables
-                        .type_references
-                        .type_reference_handles(*left_arguments),
-                    syntax
-                        .tables
-                        .type_references
-                        .type_reference_handles(*right_arguments),
+                    syntax_type_references(&syntax).type_reference_handles(*left_arguments),
+                    syntax_type_references(&syntax).type_reference_handles(*right_arguments),
                 )
         }
         (
@@ -351,14 +343,8 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
             left_name.as_str(syntax) == right_name.as_str(syntax)
                 && call_context_parameter_types_agree(
                     syntax,
-                    syntax
-                        .tables
-                        .type_references
-                        .type_reference_handles(*left_arguments),
-                    syntax
-                        .tables
-                        .type_references
-                        .type_reference_handles(*right_arguments),
+                    syntax_type_references(&syntax).type_reference_handles(*left_arguments),
+                    syntax_type_references(&syntax).type_reference_handles(*right_arguments),
                 )
         }
         // Constraint expressions and pre-evaluated const expressions use

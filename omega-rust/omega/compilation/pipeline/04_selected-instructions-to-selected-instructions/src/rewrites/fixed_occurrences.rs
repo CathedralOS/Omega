@@ -19,13 +19,14 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedOperand, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, ScalarType};
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::control_mut;
+use crate::rewrites::selected_operands::copy_shaped;
 
 validated_transformed_receipt!(ValidatedFixedOccurrences, FixedOccurrencesReceipt);
 
@@ -817,33 +818,17 @@ fn copy(
     register: &VirtualRegister,
     operations: &[semantic_vocabulary::OperationId],
 ) -> SelectedInstruction {
-    let operand = |constraint: &register_model::RegisterOperandConstraint, virtual_register| {
-        SelectedOperand {
-            operand: constraint.operand,
-            virtual_register,
-            access: constraint.access,
-            class: constraint.class,
-            fixed_view: constraint.fixed_view,
-            tied_to: constraint.tied_to,
-            early_clobber: constraint.early_clobber,
-        }
-    };
-    let mut instruction = SelectedInstruction {
+    let mut instruction = copy_shaped(
         id,
-        kind: SelectedInstructionKind::CopyI64,
-        constraint: row.key,
-        operands: vec![
-            operand(&row.operands[0], input),
-            operand(&row.operands[1], output),
-        ],
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: selected_instructions::SelectedInstructionProvenance {
+        SelectedInstructionKind::CopyI64,
+        row,
+        input,
+        output,
+        selected_instructions::SelectedInstructionProvenance {
             operations: operations.to_vec(),
             ..Default::default()
         },
-    };
+    );
     match register.origin {
         VirtualRegisterOrigin::InstructionResult { source_value, .. }
         | VirtualRegisterOrigin::EntryParameter { source_value, .. }

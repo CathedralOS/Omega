@@ -12,6 +12,9 @@ use super::super::{
     ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
     TypeReferenceNode,
 };
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use syntax_trees::expression::UnaryOperator;
 use syntax_trees::identifier::Identifier;
@@ -519,8 +522,7 @@ pub(super) fn prove_const_data_predicates(
         _ => return Err("data constant lost its completed structural value".to_owned()),
     };
     let variant = case_name.and_then(|case_name| {
-        syntax
-            .items
+        syntax_items(&syntax)
             .data_members(definition.members)
             .iter()
             .find_map(|member| match member {
@@ -945,8 +947,7 @@ fn evaluate_selected_domain_facts(
         TypeReferenceNode::Named(name) => Some(name.as_str(syntax)),
         _ => None,
     };
-    let carrier_parameter = syntax
-        .items
+    let carrier_parameter = syntax_items(&syntax)
         .type_parameters(domain.type_parameters)
         .first()
         .filter(|parameter| {
@@ -1589,9 +1590,7 @@ pub(crate) fn const_type_requires_declaration_proof(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> bool {
     use syntax_trees::item::DataMember;
-    let origin = syntax
-        .type_references
-        .generic_application_origin(type_reference);
+    let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
     if origin.is_valid() && origin != type_reference {
         return const_type_requires_declaration_proof(syntax, origin, visiting, selection);
     }
@@ -1620,9 +1619,7 @@ pub(crate) fn const_type_requires_declaration_proof(
                         ),
                         DataMember::Variant(variant) => {
                             !variant.where_facts.is_empty()
-                                || syntax
-                                    .tables
-                                    .items
+                                || syntax_items(&syntax)
                                     .data_payload_fields(variant.payload)
                                     .iter()
                                     .any(|field| {
@@ -1645,8 +1642,7 @@ pub(crate) fn const_type_requires_declaration_proof(
             base_type,
             constraints,
         } => {
-            syntax
-                .type_references
+            syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
@@ -1661,8 +1657,7 @@ pub(crate) fn const_type_requires_declaration_proof(
             arguments,
             ..
         } => {
-            syntax
-                .type_references
+            syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .iter()
                 .any(|argument| {
@@ -1749,9 +1744,7 @@ fn evaluate_const_domain_expression(
             else {
                 return Ok(None);
             };
-            let members = syntax
-                .expressions
-                .identifier_path_members(membership.domain);
+            let members = syntax_expressions(&syntax).identifier_path_members(membership.domain);
             let path = members.joined_path_in(syntax);
             evaluate_named_const_domain(
                 syntax,

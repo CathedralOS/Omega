@@ -17,7 +17,7 @@ machine Smoke::number(value: i32) reaches Console {
 }
 
 machine Smoke::steps(game: &mut Game, direction: i32, count: u32)
-terminates by count -> Nat::Descending;
+terminates by count -> Nat::Descending
 requires direction >= -1 && direction < 4 {
     transition count > 0 { true -> step(game, direction, count) _ -> done() }
     machine step(game: &mut Game, direction: i32, count: u32) requires count > 0 && direction >= -1 && direction < 4 {
@@ -28,7 +28,7 @@ requires direction >= -1 && direction < 4 {
 }
 
 machine Smoke::fight(game: &mut Game, count: u32)
-terminates by count -> Nat::Descending;
+terminates by count -> Nat::Descending
 {
     transition count > 0 { true -> step(game, count) _ -> done() }
     machine step(game: &mut Game, count: u32) requires count > 0 {

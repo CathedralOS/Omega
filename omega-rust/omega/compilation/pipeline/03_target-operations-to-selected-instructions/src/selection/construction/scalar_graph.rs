@@ -634,6 +634,13 @@ fn select_function(
     Ok(selected)
 }
 
+/// The index a roster of `len` entries assigns next, in the selected plan's
+/// 32-bit identity space.
+fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
+    len.try_into()
+        .map_err(|_| SelectedInstructionError::custody())
+}
+
 struct Builder<'a> {
     backings: &'a crate::selection::foreign_scalar_backings::ForeignScalarBackings<'a>,
     environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
@@ -714,23 +721,13 @@ impl Builder<'_> {
         site: ValueDefinitionSite,
         scalar_type: ScalarType,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let id = VirtualRegisterId(
-            self.registers
-                .len()
-                .try_into()
-                .map_err(|_| SelectedInstructionError::custody())?,
-        );
+        let id = VirtualRegisterId(next_index(self.registers.len())?);
         self.registers.push(VirtualRegister {
             id,
             scalar_type,
             class: self.class,
             origin: VirtualRegisterOrigin::InstructionResult {
-                instruction: SelectedInstructionId(
-                    self.instructions
-                        .len()
-                        .try_into()
-                        .map_err(|_| SelectedInstructionError::custody())?,
-                ),
+                instruction: SelectedInstructionId(next_index(self.instructions.len())?),
                 source_value: value,
             },
             definition_site: Some(site),
@@ -916,12 +913,7 @@ impl Builder<'_> {
         operands: &[VirtualRegisterId],
         provenance: SelectedInstructionProvenance,
     ) -> Result<(), SelectedInstructionError> {
-        let id = SelectedInstructionId(
-            self.instructions
-                .len()
-                .try_into()
-                .map_err(|_| SelectedInstructionError::custody())?,
-        );
+        let id = SelectedInstructionId(next_index(self.instructions.len())?);
         let provenance = self.settle_provenance(provenance);
         let constraint =
             if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind {

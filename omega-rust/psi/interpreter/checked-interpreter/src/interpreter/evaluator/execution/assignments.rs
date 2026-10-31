@@ -7,7 +7,8 @@
 use super::replacement_cleanup::ReplacementStorage;
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
-    MutableRecordRecastWrite, ReferenceStorage, Value, trap,
+    MutableRecordRecastWrite, ReferenceStorage, Value, expression_table, trap,
+    type_reference_table,
 };
 
 enum AssignmentDestination {
@@ -82,9 +83,7 @@ impl Evaluator<'_> {
             },
             frame,
         )?;
-        if let ExpressionNode::Atomic(atomic) = self
-            .program
-            .expression_table
+        if let ExpressionNode::Atomic(atomic) = expression_table(self.program)
             .expression(replacement)
             .clone()
             && matches!(
@@ -105,10 +104,7 @@ impl Evaluator<'_> {
             let result = self.deref_cell(result);
             *result.borrow_mut() = prior;
         }
-        let value_type = self
-            .program
-            .type_reference_table
-            .peeled_type_reference(receiving);
+        let value_type = type_reference_table(self.program).peeled_type_reference(receiving);
         let value = match &destination {
             AssignmentDestination::ArrayWindow { element_type, .. } => {
                 if matches!(

@@ -12,6 +12,7 @@
 //! ordinary value evaluation still diagnoses an implicit referent read. Calls,
 //! local initialization and returns share this boundary and validate the
 //! producer's receiver and operands even when its result is not observed.
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -860,7 +861,7 @@ fn reject_subloan_referee_mismatch(
         "machine `{}` state `{}` lends `{}` of type `{}` as `&write` to a parameter declared `&write {}`; a write-only subloan requires compatible stored carriers without changing scalar storage constraints or nested reference access",
         machine.name,
         state.name,
-        program.expression_table.display_name(target),
+        expression_table(program).display_name(target),
         program.display_type_reference_with_constraints(actual),
         program.display_type_reference_with_constraints(declared),
     )));
@@ -1127,7 +1128,7 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     >,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+    let Some(indexed) = expression_table(program).indexed_node(expression) else {
         return false;
     };
     let collection_type =
@@ -1152,7 +1153,7 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     let bound_lookup = bound_lookup.get_or_insert_with(|| {
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
     });
-    let Some(range) = program.expression_table.range_node(indexed.index) else {
+    let Some(range) = expression_table(program).range_node(indexed.index) else {
         return false;
     };
 
@@ -1204,7 +1205,7 @@ fn write_only_element_assignment_index(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<ExpressionHandle> {
-    let indexed = program.expression_table.indexed_node(expression)?;
+    let indexed = expression_table(program).indexed_node(expression)?;
     let (collection_type, direct_byte_slice) =
         if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
             (root.referee, is_byte_slice(program, root.referee))
@@ -1216,7 +1217,7 @@ fn write_only_element_assignment_index(
         };
     if direct_byte_slice {
         return (!matches!(
-            program.expression_table.expression(indexed.index),
+            expression_table(program).expression(indexed.index),
             ExpressionNode::Range(_)
         ))
         .then_some(indexed.index);
@@ -1226,7 +1227,7 @@ fn write_only_element_assignment_index(
     // it does not require observing the write-only referent to select a cell.
     let length = fixed_discardable_write_only_array_length(program, collection_type)
         .or_else(|| predicate_byte_array_length(program, collection_type))?;
-    match program.expression_table.expression(indexed.index) {
+    match expression_table(program).expression(indexed.index) {
         ExpressionNode::Range(_) => None,
         ExpressionNode::Integer(index) => {
             let index = usize::try_from(index.value_i64()?).ok()?;
@@ -1274,11 +1275,11 @@ fn diagnose_unsupported_write_only_assignment_target(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let Some(indexed) = program.expression_table.indexed_node(expression)
+    if let Some(indexed) = expression_table(program).indexed_node(expression)
         && let Some(root) = direct_write_only_root(program, indexed.collection, roots)
         && fixed_discardable_write_only_array_length(program, root.referee).is_some()
     {
-        let detail = match program.expression_table.expression(indexed.index) {
+        let detail = match expression_table(program).expression(indexed.index) {
             ExpressionNode::Range(_) => "range projection is not implemented",
             ExpressionNode::Integer(index) => match index.value_i64() {
                 Some(value) if value < 0 => "the index must be non-negative",
@@ -1397,16 +1398,14 @@ fn validate_received_value(
     // call operands receive their declared parameters. Moving a descriptor
     // into its field is not an observation of the referenced content. Missing
     // correspondence still visits the child as an ordinary expression.
-    let constructed = program
-        .expression_table
-        .constructed_value_type_reference(expression);
+    let constructed = expression_table(program).constructed_value_type_reference(expression);
     let receiving = constructed
         .is_valid()
         .then_some(constructed)
         .or(receiving_type);
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
+            for field in expression_table(program).struct_fields(literal.fields) {
                 let required = receiving
                     .and_then(|reference| {
                         program
@@ -1449,7 +1448,7 @@ fn validate_received_value(
                     _ => None,
                 }
             });
-            for value in program.expression_table.expression_handles(*values) {
+            for value in expression_table(program).expression_handles(*values) {
                 validate_received_value(
                     program,
                     machine,
@@ -1470,11 +1469,11 @@ fn validate_received_value(
     if receiving_type.is_some_and(|reference| {
         declared_reference_shell(program, machine, reference)
             .is_some_and(|shell| shell.access == ReferenceAccess::WriteOnly)
-    }) && let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+    }) && let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression)
     {
         walk!(program => machine => state => dispatch.subject => roots => diagnostics);
-        for arm in program.expression_table.match_arms(dispatch.arms) {
-            for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+        for arm in expression_table(program).match_arms(dispatch.arms) {
+            for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                 validate_expression(program, machine, state, pattern, roots, diagnostics);
             }
             validate_received_value(
@@ -1489,7 +1488,7 @@ fn validate_received_value(
         }
         return;
     }
-    if let Some(borrow) = program.expression_table.borrow_expression(expression)
+    if let Some(borrow) = expression_table(program).borrow_expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
         && write_only_call_subloan(
             program,
@@ -1525,7 +1524,7 @@ fn validate_received_value(
             required.referee,
         )
     {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Call(call) => {
                 validate_call_expression(program, machine, state, call, roots, diagnostics);
                 return;
@@ -1663,7 +1662,7 @@ fn validate_call_expression(
         state,
         call.target_symbol,
         &call.machine_arguments,
-        program.expression_table.expression_handles(call.arguments),
+        expression_table(program).expression_handles(call.arguments),
         diagnostics,
     );
     if call.receiver.is_valid() {
@@ -1677,7 +1676,7 @@ fn validate_call_expression(
         program,
         machine,
         state,
-        program.expression_table.expression_handles(call.arguments),
+        expression_table(program).expression_handles(call.arguments),
         &declared_parameters,
         roots,
         diagnostics,
@@ -1694,17 +1693,16 @@ fn validate_expression(
 ) {
     let machine_name = machine.name.as_str();
     let state_name = state.name.as_str();
-    let metadata = program
-        .expression_table
+    let metadata = expression_table(program)
         .member_node(expression)
         .is_some_and(|member| is_write_only_length_metadata(program, machine, state, member));
     let observes_write_only = !metadata
         && validate_observation_access(program, machine, state, expression, roots, diagnostics);
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             walk!(program => machine => state => dispatch.subject => roots => diagnostics);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
+                for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                     validate_expression(program, machine, state, pattern, roots, diagnostics);
                 }
                 validate_expression(program, machine, state, arm.value, roots, diagnostics);
@@ -1817,7 +1815,7 @@ fn validate_metadata_receiver(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(_) => {}
         ExpressionNode::Member(member) => {
             reject_stored_pointer_metadata_receiver(
@@ -1873,7 +1871,7 @@ fn reject_stored_pointer_metadata_receiver(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if matches!(
-        program.expression_table.expression(receiver),
+        expression_table(program).expression(receiver),
         ExpressionNode::Name(_)
     ) {
         return;
@@ -1943,7 +1941,7 @@ fn validate_observation_access(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     if matches!(node, ExpressionNode::Borrow(_))
         || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
     {
@@ -2014,7 +2012,7 @@ fn write_only_place_root<'roots>(
     roots: &'roots [WriteOnlyRoot],
 ) -> Option<&'roots WriteOnlyRoot> {
     loop {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => {
                 return roots
                     .iter()
@@ -2029,7 +2027,7 @@ fn write_only_place_root<'roots>(
 
 fn is_direct_name(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Name(path)
             if program.expression_table.name_path_members(path.members).len() == 1
     )
@@ -2055,9 +2053,8 @@ fn binding_without_write_authority(
     state: &State,
     target: ExpressionHandle,
 ) -> Option<String> {
-    let path = program.expression_table.name_path_node(target)?;
-    if program
-        .expression_table
+    let path = expression_table(program).name_path_node(target)?;
+    if expression_table(program)
         .name_path_members(path.members)
         .len()
         != 1
@@ -2091,9 +2088,8 @@ fn direct_write_only_root<'a>(
     expression: ExpressionHandle,
     roots: &'a [WriteOnlyRoot],
 ) -> Option<&'a WriteOnlyRoot> {
-    let path = program.expression_table.name_path_node(expression)?;
-    (program
-        .expression_table
+    let path = expression_table(program).name_path_node(expression)?;
+    (expression_table(program)
         .name_path_members(path.members)
         .len()
         == 1)
@@ -2124,7 +2120,7 @@ fn expression_mentions_root(
     expression: ExpressionHandle,
     root: &WriteOnlyRoot,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => program
             .saved_value_source(saved)
             .is_some_and(|subject| expression_mentions_root(program, subject, root)),
@@ -2134,8 +2130,7 @@ fn expression_mentions_root(
         }
         ExpressionNode::Name(path) => receiver::mentions_name(program, root, path),
         ExpressionNode::Borrow(value) => expression_mentions_root(program, value.target, root),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .any(|value| expression_mentions_root(program, *value, root)),
@@ -2150,8 +2145,7 @@ fn expression_mentions_root(
         ExpressionNode::Cast(cast) => expression_mentions_root(program, cast.value, root),
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid() && expression_mentions_root(program, call.receiver, root))
-                || program
-                    .expression_table
+                || expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| expression_mentions_root(program, *argument, root))
@@ -2165,8 +2159,7 @@ fn expression_mentions_root(
             expression_mentions_root(program, range.start, root)
                 || expression_mentions_root(program, range.end, root)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_mentions_root(program, field.value, root)),

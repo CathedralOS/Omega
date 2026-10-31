@@ -9,11 +9,11 @@ machine exact_borrow<'source>(value: &'source i32) -> &'source i32
 satisfies Borrowing<&'source i32, &'source i32>::borrow { value }
 machine invoke<'invocation, Operations satisfies Borrowing<&'invocation i32, &'invocation i32>>(
     value: &'invocation i32
-) -> &'invocation i32 blocks; { block Operations::borrow(value) }
-machine observed<'environment>(value: &'environment i32) -> &'environment i32 blocks; {
+) -> &'invocation i32 blocks { block Operations::borrow(value) }
+machine observed<'environment>(value: &'environment i32) -> &'environment i32 blocks {
     block invoke<Selected<'environment, exact_borrow<'environment>>>(value)
 }
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let value: i32 = 37;
     let result: &i32 = block observed(&value);
     transition result as i32 == 37 { true -> done() _ -> bad() }

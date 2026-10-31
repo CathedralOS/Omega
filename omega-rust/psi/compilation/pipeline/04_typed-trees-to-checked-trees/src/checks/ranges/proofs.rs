@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableRangeExpression};
 
 use super::expressions::{ensured_call_result_bounds, expression_integer_value};
@@ -481,9 +482,7 @@ pub(super) fn is_exact_collection_length(
         return false;
     };
     collection_place == receiver_place
-        && program
-            .expression_table
-            .expressions_structurally_equal(collection, receiver)
+        && expressions(program).expressions_structurally_equal(collection, receiver)
 }
 
 /// Proves an exclusive range bound is `<= len` for an unknown slice length

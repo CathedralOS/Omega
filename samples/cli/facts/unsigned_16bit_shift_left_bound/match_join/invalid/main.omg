@@ -4,7 +4,7 @@
 // Expected rejection: may overflow `u16`
 
 machine shift_match_join(val: u16, choose: bool) -> i32
-    requires val >= 25u16 && val <= 30u16;
+    requires val >= 25u16 && val <= 30u16
 {
     let shifted: u16 = match choose {
         true -> val << 2u16,

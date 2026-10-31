@@ -10,35 +10,35 @@ Provider satisfies Grants {
 }
 machine consume(value: &Token, calls: &mut u64) -> u64
 requires value in Token::Fair
-terminates;
+terminates
 {
     calls = (calls as u64 in Wrapping + 1) as u64;
     value.identity
 }
 linux_x86_64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, right in Token::Fair, index < 2
-terminates;
+terminates
 {
     let values: [&Token; 2] = [left, right];
     consume(values[index], calls)
 }
 linux_arm64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, right in Token::Fair, index < 2
-terminates;
+terminates
 {
     let values: [&Token; 2] = [left, right];
     consume(values[index], calls)
 }
 macos_arm64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, right in Token::Fair, index < 2
-terminates;
+terminates
 {
     let values: [&Token; 2] = [left, right];
     consume(values[index], calls)
 }
 windows_x86_64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, right in Token::Fair, index < 2
-terminates;
+terminates
 {
     let values: [&Token; 2] = [left, right];
     consume(values[index], calls)

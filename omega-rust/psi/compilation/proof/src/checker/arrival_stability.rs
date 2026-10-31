@@ -1,5 +1,6 @@
 use crate::checker::assignment_stability::resolved_writes_overlap_reads;
 use crate::obligations::ProofPlan;
+use crate::typed_expressions::statement_table;
 use typed_trees::statement::StatementNode;
 
 /// Effects before one consumption point in an immutable typed state. Guard
@@ -51,10 +52,7 @@ pub(super) fn prepare_prefix<'program>(
     statement_index: usize,
     call_frames: &validation::CallFrameResolver<'program>,
 ) -> Option<ArrivalPrefix<'program>> {
-    let statements = proof_plan
-        .program
-        .statement_table
-        .statements(state.statement_nodes);
+    let statements = statement_table(proof_plan.program).statements(state.statement_nodes);
     if statement_index >= statements.len() {
         return None;
     }

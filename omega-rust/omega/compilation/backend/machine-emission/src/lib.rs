@@ -107,3 +107,8 @@ pub use text_placement::{
 };
 // `code_layout<Machine>()` descriptions projected from placed text.
 pub mod code_layout;
+
+/// Count the rows of one receipt roster that satisfy a predicate.
+pub(crate) fn count_where<T>(rows: &[T], predicate: impl Fn(&T) -> bool) -> usize {
+    rows.iter().filter(|row| predicate(row)).count()
+}

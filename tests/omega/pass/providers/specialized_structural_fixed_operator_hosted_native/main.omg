@@ -2,6 +2,9 @@
 // native plans: the fixed-token use closes one exact type+const application
 // whose generic provider defaults to the locally supplied structural machine
 // and produces a scalar through the selected checked provider.
+// Expected exit: 29.
+
+use omega_language_std::console;
 
 data Buffer<Element, const Count: u64> {
     value: Element
@@ -32,4 +35,20 @@ machine exercise(items: Buffer<i32, 4>, position: Position) -> i32 {
     items[position]
 }
 
-machine main() {}
+data Main { }
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    let items: Buffer<i32, 4> = Buffer { value: 7 };
+    let position: Position = Position {};
+    Console::exit_process(exercise(items, position));
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

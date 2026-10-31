@@ -1,5 +1,6 @@
 mod bounds;
 
+use crate::flow::expressions;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
@@ -42,8 +43,7 @@ fn peel_boolean_alias_guard(
     // `next_index`'s bound from `count`'s declared range exactly as the
     // spelled comparison would.
     if let Some(path) = program.expression_table.name_path_node(guard) {
-        let name = program
-            .expression_table
+        let name = expressions(program)
             .name_path_members(path.members)
             .last()
             .map(|name| name.as_str());

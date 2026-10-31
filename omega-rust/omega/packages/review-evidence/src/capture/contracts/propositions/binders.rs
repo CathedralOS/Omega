@@ -39,10 +39,7 @@ pub(crate) fn project_proposition_binder_argument(
         .find(|(symbol, _)| *symbol == argument.symbol)
     {
         if substitution.kind != kind {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` proposition binder substitution changes kind",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("proposition binder substitution changes kind"));
         }
         return Ok(substitution.clone());
     }
@@ -79,17 +76,13 @@ pub(crate) fn project_proposition_binder_argument(
                 )?)
             }
             typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` proposition contains a non-literal const binder argument without an exact caller binder",
-                    context.subject_kind, context.subject_name
-                ))]);
+                return Err(context.rejected(
+                    "proposition contains a non-literal const binder argument without an exact caller binder",
+                ));
             }
         }
     } else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` proposition contains an unresolved binder argument",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("proposition contains an unresolved binder argument"));
     };
     Ok(PackageReviewPropositionBinderArgument { kind, value })
 }
@@ -112,20 +105,18 @@ pub(crate) fn project_proposition_evidence_projection(
         })
         .collect::<Vec<_>>();
     let [(term_handle, term)] = matching_terms.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` resolves to {} checked source terms; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` resolves to {} checked source terms; expected one",
             projection.term,
             projection.member,
             matching_terms.len()
-        ))]);
+        )));
     };
     let Some(checked_interface) = term.evidence_interface.as_ref() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` has no exact checked source interface",
-            context.subject_kind, context.subject_name, projection.term, projection.member
-        ))]);
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` has no exact checked source interface",
+            projection.term, projection.member
+        )));
     };
     let matching_requirements = checked_interface
         .requirements
@@ -135,14 +126,12 @@ pub(crate) fn project_proposition_evidence_projection(
         })
         .collect::<Vec<_>>();
     let [checked_requirement] = matching_requirements.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` resolves to {} checked requirement rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` resolves to {} checked requirement rows; expected one",
             projection.term,
             projection.member,
             matching_requirements.len()
-        ))]);
+        )));
     };
     if !compilation
         .facts
@@ -158,25 +147,25 @@ pub(crate) fn project_proposition_evidence_projection(
                 && retained.requirement == checked_requirement.requirement
         })
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` has no retained checked projection row",
-            context.subject_kind, context.subject_name, projection.term, projection.member
-        ))]);
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` has no retained checked projection row",
+            projection.term, projection.member
+        )));
     }
 
     let declaration = compilation
         .proposition_definition_by_symbol(term.proposition.declaration)
         .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed {} `{}` evidence projection `{}.{}` has an unresolved source proposition endpoint",
-                context.subject_kind, context.subject_name, projection.term, projection.member
-            ))]
+            context.rejected(format!(
+                "evidence projection `{}.{}` has an unresolved source proposition endpoint",
+                projection.term, projection.member
+            ))
         })?;
     let typed_trees::proposition::PropositionBody::Witness { evidence } = &declaration.body else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` does not originate from witness evidence",
-            context.subject_kind, context.subject_name, projection.term, projection.member
-        ))]);
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` does not originate from witness evidence",
+            projection.term, projection.member
+        )));
     };
     let proposition_binders = compilation
         .proposition_binders(declaration)
@@ -186,10 +175,10 @@ pub(crate) fn project_proposition_evidence_projection(
         .collect::<Vec<_>>();
     let interface = project_evidence_interface(compilation, *evidence, &proposition_binders)?;
     if nominal_identity(compilation, checked_interface.trait_symbol)? != interface.trait_identity {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` changed source interface during checked lowering",
-            context.subject_kind, context.subject_name, projection.term, projection.member
-        ))]);
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` changed source interface during checked lowering",
+            projection.term, projection.member
+        )));
     }
     let declaring_trait = nominal_identity(compilation, checked_requirement.declaring_trait)?;
     let requirement = trait_requirement_identity_from_symbols(
@@ -206,14 +195,12 @@ pub(crate) fn project_proposition_evidence_projection(
         })
         .collect::<Vec<_>>();
     let [projected_requirement] = matching_projected.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence projection `{}.{}` resolves to {} structural interface rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "evidence projection `{}.{}` resolves to {} structural interface rows; expected one",
             projection.term,
             projection.member,
             matching_projected.len()
-        ))]);
+        )));
     };
     Ok(PackageReviewPropositionBinderValue::EvidenceProjection {
         source_kind: PackageReviewContractKind::Requires,

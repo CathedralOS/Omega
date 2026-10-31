@@ -5,15 +5,15 @@ data View<'storage> { cell: &'storage mut Cell; stamp: u64; }
 machine cycle<'storage>(slot: &mut View<'storage>, incoming: View<'storage>, remaining: u64) {
     transition { _ -> relay(slot, incoming, remaining) }
     machine relay(slot: &mut View<'storage>, incoming: View<'storage>, remaining: u64)
-    terminates;
-    terminates by remaining;
+    terminates
+    terminates by remaining
     {
         transition remaining > 0 {
             true -> step(slot, incoming, remaining)
             false -> finish(slot, incoming)
         }
         machine step(slot: &mut View<'storage>, incoming: View<'storage>, pending: u64)
-        requires pending > 0;
+        requires pending > 0
         {
             incoming.cell.value = ((incoming.cell.value as u64 in Wrapping) + 1) as u64;
             transition { _ -> relay(slot, incoming, pending - 1) }

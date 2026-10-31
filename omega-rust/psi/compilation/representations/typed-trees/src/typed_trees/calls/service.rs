@@ -36,10 +36,7 @@ pub struct ServiceCarrierContract {
 
 impl ServiceCarrierContract {
     pub fn lifetimes(self, program: &TypedTrees) -> &[crate::name::Identifier] {
-        match program
-            .type_reference_table
-            .type_reference(self.requirement_reference)
-        {
+        match program.type_reference_node(self.requirement_reference) {
             TypeReferenceNode::Generic {
                 lifetime_arguments, ..
             } => lifetime_arguments,
@@ -48,10 +45,7 @@ impl ServiceCarrierContract {
     }
 
     pub fn arguments(self, program: &TypedTrees) -> &[TypeReferenceHandle] {
-        match program
-            .type_reference_table
-            .type_reference(self.requirement_reference)
-        {
+        match program.type_reference_node(self.requirement_reference) {
             TypeReferenceNode::Generic { arguments, .. } => program
                 .type_reference_table
                 .type_reference_handles(*arguments),
@@ -148,10 +142,7 @@ impl ExactServiceCarrier {
         self,
         program: &'program TypedTrees,
     ) -> &'program [TypeReferenceHandle] {
-        match program
-            .type_reference_table
-            .type_reference(self.requirement_reference)
-        {
+        match program.type_reference_node(self.requirement_reference) {
             TypeReferenceNode::Generic { arguments, .. } => program
                 .type_reference_table
                 .type_reference_handles(*arguments),

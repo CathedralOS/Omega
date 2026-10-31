@@ -17,7 +17,7 @@ impl TerminalExecution<'_> {
         source: &terminal_psi::StructuralArgument,
     ) -> Result<Option<ByteSequenceView>, TerminalInterpretError> {
         let root = self.live_structural_type(source.place)?;
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let selected =
             terminal_semantics::runtime_structural_path_tip(types.values(), root, &source.path)
                 .ok_or_else(malformed)?;

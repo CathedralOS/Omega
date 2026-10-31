@@ -27,7 +27,7 @@ machine forward<K: i32>(base: i32) -> i32 in Wrapping {
 
 machine bounded<Count: i32>(base: i32) -> i32 in Wrapping
 requires
-    Count <= 10;
+    Count <= 10
 {
     Count as i32 in Wrapping
 }

@@ -1,5 +1,6 @@
 //! Exact erasure of checked float-meaning projections into Terminal Psi.
 
+use crate::checked_facts::flow_facts;
 use checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
     CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource,
@@ -271,9 +272,11 @@ pub(crate) fn resolve_direct_float_source_binding(
             let format =
                 projection_format(result.fallback.primitive).map_err(|_| invalid_source())?;
             let mut occurrences = source_call_occurrences.iter().filter(|occurrence| {
-                occurrence.source_state == result.use_site.owner_state
-                    && occurrence.statement_index == result.use_site.statement_index
-                    && occurrence.call_ordinal == result.use_site.call_ordinal
+                occurrence.matches_statement(
+                    result.use_site.owner_state,
+                    result.use_site.statement_index,
+                    result.use_site.call_ordinal,
+                )
             });
             let Some(occurrence) = occurrences.next() else {
                 return Ok(None);
@@ -406,9 +409,7 @@ fn resolve_direct_block_float_parameter(
         )
     };
     let format = projection_format(parameter.fallback.primitive).map_err(|_| invalid_source())?;
-    let plan = checked
-        .facts
-        .flow
+    let plan = flow_facts(checked)
         .terminal_unit_effects
         .composed_for_machine(source_machine.symbol)
         .ok_or_else(invalid_source)?;

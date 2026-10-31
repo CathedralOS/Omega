@@ -1,1 +1,1 @@
-omits `invokes Probe;`
+omits `invokes Probe`

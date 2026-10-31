@@ -127,6 +127,24 @@ macro_rules! corresponded_primitive_access {
     };
 }
 
+/// The single-ordering atomic accessors every placed projection exposes.
+/// Each one seals exactly one `AtomicAccessOperation` variant over the same
+/// retained placement authority, so the eight shapes cannot drift apart.
+macro_rules! atomic_ordering_accessors {
+    ($($method:ident => $operation:ident),+ $(,)?) => {
+        $(
+            pub fn $method<'access>(
+                &'access self,
+                ordering: MemoryOrdering,
+            ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+                self.authorize(AccessOperation::Atomic(AtomicAccessOperation::$operation(
+                    ordering,
+                )))
+            }
+        )+
+    };
+}
+
 /// The placed-placement authority every access keeps: its resident claim,
 /// the placed occurrence it projects, and the retained correspondence.
 macro_rules! placed_authority_accessors {

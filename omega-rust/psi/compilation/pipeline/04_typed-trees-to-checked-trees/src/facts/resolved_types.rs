@@ -6,14 +6,14 @@
 //! Lowering receives the decisions, including genuine absence; it cannot
 //! rebuild a type from a local, parameter or source-shaped fallback.
 
+use crate::flow::expressions;
 use checked_trees::{ResolvedCarrierType, ResolvedExpressionType, ResolvedTypeFacts};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 pub(crate) fn resolve_program_types(program: &dyn validation::CheckingInput) -> ResolvedTypeFacts {
-    let highest_expression = program
-        .expression_table
+    let highest_expression = expressions(program)
         .iter_expressions()
         .map(|(handle, _)| handle.arena_index())
         .max()

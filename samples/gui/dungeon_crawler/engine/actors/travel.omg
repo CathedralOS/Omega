@@ -17,7 +17,7 @@ use configuration::MAX_MOVEMENT_STEP;
 use configuration::ARRIVAL_INSET;
 
 public machine move_actor<const Rooms: u64>(actor: Actor<Rooms>, dungeon: &Dungeon<Rooms>, direction: i32, key: bool) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4 {
     transition direction >= 0 && actor.active && actor.vitality.current > 0 {
         true -> moving(actor, dungeon, direction, key)
@@ -32,7 +32,7 @@ requires Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4 {
 }
 
 machine resolve_step<const Rooms: u64>(actor: Actor<Rooms>, dungeon: &Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4
     && x >= -MAX_MOVEMENT_STEP && x < ROOM_WIDTH + MAX_MOVEMENT_STEP
     && y >= -MAX_MOVEMENT_STEP && y < ROOM_HEIGHT + MAX_MOVEMENT_STEP {
@@ -77,14 +77,14 @@ requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4
 }
 
 machine face<const Rooms: u64>(mut actor: Actor<Rooms>, direction: i32) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor.facing = direction;
     actor
 }
 
 machine locate<const Rooms: u64>(mut actor: Actor<Rooms>, direction: i32, position: Position) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor.facing = direction;
     actor.position = position;
@@ -92,7 +92,7 @@ requires Rooms >= 1 && direction >= 0 && direction < 4 {
 }
 
 machine arrive<const Rooms: u64>(actor: Actor<Rooms>, direction: i32, exit: Exit<Rooms>) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     let destination: u64 = exit.destination;
     transition destination < Rooms { true -> arrival(actor, direction, destination) _ -> (actor) }

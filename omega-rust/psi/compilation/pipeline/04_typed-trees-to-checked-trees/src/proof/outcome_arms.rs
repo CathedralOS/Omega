@@ -1,5 +1,7 @@
 //! Outcome-specific arm facts and the exact outcome case tests.
 
+use crate::flow::expressions;
+use crate::flow::state_statements;
 use crate::proof::proposition_vocabulary::{
     lower_checked_proposition_application, proposition_application_label, proposition_label_parts,
 };
@@ -21,9 +23,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
 
     for caller_machine in program.machines() {
         for caller_state in program.machine_states(caller_machine) {
-            let statements = program
-                .statement_table
-                .statements(caller_state.statement_nodes);
+            let statements = state_statements(program, caller_state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
                 let Some(transition) = statement.as_transition() else {
                     continue;
@@ -355,9 +355,7 @@ pub(crate) fn exact_outcome_case_test(
             // symbol and owns no fields to compare.
             ExpressionNode::StructLiteral(literal)
                 if literal.case_symbol.is_some()
-                    && program
-                        .expression_table
-                        .struct_fields(literal.fields)
+                    && expressions(program).struct_fields(literal.fields)
                         .is_empty() =>
             {
                 literal.case_symbol
@@ -441,8 +439,7 @@ fn instantiate_outcome_arm_fact(
     // Internal capture keys compare checked values. The public proposition
     // retains its canonical source vocabulary; Terminal joins typed formal
     // subjects with evaluated call operands, never source arena handles.
-    let captured_argument_identities = program
-        .expression_table
+    let captured_argument_identities = expressions(program)
         .expression_handles(application.arguments)
         .iter()
         .map(|argument| {

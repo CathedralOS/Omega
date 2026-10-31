@@ -93,13 +93,13 @@ impl TerminalExecution<'_> {
         end: usize,
     ) -> Result<RepresentationView, TerminalInterpretError> {
         let extent = terminal_semantics::representation_byte_extent(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             collection,
         )
         .and_then(|extent| usize::try_from(extent).ok())
         .ok_or_else(malformed)?;
         let layout = terminal_semantics::representation_element_layout(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             element,
         )
         .ok_or_else(malformed)?;
@@ -108,8 +108,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let storage = if matches!(
-            self.program
-                .structural_types()
+            self.structural_types()
                 .get(&collection)
                 .map(|row| &row.shape),
             Some(StructuralTypeShape::ByteSequence(_))
@@ -147,7 +146,7 @@ impl TerminalExecution<'_> {
             )?;
             let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
             let referent = crate::custody::resolve_single_structural_argument(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &values,
                 &source,
             )?;

@@ -1,6 +1,7 @@
 //! Plain structural children of an expression: the descent every
 //! worklist walk shares once its own semantic arms are handled.
 
+use crate::flow::expressions;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
 
 /// Pushes a `Match`'s owned children: the subject, each executable arm predicate,
@@ -47,8 +48,7 @@ pub(crate) fn push_expression_children(
         }
         ExpressionNode::ArrayLiteral(values) => {
             pending.extend(
-                program
-                    .expression_table
+                expressions(program)
                     .expression_handles(*values)
                     .iter()
                     .copied(),
@@ -76,8 +76,7 @@ pub(crate) fn push_every_expression_child(
         ExpressionNode::Match(dispatch) => push_match_children(program, dispatch, pending),
         ExpressionNode::ArrayLiteral(values) => {
             pending.extend(
-                program
-                    .expression_table
+                expressions(program)
                     .expression_handles(*values)
                     .iter()
                     .copied(),
@@ -94,8 +93,7 @@ pub(crate) fn push_every_expression_child(
         ExpressionNode::Call(call) => {
             pending.push(call.receiver);
             pending.extend(
-                program
-                    .expression_table
+                expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied(),
@@ -114,8 +112,7 @@ pub(crate) fn push_every_expression_child(
         }
         ExpressionNode::StructLiteral(literal) => {
             pending.extend(
-                program
-                    .expression_table
+                expressions(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .map(|field| field.value),

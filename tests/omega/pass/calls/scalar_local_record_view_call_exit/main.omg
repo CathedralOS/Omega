@@ -14,7 +14,7 @@ machine inspect_values(values: &[i32]) -> bool {
         false -> (false)
     }
     machine read(values: &[i32]) -> bool
-        requires 1 < values.len;
+        requires 1 < values.len
     {
         values.len == 2 && values[0] == 11 && values[1] == 13
     }

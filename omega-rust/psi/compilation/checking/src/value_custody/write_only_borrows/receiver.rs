@@ -4,6 +4,7 @@ use super::{
     SymbolHandle, WriteOnlyRoot, closed_write_only_data_by_symbol,
     closed_write_only_data_shape_by_symbol, write_only_record_shape,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::data::DataField;
 use typed_trees::expression::TableNamePath;
 use typed_trees::statement::TableCall;
@@ -68,8 +69,7 @@ pub(super) fn mentions_name(
     path: &TableNamePath,
 ) -> bool {
     matches_name(root, path)
-        || program
-            .expression_table
+        || expression_table(program)
             .name_path_members(path.members)
             .first()
             .is_some_and(|name| {
@@ -82,7 +82,7 @@ pub(super) fn bare_field<'program, 'roots>(
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
 ) -> Option<(&'roots WriteOnlyRoot, &'program DataField)> {
-    let Some((path, name)) = program.expression_table.single_name_member(expression) else {
+    let Some((path, name)) = expression_table(program).single_name_member(expression) else {
         return None;
     };
     roots.iter().find_map(|root| {

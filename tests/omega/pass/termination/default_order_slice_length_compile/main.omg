@@ -14,9 +14,8 @@ machine Main::main(main: &mut Main) -> u64 {
     }
 }
 
-machine Main::walk(main: &Main, entries: &[Entry])
-terminates by entries;
--> u64
+machine Main::walk(main: &Main, entries: &[Entry]) -> u64
+terminates by entries
 {
     transition entries.len > 0 {
         true -> walk(main, entries[1..])

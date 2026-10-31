@@ -35,9 +35,7 @@ pub(crate) fn encode_physical(
         encoder.tag(name, calling_policy_tag(physical.policy()));
         Ok(())
     })?;
-    encoder.field("parameters", |encoder| {
-        encoder.sequence(physical.parameters(), encode_value_placement)
-    })?;
+    encoder.sequence_field("parameters", physical.parameters(), encode_value_placement)?;
     encoder.option_field("result", physical.result(), encode_value_placement)?;
     encoder.field("ordinary_clobbers", |encoder| {
         encoder.sequence(physical.ordinary_clobbers(), |encoder, register| {

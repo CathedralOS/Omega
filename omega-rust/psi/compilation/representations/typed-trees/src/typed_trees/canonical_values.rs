@@ -40,10 +40,7 @@ pub(crate) fn materialize(
             let TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
-            } = program
-                .type_reference_table
-                .type_reference(declared_type)
-                .clone()
+            } = program.type_reference_node(declared_type).clone()
             else {
                 return None;
             };
@@ -79,8 +76,7 @@ fn record(
 ) -> Option<ExpressionNode> {
     let declared_type = program.unwrapped_type_reference(declared_type)?;
     let symbol = &program
-        .type_reference_table
-        .type_reference(declared_type)
+        .type_reference_node(declared_type)
         .as_named_symbol()?;
     // Encoded names are consistency claims, never a route to another carrier.
     let definition = program

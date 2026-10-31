@@ -4,7 +4,7 @@
 
 machine ranked_loop(current: u64) -> u64
 requires current <= 100 && current >= 20
-terminates by current;
+terminates by current
 ensures result <= 61
 {
     transition current <= 61 {

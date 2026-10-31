@@ -11,7 +11,7 @@
 use omega_language_std::console;
 data Main { }
 machine Main::countdown(main: &mut Main, remaining: u64) -> u64
-terminates by remaining;
+terminates by remaining
 {
     transition remaining > 0 {
         true -> Main::countdown(main, remaining - 1)

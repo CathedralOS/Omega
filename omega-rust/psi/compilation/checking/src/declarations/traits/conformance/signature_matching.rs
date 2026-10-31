@@ -551,11 +551,11 @@ fn validate_trait_effect_ceiling(
                 machine.name, state.name, trait_name, requirement.name,
             ),
             super::OperationalCeilingBreach::Suspends => format!(
-                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `suspends;` exceeds the trait requirement's operational ceiling",
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `suspends` exceeds the trait requirement's operational ceiling",
                 machine.name, state.name, trait_name, requirement.name,
             ),
             super::OperationalCeilingBreach::Blocks => format!(
-                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `blocks;` exceeds the trait requirement's operational ceiling",
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `blocks` exceeds the trait requirement's operational ceiling",
                 machine.name, state.name, trait_name, requirement.name,
             ),
         },

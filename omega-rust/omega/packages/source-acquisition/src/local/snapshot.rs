@@ -30,6 +30,7 @@ use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
 use crate::snapshot::metadata::verify_local_snapshot;
 use crate::storage::RetainedStorageLane;
 use crate::tree::capture::CapturedLocalTree;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 
 #[cfg(test)]
@@ -41,10 +42,9 @@ pub(crate) fn publish_local_snapshot(
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
     let canonical_cache_dir =
         validate_local_snapshot_topology(&captured.normalized.root, cache_dir)?;
-    std::fs::create_dir_all(&canonical_cache_dir)
-        .map_err(|error| io_error(&canonical_cache_dir, error))?;
+    std::fs::create_dir_all(&canonical_cache_dir).at(&canonical_cache_dir)?;
     let snapshots = canonical_cache_dir.join(LOCAL_CACHE_SNAPSHOTS);
-    std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
+    std::fs::create_dir_all(&snapshots).at(&snapshots)?;
     verify_local_cache_root_custody(&canonical_cache_dir)?;
     verify_local_cache_root_custody(&snapshots)?;
 
@@ -318,17 +318,13 @@ fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveEr
     let mut existing = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir()
-            .map_err(|error| io_error(Path::new("."), error))?
-            .join(path)
+        std::env::current_dir().at(Path::new("."))?.join(path)
     };
     let mut suffix = Vec::<OsString>::new();
     loop {
         match std::fs::symlink_metadata(&existing) {
             Ok(_) => {
-                let canonical = existing
-                    .canonicalize()
-                    .map_err(|error| io_error(&existing, error))?;
+                let canonical = existing.canonicalize().at(&existing)?;
                 let mut result = canonical;
                 for component in suffix.into_iter().rev() {
                     if component == "." {

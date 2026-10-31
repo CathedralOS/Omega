@@ -31,6 +31,7 @@ use super::structural_case_arms::{
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::PrefixObservation;
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -122,7 +123,7 @@ pub fn selected_value_call_requirement_entailed(
                     if required == expression {
                         return true;
                     }
-                    if let Some(binary) = program.expression_table.binary_node(required)
+                    if let Some(binary) = expression_table(program).binary_node(required)
                         && binary.operator == BinaryOperator::And
                     {
                         pending.extend([binary.left, binary.right]);
@@ -287,11 +288,11 @@ fn structural_requirement_at_prefix(
                 "STRUCT runtime-prefix declined caller={} state={:?} goal={} premises={:?}",
                 machine.name,
                 state,
-                program.expression_table.display_name(expression),
+                expression_table(program).display_name(expression),
                 requires
                     .iter()
                     .map(|fact| (
-                        program.expression_table.display_name(*fact),
+                        expression_table(program).display_name(*fact),
                         runtime_equality_fact(
                             program,
                             machine,
@@ -309,7 +310,7 @@ fn structural_requirement_at_prefix(
             "STRUCT runtime-prefix entered caller={} state={:?} statement={statement_index} goal={}",
             machine.name,
             state,
-            program.expression_table.display_name(expression)
+            expression_table(program).display_name(expression)
         );
     }
     let mut requirement = CallRequirement {
@@ -653,8 +654,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                         &mut expressions,
                     );
                     if expressions.iter().any(|expression| {
-                        program
-                            .expression_table
+                        expression_table(program)
                             .name_path_node(*expression)
                             .is_some_and(|path| {
                                 path.symbol == predicate_parameter.symbol
@@ -697,9 +697,9 @@ fn runtime_equality_fact(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let Some(binary) = expression_table(program).binary_node(expression) else {
         return matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Boolean(_)
         );
     };
@@ -755,7 +755,7 @@ fn runtime_fact_for_parameters(
         return super::structural_terms::static_type_predicate_term(program, expression, &[])
             .is_some();
     }
-    if let Some(binary) = program.expression_table.binary_node(expression) {
+    if let Some(binary) = expression_table(program).binary_node(expression) {
         if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
             return runtime_fact_for_parameters(program, owner, parameters, binary.left)
                 && runtime_fact_for_parameters(program, owner, parameters, binary.right);
@@ -826,7 +826,7 @@ pub(super) fn contains_case_premise(
     if super::structural_terms::is_case_observation(program, expression) {
         return true;
     }
-    matches!(program.expression_table.expression(expression), ExpressionNode::Binary(binary)
+    matches!(expression_table(program).expression(expression), ExpressionNode::Binary(binary)
         if binary.operator == typed_trees::expression::BinaryOperator::And
         && (contains_case_premise(program, binary.left) || contains_case_premise(program, binary.right)))
 }
@@ -840,7 +840,7 @@ pub(super) fn case_fact_only(
     if super::structural_terms::is_case_observation(program, expression) {
         return true;
     }
-    matches!(program.expression_table.expression(expression), ExpressionNode::Binary(binary)
+    matches!(expression_table(program).expression(expression), ExpressionNode::Binary(binary)
         if binary.operator == BinaryOperator::And
         && case_fact_only(program, binary.left) && case_fact_only(program, binary.right))
 }

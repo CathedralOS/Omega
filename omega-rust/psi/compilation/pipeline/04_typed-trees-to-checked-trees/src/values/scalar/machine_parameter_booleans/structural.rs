@@ -6,6 +6,7 @@
 
 use super::structural_equality;
 use super::structural_paths::{path_primitive_type, path_type_reference};
+use crate::flow::expressions;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::expression_facts::{operator_is_builtin, scalar_expression_type};
 use crate::values::scalar::scalar_lowering::lower_scalar_operands;
@@ -67,17 +68,13 @@ pub(crate) fn lower(
         ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
         ExpressionNode::Name(name) => {
             let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
-                program
-                    .expression_table
+                expressions(program)
                     .name_path_member_symbols(name.member_symbols)
                     .iter()
                     .copied()
                     .find(|symbol| symbol.is_valid())
             });
-            let name_text = program
-                .expression_table
-                .name_path_members(name.members)
-                .last();
+            let name_text = expressions(program).name_path_members(name.members).last();
             let source_position = parameters.iter().position(|parameter| {
                 name_symbol.is_some_and(|symbol| parameter.symbol == symbol)
                     || name_text.is_some_and(|text| parameter.name == *text)
@@ -238,8 +235,7 @@ fn lower_structural_case_membership(
         let (case_symbol, literal_owner) = match program.expression_table.expression(candidate) {
             ExpressionNode::Name(name) => (name.symbol, None),
             ExpressionNode::StructLiteral(literal)
-                if program
-                    .expression_table
+                if expressions(program)
                     .struct_fields(literal.fields)
                     .is_empty() =>
             {

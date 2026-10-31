@@ -7,9 +7,9 @@ FirstSelected satisfies First { machine value() -> u64 { 1 } }
 SecondSelected satisfies Second { machine value() -> u64 { 2 } }
 ThirdSelected satisfies Third { machine value() -> u64 { 4 } }
 public machine a(remaining: u64) -> u64
-invokes First;
-invokes Second;
-invokes Third;
+invokes First
+invokes Second
+invokes Third
 {
     transition remaining > 0 { true -> b(remaining - 1) false -> first() }
 }

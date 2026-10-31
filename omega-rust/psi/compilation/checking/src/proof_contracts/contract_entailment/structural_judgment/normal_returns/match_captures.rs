@@ -3,6 +3,7 @@
 //! Owned nominal admission is retained at this cut, independently of later
 //! source writes; reference descriptors keep their ordinary content epochs.
 use super::{StructuralJudge, StructuralTerm, TypeReferenceHandle, ValueScope};
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableMatchExpression, TableSavedSubject, ValueCaptureOwner,
 };
@@ -13,7 +14,7 @@ impl StructuralJudge<'_> {
         saved: &TableSavedSubject,
     ) -> Option<StructuralTerm> {
         self.program.saved_value_source(saved)?;
-        let capture = self.program.expression_table.value_capture(saved.capture);
+        let capture = expression_table(self.program).value_capture(saved.capture);
         if !matches!(capture.owner, ValueCaptureOwner::Match) {
             return None;
         }
@@ -31,7 +32,7 @@ impl StructuralJudge<'_> {
         reference: TypeReferenceHandle,
     ) -> bool {
         let ExpressionNode::SavedSubject(saved) =
-            self.program.expression_table.expression(expression)
+            expression_table(self.program).expression(expression)
         else {
             return false;
         };
@@ -44,9 +45,7 @@ impl StructuralJudge<'_> {
         if bound.observation_identity_key().as_ref() != Some(&key) {
             return false;
         }
-        let anchor = self
-            .program
-            .expression_table
+        let anchor = expression_table(self.program)
             .value_capture(saved.capture)
             .value_anchor;
         let identity = self.program.normalized_type_identity(reference);
@@ -65,7 +64,7 @@ impl StructuralJudge<'_> {
         value: StructuralTerm,
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
-        let table = &self.program.expression_table;
+        let table = expression_table(self.program);
         if !dispatch.capture.is_valid() {
             return Some(value);
         }
@@ -146,16 +145,10 @@ impl StructuralJudge<'_> {
     }
 
     pub(super) fn retire_match_subject(&mut self, dispatch: &TableMatchExpression) {
-        if !self
-            .program
-            .expression_table
-            .contains_value_capture(dispatch.capture)
-        {
+        if !expression_table(self.program).contains_value_capture(dispatch.capture) {
             return;
         }
-        let anchor = self
-            .program
-            .expression_table
+        let anchor = expression_table(self.program)
             .value_capture(dispatch.capture)
             .value_anchor;
         std::sync::Arc::make_mut(&mut self.normal_results)

@@ -3,6 +3,7 @@
 //! at its dominating home, including backing observed by surviving descriptors.
 
 use super::{ClaimBindings, ClaimEdgeBinding};
+use crate::checked_facts::flow_facts;
 use crate::lowering_error::{LoweringError, unsupported};
 use language_semantics::PermissionClaimIdentity;
 use symbols::SymbolHandle;
@@ -74,9 +75,7 @@ pub(crate) fn edge_bindings(
                 return unsupported("selected claim arrivals form a cycle");
             }
             visited.push(incoming);
-            let mut candidates = checked
-                .facts
-                .flow
+            let mut candidates = flow_facts(checked)
                 .ownership
                 .selection_place_bindings
                 .iter()

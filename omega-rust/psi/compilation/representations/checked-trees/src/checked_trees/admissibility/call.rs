@@ -69,17 +69,11 @@ impl<'facts> CallAcceptance<'facts> {
     }
 
     pub fn requires(&self) -> &'facts [ContractProofFactRef] {
-        self.facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(self.call.requires)
+        self.facts.contract_fact_refs(self.call.requires)
     }
 
     pub fn ensures(&self) -> &'facts [ContractProofFactRef] {
-        self.facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(self.call.ensures)
+        self.facts.contract_fact_refs(self.call.ensures)
     }
 
     pub fn service_reach(&self) -> language_semantics::ServiceReachSummary {

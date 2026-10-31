@@ -14,7 +14,7 @@ reaches Read
 }
 
 machine Table::restore(this: &mut Table, providers: &mut Providers, position: u64, n: u64) -> u64
-    requires position < 4 && n < 5;
+    requires position < 4 && n < 5
 reaches Read
 {
     let mut buffer: [u8; 4];
@@ -24,7 +24,7 @@ reaches Read
         _ -> (0)
     }
     machine compare(this: &mut Table, providers: &mut Providers, position: u64, current: &[u8]) -> u64
-        requires position < this.count && position < 4;
+        requires position < this.count && position < 4
     {
         (this.items[position] as u64)
     }

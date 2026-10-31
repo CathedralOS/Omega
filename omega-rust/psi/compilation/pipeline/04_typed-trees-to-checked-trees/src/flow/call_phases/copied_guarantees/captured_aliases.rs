@@ -3,7 +3,9 @@
 //! neither this association nor its inverse projection grants a storage write.
 
 use super::ArgumentSources;
+use crate::flow::expressions;
 use crate::flow::mutation::CallMutationWrite;
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 impl ArgumentSources<'_, '_> {
@@ -17,12 +19,9 @@ impl ArgumentSources<'_, '_> {
             if !crate::flow::operand_binds_live_view(self.program, capture.type_reference) {
                 continue;
             }
-            let Some(alias) = validation::canonical_place_from_expression_in_state(
-                self.program,
-                self.state,
-                self.statement,
-                capture.expression,
-            ) else {
+            let Some(alias) =
+                place_at(self.program, self.state, self.statement, capture.expression)
+            else {
                 continue;
             };
             let Some(binding) = validation::ownership_place_from_expression_in_state(
@@ -98,12 +97,8 @@ impl ArgumentSources<'_, '_> {
                 }
             }
             if let Some(boundary) = boundary
-                && let Some(mut alias) = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement,
-                    capture.expression,
-                )
+                && let Some(mut alias) =
+                    place_at(self.program, self.state, self.statement, capture.expression)
                 && let Some(mut binding) = validation::ownership_place_from_expression_in_state(
                     self.program,
                     self.state,
@@ -125,10 +120,7 @@ impl ArgumentSources<'_, '_> {
                         .iter()
                         .map(|segment| {
                             segment.erase_runtime_selector(|expression| {
-                                self.program
-                                    .expression_table
-                                    .range_node(expression)
-                                    .is_some()
+                                expressions(self.program).range_node(expression).is_some()
                             })
                         })
                         .collect::<Vec<_>>();

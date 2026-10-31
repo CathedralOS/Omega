@@ -2,6 +2,7 @@
 //! Both symbolic and closed selections refine the same applied source contract.
 
 use super::super::{Candidate, Diagnostic, SymbolHandle, TypeReferenceHandle, TypedTrees};
+use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::{
     signature::StateSignature, state::State, static_applications::StaticMachineApplicationHandle,
 };
@@ -16,8 +17,7 @@ pub(super) fn retain_view(
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Result<(), Vec<Diagnostic>> {
-    let caller_lifetimes = program
-        .expression_table
+    let caller_lifetimes = expressions_of(program)
         .static_machine_application_lifetimes(invocation)
         .to_vec();
     program
@@ -41,26 +41,19 @@ pub(super) fn retain_provider(
     invocation: StaticMachineApplicationHandle,
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
 ) -> StaticMachineApplicationHandle {
-    let owner = program
-        .expression_table
+    let owner = expressions_of(program)
         .static_machine_application(invocation)
         .lexical_owner;
-    let retained = program.expression_table.retain_static_machine_application(
+    let retained = expressions_of_mut(program).retain_static_machine_application(
         state.symbol,
         state.name.clone(),
         &[],
     );
-    let record = program
-        .expression_table
-        .static_machine_application_mut(retained);
+    let record = expressions_of_mut(program).static_machine_application_mut(retained);
     record.lexical_owner = owner;
     record.binding_declaration = provider.template.template_symbol;
     let bindings = super::super::applications::candidate_bindings(program, provider);
-    program
-        .expression_table
-        .set_static_machine_application_bindings(retained, &bindings);
-    program
-        .expression_table
-        .set_static_machine_application_lifetimes(retained, lifetimes);
+    expressions_of_mut(program).set_static_machine_application_bindings(retained, &bindings);
+    expressions_of_mut(program).set_static_machine_application_lifetimes(retained, lifetimes);
     retained
 }

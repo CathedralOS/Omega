@@ -8,7 +8,7 @@ use omega_language_std::console;
 data Main { values: [u32; 4]; }
 
 machine sum(values: &[u32; 4], index: u64, total: u64 in Wrapping) -> u64 in Wrapping
-terminates by (index, 4) -> Nat::BoundedDistance;
+terminates by (index, 4) -> Nat::BoundedDistance
 requires index <= 4
 {
     transition {

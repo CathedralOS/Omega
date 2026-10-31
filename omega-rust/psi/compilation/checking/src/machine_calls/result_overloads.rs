@@ -1,6 +1,7 @@
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
@@ -224,7 +225,7 @@ fn expression_owners(program: &dyn crate::CheckingInput) -> HashMap<u32, CallOwn
             declaration.authored_initializer,
             declaration.materialized_initializer,
         ] {
-            if program.expression_table.expression_is_valid(root) {
+            if expression_table(program).expression_is_valid(root) {
                 record_expression_owner(program, root, owner, &mut owners);
             }
         }
@@ -244,7 +245,7 @@ fn record_expression_owner(
     owners.insert(expression.arena_index(), owner);
     crate::expression_traversal::children(
         program,
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         |child| record_expression_owner(program, child, owner, owners),
     );
 }
@@ -268,8 +269,7 @@ pub fn resolve_named_result_overloads(
     let machine_overloads = MachineOverloadIndex::new(program);
     let mut diagnostics = Vec::new();
 
-    let expression_updates = program
-        .expression_table
+    let expression_updates = expression_table(program)
         .expression_entries()
         .filter_map(|(handle, expression)| {
             let ExpressionNode::Call(call) = expression else {
@@ -284,7 +284,7 @@ pub fn resolve_named_result_overloads(
                 expression_owners
                     .get(&handle.arena_index())
                     .map(|owner| owner.source_span())
-                    .unwrap_or_else(|| program.expression_table.source_span(handle)),
+                    .unwrap_or_else(|| expression_table(program).source_span(handle)),
                 expected,
                 &mut diagnostics,
             )
@@ -741,7 +741,7 @@ fn selected_named_expression_callable_symbol(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
     let receiver = if call.receiver.is_valid() {
-        match program.expression_table.expression(call.receiver) {
+        match expression_table(program).expression(call.receiver) {
             ExpressionNode::Name(path) => {
                 path.resolved_symbol().unwrap_or_else(SymbolHandle::invalid)
             }
@@ -764,7 +764,7 @@ fn selected_named_expression_callable_symbol(
         CallOperands {
             owner,
             static_arguments: &call.machine_arguments,
-            arguments: program.expression_table.expression_handles(call.arguments),
+            arguments: expression_table(program).expression_handles(call.arguments),
         },
         source_span,
         expected_result,
@@ -1181,7 +1181,7 @@ pub fn collect_expected_expression_calls(
 ) -> Vec<(ExpressionHandle, TypeReferenceHandle)> {
     let mut expected = Vec::new();
 
-    for (_, expression) in program.expression_table.expression_entries() {
+    for (_, expression) in expression_table(program).expression_entries() {
         match expression {
             ExpressionNode::StructLiteral(literal) => {
                 let Some(data_definition) = program.data_definitions().iter().find(|definition| {
@@ -1191,7 +1191,7 @@ pub fn collect_expected_expression_calls(
                 }) else {
                     continue;
                 };
-                for field in program.expression_table.struct_fields(literal.fields) {
+                for field in expression_table(program).struct_fields(literal.fields) {
                     let Some(field_type) =
                         crate::value_custody::struct_literals::construction_field_type(
                             program,
@@ -1209,7 +1209,7 @@ pub fn collect_expected_expression_calls(
                 collect_call_argument_expectations(
                     program,
                     call.target_symbol,
-                    program.expression_table.expression_handles(call.arguments),
+                    expression_table(program).expression_handles(call.arguments),
                     &mut expected,
                 );
             }
@@ -1322,9 +1322,9 @@ fn push_expected_call(
     expected_type: TypeReferenceHandle,
     expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
 ) {
-    match program.expression_table.expression(value) {
+    match expression_table(program).expression(value) {
         ExpressionNode::Match(dispatch) => {
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
                 push_expected_call(program, arm.value, expected_type, expected);
             }
         }
@@ -1362,8 +1362,7 @@ fn push_expected_call(
             let Some(element_type) = array_element_type(program, expected_type) else {
                 return;
             };
-            for element in program
-                .expression_table
+            for element in expression_table(program)
                 .expression_handles(*values)
                 .iter()
                 .copied()

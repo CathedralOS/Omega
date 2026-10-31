@@ -1,10 +1,11 @@
 //! scalar exits slice of result_domains.
 
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 use super::super::super::return_values::{exit_return_call, exit_return_expression};
 use super::proofs::*;
 use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
 use facts::FactContextHandle;
@@ -78,14 +79,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
     let contexts = active_context_handles(&facts.flow.contexts, exit.entry_semantic_contexts);
     let subject = returned
         .is_valid()
-        .then(|| {
-            canonical_place_from_expression_in_state(
-                program,
-                exit.state_symbol,
-                exit.statement_index,
-                returned,
-            )
-        })
+        .then(|| place_at(program, exit.state_symbol, exit.statement_index, returned))
         .flatten();
     if subject.as_ref().is_some_and(|subject| {
         !crate::flow::place_cases_are_selected(

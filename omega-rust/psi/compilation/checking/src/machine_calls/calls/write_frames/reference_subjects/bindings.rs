@@ -10,6 +10,7 @@ use super::super::{
     ExpressionHandle, FramePlaceOrigin, Machine, StateParameter, TopLevelSymbols, caller_aliases,
     local_aliases, stored_origins,
 };
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
 };
@@ -30,7 +31,7 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
     divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
 ) -> bool {
     caller_aliases::expression_any(program, expression, |expression| {
-        let Some(call) = program.expression_table.call_node(expression) else {
+        let Some(call) = expression_table(program).call_node(expression) else {
             return false;
         };
         if let Some(callee) = program
@@ -43,8 +44,7 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
                 crate::DependencyBodyRead::BindingStability,
             );
         }
-        program
-            .expression_table
+        expression_table(program)
             .expression_handles(call.arguments)
             .iter()
             .copied()

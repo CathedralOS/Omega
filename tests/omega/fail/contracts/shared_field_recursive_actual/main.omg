@@ -1,7 +1,7 @@
 data Layout { origin: u64; }
 
 machine walk(left: &Layout, right: &Layout, remaining: u64) -> i32
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 requires left.origin == 0 {
     transition remaining > 0 {
         true -> walk(right, left, remaining - 1)

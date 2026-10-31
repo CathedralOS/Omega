@@ -8,8 +8,8 @@ data Operands {
 }
 
 machine multiply_field(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 20u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 20u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let ops: Operands = Operands { lhs: lhs, rhs: rhs };
     let a: u32 in Wrapping = ops.lhs as u32 in Wrapping;

@@ -25,6 +25,7 @@ use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
@@ -147,7 +148,7 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
     current_machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     let receiver_members = receiver_member_chain(program, call.receiver).unwrap_or_default();
     boundary_trait_signature_and_receiver_inner(
         program,
@@ -223,7 +224,7 @@ pub(super) fn call_has_authority_receiver(
 ) -> bool {
     let (members, target) = match site {
         CallerWriteSite::Expression(expression) => {
-            let Some(call) = program.expression_table.call_node(expression) else {
+            let Some(call) = expression_table(program).call_node(expression) else {
                 return false;
             };
             if !call.receiver.is_valid() {
@@ -312,7 +313,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             )
         }
         CallerWriteSite::Expression(expression) => {
-            let call = program.expression_table.call_node(expression)?;
+            let call = expression_table(program).call_node(expression)?;
             crate::receiver_projections::expression(
                 program,
                 state,
@@ -362,8 +363,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     // the closed target matches nothing and the call escapes its argument
     // checks.
     let applied = match site {
-        CallerWriteSite::Expression(expression) => program
-            .expression_table
+        CallerWriteSite::Expression(expression) => expression_table(program)
             .call_node(expression)
             .map(|call| call.requirement_application)
             .filter(|application| application.is_valid()),
@@ -489,11 +489,11 @@ fn parameter_boundary_receiver_type(
     let root = match site {
         CallerWriteSite::Call(call) => call.receiver_root_symbol,
         CallerWriteSite::Expression(expression) => {
-            let call = program.expression_table.call_node(expression)?;
+            let call = expression_table(program).call_node(expression)?;
             let mut receiver = call.receiver;
             let mut root = SymbolHandle::invalid();
             for _ in 0..members.len() {
-                match program.expression_table.expression(receiver) {
+                match expression_table(program).expression(receiver) {
                     ExpressionNode::Member(member) => receiver = member.receiver,
                     ExpressionNode::Name(name) => {
                         root = name.head_symbol;
@@ -543,7 +543,7 @@ fn call_site_symbols(
         CallerWriteSite::Call(call) => Some((call.receiver_symbol, call.target_symbol)),
         CallerWriteSite::Expression(expression) => {
             let typed_trees::expression::ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
+                expression_table(program).expression(expression)
             else {
                 return None;
             };
@@ -956,10 +956,9 @@ pub(super) fn expression_receiver_symbol(
     program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
 ) -> SymbolHandle {
-    match program.expression_table.expression(receiver) {
+    match expression_table(program).expression(receiver) {
         typed_trees::expression::ExpressionNode::Name(name)
-            if program
-                .expression_table
+            if expression_table(program)
                 .name_path_members(name.members)
                 .len()
                 == 1
@@ -1056,7 +1055,7 @@ fn boundary_argument_origins(
     argument: ExpressionHandle,
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    if let Some(call) = program.expression_table.call_node(argument) {
+    if let Some(call) = expression_table(program).call_node(argument) {
         if selected_boundary_signature(program, call.target_symbol) {
             return boundary_result_origins(
                 program,
@@ -1139,7 +1138,7 @@ fn boundary_result_origins(
         has_runtime_receiver,
         bindings,
     } = selected;
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,
         current_machine,
@@ -1368,7 +1367,7 @@ fn requirement_result_origins(
         call.target.as_str(),
         CallerWriteSite::Expression(expression),
     )?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let parameters = program.state_signature_parameters(signature);
     let paired = parameters.iter().collect::<Vec<_>>();
     if paired.len() != arguments.len() {

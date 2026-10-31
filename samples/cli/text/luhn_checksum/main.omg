@@ -11,7 +11,9 @@
 
 use omega_language_std::console;
 
-data Main {
+data Main
+requires self.r >= -1 && self.r <= 10
+{
     pause: [u8; 256];
     digits: [i32; 11];
     r: i32;
@@ -25,51 +27,51 @@ machine Main::main(main: &mut Main) reaches Console {
     main.digits = [7, 9, 9, 2, 7, 3, 9, 8, 7, 1, 3];
     main.r = 10;
     main.sum = 0;
-    transition { _ -> step(main) }
+    transition { _ -> block step(main) }
 
     machine step(main: &mut Main) {
         transition main.r >= 0 {
-            true -> proc(main)
-            false -> check(main)
+            true -> block proc(main)
+            false -> block check(main)
         }
     }
     machine proc(main: &mut Main) {
         main.d = main.digits[main.r] as i32 in Wrapping;
         main.par = (main.r % 2) as i32 in Wrapping;
         transition main.par == 1 {
-            true -> double_it(main)
-            false -> accumulate(main)
+            true -> block double_it(main)
+            false -> block accumulate(main)
         }
     }
     machine double_it(main: &mut Main) {
         main.d = main.d * 2;
         transition main.d > 9 {
-            true -> sub9(main)
-            false -> accumulate(main)
+            true -> block sub9(main)
+            false -> block accumulate(main)
         }
     }
     machine sub9(main: &mut Main) {
         main.d = main.d - 9;
-        transition { _ -> accumulate(main) }
+        transition { _ -> block accumulate(main) }
     }
     // Re-guard so the decrement's direct edge proves `r - 1` cannot overflow
     // -- accumulate is only reachable with r >= 0, so always true.
     machine accumulate(main: &mut Main) {
         main.sum = main.sum + main.d;
         transition main.r >= 0 {
-            true -> dec(main)
-            false -> check(main)
+            true -> block dec(main)
+            false -> block check(main)
         }
     }
     machine dec(main: &mut Main) {
         main.r = main.r - 1;
-        transition { _ -> step(main) }
+        transition { _ -> block step(main) }
     }
     machine check(main: &mut Main) {
         main.par = main.sum % 10;
         transition main.par == 0 {
-            true -> valid(main)
-            false -> invalid(main)
+            true -> block valid(main)
+            false -> block invalid(main)
         }
     }
     machine valid(main: &mut Main) {

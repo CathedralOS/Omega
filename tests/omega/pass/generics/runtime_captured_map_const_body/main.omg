@@ -11,14 +11,14 @@ Selected<const Output: i32> satisfies Arithmetic<i32> {
 }
 
 machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 100
 requires 0 <= right && right <= 100
 {
     left + right
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let selected: i32 = block choose<ConstantThree>(5, 6);
     let applied: i32 = block choose<Selected<7>>(5, 6);
     transition selected == 3 && applied == 7 { true -> done() _ -> bad() }

@@ -1,3 +1,5 @@
+use crate::flow::expressions;
+use crate::places::place_at;
 use validation::effective_member_symbol;
 
 use checked_trees::ContractCallFact;
@@ -62,7 +64,7 @@ fn instantiate_contract_expression_place(
             expression,
         )
     {
-        let mut place = validation::canonical_place_from_expression_in_state(
+        let mut place = place_at(
             program,
             call.caller_state_symbol,
             call.statement_index,
@@ -224,9 +226,7 @@ fn instantiate_call_contract_name_path_place(
         return Some(place);
     }
 
-    let member_symbols = program
-        .expression_table
-        .name_path_member_symbols(path.member_symbols);
+    let member_symbols = expressions(program).name_path_member_symbols(path.member_symbols);
     for (offset, member_name) in members.iter().skip(1).enumerate() {
         let symbol = member_symbols
             .get(offset + 1)

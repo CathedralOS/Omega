@@ -6,7 +6,7 @@ boundary trait Replace {
 
 machine after_call()
 reaches Replace
-invokes Replace;
+invokes Replace
 {
     let first: Value = Value { number: 7 };
     let second: Value = Value { number: 11 };

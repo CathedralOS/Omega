@@ -7,6 +7,7 @@
 //! so later storage writes cannot reinterpret them over replacement contents.
 
 use super::{StructuralJudge, StructuralTerm};
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -38,7 +39,7 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        let Some(comparison) = program.expression_table.binary_node(condition) else {
+        let Some(comparison) = expression_table(program).binary_node(condition) else {
             return;
         };
         let same_place =
@@ -523,7 +524,7 @@ impl StructuralJudge<'_> {
                 let symbol = match program.type_reference_table.type_reference(argument) {
                     TypeReferenceNode::ConstExpression(expression) => {
                         let typed_trees::expression::ExpressionNode::Name(path) =
-                            program.expression_table.expression(*expression)
+                            expression_table(program).expression(*expression)
                         else {
                             return None;
                         };
@@ -777,6 +778,35 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// The caller already authenticated this exact observed integer and
+    /// its resident interval. Only fold the completed comparison;
+    /// resolving its value would replay an unrelated descriptive call body.
+    fn intake_observed_integer_bound(
+        &mut self,
+        reference: TypeReferenceHandle,
+        meaning: (
+            typed_trees::types::PrimitiveType,
+            numerics::arithmetic::ArithmeticDomain,
+        ),
+        value: &StructuralTerm,
+        operator: BinaryOperator,
+        bound: numerics::bignum::BigInt,
+    ) {
+        if self.case_facts_only {
+            return;
+        }
+        let bound = StructuralTerm::Integer(bound);
+        let predicate = super::fold_scalar_binary(operator, [meaning; 2], value, &bound)
+            .unwrap_or_else(|| StructuralTerm::ScalarBinary {
+                references: [reference; 2],
+                operator,
+                meaning: [meaning; 2],
+                left: Box::new(value.clone()),
+                right: Box::new(bound),
+            });
+        self.intake_equation_fact(predicate, super::value_predicates::boolean_term(true), 0);
+    }
+
     /// A completed atomic load is a fresh snapshot of a declaration-valid
     /// resident. Its bound belongs to this captured value, never to a cached
     /// value of the cell or the receiving annotation's requested predicate.
@@ -817,16 +847,13 @@ impl StructuralJudge<'_> {
             (BinaryOperator::LessOrEqual, bounds.high()),
         ] {
             let Some(bound) = bound else { continue };
-            let predicate = StructuralTerm::ScalarBinary {
-                references: [reference; 2],
+            self.intake_observed_integer_bound(
+                reference,
+                meaning,
+                value,
                 operator,
-                meaning: [meaning; 2],
-                left: Box::new(value.clone()),
-                right: Box::new(StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(
-                    bound,
-                ))),
-            };
-            self.intake_equation(predicate, super::value_predicates::boolean_term(true), 0);
+                numerics::bignum::BigInt::from_i64(bound),
+            );
         }
     }
 
@@ -1026,8 +1053,9 @@ impl StructuralJudge<'_> {
         }
         self.rewrites.entries().iter().any(|(left, right)| {
             mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
-        }) || self.captured_result_equations.iter().any(|(left, right)| {
-            mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
+        }) || self.captured_result_equations.iter().any(|equation| {
+            mentions_projection_of(&equation.left, root_sem)
+                || mentions_projection_of(&equation.right, root_sem)
         }) || self
             .substitutions
             .iter()
@@ -1108,8 +1136,7 @@ impl StructuralJudge<'_> {
                             StructuralTerm::BoundValue(*symbol)
                         }
                         TypeReferenceNode::ConstExpression(expression) => {
-                            if let Some(path) = program
-                                .expression_table
+                            if let Some(path) = expression_table(program)
                                 .name_path_node(*expression)
                                 .filter(|path| {
                                     path.symbol.is_valid()
@@ -1225,7 +1252,7 @@ impl StructuralJudge<'_> {
         bindings: &[(String, StructuralTerm)],
     ) {
         let program = self.program;
-        if let Some(binary) = program.expression_table.binary_node(expression) {
+        if let Some(binary) = expression_table(program).binary_node(expression) {
             if binary.operator == BinaryOperator::And {
                 self.intake_instantiated_predicate(owner, parameters, binary.left, bindings);
                 self.intake_instantiated_predicate(owner, parameters, binary.right, bindings);

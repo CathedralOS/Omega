@@ -10,8 +10,8 @@ const DIFF_MIN: i64 = 40i64;
 const DIFF_MAX: i64 = 100i64;
 
 machine subtract_const(lhs: i64, rhs: i64) -> i32
-    requires lhs >= LHS_MIN && lhs <= LHS_MAX;
-    requires rhs >= RHS_MIN && rhs <= RHS_MAX;
+    requires lhs >= LHS_MIN && lhs <= LHS_MAX
+    requires rhs >= RHS_MIN && rhs <= RHS_MAX
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;

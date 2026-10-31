@@ -24,6 +24,7 @@
 //! unconditional checked termination across its closure and any static machine
 //! arguments, read-only non-linear parameters, and work-free arguments.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::machine::Machine;
@@ -410,10 +411,10 @@ pub fn is_fact_only_citation_call(
 
 /// A literal, a place spelling, or a shared borrow of a place spelling.
 fn work_free_argument(program: &dyn crate::CheckingInput, argument: ExpressionHandle) -> bool {
-    if !program.expression_table.expression_is_valid(argument) {
+    if !expression_table(program).expression_is_valid(argument) {
         return false;
     }
-    match program.expression_table.expression(argument) {
+    match expression_table(program).expression(argument) {
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
         ExpressionNode::Borrow(borrow) => {
             borrow.access == language_core::ReferenceAccess::Shared
@@ -428,8 +429,7 @@ fn work_free_argument(program: &dyn crate::CheckingInput, argument: ExpressionHa
                                 == program.normalized_type_identity(evidence.source_type)
                     })
                 }))
-                && program
-                    .expression_table
+                && expression_table(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .all(|field| work_free_argument(program, field.value))
@@ -440,10 +440,10 @@ fn work_free_argument(program: &dyn crate::CheckingInput, argument: ExpressionHa
 
 /// A name path or a chain of plain member selections over one.
 fn place_spelling(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(_) => true,
         ExpressionNode::Member(member) => {
             member.case_variant.is_none() && place_spelling(program, member.receiver)

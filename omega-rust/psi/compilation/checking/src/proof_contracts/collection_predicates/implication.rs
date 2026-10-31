@@ -28,6 +28,7 @@
 //! does not surface the checker's stderr. Normal runs pay one env-var check.
 
 use super::exploration::{ValueShape, admitted_predicate_machine, value_shape};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
 use crate::{
     ScopedArithmeticComparison as Comparison, ScopedArithmeticValue as Integer,
@@ -194,7 +195,7 @@ pub(super) fn proves(
                 file,
                 "theorem={} goal={} elapsed_micros={} spent={} proved={proved}",
                 machine.name,
-                program.expression_table.display_name(goal),
+                expression_table(program).display_name(goal),
                 started.elapsed().as_micros(),
                 WORK_BUDGET - proof.remaining,
             );
@@ -594,7 +595,7 @@ impl Implication<'_> {
                                     // ordinary Call values. Execute the exact invocation;
                                     // evaluating it as a Boolean predicate would lose writes.
                                     if let ExpressionNode::Call(call) =
-                                        self.program.expression_table.expression(*value)
+                                        expression_table(self.program).expression(*value)
                                     {
                                         if !call.is_ordinary_positional_call() {
                                             return None;
@@ -603,8 +604,7 @@ impl Implication<'_> {
                                             &frame,
                                             path,
                                             call.target_symbol,
-                                            self.program
-                                                .expression_table
+                                            expression_table(self.program)
                                                 .expression_handles(call.arguments),
                                         )? {
                                             let destination = (frame.machine, frame.state);
@@ -652,7 +652,7 @@ impl Implication<'_> {
                 }
                 StatementNode::Expression(expression) if position + 1 == statements.len() => {
                     if let ExpressionNode::Call(call) =
-                        self.program.expression_table.expression(*expression)
+                        expression_table(self.program).expression(*expression)
                     {
                         if !call.is_ordinary_positional_call() {
                             return None;
@@ -661,9 +661,7 @@ impl Implication<'_> {
                             &frame,
                             path,
                             call.target_symbol,
-                            self.program
-                                .expression_table
-                                .expression_handles(call.arguments),
+                            expression_table(self.program).expression_handles(call.arguments),
                         )? {
                             let destination = (frame.machine, frame.state);
                             if visited.contains(&destination) {
@@ -1073,17 +1071,12 @@ impl Implication<'_> {
         depth: usize,
     ) -> Option<Vec<(Path, Value)>> {
         self.spend()?;
-        if depth >= 64
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
-        {
+        if depth >= 64 || !expression_table(self.program).expression_is_valid(expression) {
             return None;
         }
         let machine = &self.program.machines()[frame.machine];
         let state = &self.program.machine_states(machine)[frame.state];
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Integer(literal) => Some(vec![(
                 path,
                 Value::Integer {
@@ -1095,9 +1088,7 @@ impl Implication<'_> {
                 Some(vec![(path, Value::Boolean(Boolean::Constant(*value)))])
             }
             ExpressionNode::Name(name) => {
-                if self
-                    .program
-                    .expression_table
+                if expression_table(self.program)
                     .name_path_members(name.members)
                     .len()
                     != 1
@@ -1305,10 +1296,7 @@ impl Implication<'_> {
             }
             ExpressionNode::Call(call) if call.is_ordinary_positional_call() => {
                 let machine = admitted_predicate_machine(self.program, call.target_symbol, true)?;
-                let arguments = self
-                    .program
-                    .expression_table
-                    .expression_handles(call.arguments);
+                let arguments = expression_table(self.program).expression_handles(call.arguments);
                 Some(
                     self.arguments(frame, path, arguments, depth + 1)?
                         .into_iter()

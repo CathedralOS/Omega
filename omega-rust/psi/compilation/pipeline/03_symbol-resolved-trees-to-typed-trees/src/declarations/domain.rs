@@ -2,6 +2,7 @@ use crate::contracts::proof_facts::lower_proof_facts;
 use crate::declarations::operator::lower_operator_definition;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
+use crate::tables::expression_table_mut;
 use crate::type_reference::lower_type_reference_into_table;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -123,18 +124,14 @@ pub(crate) fn lower_cleanup_selection(
         .application
         .as_ref()
         .map_or(&[][..], |application| &application.arguments);
-    let application = lowerer
-        .typed_trees
-        .expression_table
+    let application = expression_table_mut(&mut lowerer.typed_trees)
         .retain_static_machine_application(
             selected.symbol,
             selected.path.last().cloned().unwrap_or_default(),
             arguments,
         );
-    let row = lowerer
-        .typed_trees
-        .expression_table
-        .static_machine_application_mut(application);
+    let row =
+        expression_table_mut(&mut lowerer.typed_trees).static_machine_application_mut(application);
     row.lexical_owner = owner;
     row.binding_declaration = selected.symbol;
     if let Some(authored) = &selected.application {
@@ -161,9 +158,7 @@ pub(crate) fn lower_cleanup_selection(
                 },
             )
             .collect::<Vec<_>>();
-        lowerer
-            .typed_trees
-            .expression_table
+        expression_table_mut(&mut lowerer.typed_trees)
             .set_static_machine_application_lifetimes(application, &lifetimes);
     }
     Ok(typed::domain::CleanupSelection {

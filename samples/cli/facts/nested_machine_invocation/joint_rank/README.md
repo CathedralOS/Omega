@@ -219,3 +219,16 @@ neighbor-canary oracles; exact zero-decrement twins reject strict non-descent.
 the explicitly selected view through the private component, normalize its
 authenticated numeric coordinate, and execute all nine places. A scalar-only
 helper demonstrates that inference does not force the authored record type.
+
+The `computed_measure/call/` production in each place carries this same fact,
+bound and counter operation through a declared measure whose result comes from
+an ordinary call. The selected helper publishes the exact complement result;
+its private body is not the caller's proof. The existing positive paths check
+both selectors, the active and already-complete inputs, caller-visible counters
+and untouched neighbors. Each invalid twin removes strict progress on the cycle.
+The [original frozen probe](parameter/computed_measure/call/probe/main.omg)
+retains the smaller direct-call shape used to locate the first refusal.
+
+[Call formation, captured inputs and execution evidence](local/computed_measure/call/README.md)
+cover this production's nine places, its composition probe and invalid controls.
+The parent `NESTED-MACHINE-UNIFICATION` outcome remains open.

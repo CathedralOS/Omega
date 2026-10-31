@@ -5,6 +5,7 @@ use crate::checks::multiplicity::linear_obligations::{LinearPlace, WrittenLinear
 use crate::checks::multiplicity::type_multiplicity::{
     data_field_name, expression_establishes_obligation, literal_variant,
 };
+use crate::flow::expressions;
 use language_semantics::{Multiplicity, PermissionClaimIdentity, PermissionProvenance};
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
@@ -337,8 +338,7 @@ fn expression_permission_claim_scan<X>(
         program.expression_table.expression(expression)
         && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
-        let value = *program
-            .expression_table
+        let value = *expressions(program)
             .expression_handles(*values)
             .get(*index)?;
         return descend(
@@ -356,8 +356,7 @@ fn expression_permission_claim_scan<X>(
         && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
     {
         let field_name = data_field_name(program, *symbol)?;
-        let field = program
-            .expression_table
+        let field = expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .find(|field| field.name.as_str() == field_name)?;

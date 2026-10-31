@@ -2,6 +2,7 @@
 //! recurses through `visit`; any other node returns `false` so the caller
 //! classifies it under its own rules.
 
+use crate::flow::expressions;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Recurse `visit` over the child expressions the borrow walks share:
@@ -48,10 +49,7 @@ pub(super) fn recurse_shared_children(
         ExpressionNode::Cast(cast) => visit(cast.value),
         ExpressionNode::Unary(unary) => visit(unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
+            for field in expressions(program).struct_fields(struct_literal.fields) {
                 visit(field.value);
             }
         }

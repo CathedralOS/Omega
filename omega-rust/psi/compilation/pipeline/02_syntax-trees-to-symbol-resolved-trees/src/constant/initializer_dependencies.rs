@@ -6,6 +6,8 @@
 //! binder as an ordinary body or granting execution from source readiness.
 
 use crate::selection::call_identity::call_declaration_source;
+use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     ResolvedAuthoredCallBinding,
@@ -369,10 +371,7 @@ pub(crate) fn bind_named_implementation_const_calls(
     if spans.is_empty() {
         return Ok(());
     }
-    let expressions = program
-        .tables
-        .bodies
-        .expressions
+    let expressions = body_expressions(&program)
         .iter_expressions()
         .map(|(expression, _)| expression)
         .collect::<Vec<_>>();
@@ -385,10 +384,7 @@ pub(crate) fn bind_named_implementation_const_calls(
         if call.target_symbol.is_valid() || !spans.contains(&call.target.source_span()) {
             continue;
         }
-        let receiver_symbol = program
-            .tables
-            .bodies
-            .expressions
+        let receiver_symbol = body_expressions(&program)
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
         let NamedImplementationDependency::Realization(binding) = named_implementation_dependency(
@@ -471,10 +467,7 @@ pub(crate) fn restore_const_call_targets(
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
-        let receiver_symbol = program
-            .tables
-            .bodies
-            .expressions
+        let receiver_symbol = body_expressions(&program)
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
         // An ordinary unresolved call must be the exact declaration-owned
@@ -518,12 +511,7 @@ fn recorded_call_selection(
     span: SourceSpan,
 ) -> Option<SymbolHandle> {
     let mut selected = None;
-    for occurrence in program
-        .tables
-        .bodies
-        .expressions
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in body_expressions(&program).authored_selection_occurrences(expression) {
         let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
             continue;
         };
@@ -556,12 +544,7 @@ fn collect_expression_handles(
         if !expression.is_valid() || expressions.contains(&expression) {
             continue;
         }
-        if !program
-            .tables
-            .bodies
-            .expressions
-            .expression_is_valid(expression)
-        {
+        if !body_expressions(&program).expression_is_valid(expression) {
             continue;
         }
         expressions.push(expression);
@@ -582,12 +565,7 @@ fn collect_call_target_spans(
             continue;
         }
         visited.push(expression);
-        if !program
-            .tables
-            .bodies
-            .expressions
-            .expression_is_valid(expression)
-        {
+        if !body_expressions(&program).expression_is_valid(expression) {
             continue;
         }
         let node = expression_node(program, expression);
@@ -1291,17 +1269,12 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         }
         self.type_parameters(machine.type_parameters)?;
         self.expressions.extend(
-            program
-                .tables
-                .bodies
-                .expressions
+            body_expressions(&program)
                 .expression_handles(machine.declared_type_predicates)
                 .iter()
                 .copied(),
         );
-        for equation in program
-            .tables
-            .declarations
+        for equation in resolved_declarations(&program)
             .declared_type_equations
             .span_or_empty(machine.declared_type_equations)
         {
@@ -1438,9 +1411,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             match target {
                                 TransitionTarget::Value(value) => self.expressions.push(*value),
                                 TransitionTarget::Named(target) => {
-                                    let path = program
-                                        .tables
-                                        .declarations
+                                    let path = resolved_declarations(&program)
                                         .statement_path_members
                                         .span_or_empty(target.path);
                                     let name = path

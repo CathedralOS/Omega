@@ -11,7 +11,7 @@ PortableBoundedValue satisfies BoundedValue {
         requires value <= Cap ensures result <= Cap { value }
 }
 machine forward<const Maximum: u64>(value: u64) -> u64
-    reaches BoundedValue invokes BoundedValue;
+    reaches BoundedValue invokes BoundedValue
     requires value <= Maximum ensures result <= Maximum
 { BoundedValue::bound<Maximum>(value) }
 data BranchValue { value: u64; arm: u64; }
@@ -19,7 +19,7 @@ machine observe_arm(value: u64, arm: u64) -> BranchValue
     requires value <= 64
     ensures result.value <= 64, result.arm == arm
 { BranchValue { value: value, arm: arm } }
-machine main() reaches BoundedValue invokes BoundedValue; crashes Trap {
+machine main() reaches BoundedValue invokes BoundedValue crashes Trap {
     let result: u64 = forward<64>(42);
     let joined: BranchValue = match true {
         true -> observe_arm(result, 17),

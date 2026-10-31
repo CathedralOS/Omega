@@ -44,7 +44,6 @@ impl TypedTrees {
             return Err("applied callable lost its original declaration or Machine binder");
         }
         let substitutions = self
-            .expression_table
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match binding.value {
@@ -57,7 +56,6 @@ impl TypedTrees {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let static_arguments = self
-            .expression_table
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match &binding.value {
@@ -68,7 +66,6 @@ impl TypedTrees {
             })
             .collect::<Vec<_>>();
         let lifetimes = self
-            .expression_table
             .static_machine_application_lifetimes(provider)
             .iter()
             .map(|binding| (binding.parameter.clone(), binding.argument.clone()))

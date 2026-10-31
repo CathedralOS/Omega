@@ -1,5 +1,5 @@
 data Subject { ready: bool; }
-machine Subject::change(subject: &mut Subject) requires subject.ready; {
+machine Subject::change(subject: &mut Subject) requires subject.ready {
     asm {
     entry requires subject.ready:
         jmp write;

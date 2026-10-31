@@ -4,20 +4,18 @@
 // ordinary callee Requires under exact actual substitution.
 data Limits where cap <= 9 { cap: u64; }
 
-machine outer(remaining: u64, limits: Limits)
-requires remaining <= limits.cap;
-terminates by remaining in 0..=limits.cap;
--> u64 {
+machine outer(remaining: u64, limits: Limits) -> u64
+requires remaining <= limits.cap
+terminates by remaining in 0..=limits.cap {
     transition remaining > 0 {
         true -> inner(remaining, limits, Limits { cap: 5 })
         false -> remaining
     }
 }
 
-machine inner(n: u64, bounds: Limits, spare: Limits)
-requires n <= bounds.cap && n <= spare.cap;
-terminates by n;
--> u64 {
+machine inner(n: u64, bounds: Limits, spare: Limits) -> u64
+requires n <= bounds.cap && n <= spare.cap
+terminates by n {
     transition n > 0 {
         true -> outer(n - 1, spare)
         false -> n

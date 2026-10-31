@@ -30,7 +30,7 @@ data DarwinStatView { value: LayoutStorage<DarwinStatRecord, DarwinStatLayout>; 
 DarwinStatLayout satisfies FixedLayout<DarwinStatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> Plan
     reaches
-    terminates; {
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
@@ -59,7 +59,7 @@ macos_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFiles
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
     machine decode(stat: &DarwinStatView, block_count: i64, block_size: i64) -> MetadataResult
-    requires block_count >= 0 && block_size >= 0;
+    requires block_count >= 0 && block_size >= 0
     {
         let mode: u32 = stat.value.mode as u32;
         let nlink: u64 = stat.value.nlink as u64;

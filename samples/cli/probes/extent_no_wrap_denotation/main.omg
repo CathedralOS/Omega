@@ -22,7 +22,7 @@
 use omega::language::core::extent;
 
 machine geometry(base: addr, length: u64)
-requires no_wrap(base, length);
+requires no_wrap(base, length)
 {}
 
 machine forwarded(base: addr, length: u64)

@@ -4,6 +4,7 @@ use validation::CanonicalPlace;
 use super::{call_places::*, reference_bounds::*};
 
 use super::FlowStateFact;
+use crate::flow::state_statements;
 use crate::flow::{self};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -273,9 +274,7 @@ pub(super) fn callee_leaves_demanded_path_unwritten(
     callee_state: &State,
     demanded: &CanonicalPlace,
 ) -> Option<()> {
-    let statements = program
-        .statement_table
-        .statements(callee_state.statement_nodes);
+    let statements = state_statements(program, callee_state.statement_nodes);
     for (index, statement) in statements.iter().enumerate() {
         let writes = match statement {
             StatementNode::Assignment(_) => flow::statement_storage_writes(

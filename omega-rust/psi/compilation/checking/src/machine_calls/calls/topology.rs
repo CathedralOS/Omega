@@ -1,5 +1,6 @@
 //! Exact callable topology: machine heads, entry-only calls, named states and requirements.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 
 /// Conservative normal-completion reachability over admitted state control.
@@ -164,7 +165,7 @@ pub fn expression_normal_completion_possible(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
     let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         return Some(true);
     };
@@ -211,7 +212,7 @@ fn expression_completion_target(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> CompletionTarget<'_> {
     let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
+        expression_table(program).expression(expression)
     else {
         return CompletionTarget::Unknown;
     };
@@ -616,11 +617,11 @@ fn completing_call_invocation(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CompletingInvocation<'_>> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
         return None;
     }
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     (arguments.len() == call_target_parameters(program, call.target_symbol)?.len()).then_some(
         CompletingInvocation {
             target: call.target_symbol,
@@ -682,11 +683,10 @@ pub fn completing_transition_invocations(
             continue;
         }
         visited.push(expression);
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 pending.extend(
-                    program
-                        .expression_table
+                    expression_table(program)
                         .match_arms(dispatch.arms)
                         .iter()
                         .rev()

@@ -150,7 +150,32 @@ pub fn retain_runtime_rank_component(
                     path,
                     entry_indexes,
                 });
+                let (application_measure, application_body, application_casts, application_calls) =
+                    match state.application {
+                        Some(application) => (
+                            application.measure(),
+                            application.body(),
+                            admitted
+                                .application_casts
+                                .insert_many(application.casts().iter().cloned()),
+                            admitted
+                                .application_calls
+                                .insert_many(application.calls().iter().copied()),
+                        ),
+                        None => (
+                            SymbolHandle::invalid(),
+                            typed_trees::expression::ExpressionHandle::invalid(),
+                            Default::default(),
+                            Default::default(),
+                        ),
+                    };
                 CheckedRuntimeNaturalState {
+                    application: checked_trees::CheckedRankApplicationFacts {
+                        measure: application_measure,
+                        definition_body: application_body,
+                        casts: application_casts,
+                        calls: application_calls,
+                    },
                     measure: state.measure,
                     state: state.state,
                     coordinate,
@@ -213,7 +238,9 @@ pub fn retained_runtime_natural_components(
     admitted
         .runtime_components
         .iter()
-        .filter(|(_, row)| row.diagnostic.is_empty() && !row.states.is_empty())
+        .filter(|(_, row)| {
+            row.diagnostic.is_empty() && (!row.states.is_empty() || !row.edges.is_empty())
+        })
         .filter_map(|(_, row)| {
             let states = admitted
                 .runtime_states
@@ -222,6 +249,30 @@ pub fn retained_runtime_natural_components(
                 .map(|state| {
                     let coordinate = admitted.coordinates.get(state.coordinate);
                     Some(super::ValidatedRuntimeNaturalState {
+                        application: if state.application.definition_body.is_valid() {
+                            if state.application.measure != state.measure {
+                                return None;
+                            }
+                            Some(crate::IntegerApplicationFormation::from_retained(
+                                state.application.measure,
+                                state.application.definition_body,
+                                admitted
+                                    .application_casts
+                                    .span(state.application.casts)?
+                                    .to_vec(),
+                                admitted
+                                    .application_calls
+                                    .span(state.application.calls)?
+                                    .to_vec(),
+                            )?)
+                        } else {
+                            if state.application.measure.is_valid()
+                                || !state.application.casts.is_empty()
+                            {
+                                return None;
+                            }
+                            None
+                        },
                         measure: state.measure,
                         state: state.state,
                         parameter: coordinate.parameter,

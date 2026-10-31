@@ -11,8 +11,8 @@ public data Main { }
 machine same(left: f64, right: f64) -> bool { left == right }
 
 public machine Main::main(application: &mut Main) reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition block Console::read_byte() {

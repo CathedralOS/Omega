@@ -1,5 +1,6 @@
 //! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
 
+use crate::checked_facts::flow_facts;
 use checked_trees::{
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
     CheckedUnitPlan,
@@ -117,9 +118,7 @@ pub(crate) fn lower_selected_machine(
             selection.machine,
         )
         .is_ok();
-    let unit_plan = checked
-        .facts
-        .flow
+    let unit_plan = flow_facts(checked)
         .terminal_unit_effects
         .for_machine(selection.machine)
         .is_some();
@@ -144,9 +143,7 @@ pub(crate) fn lower_selected_machine(
         return Err(LoweringError::InvalidUnitMachinePlan {
             machine: checked.symbols.display_path(selection.machine, "::"),
             reason: "machine has no checked executable body",
-            gap: checked
-                .facts
-                .flow
+            gap: flow_facts(checked)
                 .terminal_unit_effects
                 .gap_diagnostic(selection.machine, &checked.symbols),
         });

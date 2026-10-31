@@ -6,6 +6,7 @@
 //! owned-result contract to a descriptor that lends original backing.
 
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::checked_facts::value_facts;
 use crate::expression_preparation::computation_graph::produced_value_root;
 use crate::terminal_identities::stored_structural_identity;
 use checked_trees::{
@@ -55,9 +56,7 @@ pub(crate) fn prepare(
         let authority = callee.authority_value();
         if authority.is_valid() {
             let node = checked.facts.values.structural_values.nodes.get(authority);
-            let root = checked
-                .facts
-                .values
+            let root = value_facts(checked)
                 .structural_values
                 .root_for_expression(node.state, node.statement_index, node.expression)
                 .ok_or(LoweringError::Unsupported(
@@ -78,10 +77,19 @@ pub(crate) fn prepare(
             ) {
                 continue;
             }
-            let root = produced_value_root(checked, source_call, argument)?;
+            let root = produced_value_root(
+                checked,
+                source_call.statement().ok_or(LoweringError::Unsupported(
+                    "declaration call has no structural producer custody",
+                ))?,
+                argument,
+            )?;
             operands.push((Some(argument_ordinal), root));
         }
         for (argument_ordinal, root) in operands {
+            let source_call = source_call.statement().ok_or(LoweringError::Unsupported(
+                "declaration call has no produced-owner custody",
+            ))?;
             // Reserve the produced value's physical carrier. A stored loan
             // owns a descriptor; peeling its shell would reserve the referent
             // home and invalidate the checked Referent path. Authority and

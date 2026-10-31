@@ -6,6 +6,7 @@
 //! Carried loans, derived holders and unknown origins retain ordinary lifetime
 //! checks. This supplies no new loan or restoration authority.
 
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{BorrowCallFact, BorrowLoanFact, CheckFacts, FlowStateFact};
 use typed_trees::statement::TransitionTargetHandle;
@@ -213,7 +214,7 @@ fn observed_local_read(
             let receiver = facts.flow.control.operands.get(observation.receiver);
             receiver.state_symbol == flow.state_symbol
                 && receiver.statement_index == statement_index
-                && validation::canonical_place_from_expression_in_state(
+                && place_at(
                     program,
                     flow.state_symbol,
                     statement_index,

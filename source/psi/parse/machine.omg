@@ -1,4 +1,4 @@
-use psi::parse::clause;
+use psi::parse::callable_header;
 use psi::parse::generics;
 use psi::parse::input;
 use psi::parse::parser;
@@ -59,6 +59,7 @@ crashes Trap
         Parser::take_current(parser, input);
         parser.machine_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.machine_generic_count = 0;
+        parser.machine_contract_count = 0;
         parser.machine_first_expression = parser.output.expression_count as u64 in Trapping;
         parser.machine_operator = OperatorToken::None;
         parser.machine_token_start = 0;
@@ -200,6 +201,7 @@ crashes Trap
         parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
         parser.machine_statement_count = 0;
         parser.machine_first_contract = parser.output.contract_count as u64 in Trapping;
+        parser.machine_contract_count = 0;
         transition parser.output.accepted && parser.output.machine_count < 10240 {
             true -> retain(parser, input, false)
             _ -> components_rejected(parser, input)
@@ -241,48 +243,7 @@ crashes Trap
         parser.machine_has_return_type = parser.signature_has_return_type;
         parser.machine_return_type = parser.signature_return_type;
         let owner: ClauseOwner = Parser::machine_clause_owner(parser.machine_container);
-        Parser::parse_machine_contracts(parser, input, owner);
-        transition parser.output.accepted {
-            true -> own_clauses(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    machine own_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        Parser::parse_clauses(parser, input, owner);
-        transition parser.output.accepted {
-            true -> body(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    // The return type may follow clauses (`terminates by n; -> u64`), more
-    // clauses after it continuing the same contiguous run.
-    machine body(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        parser.machine_first_clause = parser.clause_first;
-        let late_return: bool = !parser.machine_has_return_type
-            && Parser::at_punctuation(parser, input, PunctuationKind::Arrow);
-        transition late_return {
-            true -> late_return_type(parser, input, owner)
-            _ -> header_end(parser, input)
-        }
-    }
-
-    machine late_return_type(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let first_clause: u64 in Trapping = parser.machine_first_clause;
-        Parser::take_current(parser, input);
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineReturnType);
-        parser.machine_has_return_type = true;
-        parser.machine_return_type = parser.type_result;
-        transition parser.output.accepted {
-            true -> late_clauses(parser, input, owner, first_clause)
-            _ -> done()
-        }
-    }
-
-    machine late_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, first_clause: u64 in Trapping) {
-        Parser::parse_clauses(parser, input, owner);
-        parser.machine_first_clause = first_clause;
+        Parser::parse_callable_header(parser, input, owner);
         transition parser.output.accepted {
             true -> header_end(parser, input)
             _ -> done()
@@ -290,7 +251,6 @@ crashes Trap
     }
 
     machine header_end(parser: &mut Parser, input: &TokenStream) {
-        parser.machine_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.machine_first_clause;
         let bodyless: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition bodyless {
             true -> signature_end(parser, input)
@@ -450,7 +410,7 @@ crashes Trap
             operator: parser.machine_operator,
             token: Parser::identifier_span(parser, parser.machine_token_start, parser.machine_token_end),
             first_contract: parser.machine_first_contract,
-            contract_count: (parser.output.contract_count as u64 in Trapping) - parser.machine_first_contract,
+            contract_count: parser.machine_contract_count,
             every_requirement: false,
             first_component: parser.machine_first_component,
             component_count: parser.machine_component_count,
@@ -569,142 +529,6 @@ crashes Trap
     machine close(parser: &mut Parser, operator: OperatorToken) {
         parser.machine_operator = operator;
         parser.machine_token_end = parser.token_end;
-    }
-
-    machine done() {}
-}
-
-// `requires machine Name [<generic parameters>] [(parameters)] [-> Type]
-// clauses`, the contracts of a machine head's static machine binders,
-// entered after its signature. A contract ends at its `;` or at the next
-// `requires machine`; its clauses never read past that `;`, which belongs to
-// the contract only while the declaration continues after it. A contract
-// may name a binder of an earlier contract's own generic parameters, so
-// contracts form one flat list whose binders resolution matches. The range
-// lands in `machine_first_contract` and the table count.
-public machine Parser::parse_machine_contracts(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
-crashes Trap
-{
-    parser.machine_first_contract = parser.output.contract_count as u64 in Trapping;
-    transition { _ -> next(parser, input, owner) }
-
-    machine next(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let facts: bool = Parser::at_word(parser, input, "requires");
-        let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
-        transition facts && contract {
-            true -> capacity(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    machine capacity(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        transition parser.output.contract_count < 256 {
-            true -> introduced(parser, input, owner)
-            _ -> reject(parser, input, ParseDiagnosticCode::ContractCapacityExceeded)
-        }
-    }
-
-    machine introduced(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let token: Token = input.tokens[parser.current_index];
-        parser.contract_start = token.start;
-        Parser::take_current(parser, input);
-        Parser::take_current(parser, input);
-        parser.contract_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedContractName);
-        transition parser.output.accepted {
-            true -> named(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    machine named(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        parser.contract_name_start = parser.name_start;
-        parser.contract_name_end = parser.name_end;
-        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
-        transition generic {
-            true -> generics(parser, input, owner)
-            _ -> signature(parser, input, owner)
-        }
-    }
-
-    machine generics(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        Parser::parse_generic_parameters(parser, input);
-        transition parser.output.accepted {
-            true -> signature(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    machine signature(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        Parser::parse_signature(parser, input);
-        transition parser.output.accepted {
-            true -> clauses(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    machine clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        Parser::parse_clauses(parser, input, ClauseOwner::Contract);
-        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
-        transition parser.output.accepted {
-            true -> end(parser, input, owner, semicolon)
-            _ -> done()
-        }
-    }
-
-    machine end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, semicolon: bool) {
-        let facts: bool = Parser::at_word(parser, input, "requires");
-        let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
-        transition semicolon {
-            true -> semicolon_end(parser, input, owner)
-            _ -> following(parser, input, owner, facts && contract)
-        }
-    }
-
-    machine following(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, contract: bool) {
-        transition contract {
-            true -> retain(parser, input, owner, parser.token_end)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedContractEnd)
-        }
-    }
-
-    machine semicolon_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let token: Token = input.tokens[parser.current_index];
-        let continuation: ClauseContinuation = Parser::after_clause_semicolon(parser, input, owner);
-        transition continuation {
-            ClauseContinuation::Clause -> semicolon_taken(parser, input, owner, token.end)
-            _ -> retain(parser, input, owner, token.end)
-        }
-    }
-
-    machine semicolon_taken(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, end: u64 in Trapping) {
-        Parser::take_current(parser, input);
-        transition { _ -> retain(parser, input, owner, end) }
-    }
-
-    machine retain(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, end: u64 in Trapping) {
-        let contract: Contract = Contract {
-            kind: ContractKind::Machine,
-            name: Parser::identifier_span(parser, parser.contract_name_start, parser.contract_name_end),
-            first_generic_parameter: parser.contract_first_generic,
-            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.contract_first_generic,
-            first_parameter: parser.signature_first_parameter,
-            parameter_count: parser.signature_parameter_count,
-            has_return_type: parser.signature_has_return_type,
-            return_type: parser.signature_return_type,
-            first_clause: parser.clause_first,
-            clause_count: (parser.output.clause_count as u64 in Trapping) - parser.clause_first,
-            source_span: Parser::source_span(parser, parser.contract_start, end)
-        };
-        Parser::retain_contract(parser, input, contract);
-        transition parser.output.accepted {
-            true -> next(parser, input, owner)
-            _ -> done()
-        }
-    }
-
-    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        Parser::reject_current(parser, input, code);
     }
 
     machine done() {}

@@ -2,6 +2,7 @@
 
 use super::element_selection::*;
 use super::integer_widen_is_total;
+use crate::flow::expressions;
 use crate::values::scalar::expression_facts::{
     checked_integer_binary_kind, combine_arithmetic_domains, is_integer, scalar_expression_type,
 };
@@ -179,9 +180,7 @@ pub(crate) fn exact_inline_literal_subslice_length(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
-    let receiver = program
-        .expression_table
-        .authored_length_receiver(expression)?;
+    let receiver = expressions(program).authored_length_receiver(expression)?;
     let indexed = program.expression_table.indexed_node(receiver)?;
     let range = program.expression_table.range_node(indexed.index)?;
     if !range.start.is_valid() || !range.end.is_valid() {

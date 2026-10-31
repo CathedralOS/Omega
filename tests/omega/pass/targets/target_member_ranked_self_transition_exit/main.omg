@@ -6,7 +6,7 @@
 use omega_language_std::console;
 
 windows_x86_64 machine drain(value: u64, fuel: u64) -> u64
-terminates by fuel;
+terminates by fuel
 {
     transition fuel > 0 && value > 0 {
         true -> drain(value - 1, fuel - 1)
@@ -15,7 +15,7 @@ terminates by fuel;
     machine done(value: u64) -> u64 { value }
 }
 linux_x86_64 machine drain(value: u64, fuel: u64) -> u64
-terminates by fuel;
+terminates by fuel
 {
     transition fuel > 0 && value > 0 {
         true -> drain(value - 1, fuel - 1)

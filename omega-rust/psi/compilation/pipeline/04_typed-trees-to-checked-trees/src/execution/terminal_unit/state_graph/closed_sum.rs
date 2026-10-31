@@ -29,12 +29,15 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
 };
+use crate::places::place_at;
 use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
+    records: &super::loan_backing::RetainedBorrowRecords<'_>,
     shapes: &mut ShapeCollector<'_>,
     fused: &FusedStates<'_>,
     state_index: usize,
@@ -76,7 +79,7 @@ pub(super) fn build(
     )
     .and_then(|subject| {
         let source = facts.flow.control.operands.get(subject.source);
-        validation::canonical_place_from_expression_in_state(
+        place_at(
             program,
             source.state_symbol,
             source.statement_index,
@@ -527,6 +530,8 @@ pub(super) fn build(
                 let successor = successor_bindings(
                     program,
                     facts,
+                    declarations,
+                    records,
                     fused,
                     state_index,
                     signatures,

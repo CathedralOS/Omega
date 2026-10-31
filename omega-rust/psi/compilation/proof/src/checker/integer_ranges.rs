@@ -11,7 +11,7 @@ use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
     ProofConstraint, ProofPlan, declared_integer_range, integer_binary_range,
 };
-use crate::typed_expressions::dehoisted_operand;
+use crate::typed_expressions::{dehoisted_operand, expression_table};
 use arena::HandleSpan;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -285,10 +285,7 @@ pub(crate) fn guarded_integer_range_for_assignment_with_context(
     // witnessed place, and through the binary refold below when an OPERAND
     // is (the witness fills the upper end the declaration leaves open; the
     // place's type floor supplies the lower).
-    let value_display = proof_plan
-        .program
-        .expression_table
-        .display_name(obligation.value);
+    let value_display = expression_table(proof_plan.program).display_name(obligation.value);
     for (place, bound) in &obligation.ensures_witness_bounds {
         if place == &value_display {
             let bound = BigInt::from_i64(*bound);

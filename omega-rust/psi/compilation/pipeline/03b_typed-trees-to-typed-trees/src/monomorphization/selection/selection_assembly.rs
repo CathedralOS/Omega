@@ -13,6 +13,7 @@ use crate::monomorphization::{
     StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind, TypeReferenceHandle,
     TypeReferenceNode,
 };
+use crate::tables::expressions_of;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selection_for_call(
@@ -29,8 +30,7 @@ pub(crate) fn selection_for_call(
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
     let query = match site {
-        CallSite::Expression(handle) => program
-            .expression_table
+        CallSite::Expression(handle) => expressions_of(program)
             .call_node(handle)
             .and_then(|call| call.native_code_layout.as_ref()),
         CallSite::Statement(_) => None,
@@ -95,8 +95,7 @@ pub(crate) fn selection_for_call_with_local_prefix(
     // ordinary runtime parameters are neither supplied nor evaluated and the
     // descriptor carrier cannot infer an omitted selected-machine argument.
     let query = match site {
-        CallSite::Expression(handle) => program
-            .expression_table
+        CallSite::Expression(handle) => expressions_of(program)
             .call_node(handle)
             .and_then(|call| call.native_code_layout.as_ref()),
         CallSite::Statement(_) => None,

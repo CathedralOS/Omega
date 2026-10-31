@@ -24,14 +24,9 @@ pub(crate) fn state_declaration(
     LoweringError,
 > {
     let program = &checked.typed;
-    let mut states = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter_map(move |candidate| {
-                (state.is_valid() && candidate.symbol == state).then_some((machine, candidate))
-            })
-    });
+    let mut states = program
+        .machine_states_named(state)
+        .filter(|_| state.is_valid());
     let (machine, state) = states.next().ok_or(LoweringError::Unsupported(
         "state symbol names no declared machine state",
     ))?;
@@ -161,3 +156,6 @@ pub(crate) fn target_signature(
         parameter_coordinates: ParameterCoordinates::ServiceOperands,
     })
 }
+
+#[cfg(test)]
+mod state_selection_tests;

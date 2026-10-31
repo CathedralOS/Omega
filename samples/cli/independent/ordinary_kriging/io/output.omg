@@ -4,7 +4,7 @@ use omega::language::core::numeric_conversion;
 use model::kriging;
 // Decimal scientific tokens retain sixteen significant digits without a fixed
 // point output range or silent saturation of large finite scientific values.
-public machine number(value: f64) reaches Console invokes Console; {
+public machine number(value: f64) reaches Console invokes Console {
     Console::write(" ");
     transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
     machine negative(value: f64) { Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
@@ -21,7 +21,7 @@ public machine number(value: f64) reaches Console invokes Console; {
         Console::write("e"); integer(exponent - 15);
     }
 }
-machine integer(value: i64 in Wrapping) reaches Console invokes Console; {
+machine integer(value: i64 in Wrapping) reaches Console invokes Console {
     transition value < 0 { true -> negative(value) false -> digit(value, 1000000000000000000, false) }
     machine negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
     machine digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
@@ -36,7 +36,7 @@ machine integer(value: i64 in Wrapping) reaches Console invokes Console; {
     }
     machine done() { }
 }
-public machine emit(problem: &Problem) reaches Console invokes Console; {
+public machine emit(problem: &Problem) reaches Console invokes Console {
     Console::write_line("status ordinary-kriging; decimal scientific tokens");
     transition { _ -> queries(problem, 0) }
     machine queries(problem: &Problem, query: u64) {

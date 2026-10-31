@@ -9,6 +9,7 @@
 
 use super::calls::CallInputs;
 use super::{OperationFrame, StructuralResults};
+use crate::checked_facts::flow_facts;
 use crate::unit::{
     LoweringError, OperationResult, ValueDeclaration, allocate_dense, terminal_scalar_type,
     unsupported, value_id,
@@ -32,9 +33,7 @@ impl OperationFrame<'_, '_> {
             return unsupported("selector call has no evaluated selector operand");
         };
         let checked = self.checked;
-        let Some(slot_plan) = checked
-            .facts
-            .flow
+        let Some(slot_plan) = flow_facts(checked)
             .terminal_unit_effects
             .dynamic_slots
             .iter()

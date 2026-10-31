@@ -13,6 +13,7 @@ use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::BuildTimeValue;
+use crate::build_time_evaluation::type_reference_table;
 
 pub(super) fn require_const_evaluable_result(
     program: &TypedTrees,
@@ -357,9 +358,7 @@ fn require_closed_generic_application(
         ));
     }
     let parameters = program.data_type_parameters(base);
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
+    let arguments = type_reference_table(program).type_reference_handles(*arguments);
     if arguments.len() != parameters.len() {
         return Err(format!(
             "{path} has generic aggregate type `{}` supplying {} argument(s) for {} base parameter(s)",
@@ -394,8 +393,7 @@ fn require_closed_argument(
     match kind {
         TypeParameterKind::Type => require_closed_type(program, argument, path, active_data),
         TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
-            if program
-                .type_reference_table
+            if type_reference_table(program)
                 .anonymous_numeric_literal_value(argument)
                 .is_some()
             {

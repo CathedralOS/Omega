@@ -1,25 +1,25 @@
 // Every target body uses a runtime count to index a byte view.
 // Expected exit: 0
 linux_x86_64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 linux_arm64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 macos_arm64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 windows_x86_64 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }

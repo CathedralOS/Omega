@@ -1,5 +1,6 @@
 //! Whole readable primitive referents are storage reads, not scalar formals.
 
+use crate::flow::expressions;
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use typed_trees::{
     expression::ExpressionHandle,
@@ -33,8 +34,7 @@ pub(crate) fn declared(
     }
     let name = program.expression_table.name_path_node(expression)?;
     if !program.expression_table.name_path_is_single_member(name)
-        || program
-            .expression_table
+        || expressions(program)
             .name_path_member_symbols(name.member_symbols)
             .first()
             .is_some_and(|member| *member != name.symbol)

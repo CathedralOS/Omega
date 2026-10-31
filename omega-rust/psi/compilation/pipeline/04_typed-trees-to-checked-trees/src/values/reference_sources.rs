@@ -14,6 +14,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::execution::terminal_unit::calls;
 use crate::execution::terminal_unit::types::field_requires_place_observation;
+use crate::places::place_at;
 
 pub(crate) struct ReferenceCapture {
     pub(crate) source: CheckedUnitStructuralArgumentPlan,
@@ -39,13 +40,8 @@ pub(crate) fn transported_value_type(
     if validation::reference_formation_source(program, expression).is_some() {
         return None;
     }
-    if validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        expression,
-    )
-    .is_some_and(|place| place.root.as_symbol().is_some())
+    if place_at(program, state.symbol, statement_index, expression)
+        .is_some_and(|place| place.root.as_symbol().is_some())
     {
         return None;
     }
@@ -130,12 +126,7 @@ pub(crate) fn capture_source(
         return None;
     }
     let target = formation.source;
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        target,
-    )?;
+    let place = place_at(program, state.symbol, statement_index, target)?;
     let (backing_type, mut path) = match calls::projected_evaluated_path(
         program,
         machine.symbol,

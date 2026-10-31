@@ -6,6 +6,7 @@ use crate::custody::tree::{
 };
 use crate::limits::{GIT_CACHE_METADATA, LocalSourceLimits};
 use crate::snapshot::permissions::make_open_tree_owner_writable;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsStr;
@@ -38,9 +39,7 @@ pub(crate) fn discard_incomplete_entry(
     }
     verify_cache_custody_from_open_root(
         entry_root,
-        entry
-            .try_clone()
-            .map_err(|error| io_error(entry_root, error))?,
+        entry.try_clone().at(entry_root)?,
         CacheCustodyKind::Git,
         git_cache_custody_byte_limit(limits),
     )?;
@@ -53,9 +52,7 @@ pub(crate) fn discard_incomplete_entry(
         "incomplete cache entry changed before removal",
     )?;
     make_open_tree_owner_writable(&entry);
-    entry
-        .remove_open_dir_all()
-        .map_err(|error| io_error(entry_root, error))?;
+    entry.remove_open_dir_all().at(entry_root)?;
     synchronize_cache_parent(parent, cache_root)?;
     Ok(true)
 }

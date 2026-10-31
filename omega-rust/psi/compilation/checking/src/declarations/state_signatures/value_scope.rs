@@ -6,6 +6,7 @@
 //! by symbol, which an out-of-scope spelling does not carry.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::{domain::ProofFact, machine::Machine, signature::SignatureContractKind};
 
@@ -51,9 +52,8 @@ pub(super) fn validate(
                         scope.expression(membership.value, diagnostics)
                     }
                     ProofFact::Proposition(application) => {
-                        for argument in program
-                            .expression_table
-                            .expression_handles(application.arguments)
+                        for argument in
+                            expression_table(program).expression_handles(application.arguments)
                         {
                             scope.expression(*argument, diagnostics);
                         }

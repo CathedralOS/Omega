@@ -20,7 +20,9 @@ requires
 domain [u8; 3]::Utf8
 requires
     valid_utf8(self);
-data Main {
+data Main
+requires self.i >= 0 && self.i <= 5
+{
     // Wrapping DECLARED (nums/elem/sum/digit): the sum flows from array elements,
     // which carry no range facts yet, and Decision 17 forbids mixing domains in
     // one expression. The loop index stays Exact: its increment is guard-proven
@@ -46,13 +48,13 @@ machine Main::main(main: &mut Main) reaches Console {
     main.sum = 0;
 
     transition {
-        _ -> step(main)
+        _ -> block step(main)
     }
 
     machine step(main: &mut Main) {
         transition main.i < 5 {
-            true -> add(main)
-            _ -> render(main)
+            true -> block add(main)
+            _ -> block render(main)
         }
     }
 
@@ -61,7 +63,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.sum = main.sum + main.elem;
         main.i = main.i + 1;
         transition {
-            _ -> step(main)
+            _ -> block step(main)
         }
     }
 
@@ -73,28 +75,28 @@ machine Main::main(main: &mut Main) reaches Console {
     // narrowing yields all of `0..=255`. Writing such a byte into a carrier whose
     // domain `requires valid_utf8(bytes)` cannot re-establish that domain, so each
     // write is dominated by a guard proving the byte is ASCII. A literal write
-    // (`main.out[0] = 49`) needs no guard -- the literal proves itself.
+    // (`main.out[0] = 0x31`) needs no guard -- the literal proves itself.
     machine render(main: &mut Main) {
         main.out = "000";
         main.digit = main.sum / 100;
-        main.digit = main.digit + 48;
+        main.digit = main.digit + 0x30;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
-        transition main.ch < 128 { true -> hundreds(main) _ -> bad(main) }
+        transition main.ch < 0x80 { true -> block hundreds(main) _ -> block bad(main) }
     }
     machine hundreds(main: &mut Main) {
         main.out[0] = main.ch;
         main.digit = main.sum / 10;
         main.digit = main.digit % 10;
-        main.digit = main.digit + 48;
+        main.digit = main.digit + 0x30;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
-        transition main.ch < 128 { true -> tens(main) _ -> bad(main) }
+        transition main.ch < 0x80 { true -> block tens(main) _ -> block bad(main) }
     }
     machine tens(main: &mut Main) {
         main.out[1] = main.ch;
         main.digit = main.sum % 10;
-        main.digit = main.digit + 48;
+        main.digit = main.digit + 0x30;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
-        transition main.ch < 128 { true -> ones(main) _ -> bad(main) }
+        transition main.ch < 0x80 { true -> block ones(main) _ -> block bad(main) }
     }
     machine ones(main: &mut Main) {
         main.out[2] = main.ch;

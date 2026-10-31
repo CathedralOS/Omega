@@ -95,11 +95,11 @@ machine collect(problem: &mut Problem, kind: u64, squared: u64, count: u64) {
     }
     machine done() { }
 }
-public machine enumerate(problem: &mut Problem) reaches Console invokes Console; {
+public machine enumerate(problem: &mut Problem) reaches Console invokes Console {
     Console::write_line("units lattice/scale/angles/residuals 1e-12; indices/families exact");
     classes(problem, 0); Console::write("hypotheses"); integer(problem.hypotheses); Console::write_line("");
 }
-machine classes(problem: &mut Problem, kind: u64) reaches Console invokes Console; {
+machine classes(problem: &mut Problem, kind: u64) reaches Console invokes Console {
     transition kind < 3 { true -> search(problem, kind) false -> done() }
     machine search(problem: &mut Problem, kind: u64) requires kind < 3 {
         collect(problem, kind, 1, 0); masks(problem, kind, 1);
@@ -107,7 +107,7 @@ machine classes(problem: &mut Problem, kind: u64) reaches Console invokes Consol
     }
     machine done() { }
 }
-machine masks(problem: &mut Problem, kind: u64, mask: u64) reaches Console invokes Console; {
+machine masks(problem: &mut Problem, kind: u64, mask: u64) reaches Console invokes Console {
     transition mask < 256 { true -> test(problem, kind, mask) false -> done() }
     machine test(problem: &mut Problem, kind: u64, mask: u64) requires mask < 256 {
         problem.selected = 0; problem.missing = 0; problem.last = 0;

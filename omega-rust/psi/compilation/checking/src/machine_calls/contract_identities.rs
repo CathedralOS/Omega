@@ -8,6 +8,7 @@
 //! body's row would silently narrow the universal contract.
 
 use crate::contract_structure;
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
@@ -85,9 +86,7 @@ pub fn canonical_template_contract_bytes(
         }
         bytes.push(0xf9);
     }
-    for &predicate in program
-        .expression_table
-        .expression_handles(machine.declared_type_predicates)
+    for &predicate in expression_table(program).expression_handles(machine.declared_type_predicates)
     {
         encode_identity_text(
             &typed_trees::type_identity::normalized_expression_identity(
@@ -312,9 +311,7 @@ pub fn prepare_specialization_contract_identities(
     for (_, capture) in program.captured_machine_applications.iter() {
         super::calls::capture_binding_is_exact(program, capture).map_err(|reason| {
             let supplying_owner = capture.supplying_application.is_valid().then(|| {
-                let source = program
-                    .expression_table
-                    .static_machine_application(capture.supplying_application);
+                let source = expression_table(program).static_machine_application(capture.supplying_application);
                 program.symbols.display_path(source.lexical_owner, "::").to_string()
             }).unwrap_or_else(|| "<missing>".into());
             let declaration_occurrences = program
@@ -496,8 +493,7 @@ fn captured_machine_contracts(
                 "capture lost its checked callback application",
             ));
         }
-        program
-            .expression_table
+        expression_table(program)
             .static_machine_application_selected_machines(application.callable_application)
     };
     if selected.len() != application.machine_arguments.len() {
@@ -541,14 +537,12 @@ fn canonical_capture_application_bytes(
     let declaration = program
         .conformance_by_symbol(application.declaration)
         .ok_or_else(|| Diagnostic::error("capture application lost its map declaration"))?;
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(capture.binding_application);
+    let bindings =
+        expression_table(program).static_machine_application_bindings(capture.binding_application);
     let mut bytes = Vec::new();
     bytes.extend(application.commitment.as_bytes());
     encode_identity_text(&capture.normalized_template_identity, &mut bytes);
-    let owner = program
-        .expression_table
+    let owner = expression_table(program)
         .static_machine_application(capture.supplying_application)
         .lexical_owner;
     encode_identity_text(&conformance_symbol_identity(program, owner), &mut bytes);

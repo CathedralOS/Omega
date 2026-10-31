@@ -3,13 +3,15 @@ use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
 use typed_trees::statement::{AssemblyFactKind, StatementNode};
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 use super::prover::{
     live_contexts_prove_boolean_expression, semantic_contexts_prove_boolean_expression,
 };
 use crate::flow::canonical_place_segments_may_overlap;
+use crate::flow::expressions;
 use crate::labels::machine_name;
+use crate::places::place_at;
 
 /// Discharge each assembly assertion against ordinary invalidation-adjusted
 /// flow contexts. Entry assertions precede instruction evaluation. Exit
@@ -180,7 +182,7 @@ fn asm_block_writes_fact_place(
         .enumerate()
         .filter_map(|(offset, statement)| {
             let assignment = statement.as_assignment()?;
-            canonical_place_from_expression_in_state(
+            place_at(
                 program,
                 state_symbol,
                 instruction_start + offset,
@@ -229,9 +231,9 @@ pub(super) fn expression_reads_overlapping_place(
             program.saved_value_source(saved).is_none_or(recurse)
         }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_any(dispatch, |handle| recurse(handle)),
+        ExpressionNode::Match(dispatch) => {
+            expressions(program).match_deep_any(dispatch, |handle| recurse(handle))
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression_place_may_overlap(
             program,
             state_symbol,
@@ -258,21 +260,18 @@ pub(super) fn expression_reads_overlapping_place(
         }
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid() && recurse(call.receiver))
-                || program
-                    .expression_table
+                || expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied()
                     .any(recurse)
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .copied()
             .any(recurse),
-        ExpressionNode::StructLiteral(struct_literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(struct_literal) => expressions(program)
             .struct_fields(struct_literal.fields)
             .iter()
             .any(|field| recurse(field.value)),
@@ -289,18 +288,17 @@ fn expression_place_may_overlap(
     expression: ExpressionHandle,
     written_place: &CanonicalPlace,
 ) -> bool {
-    canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
-        .is_some_and(|read_place| {
-            // Compare on STORAGE identity: a callee's mutation summary roots
-            // `self` writes at the machine symbol while an authored `self.x`
-            // read roots at the state's `&mut self` parameter.
-            (read_place.root) == (written_place.root)
-                && canonical_place_segments_may_overlap(
-                    program,
-                    &read_place.segments,
-                    &written_place.segments,
-                )
-        })
+    place_at(program, state_symbol, statement_index, expression).is_some_and(|read_place| {
+        // Compare on STORAGE identity: a callee's mutation summary roots
+        // `self` writes at the machine symbol while an authored `self.x`
+        // read roots at the state's `&mut self` parameter.
+        (read_place.root) == (written_place.root)
+            && canonical_place_segments_may_overlap(
+                program,
+                &read_place.segments,
+                &written_place.segments,
+            )
+    })
 }
 
 fn assembly_fact_label(
@@ -386,12 +384,7 @@ fn assembly_fact_is_proven(
                 )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
-            let Some(place) = canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement,
-                membership.value,
-            ) else {
+            let Some(place) = place_at(program, state.symbol, statement, membership.value) else {
                 return false;
             };
             if membership.domain_arguments.is_empty() {

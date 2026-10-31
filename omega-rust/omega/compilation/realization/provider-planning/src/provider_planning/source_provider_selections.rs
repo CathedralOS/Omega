@@ -2,6 +2,7 @@
 //! Complete Product boundary policy belongs to provider-selection; these
 //! adapters only locate source uses or borrow an exact checked body payload.
 
+use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
@@ -90,9 +91,7 @@ pub fn selected_requirement_plan<'a>(
                 .iter()
                 .enumerate()
                 .filter(|(_, plan)| {
-                    plan.schema
-                        .identity_text(plan.schema.declaration.trait_name)
-                        == slot
+                    trait_name_text(&plan.schema) == slot
                         && plan.schema.declaration.trait_package_identity == package
                 })
                 .collect()

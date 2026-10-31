@@ -2,10 +2,12 @@
 //! Preparation does not inspect initializers or recover retired observations.
 //! Each Boolean leaf keeps its selected operation, exact place and polarity.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 pub(super) struct CaseObservation {
     pub place: CanonicalPlace,
@@ -113,8 +115,7 @@ pub(super) fn normalize_place(
         if !program.expression_table.expression_is_valid(expression) {
             continue;
         }
-        if let Some(index) = program
-            .expression_table
+        if let Some(index) = expressions(program)
             .constant_integer_value(expression)
             .and_then(|value| usize::try_from(value).ok())
         {
@@ -199,7 +200,7 @@ impl Observer<'_> {
                 ) else {
                     return;
                 };
-                let Some(place) = canonical_place_from_expression_in_state(
+                let Some(place) = place_at(
                     self.program,
                     self.state.symbol,
                     self.statement_index,

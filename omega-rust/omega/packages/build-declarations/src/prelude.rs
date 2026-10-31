@@ -242,16 +242,16 @@ public boundary trait BuildRequestOperations {
     machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches;
     machine write_log(log: &BuildLog, text: &[u8]) reaches;
 }
-public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, false, false, "", source);
 }
-public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, false, true, alias, source);
 }
-public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, true, false, "", source);
 }
-public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, true, true, alias, source);
 }
 machine Build::request_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
@@ -272,17 +272,17 @@ machine Build::request_git(builder: &Build, build_scope: bool, explicit_alias: b
 machine Build::request_selected_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
     BuildRequestOperations::depend_git(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
 }
-public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::package(builder, name);
 }
-public machine Build::application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::application(builder, name);
 }
-public machine Build::member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::member(builder, path);
 }
 // The executed request is joined with the application role and required outputs.
-public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::artifact_only(builder);
 }
 // Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
@@ -326,48 +326,48 @@ public boundary trait BuildFilesystemOperations {
     machine fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches;
     machine required_path(output: &RequiredOutput) -> &[u8] reaches;
 }
-public machine BuildSource::resolve(source: &BuildSource, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildSource::resolve(source: &BuildSource, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::resolve_source(source, relative)
 }
-public machine BuildOutput::resolve(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::resolve(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::resolve_output(output, relative)
 }
-public machine BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::named_input(inputs, name)
 }
-public machine BuildSource::open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildSource::open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::open(source, path, flags)
 }
-public machine BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::read(source, descriptor, buffer, count)
 }
-public machine BuildSource::close(source: &BuildSource, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildSource::close(source: &BuildSource, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::close_source(source, descriptor)
 }
-public machine BuildOutput::create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::create(output, path, mode)
 }
-public machine BuildOutput::write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::write(output, descriptor, bytes)
 }
-public machine BuildOutput::close(output: &mut BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::close(output: &mut BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::close_output(output, descriptor)
 }
-public machine BuildOutput::include_source(output: &mut BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::include_source(output: &mut BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::include_source(output, generated);
 }
-public machine BuildOutput::require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::require(output, name)
 }
-public machine BuildOutput::fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::fail(output, obligation, diagnostic);
 }
-public machine RequiredOutput::path(output: &RequiredOutput) -> &[u8] reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine RequiredOutput::path(output: &RequiredOutput) -> &[u8] reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::required_path(output)
 }
 // The ordinary Omega branch retains both owned inputs on Retry. The host
 // rechecks the same sealed file and pending obligation when issuing a receipt.
-public machine BuildOutput::complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations; {
+public machine BuildOutput::complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     let ready: bool = BuildFilesystemOperations::can_complete(output, &obligation, file);
     transition ready {
         true -> BuildOutput::seal(output, obligation, file)
@@ -383,33 +383,33 @@ machine BuildOutput::retry(obligation: RequiredOutput, file: BuildPath) -> Outpu
 }
 // Inspection authenticates the issued schema and returns a stable read-only
 // snapshot of its canonical path, without reopening Product source.
-public machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations; {
+public machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::schema_path(schema)
 }
 // Provider inspection has its own role check over the same activation table.
-public machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations; {
+public machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::provider_path(provider)
 }
-public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
+public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::write_log(log, text);
 }
 // Fallible logical query: select the exact product machine `path` declares in
 // this call occurrence's own package for root slot `slot`. The evaluator
 // normalizer preserves the authored lexical occurrence on the host operation.
 // The wrapper also carries the real effect; no pure stand-in can erase a query.
-public machine BuildProduct::entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations; {
+public machine BuildProduct::entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::entry(product, path, slot)
 }
 // Fallible logical query: select the exact product data declaration `path`
 // names in this call occurrence's own package. The same query protocol retains
 // the authored occurrence and issues a description after source resolution.
-public machine BuildProduct::schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches BuildProductOperations invokes BuildProductOperations; {
+public machine BuildProduct::schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::schema(product, path)
 }
 // Fallible logical query: select the exact product provider declaration `path`
 // names in this call occurrence's own package. A provider declaration is a
 // named implementation, never a data type with attached code.
-public machine BuildProduct::provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches BuildProductOperations invokes BuildProductOperations; {
+public machine BuildProduct::provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::provider(product, path)
 }
 // compiler-owned optimization enable machine

@@ -13,7 +13,7 @@ Selected<const Output: i32> satisfies Arithmetic<i32> {
 }
 
 machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 100
 requires 0 <= right && right <= 100
 {
@@ -23,7 +23,7 @@ requires 0 <= right && right <= 100
 data Main { }
 
 machine Main::main(main: &mut Main) reaches Console
-blocks;
+blocks
 {
     // The selected implementation returns three, not builtin addition's eleven.
     let selected: i32 = block choose<ConstantThree>(5, 6);
@@ -34,7 +34,7 @@ blocks;
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console
-blocks;
+blocks
 {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);

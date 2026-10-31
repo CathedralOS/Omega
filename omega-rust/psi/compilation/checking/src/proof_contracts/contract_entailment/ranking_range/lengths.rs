@@ -9,6 +9,7 @@ use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, RankSubjectCoordinate, State, TypeReferenceNode, projections,
 };
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
@@ -172,9 +173,7 @@ fn evaluate_length(
     engine: &mut Engine<'_>,
     depth: usize,
 ) -> Option<Polynomial> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     if let ExpressionNode::Borrow(borrow) = node {
         if !matches!(
             borrow.access,
@@ -222,10 +221,10 @@ fn evaluate_length(
         expression,
     ) || contracted_extent
     {
-        let Some(indexed) = program.expression_table.indexed_node(expression) else {
+        let Some(indexed) = expression_table(program).indexed_node(expression) else {
             return None;
         };
-        let range = program.expression_table.range_node(indexed.index)?;
+        let range = expression_table(program).range_node(indexed.index)?;
         // Constant-extent queries also enter here without the call owner's
         // meaning pass. Never interpret an authored operator as arithmetic
         // merely because its operands happen to normalize to constants.
@@ -291,7 +290,7 @@ fn evaluate_length(
     ) {
         return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
     }
-    let length = match program.expression_table.expression(expression) {
+    let length = match expression_table(program).expression(expression) {
         ExpressionNode::Name(_) => {
             let Some(symbol) =
                 crate::expression_traversal::single_segment_name_symbol(program, expression)
@@ -355,7 +354,7 @@ fn transparent_call_result_length(
     }
     let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
     let parameters = program.state_parameters(callee_state);
-    let call_arguments = program.expression_table.expression_handles(call.arguments);
+    let call_arguments = expression_table(program).expression_handles(call.arguments);
     let total_operands = usize::from(call.receiver.is_valid()) + call_arguments.len();
     if total_operands != callee.leading_operands + parameters.len() {
         return None;
@@ -594,7 +593,7 @@ impl<'program> Coordinate<'program> {
             // An owned actual into a borrowed formal has no reference boundary
             // to read through; only a `&` spelling reaches the record the
             // destination denotes.
-            let Some(borrow) = program.expression_table.borrow_expression(current) else {
+            let Some(borrow) = expression_table(program).borrow_expression(current) else {
                 return None;
             };
             current = borrow.target;

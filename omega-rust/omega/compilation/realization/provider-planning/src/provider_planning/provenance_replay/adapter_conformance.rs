@@ -4,7 +4,7 @@
 //! identity cannot select a scope.
 
 use crate::ProviderPlanningContext;
-use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
 use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration, ServiceCatalog};
 
 pub(crate) use backend_plan::synchronous_invocations::exact_row_for_schema_method;
@@ -181,8 +181,7 @@ pub fn exact_checked_adapter<'typed>(
             return Err(diagnostics::Diagnostic::error(format!(
                 "checked adapter `{}` for `{}::{}` is absent from typed machines",
                 plan.identity_text(*machine_identity),
-                plan.schema
-                    .identity_text(plan.schema.declaration.trait_name),
+                trait_name_text(&plan.schema),
                 row.method,
             )));
         }

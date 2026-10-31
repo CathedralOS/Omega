@@ -5,6 +5,7 @@
 //! this invocation's exact substitution; a matching signature or result value
 //! cannot replace the authored selection.
 
+use crate::build_time_evaluation::expression_table;
 use crate::unique::push_unique;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
@@ -340,13 +341,11 @@ fn validate(
     }
     let mut expected = Vec::new();
     for occurrence in
-        program
-            .expression_table
-            .authored_selection_occurrences(if specialized_calls {
-                materialized
-            } else {
-                root
-            })
+        expression_table(program).authored_selection_occurrences(if specialized_calls {
+            materialized
+        } else {
+            root
+        })
     {
         let selection = program
             .authored_declaration_selections()
@@ -887,18 +886,13 @@ impl<'program> Collector<'program> {
             // dependency value. Never specialize its detached source recipe as
             // though it were the current invocation's body.
             let materialized = declaration.materialized_initializer;
-            if !self
-                .program
-                .expression_table
-                .expression_is_valid(materialized)
+            if !expression_table(self.program).expression_is_valid(materialized)
                 || self.program.expression_table.source_span(materialized)
                     != declaration.initializer_source_span
             {
                 return Err("constant dependency lost its owned materialized custody".into());
             }
-            let calls = self
-                .program
-                .expression_table
+            let calls = expression_table(self.program)
                 .authored_selection_occurrences(materialized)
                 .map(|occurrence| {
                     let selection = self
@@ -1291,15 +1285,12 @@ impl<'program> Collector<'program> {
                         self.static_arguments(&call.machine_arguments);
                         if call.authored_machine_application.is_valid() {
                             self.static_arguments(
-                                program
-                                    .expression_table
-                                    .static_machine_application_arguments(
-                                        call.authored_machine_application,
-                                    ),
+                                expression_table(program).static_machine_application_arguments(
+                                    call.authored_machine_application,
+                                ),
                             );
                             self.static_arguments(
-                                program
-                                    .expression_table
+                                expression_table(program)
                                     .static_machine_application_selected_machines(
                                         call.authored_machine_application,
                                     ),

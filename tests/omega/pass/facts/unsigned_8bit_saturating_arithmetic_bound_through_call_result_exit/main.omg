@@ -3,9 +3,9 @@
 // Expected exit: 0
 
 machine compute_sat_sum(l: u8, r: u8) -> u8
-    requires l >= 40u8 && l <= 80u8;
-    requires r >= 10u8 && r <= 20u8;
-    ensures result >= 50u8 && result <= 100u8;
+    requires l >= 40u8 && l <= 80u8
+    requires r >= 10u8 && r <= 20u8
+    ensures result >= 50u8 && result <= 100u8
 {
     let a: u8 in Saturating = l as u8 in Saturating;
     let b: u8 in Saturating = r as u8 in Saturating;
@@ -14,8 +14,8 @@ machine compute_sat_sum(l: u8, r: u8) -> u8
 }
 
 machine add_call_result(lhs: u8, rhs: u8) -> i32
-    requires lhs >= 40u8 && lhs <= 80u8;
-    requires rhs >= 10u8 && rhs <= 20u8;
+    requires lhs >= 40u8 && lhs <= 80u8
+    requires rhs >= 10u8 && rhs <= 20u8
 {
     let sum: u8 = compute_sat_sum(lhs, rhs);
     let headroom: u8 = 100u8 - sum;

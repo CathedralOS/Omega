@@ -66,6 +66,26 @@ descriptor arguments, stack-slot overflow, or the parent's complete host matrix.
 The separate `aggregate_struct_return_abi` Quartet is Omega-produced and cannot
 substitute for an actual C return.
 
+## Build-owned selected bindings
+
+The selected-call root and nine places also discharge the scalar-record part of
+[BUILD-OWNED-NATIVE-BINDINGS](../../../../TASKS.md): each package's Build activation
+binds the exact `IntegerDivision::divide` requirement to the four original native
+locators. Ordinary constructors infer their fixed-byte dimensions. Product source
+keeps the public two-`i64` record and requirement, without per-symbol binding-value
+helpers or bodyless forwarding declarations. The target-body place calls the
+portable `Observation::observe` requirement; four explicit Build rows select one
+ordinary implementation because the four original bodies were identical.
+
+This migration preserves both signed input pairs, every original/copied/later
+field comparison, and each copy-removal rejection. Its current matching-host
+observations retain their exact producer identity in the PR evidence. The earlier
+Linux and Windows runs above describe their original sources and producers;
+they are not runs of these migrated Build bindings. This shared implementation
+does not establish distinct-body selection on two targets. The direct, nested,
+and array productions below, other-host execution of the new bindings, and the
+remaining target/native retirement acceptance stay open.
+
 ## Direct foreign production
 
 The same fact also needs the concrete foreign-call production, independently of

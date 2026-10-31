@@ -3,16 +3,16 @@
 data Remaining { canary: u64; count: u64; tail: u64; }
 measure Remaining::SquaredOffset(value: u64) -> u64 { value * value + 3 }
 machine count(counter: &mut u64, remaining: Remaining) crashes Trap
-terminates;
-terminates by remaining.count -> Remaining::SquaredOffset in 3..=52;
-requires remaining.count <= 7;
+terminates
+terminates by remaining.count -> Remaining::SquaredOffset in 3..=52
+requires remaining.count <= 7
 {
     transition remaining.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.count, remaining.canary, remaining.tail)
     }
     machine forward(pending: Remaining, counter: &mut u64) crashes Trap
-    requires pending.count > 0 && pending.count <= 7;
+    requires pending.count > 0 && pending.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let next: Remaining = Remaining { canary: pending.canary, count: pending.count - 1, tail: pending.tail };
@@ -28,7 +28,7 @@ machine perform(counter: &mut u64, select: bool) crashes Trap {
     invoke(counter, match select { true -> Remaining { canary: 641, count: 7, tail: 967 } false -> Remaining { canary: 641, count: 0, tail: 967 } });
 }
 machine invoke(counter: &mut u64, received: Remaining) crashes Trap
-requires received.count <= 7;
+requires received.count <= 7
 { count(counter, received); }
 machine main() crashes Trap {
     let mut counted: u64 = 3;

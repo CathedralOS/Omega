@@ -232,7 +232,7 @@ pub(super) fn emit_state(
                     .collect::<Vec<_>>(),
             )?;
             let coordinate = match binding {
-                LoweredScalarBinding::DirectCall(call) => Some(call.source_coordinate),
+                LoweredScalarBinding::DirectCall(call) => call.source_coordinate.statement(),
                 LoweredScalarBinding::BoundaryCall(call) => Some(call.source_coordinate),
                 LoweredScalarBinding::DynamicCall(call) => Some(call.source_coordinate),
                 _ => None,

@@ -8,6 +8,7 @@ use super::{
     ArithmeticDomain, Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarExpression, ExpressionHandle, PrimitiveType,
 };
+use crate::flow::expressions;
 use crate::values::scalar::expression_facts::{is_integer, scalar_expression_type};
 
 impl Builder<'_, '_> {
@@ -38,8 +39,7 @@ impl Builder<'_, '_> {
                 primitive_type,
             })
         };
-        let (template, domain) = if program
-            .expression_table
+        let (template, domain) = if expressions(program)
             .authored_length_receiver(expression)
             .is_some()
         {

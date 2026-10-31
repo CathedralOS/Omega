@@ -1,5 +1,7 @@
 //! Qualification facts and service reach facts.
 
+use crate::flow::indexed_statements;
+
 /// Declaration-only content plans are available before the ownership walk.
 /// A normalized equation is an obligation, not a successful body theorem or
 /// permission to consume its inputs. Keep the same table through later
@@ -147,10 +149,7 @@ pub(crate) fn build_qualification_facts(
     for machine in program.machines() {
         let mut committed = Vec::new();
         for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 use typed_trees::statement::StatementNode;
                 let statement_index =
                     u32::try_from(statement_index).expect("qualification statement index overflow");

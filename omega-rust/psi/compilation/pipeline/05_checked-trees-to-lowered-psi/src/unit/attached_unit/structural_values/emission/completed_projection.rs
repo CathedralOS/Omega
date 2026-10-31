@@ -3,6 +3,7 @@
 //! selector values stay in the active scalar roster across private continuations.
 
 use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
+use crate::checked_facts::value_facts;
 use crate::emission::completed_place::Frontier;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, emit_captured_argument_path,
@@ -235,20 +236,18 @@ impl Emission<'_, '_, '_> {
         match segment {
             PreparedStructuralPathSegment::ComputedIndex(computation)
             | PreparedStructuralPathSegment::EvaluatedFixedIndex { computation, .. } => {
-                let mut roles =
-                    self.checked
-                        .facts
-                        .values
-                        .scalar_computations
-                        .roots_for_statement(self.state, self.statement)
-                        .into_iter()
-                        .filter_map(|root| {
-                            matches!(root.role,
-                        checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
-                            expression: owner, ..
-                        } if owner == expression && root.root == *computation
-                    ).then_some(root.role)
-                        });
+                let mut roles = value_facts(&self.checked)
+                    .scalar_computations
+                    .roots_for_statement(self.state, self.statement)
+                    .into_iter()
+                    .filter_map(|root| {
+                        matches!(root.role,
+                            checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                                expression: owner, ..
+                            } if owner == expression && root.root == *computation
+                        )
+                        .then_some(root.role)
+                    });
                 let role = roles.next().ok_or(LoweringError::Unsupported(
                     "projection selector lost its exact authored computation root",
                 ))?;

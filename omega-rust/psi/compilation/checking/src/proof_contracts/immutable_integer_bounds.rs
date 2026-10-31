@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -332,11 +333,11 @@ fn collect_bound_terms(
     // A pure constant subtree folds into the offset before any symbolic
     // reading; `i - (1 + 2)` is `i - 3` even though its right child is a
     // `Subtract` node.
-    if let Some(value) = program.expression_table.constant_integer_value(expression) {
+    if let Some(value) = expression_table(program).constant_integer_value(expression) {
         terms.offset = terms.offset.checked_add(value)?;
         return Some(());
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Binary(binary) => match binary.operator {
             typed_trees::expression::BinaryOperator::Add => {
                 collect_bound_terms(program, lookup, binary.left, terms, depth + 1)?;
@@ -346,9 +347,7 @@ fn collect_bound_terms(
                 collect_bound_terms(program, lookup, binary.left, terms, depth + 1)?;
                 // Only a constant right side folds; `a - b` would carry a
                 // negative coefficient on `b`, which has no spelling.
-                let value = program
-                    .expression_table
-                    .constant_integer_value(binary.right)?;
+                let value = expression_table(program).constant_integer_value(binary.right)?;
                 terms.offset = terms.offset.checked_sub(value)?;
                 Some(())
             }
@@ -402,7 +401,7 @@ fn bound_leaf_initializer(
     if local.is_mutable || local.ordinary_value_initializer().is_none() {
         return None;
     }
-    let binary = program.expression_table.binary_node(local.initial_value)?;
+    let binary = expression_table(program).binary_node(local.initial_value)?;
     // Expanding a stored computation must retain the declaration that chose
     // its operator meaning. The local's structural owner supplies that exact
     // callable context; a `+` requirement selecting an authored operation is
@@ -434,8 +433,8 @@ fn bound_leaf_symbol(
     lookup: &ImmutableBoundLookup<'_>,
     base: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let path = program.expression_table.name_path_node(base)?;
-    let members = program.expression_table.name_path_members(path.members);
+    let path = expression_table(program).name_path_node(base)?;
+    let members = expression_table(program).name_path_members(path.members);
     if members.len() != 1 {
         return None;
     }
@@ -457,8 +456,8 @@ fn bound_leaf_symbol(
     match normalize_bound(program, lookup, base, &mut Vec::new())? {
         NormalizedBound::LocalValue(symbol) => Some(symbol),
         NormalizedBound::Expression(expression) => {
-            let path = program.expression_table.name_path_node(expression)?;
-            let members = program.expression_table.name_path_members(path.members);
+            let path = expression_table(program).name_path_node(expression)?;
+            let members = expression_table(program).name_path_members(path.members);
             (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
                 .then_some(path.symbol)
         }
@@ -480,8 +479,8 @@ pub fn mutable_integer_bound_storage_symbol(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let path = program.expression_table.name_path_node(expression)?;
-    let members = program.expression_table.name_path_members(path.members);
+    let path = expression_table(program).name_path_node(expression)?;
+    let members = expression_table(program).name_path_members(path.members);
     let (symbol, is_mutable, type_reference) = single_segment_receiver(lookup, path, members)?;
     if !is_mutable || !symbol.is_valid() {
         return None;
@@ -508,12 +507,12 @@ fn projected_integer_bound_field<'program>(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, &'program typed_trees::data::DataField, bool)> {
-    let member = program.expression_table.member_node(expression)?;
+    let member = expression_table(program).member_node(expression)?;
     if member.case_variant.is_some() {
         return None;
     }
-    let path = program.expression_table.name_path_node(member.receiver)?;
-    let members = program.expression_table.name_path_members(path.members);
+    let path = expression_table(program).name_path_node(member.receiver)?;
+    let members = expression_table(program).name_path_members(path.members);
     let (symbol, is_mutable, type_reference) = single_segment_receiver(lookup, path, members)?;
     if !symbol.is_valid() {
         return None;
@@ -603,11 +602,11 @@ pub fn indexed_integer_bound_root(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
-    let indexed = program.expression_table.indexed_node(expression)?;
+    let indexed = expression_table(program).indexed_node(expression)?;
     let (symbol, mut segments, is_mutable, type_reference) =
-        match program.expression_table.expression(indexed.collection) {
+        match expression_table(program).expression(indexed.collection) {
             ExpressionNode::Name(path) => {
-                let members = program.expression_table.name_path_members(path.members);
+                let members = expression_table(program).name_path_members(path.members);
                 if members.len() != 1 {
                     return None;
                 }
@@ -644,8 +643,7 @@ pub fn indexed_integer_bound_root(
     if !symbol.is_valid() {
         return None;
     }
-    let index = program
-        .expression_table
+    let index = expression_table(program)
         .constant_integer_value(indexed.index)
         .and_then(|value| usize::try_from(value).ok())?;
     segments.push(facts::PlaceSegment::FixedIndex { index });
@@ -686,8 +684,7 @@ pub fn normalize_immutable_integer_bound_to_usize(
     expression: ExpressionHandle,
 ) -> Option<usize> {
     let expression = normalize_immutable_integer_bound_expression(program, lookup, expression)?;
-    program
-        .expression_table
+    expression_table(program)
         .constant_integer_value(expression)
         .and_then(|value| usize::try_from(value).ok())
 }
@@ -702,10 +699,10 @@ fn normalize_bound(
         return None;
     }
 
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(_) => Some(NormalizedBound::Expression(expression)),
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             if members.len() != 1 {
                 return None;
             }
@@ -752,7 +749,7 @@ fn normalize_local(
         return Some(NormalizedBound::LocalValue(local.symbol));
     }
     seen_aliases.push(local.symbol);
-    let normalized = match program.expression_table.expression(local.initial_value) {
+    let normalized = match expression_table(program).expression(local.initial_value) {
         ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
             normalize_bound(program, lookup, local.initial_value, seen_aliases).map(|bound| {
                 match bound {

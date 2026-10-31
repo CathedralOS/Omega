@@ -157,11 +157,7 @@ impl ValidatedTargetRegisterEnvironment {
     }
 
     pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
-        self.constraints
-            .catalog()
-            .constraints
-            .iter()
-            .find(|constraint| constraint.key == key)
+        self.constraints.constraint(key)
     }
 
     /// Target-selected scalar-call constraint. This is validated environment

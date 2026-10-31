@@ -3,6 +3,7 @@
 //! runs. This walk registers their theories, never membership or custody.
 //! Byte literal formation remains a separate validation owner.
 
+use crate::checked_facts::value_facts;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{CheckedTrees, CheckedUnitStructuralArgumentSourcePlan};
@@ -50,9 +51,7 @@ pub(crate) fn collect_value_requirements(
     value: checked_trees::CheckedStructuralValueHandle,
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<bool, LoweringError> {
-    let reference = checked
-        .facts
-        .values
+    let reference = value_facts(checked)
         .structural_values
         .roots
         .iter()

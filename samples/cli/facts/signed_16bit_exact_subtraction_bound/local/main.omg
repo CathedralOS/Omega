@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine subtract_local(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 500i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 500i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let l: i16 = lhs;
     let r: i16 = rhs;

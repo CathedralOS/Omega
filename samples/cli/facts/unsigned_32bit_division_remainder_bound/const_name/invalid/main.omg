@@ -8,7 +8,7 @@ const DIVISOR_MAX: u32 = 17u32;
 const MAX_REMAINDER: u32 = 15u32;
 
 machine remainder_const(dividend: u32, divisor: u32) -> i32
-    requires divisor >= DIVISOR_EXACT && divisor <= DIVISOR_MAX;
+    requires divisor >= DIVISOR_EXACT && divisor <= DIVISOR_MAX
 {
     let rem: u32 = dividend % divisor;
     let headroom: u32 = MAX_REMAINDER - rem;

@@ -6,7 +6,7 @@ use omega_language_std::console;
 data Point { x: u64; y: u64; }
 data Main { }
 machine Main::take(d: u64) -> u64
-    requires d != 0;
+    requires d != 0
 {
     d
 }

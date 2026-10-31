@@ -189,7 +189,8 @@ pub(super) fn machine_decrease_outcome_with(
     // complete coordinate witness above; the former spelling/shape probes
     // cannot supply a second scalar arrival route.
     let structural_order = matches!(order, RankingOrder::Lexicographic(_))
-        || validation::proof_only_classification(program).is_proof_machine(program, machine);
+        || (!matches!(order, RankingOrder::CustomScalarView { .. })
+            && validation::proof_only_classification(program).is_proof_machine(program, machine));
     if structural_order {
         let adjacency = graph::machine_adjacency(program, machine);
         let components = graph::strongly_connected_components(&adjacency);
@@ -380,12 +381,11 @@ fn cycle_edge_strictly_decreases(
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
             | RankingOrder::CustomNatDescending { .. }
-            | RankingOrder::CustomScalarView { .. }
     ) {
         // Slice-length, struct-view and lexicographic orders stay
-        // self-loop-only (no pointwise cross-state meaning). A computed
-        // scalar view ranks its subject pointwise because its admission
-        // proved the body strictly increasing on the naturals.
+        // self-loop-only (no pointwise cross-state meaning). Computed views
+        // require the produced-rank judgment above; their inputs alone carry
+        // no monotonicity guarantee.
         return false;
     }
     let mut found = false;
@@ -418,12 +418,14 @@ fn state_has_provable_self_loop<'p>(
     // Slice-length, struct-view and lexicographic orders rank a single
     // decreasing value; a two-subject distance belongs to `current_values`.
     match (order, measure) {
+        // A declared computation needs its produced-value proof, including
+        // formation. Structural/raw-subject fallback cannot supply it.
+        (RankingOrder::CustomScalarView { .. }, _) => false,
         (
             RankingOrder::NatDescending
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
-            | RankingOrder::CustomNatDescending { .. }
-            | RankingOrder::CustomScalarView { .. },
+            | RankingOrder::CustomNatDescending { .. },
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure),
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {

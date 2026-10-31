@@ -22,6 +22,7 @@
 //! transfer its carrier, and supplies no independent Terminal certificate.
 
 use crate::flow::active_context_handles;
+use crate::flow::indexed_statements;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -150,10 +151,7 @@ pub(super) fn check_domain_field_writes(
         }
     }
     construction_qualifications.sort_by_key(ConstructionQualification::site);
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         {
             // Complete operand formation before receiving obligations consume
             // its proof. The authored walk checks casts and constructed children

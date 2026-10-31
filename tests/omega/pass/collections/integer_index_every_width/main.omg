@@ -22,7 +22,7 @@ requires index_u8 <= 3 && index_u16 <= 3 && index_u32 <= 3 && index_u64 <= 3
 }
 
 machine read_slice(values: &[u64], position: i32) -> u64
-requires position >= 0 && position <= 3 && position < values.len;
+requires position >= 0 && position <= 3 && position < values.len
 {
     values[position]
 }

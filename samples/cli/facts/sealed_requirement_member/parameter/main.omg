@@ -21,14 +21,14 @@ Selected satisfies Sum {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures 0 <= result && result <= 100
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures 0 <= result && result <= 100
@@ -39,7 +39,7 @@ ensures 0 <= result && result <= 100
 // Place: parameter. The probe reads its two bounded parameters directly into combine.
 // Expected exit: 0
 machine probe(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures 0 <= result && result <= 100
@@ -47,7 +47,7 @@ ensures 0 <= result && result <= 100
     block apply<Selected>(left, right)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let wide: i32 = block probe(20, 22);
     let narrow: i32 = block probe(10, 12);
     transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }

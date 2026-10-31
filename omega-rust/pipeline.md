@@ -317,6 +317,38 @@ none is a separate implementation handoff. Native receiving admission remains
 source-free. Check and declaration review must still work without executable
 publication, and reviewed candidates never replace original compiler custody.
 
+Boundary-value layout now takes a source-free storage recipe graph. Psi's
+`typed-trees::boundary_values` closes applications, reference descriptors,
+runtime members, all admitted fixed-storage alternatives and opaque carrier correspondence;
+Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
+target without reading typed source. Ordinary calling signatures, entry storage
+and table dispatch all use this one route. The graph carries storage meaning,
+not type/contract authority or a representation grant. It currently remains an
+invocation-owned projection: canonical Terminal signature publication, exact
+callback/policy capture, and Terminal-first target orchestration are still open.
+In particular, this split does not establish source-discard/reload acceptance.
+
+The same source catalog now retains native parameter/callback telescopes before
+target choice. Psi owns nominal parameter identities, static-machine ordinal
+gaps, callback requirements, synchronous-invocation flags and declared native
+positions. Default ABI lookup uses its Product-eligible declaration subset;
+authored policy evaluation retains the complete checked-input census, including
+Build copies. Omega consumes those records instead of rewalking signatures.
+Projection refusals remain deferred until an ABI request, and runtime type
+recipes still materialize one parameter at a time. These telescopes and their
+separate source correspondence are invocation-owned; publishing the complete
+signature/contract set canonically in Terminal is still required.
+
+Psi's same immutable catalog also retains the complete explicit calling-policy
+application census: the owning vocabulary, concrete boundary arguments, exact
+named-map capture, inherited signature order and simultaneous type bindings.
+Requests and their refusal results remain in source order. Omega follows these
+arena-backed associations rather than traversing trait requirements or rebuilding
+application scopes for every target. It still selects each deployment's policy
+body and evaluates the policy. Publishing these applications and their closed
+storage/contract inputs in Terminal, rather than retaining source coordinates,
+remains the next connected migration.
+
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper

@@ -14,6 +14,7 @@ use super::{
     bind_boolean,
 };
 use crate::checks::contracts::prover::has_builtin_operators;
+use crate::flow::state_statements;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation};
 use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
 
@@ -78,9 +79,7 @@ impl ExitScalars<'_, '_> {
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         symbols.extend(
-            self.program
-                .statement_table
-                .statements(state.statement_nodes)
+            state_statements(self.program, state.statement_nodes)
                 .get(..statement as usize)?
                 .iter()
                 .filter_map(|statement| {
@@ -170,7 +169,8 @@ impl ExitScalars<'_, '_> {
                 ..
             } => {
                 let control = &self.facts.flow.control;
-                if !control.calls.is_valid(*source_call) || !structural_arguments.is_empty() {
+                let source_call = source_call.statement()?;
+                if !control.calls.is_valid(source_call) || !structural_arguments.is_empty() {
                     return None;
                 }
                 let call = self.normal_return_call(source)?;
@@ -183,7 +183,7 @@ impl ExitScalars<'_, '_> {
                         .primitive_type_reference(call.entry.return_type)
                         != Some(PrimitiveType::Bool)
                     || call.fact.call_ordinal != *call_ordinal as usize
-                    || !std::ptr::eq(call.fact, control.calls.get(*source_call))
+                    || !std::ptr::eq(call.fact, control.calls.get(source_call))
                 {
                     return None;
                 }

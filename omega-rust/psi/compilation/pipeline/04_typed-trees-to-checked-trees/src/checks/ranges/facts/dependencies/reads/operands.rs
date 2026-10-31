@@ -1,8 +1,9 @@
 //! Operand and place reads: the per-operand dispatch and the captured
 //! read each place contributes.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use validation::CanonicalPlace;
-use validation::canonical_place_from_expression_in_state;
 
 use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode};
 use super::ReadWalk;
@@ -102,8 +103,7 @@ impl ReadWalk<'_, '_, '_> {
         depth: usize,
     ) -> bool {
         let program = self.program;
-        if program
-            .expression_table
+        if expressions(program)
             .constant_integer_value(expression)
             .is_some()
         {
@@ -160,12 +160,7 @@ impl ReadWalk<'_, '_, '_> {
         if !self.collect_selector_reads(expression, depth + 1) {
             return false;
         }
-        let Some(place) = canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            expression,
-        ) else {
+        let Some(place) = place_at(program, state.symbol, statement_index, expression) else {
             return false;
         };
         self.capture_place_read(place, expression)

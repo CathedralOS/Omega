@@ -2,7 +2,7 @@
 // Expected exit: 0
 const MARK_VALUE: u64 = 7;
 public boundary trait Mark {
-    machine read() -> u64 reaches Mark invokes Backend; invokes Forbidden;
+    machine read() -> u64 reaches Mark invokes Backend invokes Forbidden;
 }
 public boundary trait Backend { machine read() -> u64 reaches Mark; }
 public boundary trait Forbidden { machine read() -> u64 reaches Forbidden; }

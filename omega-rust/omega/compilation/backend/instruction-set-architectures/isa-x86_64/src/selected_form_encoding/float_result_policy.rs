@@ -15,6 +15,7 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
     X86_64SelectedFormFootprint,
 };
+use crate::register_model::units_of;
 use register_model::{
     RegisterConstraintKey, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
 };
@@ -28,21 +29,11 @@ use selected_instructions::{
 use selected_instructions::{FloatResultPolicyKind, MachineEncodedControlEffect};
 
 pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
-    let physical = crate::x86_64_physical_register_model_ref();
-    let names: &[&str] = if form.can_trap() {
+    units_of(if form.can_trap() {
         &["xmm3", "rflags"]
     } else {
         &["xmm3", "xmm4", "rflags"]
-    };
-    let mut units = names
-        .iter()
-        .copied()
-        .flat_map(|name| physical.views.iter().filter(move |view| view.name == name))
-        .flat_map(|view| view.units.iter().copied())
-        .collect::<Vec<_>>();
-    units.sort_unstable();
-    units.dedup();
-    units
+    })
 }
 
 pub(crate) fn effects(form: FloatResultPolicyForm) -> MachineEncodedEffects {

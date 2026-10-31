@@ -6,6 +6,7 @@
 //! Retain those leaves against the input owner even when no local store has
 //! produced a capture; selecting a case payload cannot erase that dependency.
 use super::Execution;
+use crate::places::place_at;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
 use facts::{PlaceRoot, PlaceSegment};
@@ -26,7 +27,7 @@ impl Execution<'_, '_, '_> {
         completed
             .or_else(|| self.stored_operand_retention(capture.expression))
             .or_else(|| {
-                let source = validation::canonical_place_from_expression_in_state(
+                let source = place_at(
                     self.program,
                     self.state.symbol,
                     capture.statement_index,
@@ -395,7 +396,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<Handle<FlowOperandRetention>> {
-        let source = validation::canonical_place_from_expression_in_state(
+        let source = place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -593,7 +594,7 @@ impl Execution<'_, '_, '_> {
             capture.completion,
             checked_trees::FlowOperandCompletion::Observation
         ) && value_retention.is_none()
-            && let Some(source) = validation::canonical_place_from_expression_in_state(
+            && let Some(source) = place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
@@ -648,7 +649,7 @@ impl Execution<'_, '_, '_> {
         }
         let mut value = *capture;
         if capture.constructed_children().is_empty() {
-            let Some(source) = validation::canonical_place_from_expression_in_state(
+            let Some(source) = place_at(
                 self.program,
                 self.state.symbol,
                 self.statement_index,

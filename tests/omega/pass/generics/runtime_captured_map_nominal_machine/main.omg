@@ -10,12 +10,12 @@ Sized<const Count: u64, machine Callback> satisfies Getter
 requires machine Callback satisfies SizedHook<Count>::read;
 { machine get() -> i32 { 83 } }
 machine fixed<const Count: u64>(value: &[u8; Count]) -> i32 satisfies SizedHook<Count>::read { 83 }
-machine choose<Operations satisfies Getter>() -> i32 blocks; { block Operations::get() }
+machine choose<Operations satisfies Getter>() -> i32 blocks { block Operations::get() }
 machine forward<machine Callback>() -> i32
 requires machine Callback satisfies Hook<i32>::keep;
-blocks;
+blocks
 { block choose<Selected<i32, Callback>>() }
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
  let first: i32 = block choose<Selected<i32, chosen>>();
  let second: i32 = block choose<Sized<3, fixed<3>>>();
  let third: i32 = block forward<chosen>();

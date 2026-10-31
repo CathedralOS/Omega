@@ -58,9 +58,7 @@ impl TypedTrees {
         };
         let TypeReferenceNode::Reference {
             access, referee, ..
-        } = self
-            .type_reference_table
-            .type_reference(parameter.type_reference)
+        } = self.type_reference_node(parameter.type_reference)
         else {
             return Err(invalid);
         };

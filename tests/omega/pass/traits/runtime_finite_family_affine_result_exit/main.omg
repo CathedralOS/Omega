@@ -15,7 +15,7 @@ machine Item::code<Width: u32>(item: &Item) -> Packet satisfies Shape<Item>::cod
 }
 Primary satisfies Shape<Item> { Shape::code = Item::code; }
 machine scan(selected: dyn Shape<Item>, item: &Item, width: u32) -> Packet
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 { Shape::code<width>(selected, item) }
 machine consume(packet: Packet) -> bool { packet.marker == 32 && packet.token.value == 17 }
 data Main { item: Item; }

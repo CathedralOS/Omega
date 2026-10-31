@@ -43,14 +43,14 @@ data Main {
 
 machine Main::set_value(main: &mut Main, v: i32)
 requires
-    v >= 0 && v <= 1000;
+    v >= 0 && v <= 1000
 {
     main.state.inner.value = v;
 }
 
 machine Main::set_bonus(main: &mut Main, b: i32)
 requires
-    b >= 0 && b <= 1000;
+    b >= 0 && b <= 1000
 {
     main.state.inner.bonus = b;
 }
@@ -66,7 +66,7 @@ machine Main::increment_count(main: &mut Main) {
 
 machine Main::set_multiplier(main: &mut Main, m: i32)
 requires
-    m >= 0 && m <= 100;
+    m >= 0 && m <= 100
 {
     main.state.multiplier = m;
 }

@@ -22,6 +22,7 @@ use typed_trees::{
 };
 
 use crate::BuildTimeAdmissionPlan;
+use crate::build_time_evaluation::type_reference_table;
 
 /// A callee parameter, or an argument-position call result, is either an
 /// integer position or a bare Boolean. The range bound itself never takes
@@ -41,9 +42,7 @@ impl ScalarPosition {
     ) -> Result<Self, String> {
         // A qualified Boolean (`bool in Domain`) has no closed proof route
         // here; only the bare builtin leaf is a Boolean position.
-        if program
-            .type_reference_table
-            .contains_type_reference(reference)
+        if type_reference_table(program).contains_type_reference(reference)
             && crate::const_evaluation::const_generic_expressions::exact_probe_destination(
                 program, reference,
             ) == Some(PrimitiveType::Bool)
@@ -74,9 +73,7 @@ impl IntegerPosition {
         let mut domains = Vec::new();
         let mut visited = Vec::new();
         loop {
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
+            if !type_reference_table(program).contains_type_reference(reference)
                 || visited.contains(&reference)
             {
                 return Err("invalid or cyclic range endpoint integer type".to_owned());

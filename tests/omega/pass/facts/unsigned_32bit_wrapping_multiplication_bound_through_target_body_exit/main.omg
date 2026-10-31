@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 linux_x86_64 machine multiply_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 20u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 20u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let a: u32 in Wrapping = lhs as u32 in Wrapping;
     let b: u32 in Wrapping = rhs as u32 in Wrapping;
@@ -21,8 +21,8 @@ linux_x86_64 machine multiply_target(lhs: u32, rhs: u32) -> i32
 }
 
 linux_arm64 machine multiply_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 20u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 20u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let a: u32 in Wrapping = lhs as u32 in Wrapping;
     let b: u32 in Wrapping = rhs as u32 in Wrapping;
@@ -39,8 +39,8 @@ linux_arm64 machine multiply_target(lhs: u32, rhs: u32) -> i32
 }
 
 macos_arm64 machine multiply_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 20u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 20u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let a: u32 in Wrapping = lhs as u32 in Wrapping;
     let b: u32 in Wrapping = rhs as u32 in Wrapping;
@@ -57,8 +57,8 @@ macos_arm64 machine multiply_target(lhs: u32, rhs: u32) -> i32
 }
 
 windows_x86_64 machine multiply_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 20u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 20u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let a: u32 in Wrapping = lhs as u32 in Wrapping;
     let b: u32 in Wrapping = rhs as u32 in Wrapping;

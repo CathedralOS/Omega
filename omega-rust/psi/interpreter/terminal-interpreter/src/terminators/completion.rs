@@ -331,7 +331,7 @@ impl TerminalExecution<'_> {
                 // regions; adding a whole-root debt would overlap them and
                 // make forwarding this result fail its next return.
                 let carried = crate::custody::whole_value_frontier(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     result.place,
                     result.structural_type,
                     result.multiplicity,

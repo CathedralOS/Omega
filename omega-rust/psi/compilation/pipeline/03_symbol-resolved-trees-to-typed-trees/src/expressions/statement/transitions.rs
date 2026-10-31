@@ -1,4 +1,6 @@
 use crate::lowerer::Lowerer;
+use crate::tables::resolved_statements;
+use crate::tables::statement_table_mut;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -26,15 +28,9 @@ pub(super) fn lower_transition_statement(
             &transition.guard,
             closes_run && !transition.continuation.is_valid(),
         )?,
-        proof_selectors: lowerer
-            .typed_trees
-            .statement_table
+        proof_selectors: statement_table_mut(&mut lowerer.typed_trees)
             .insert_outcome_proof_selectors(
-                lowerer
-                    .source_trees
-                    .tables
-                    .bodies
-                    .statements
+                resolved_statements(lowerer.source_trees)
                     .outcome_proof_selectors(transition.proof_selectors)
                     .iter()
                     .map(|selector| typed::statement::OutcomeProofSelector {
@@ -91,13 +87,7 @@ fn lower_transition_target(
     lowerer: &mut Lowerer,
     target: resolved::statement::TransitionTargetHandle,
 ) -> Result<typed::statement::TransitionTargetHandle, Diagnostic> {
-    let target = match lowerer
-        .source_trees
-        .tables
-        .bodies
-        .statements
-        .transition_target(target)
-    {
+    let target = match resolved_statements(lowerer.source_trees).transition_target(target) {
         resolved::statement::TransitionTargetNode::Named {
             path,
             arguments,
@@ -138,8 +128,5 @@ fn lower_transition_target(
         }
     };
 
-    Ok(lowerer
-        .typed_trees
-        .statement_table
-        .insert_transition_target(target))
+    Ok(statement_table_mut(&mut lowerer.typed_trees).insert_transition_target(target))
 }

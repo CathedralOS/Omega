@@ -7,6 +7,7 @@
 //! derived condition implies the bucket guard. This is checked implementation
 //! evidence and never enters the public contract fingerprint.
 
+use crate::flow::indexed_statements;
 use checked_trees::{CheckFacts, CrashRouteGuard};
 use diagnostics::Diagnostic;
 
@@ -37,9 +38,7 @@ pub(crate) fn check_crash_exit_edge_isolation(
     let mut diagnostics = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (statement_ordinal, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
+            for (statement_ordinal, statement) in indexed_statements(program, state.statement_nodes)
             {
                 let Some(transition) = statement.as_transition() else {
                     continue;

@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::super::patterns;
@@ -31,8 +32,7 @@ pub(super) fn argument_rebuilds_parameter(
         return false;
     };
 
-    program
-        .expression_table
+    expressions(program)
         .struct_fields(struct_literal.fields)
         .iter()
         .any(|field| {

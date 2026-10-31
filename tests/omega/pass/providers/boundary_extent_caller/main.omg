@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches ByteHost {
     main.n = ByteHost::read(0, &mut main.control, 64);
     transition { _ -> pump(&mut main.control) }
     machine pump(buffer: &mut [u8])
-        requires 64 <= buffer.len;
+        requires 64 <= buffer.len
     {
         let count: i64 = ByteHost::read(0, buffer, 64);
     }

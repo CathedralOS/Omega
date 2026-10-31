@@ -3,11 +3,11 @@
 data Payload { guard: u64; case Pending(count: u64); case Empty; }
 data Holder<'storage> { child: &'storage mut Payload; }
 machine small(payload: &mut Payload)
-requires payload in Payload::Pending, payload.count <= 7;
+requires payload in Payload::Pending, payload.count <= 7
 {}
 machine replace<'storage>(holder: &mut Holder<'storage>, incoming: &'storage mut Payload)
-requires holder.child in Payload::Pending, holder.child.count <= 7;
-requires incoming in Payload::Pending;
+requires holder.child in Payload::Pending, holder.child.count <= 7
+requires incoming in Payload::Pending
 {
     let saved: u64 = holder.child.count;
     holder.child = incoming;

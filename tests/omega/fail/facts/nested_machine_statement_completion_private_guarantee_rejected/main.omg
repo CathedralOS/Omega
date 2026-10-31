@@ -4,7 +4,7 @@ Actual satisfies Reading {
  machine read() -> i64 ensures result != -1 { 0 }
  machine note() {}
 }
-machine probe() -> i64 ensures result != -1; reaches Reading {
+machine probe() -> i64 ensures result != -1 reaches Reading {
  transition { _ -> helper() }
  machine helper() -> i64 reaches Reading { Reading::note(); Reading::read() }
 }

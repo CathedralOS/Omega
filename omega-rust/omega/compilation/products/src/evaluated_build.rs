@@ -70,7 +70,60 @@ pub struct BuildConfig {
     pub accepted_component_assumptions: Vec<AuthoredComponentAssumptionAcceptance>,
 }
 
+/// The complete application-demand context for provider publication and replay.
+/// None denotes reusable Source checking; Some(empty) is a provider-only
+/// deployment, not permission to select every dormant declaration.
+pub struct ProviderDeployment {
+    pub roots: Option<Vec<(String, symbols::SymbolHandle)>>,
+    pub scopes: Vec<String>,
+}
+
 impl BuildConfig {
+    /// Recover deployment demand from the settled Build rows once. Production
+    /// and source-free replay must not invent different rootless contexts.
+    pub fn provider_deployment(&self) -> Result<ProviderDeployment, Vec<diagnostics::Diagnostic>> {
+        let deployed = !self.root_bindings.is_empty()
+            || !self.provider_selections.is_empty()
+            || !self.package_provider_selections.is_empty();
+        let roots = self
+            .root_bindings
+            .iter()
+            .map(|binding| {
+                let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(
+                        "Build application root lost its exact target slot",
+                    )]
+                })?;
+                let profile = target::TargetProfile::from_root_slot_owner(owner)
+                    .map_err(|error| vec![error])?;
+                Ok((
+                    profile.target_name().to_owned(),
+                    binding.implementation_symbol,
+                ))
+            })
+            .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
+        let mut scopes = roots
+            .iter()
+            .map(|(scope, _)| scope.clone())
+            .collect::<Vec<_>>();
+        for choice in self
+            .provider_selections
+            .iter()
+            .chain(&self.package_provider_selections)
+        {
+            if let Some(scope) = choice.target {
+                let name = scope.canonical_name();
+                if !scopes.iter().any(|scope| scope == name) {
+                    scopes.push(name.to_owned());
+                }
+            }
+        }
+        Ok(ProviderDeployment {
+            roots: deployed.then_some(roots),
+            scopes,
+        })
+    }
+
     /// Share source checking across independently measured Build activations.
     /// Native choices and their executed code are source inputs; accounting
     /// counters are each activation's observations, not new source programs.

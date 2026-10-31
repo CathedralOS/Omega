@@ -232,7 +232,7 @@ public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<Unused, machine Handler>(elements: &mut Elements, count: u64, width: u64, native callback compare from Handler)
     requires machine Handler satisfies Comparator::compare;
     reaches
-    invokes Comparator;
+    invokes Comparator
     requires count == 2 && width == 8;
 }
 public data Ordering {}
@@ -256,8 +256,8 @@ requires count == 2 && width == 8;
 use omega_language_std::console;
 data Main { }
 machine Main::main(main: &mut Main) reaches SortRegistrar + Comparator + Console
-invokes SortRegistrar;
-invokes Console;
+invokes SortRegistrar
+invokes Console
 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
@@ -269,8 +269,8 @@ invokes Console;
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches SortRegistrar + Comparator + Console
-invokes SortRegistrar;
-invokes Console;
+invokes SortRegistrar
+invokes Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

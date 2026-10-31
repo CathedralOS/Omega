@@ -3,25 +3,25 @@
 public boundary trait Console {}
 public trait StepContract {
     machine step<const Count: u64>(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37 && Count <= 37
     ensures result <= 37;
 }
 machine quiet<const Count: u64>(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37 && Count <= 37
 ensures result <= 37
 { Count }
 machine unused<const Count: u64>(value: u64) -> u64
 satisfies StepContract::step
-reaches Console terminates;
+reaches Console terminates
 requires value <= 37 && Count <= 37
 ensures result <= 37
 { value }
 boundary machine boundary_step<const Count: u64>(value: u64) -> u64
 satisfies StepContract::step
-reaches Console terminates;
+reaches Console terminates
 requires value <= 37 && Count <= 37
 ensures result <= 37
 { Count }
@@ -29,7 +29,7 @@ trait Traversal {
     machine traverse<machine Step, machine Ignored>(value: u64) -> u64
     requires machine Step satisfies StepContract::step;
     requires machine Ignored satisfies StepContract::step;
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
@@ -37,7 +37,7 @@ TraversalCode satisfies Traversal {
     machine traverse<machine Step, machine Ignored>(value: u64) -> u64
     requires machine Step satisfies StepContract::step;
     requires machine Ignored satisfies StepContract::step;
-    terminates;
+    terminates
     requires value <= 37
     ensures result <= 37
     {
@@ -48,7 +48,7 @@ TraversalCode satisfies Traversal {
 machine ordinary<machine Step, machine Ignored>(value: u64) -> u64
 requires machine Step satisfies StepContract::step;
 requires machine Ignored satisfies StepContract::step;
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 {

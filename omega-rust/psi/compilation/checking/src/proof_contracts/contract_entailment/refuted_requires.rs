@@ -1,5 +1,6 @@
 //! Rejection of refuted value-call requirements.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
@@ -66,7 +67,7 @@ pub(crate) fn reject_refuted_value_call_requires(
         let authored = authored
             .as_ref()
             .and_then(|spellings| spellings.get(position).cloned())
-            .unwrap_or_else(|| program.expression_table.display_name(expression));
+            .unwrap_or_else(|| expression_table(program).display_name(expression));
         let instantiated = instantiated_fact_spelling(
             program,
             &judge,
@@ -258,7 +259,7 @@ fn authored_requires_spellings(
         .find(|state| state.name == callee_state.name)?;
     let spellings: Vec<String> = requires_expressions(program, machine, state)
         .into_iter()
-        .map(|expression| program.expression_table.display_name(expression))
+        .map(|expression| expression_table(program).display_name(expression))
         .collect();
     (spellings.len() == requires_expressions(program, callee_machine, callee_state).len())
         .then_some(spellings)
@@ -311,8 +312,7 @@ pub(super) fn instantiated_selected_fact_judgment(
                 judge.judge_observed_predicate(predicate, 0)
             });
     }
-    if program
-        .expression_table
+    if expression_table(program)
         .call_node(fact)
         .is_some_and(|call| {
             crate::mathematical_applications::selected_definition(program, call).is_some()
@@ -383,7 +383,7 @@ pub(super) fn instantiated_selected_fact_judgment(
     {
         return StructuralJudgment::Proven;
     }
-    let Some(binary) = program.expression_table.binary_node(fact) else {
+    let Some(binary) = expression_table(program).binary_node(fact) else {
         return StructuralJudgment::Unknown;
     };
     match binary.operator {
@@ -653,7 +653,7 @@ fn instantiated_fact_spelling(
     map: &[(String, StructuralTerm)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> Option<String> {
-    let binary = program.expression_table.binary_node(fact)?;
+    let binary = expression_table(program).binary_node(fact)?;
     match binary.operator {
         BinaryOperator::And | BinaryOperator::Or => {
             let left = instantiated_fact_spelling(
@@ -792,7 +792,7 @@ pub(crate) fn collect_instantiated_conjuncts(
     if super::structural_terms::is_case_observation(program, fact) {
         return;
     }
-    let Some(binary) = program.expression_table.binary_node(fact) else {
+    let Some(binary) = expression_table(program).binary_node(fact) else {
         return;
     };
     match binary.operator {

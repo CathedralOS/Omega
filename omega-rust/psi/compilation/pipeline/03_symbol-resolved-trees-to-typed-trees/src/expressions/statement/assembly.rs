@@ -4,6 +4,7 @@
 use super::lower_statement_node;
 use crate::contracts::proof_facts::lower_statement_fact;
 use crate::lowerer::Lowerer;
+use crate::tables::resolved_statements;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -46,11 +47,7 @@ pub(crate) fn lower(
                 fact,
             })
         }));
-        let mut instructions = lowerer
-            .source_trees
-            .tables
-            .bodies
-            .statements
+        let mut instructions = resolved_statements(lowerer.source_trees)
             .statements(block.statement_nodes)
             .iter()
             .map(|instruction| {

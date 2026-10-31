@@ -5,6 +5,7 @@
 //! This records type vocabulary only; the original signature remains the
 //! independent source of invocation and returned-loan obligations.
 
+use crate::tables::expressions_of;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -18,15 +19,13 @@ pub(super) fn retain(
     state_symbol: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Result<Option<TypeReferenceHandle>, Vec<diagnostics::Diagnostic>> {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expressions_of(program).call_node(expression) else {
         return Ok(None);
     };
     // A core metadata query owns its declared carrier, not an invoked
     // selection's return contract. Retain the MP3 result through rebinding.
     if call.native_code_layout.is_some() || call.layout_query.is_some() {
-        let retained = program
-            .expression_table
-            .constructed_value_type_reference(expression);
+        let retained = expressions_of(program).constructed_value_type_reference(expression);
         return Ok(retained.is_valid().then_some(retained));
     }
     let Some(caller) = program.machine_by_symbol(machine_symbol) else {
@@ -57,7 +56,7 @@ pub(super) fn retain(
             machine,
             state,
             &call.machine_arguments,
-            program.expression_table.expression_handles(call.arguments),
+            expressions_of(program).expression_handles(call.arguments),
         ) else {
             return Ok(None);
         };
@@ -75,8 +74,7 @@ pub(super) fn retain(
     let parameters = validation::CallSite::Expression { expression, call }
         .parameters(program, machine_symbol)
         .map(|parameters| parameters.to_vec());
-    let arguments = program
-        .expression_table
+    let arguments = expressions_of(program)
         .expression_handles(call.arguments)
         .to_vec();
     let returned = if substitutions.is_empty() {
@@ -229,7 +227,7 @@ fn apply_runtime_result_operands(
     let names_parameter = |program: &dyn validation::CheckingInput, expression| {
         let mut tree = Vec::new();
         validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
-        tree.into_iter().any(|handle| matches!(program.expression_table.expression(handle),
+        tree.into_iter().any(|handle| matches!(expressions_of(program).expression(handle),
             ExpressionNode::Name(path) if symbols.contains(&path.symbol) || symbols.contains(&path.head_symbol)))
     };
     let uses_actual = crate::monomorphization::for_each_type_reference(

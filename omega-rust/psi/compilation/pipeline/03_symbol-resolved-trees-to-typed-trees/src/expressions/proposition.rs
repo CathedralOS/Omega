@@ -1,5 +1,7 @@
 use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
 use crate::lowerer::Lowerer;
+use crate::tables::expression_table_mut;
+use crate::tables::resolved_expressions;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -173,9 +175,7 @@ pub(crate) fn lower_proposition_application(
             );
         }
         if let Some(literal) = &argument.const_literal {
-            let expression = lowerer
-                .typed_trees
-                .expression_table
+            let expression = expression_table_mut(&mut lowerer.typed_trees)
                 .insert(typed::expression::ExpressionNode::Integer(literal.clone()));
             lowerer
                 .typed_trees
@@ -220,11 +220,7 @@ pub(crate) fn lower_proposition_application(
         )));
     }
 
-    let arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
+    let arguments = resolved_expressions(lowerer.source_trees)
         .expression_handles(call.arguments)
         .iter()
         .map(|argument| {
@@ -236,10 +232,8 @@ pub(crate) fn lower_proposition_application(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let arguments = lowerer
-        .typed_trees
-        .expression_table
-        .insert_expression_handles(arguments);
+    let arguments =
+        expression_table_mut(&mut lowerer.typed_trees).insert_expression_handles(arguments);
 
     Ok(typed::proposition::PropositionApplication {
         proposition: call.target_symbol,

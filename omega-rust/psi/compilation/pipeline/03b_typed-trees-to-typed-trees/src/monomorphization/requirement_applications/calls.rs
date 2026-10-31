@@ -2,6 +2,7 @@
 //! The original qualified requirement occurrence supplies its outer scope; neither selected
 //! maps nor equal ABI carriers can supply a missing or different application.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -42,13 +43,11 @@ fn occurrence(
         .unwrap_or_else(|| call.arguments(program).to_vec());
     if application.is_valid() {
         InvocationTuple {
-            owner: program
-                .expression_table
+            owner: expressions_of(program)
                 .static_machine_application(application)
                 .lexical_owner,
             arguments,
-            lifetimes: program
-                .expression_table
+            lifetimes: expressions_of(program)
                 .static_machine_application_lifetimes(application)
                 .to_vec(),
         }
@@ -74,7 +73,7 @@ fn inferred_method_arguments(
     let (target, runtime_arguments, application) = match call {
         StaticArgumentCall::Expression(_, call) => (
             call.target_symbol,
-            program.expression_table.expression_handles(call.arguments),
+            expressions_of(program).expression_handles(call.arguments),
             call.requirement_application,
         ),
         StaticArgumentCall::Statement(call) => (
@@ -197,8 +196,7 @@ fn receiver_scope<'p>(
             validation::projected_statement_receiver_type_reference(program, state, position, call),
         ),
         StaticArgumentCall::Expression(_, call) => (
-            program
-                .expression_table
+            expressions_of(program)
                 .name_path_node(call.receiver)
                 .map_or_else(SymbolHandle::invalid, |path| path.symbol),
             validation::expression_type_reference_in_state(
@@ -312,13 +310,11 @@ fn instance_in_scope(
             application.template == template
                 && program
                     .requirement_application_matches_scope(application.signature.symbol, scope)
-                && program
-                    .expression_table
+                && expressions_of(program)
                     .static_machine_application_lifetimes(application.application)
                     == invocation.lifetimes
                 && (invocation.lifetimes.is_empty()
-                    || program
-                        .expression_table
+                    || expressions_of(program)
                         .static_machine_application(application.application)
                         .lexical_owner
                         == invocation.owner)
@@ -326,8 +322,7 @@ fn instance_in_scope(
                     .iter()
                     .zip(arguments)
                     .all(|(parameter, argument)| {
-                        let bindings = program
-                            .expression_table
+                        let bindings = expressions_of(program)
                             .static_machine_application_bindings(application.application);
                         let mut selected = bindings
                             .iter()
@@ -341,8 +336,7 @@ fn instance_in_scope(
                                 &binding.value,
                                 argument,
                                 invocation.owner,
-                                program
-                                    .expression_table
+                                expressions_of(program)
                                     .static_machine_application(application.application)
                                     .lexical_owner,
                             )
@@ -423,7 +417,7 @@ fn prepare_invocations(
                     position,
                     statement,
                 ) {
-                    if let Some(call) = program.expression_table.call_node(expression) {
+                    if let Some(call) = expressions_of(program).call_node(expression) {
                         invocations.push(PreparedInvocation {
                             site: super::super::CallSite::Expression(expression),
                             owner: machine.symbol,
@@ -537,7 +531,7 @@ pub(super) fn invocation_tuples<'p>(
                     statement,
                 );
                 for expression in expressions {
-                    if let Some(call) = program.expression_table.call_node(expression) {
+                    if let Some(call) = expressions_of(program).call_node(expression) {
                         add(
                             machine.symbol,
                             call.target_symbol,
@@ -546,8 +540,7 @@ pub(super) fn invocation_tuples<'p>(
                                     validation::qualified_trait_scope(
                                         program,
                                         machine.symbol,
-                                        program
-                                            .expression_table
+                                        expressions_of(program)
                                             .name_path_node(call.receiver)
                                             .map_or_else(SymbolHandle::invalid, |path| path.symbol),
                                         validation::expression_type_reference_in_state(
@@ -667,7 +660,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     statement,
                 );
                 for expression in expressions {
-                    let Some(call) = program.expression_table.call_node(expression) else {
+                    let Some(call) = expressions_of(program).call_node(expression) else {
                         continue;
                     };
                     let site = super::super::CallSite::Expression(expression);
@@ -700,8 +693,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                                 validation::qualified_trait_scope(
                                     program,
                                     machine.symbol,
-                                    program
-                                        .expression_table
+                                    expressions_of(program)
                                         .name_path_node(call.receiver)
                                         .map_or_else(SymbolHandle::invalid, |path| path.symbol),
                                     validation::expression_type_reference_in_state(
@@ -783,8 +775,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             // Argument admission owns malformed source telescopes.
             continue;
         }
-        let lexical_owner = program
-            .expression_table
+        let lexical_owner = expressions_of(program)
             .static_machine_application(application)
             .lexical_owner;
         super::super::body_rewriting::normalize_const_arguments(
@@ -794,17 +785,14 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
         let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
-        program
-            .expression_table
+        expressions_of_mut(program)
             .static_machine_application_mut(application)
             .binding_declaration = template;
-        program
-            .expression_table
-            .set_static_machine_application_bindings(application, &bindings);
+        expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
     }
     for (handle, selected) in expression_updates {
         if let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression_mut(handle)
+            expressions_of_mut(program).expression_mut(handle)
         {
             call.target_symbol = selected;
         }
@@ -818,7 +806,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     }
     for (handle, selected) in expression_dispatch_updates {
         if let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression_mut(handle)
+            expressions_of_mut(program).expression_mut(handle)
             && let Some(dispatch) = &mut call.static_requirement_dispatch
         {
             dispatch.contract_signature = selected;
@@ -837,7 +825,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         let super::super::CallSite::Expression(expression) = site else {
             continue;
         };
-        let Some(call) = program.expression_table.call_node(expression).cloned() else {
+        let Some(call) = expressions_of(program).call_node(expression).cloned() else {
             continue;
         };
         let selected_scope = if let Some(dispatch) = &call.static_requirement_dispatch {

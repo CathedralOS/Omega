@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // The checked seed-2 mov/sub/jnz CFG falls through with eax == 0.
 // This twin keeps the ranked-decrease witness and breaks only the fallthrough.
-machine main() terminates by eax -> Nat::Descending; crashes Trap {
+machine main() terminates by eax -> Nat::Descending crashes Trap {
  let seed: u32 = 2;
  let mut output: u32 = 99;
  asm {

@@ -1,6 +1,6 @@
 //! Commit an owned typed locator through its original prepared Build request.
 
-use super::{TerminalBuildBindingAdapter, activation_ticket};
+use super::{TerminalBuildBindingAdapter, activation_ticket, lock_state};
 use language_semantics::{
     declaration_selection::{
         BuildOperation, BuildSelectionRequest, ExecutedBuildSelection, ExecutedNativeBinding,
@@ -80,11 +80,7 @@ impl TerminalBuildBindingAdapter {
                 "native locator snapshot paths are duplicated or unordered",
             ));
         }
-        let mut state = self
-            .host
-            .state
-            .lock()
-            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let mut state = lock_state(&self.host.state).map_err(refuse)?;
         // The structural value has been authenticated independently above;
         // the common ticket owner still compares the exact source request.
         let (ticket, values) = activation_ticket(arguments, &[], &state, &call.request)?;

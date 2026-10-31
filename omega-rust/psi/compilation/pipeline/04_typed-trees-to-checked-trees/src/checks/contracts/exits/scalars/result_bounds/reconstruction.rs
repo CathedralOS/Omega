@@ -13,6 +13,7 @@
 //! strictly above the dividend. Wrapping or saturating carriers are not
 //! exact truncating division and stay on the interval path.
 
+use crate::flow::state_statements;
 use symbols::SymbolHandle;
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
@@ -478,10 +479,7 @@ impl ExitScalars<'_, '_> {
         root: SymbolHandle,
         field: SymbolHandle,
     ) -> bool {
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         statements.iter().any(|statement| {
             let StatementNode::Assignment(assignment) = statement else {
                 return false;
@@ -531,10 +529,7 @@ impl ExitScalars<'_, '_> {
         symbol: SymbolHandle,
         state: &typed_trees::state::State,
     ) -> Option<ExpressionHandle> {
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         let mut initializer = None;
         for statement in statements {
             match statement {
@@ -651,10 +646,7 @@ fn callee_return_expression(
     scalars: &ExitScalars<'_, '_>,
     state: &typed_trees::state::State,
 ) -> Option<ExpressionHandle> {
-    let statements = scalars
-        .program
-        .statement_table
-        .statements(state.statement_nodes);
+    let statements = state_statements(scalars.program, state.statement_nodes);
     let mut returned = None;
     for statement in statements {
         match statement {

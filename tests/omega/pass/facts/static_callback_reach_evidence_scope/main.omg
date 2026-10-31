@@ -7,25 +7,25 @@ MarkerCode satisfies Marker { machine mark(value: u64) -> u64 { value } }
 OtherMarkerCode satisfies Marker { machine mark(value: u64) -> u64 { value } }
 public trait StepContract<Operations satisfies Marker> {
     machine step(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 machine quiet(value: u64) -> u64
 satisfies StepContract<MarkerCode>::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine second(value: u64) -> u64
 satisfies StepContract<MarkerCode>::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine traverse<Operations satisfies Marker, machine Step>(value: u64) -> u64
 requires machine Step satisfies StepContract<Operations>::step;
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 {

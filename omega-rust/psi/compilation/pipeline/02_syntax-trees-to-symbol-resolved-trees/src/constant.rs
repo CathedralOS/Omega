@@ -89,6 +89,7 @@ pub(crate) use selections::{
 };
 pub(crate) use substitution::{semantic_const_name, substitute_resolved_constants};
 
+use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::ConstDefinition;
@@ -148,8 +149,7 @@ pub fn requires_const_initializer_evaluation(
                     .is_some_and(|literal| literal.landing().is_some()) => {}
             ExpressionNode::ArrayLiteral(elements) => {
                 pending.extend(
-                    syntax
-                        .expressions
+                    syntax_expressions(&syntax)
                         .expression_handles(*elements)
                         .iter()
                         .copied(),
@@ -157,8 +157,7 @@ pub fn requires_const_initializer_evaluation(
             }
             ExpressionNode::StructLiteral(literal) => {
                 pending.extend(
-                    syntax
-                        .expressions
+                    syntax_expressions(&syntax)
                         .struct_fields(literal.fields)
                         .iter()
                         .map(|field| field.value),

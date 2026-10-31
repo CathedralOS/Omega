@@ -1,3 +1,4 @@
+use crate::tables::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
@@ -20,8 +21,7 @@ pub(crate) fn normalize_qualification_casts(
     program: &mut TypedTrees,
     expression_frontier: usize,
 ) -> Result<(), Diagnostic> {
-    let sites = program
-        .expression_table
+    let sites = expression_table(program)
         .expression_entries()
         .filter_map(|(handle, expression)| {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -57,8 +57,7 @@ pub(crate) fn normalize_qualification_casts(
             }
             continue;
         }
-        let matching_occurrences = program
-            .expression_table
+        let matching_occurrences = expression_table(program)
             .authored_selection_occurrences(handle)
             .filter(|occurrence| {
                 program
@@ -97,9 +96,7 @@ pub(crate) fn normalize_qualification_casts(
                 .with_source_span(authored_selection.source_span()),
             );
         }
-        let name = program
-            .expression_table
-            .name_path_string(cast.semantic_domain);
+        let name = expression_table(program).name_path_string(cast.semantic_domain);
         let arguments = program
             .type_reference_table
             .type_reference_handles(cast.semantic_domain_arguments)

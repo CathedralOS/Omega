@@ -47,6 +47,7 @@ use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofPlan,
 };
 use crate::obligations::{FloatRange, IntegerRange, ProofConstraint, RecipeRangeBound};
+use crate::typed_expressions::expression_table;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionNode;
@@ -82,10 +83,7 @@ pub(crate) fn check_bounded_assignment<'program>(
         obligation.value,
         format!(
             "assignment to `{}` in `{}.{}`",
-            proof_plan
-                .program
-                .expression_table
-                .display_name(obligation.target),
+            expression_table(proof_plan.program).display_name(obligation.target),
             obligation.machine,
             obligation.state
         ),

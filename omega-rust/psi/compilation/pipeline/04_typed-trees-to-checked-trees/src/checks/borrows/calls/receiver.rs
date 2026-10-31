@@ -1,6 +1,7 @@
 //! Exclusive-place operations and explicit state-jump subject access.
 //! Ordinary machine arguments use the shared call compatibility checks.
 
+use crate::places::place_at;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::types::TypeReferenceNode;
@@ -78,7 +79,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         && (matches!(
             program.expression_table.expression(expression),
             typed_trees::expression::ExpressionNode::Borrow(_)
-        ) || validation::canonical_place_from_expression_in_state(
+        ) || place_at(
             program,
             state_flow.state_symbol,
             statement.statement_index,

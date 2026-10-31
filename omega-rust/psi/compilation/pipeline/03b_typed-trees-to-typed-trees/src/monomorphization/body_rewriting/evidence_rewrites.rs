@@ -1,6 +1,7 @@
 //! Evidence argument and requirement rewrites.
 
 use crate::monomorphization::{Candidate, StateSignature, StaticMachineArgument, SymbolHandle};
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(crate) struct EvidenceArgumentRewrite {
     pub(crate) binder: SymbolHandle,
@@ -48,16 +49,13 @@ pub(crate) fn rewrite_index_algebra(
     rewrites: &[EvidenceArgumentRewrite],
     static_rewrites: &[(SymbolHandle, StaticMachineArgument)],
 ) {
-    if program
-        .expression_table
+    if expressions_of(program)
         .index_expression_authority(expression)
         .is_none()
     {
         return;
     }
-    let authority = program
-        .expression_table
-        .index_expression_authority_mut(expression);
+    let authority = expressions_of_mut(program).index_expression_authority_mut(expression);
     let Some(operation) = &mut authority.operation else {
         return;
     };

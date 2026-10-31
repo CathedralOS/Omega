@@ -74,7 +74,7 @@ impl BoundaryStorageInputs {
     ) -> Result<(), TerminalInterpretError> {
         let access = terminal_semantics::descriptor_parameter_access(
             parameter,
-            execution.program.structural_types().values(),
+            execution.structural_types().values(),
         )
         .ok_or_else(malformed)?;
         if parameter.structural_type != referent.structural_type

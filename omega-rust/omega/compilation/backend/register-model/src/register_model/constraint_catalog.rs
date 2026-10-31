@@ -407,6 +407,15 @@ impl ValidatedRegisterConstraintCatalog {
         &self.catalog
     }
 
+    /// The uniquely keyed row in this immutable, strictly key-sorted catalog.
+    pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
+        self.catalog
+            .constraints
+            .binary_search_by_key(&key, |row| row.key)
+            .ok()
+            .map(|position| &self.catalog.constraints[position])
+    }
+
     pub const fn identity(&self) -> RegisterConstraintCatalogIdentity {
         self.identity
     }

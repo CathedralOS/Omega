@@ -13,7 +13,7 @@ satisfies Sink::last {
 public data Main { }
 boundary machine Main::main(main: &mut Main)
 reaches Sink
-invokes Sink;
+invokes Sink
 {
     Sink::emit(3);
     let seen: i32 = Sink::last();

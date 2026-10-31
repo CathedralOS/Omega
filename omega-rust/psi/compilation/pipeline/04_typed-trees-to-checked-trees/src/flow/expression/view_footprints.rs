@@ -4,6 +4,7 @@
 //! backing enclosure: its new field symbols cannot name the source layout.
 //! Resident views borrow content, excluding their Extent descriptor.
 use super::Execution;
+use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
 use facts::PlaceSegment;
@@ -228,10 +229,7 @@ impl Execution<'_, '_, '_> {
                 .into_iter()
                 .map(|segment| {
                     segment.erase_runtime_selector(|expression| {
-                        self.program
-                            .expression_table
-                            .range_node(expression)
-                            .is_some()
+                        expressions(self.program).range_node(expression).is_some()
                     })
                 })
                 .collect();

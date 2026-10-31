@@ -6,6 +6,7 @@
 pub mod projection;
 pub use projection::ProjectedServiceSurface;
 mod catalog;
+pub mod signatures;
 pub use catalog::{
     PreparedServiceCatalog, PreparedServiceDeclaration, PreparedServiceRequirement,
     PreparedServiceSurface, ServiceCatalog,

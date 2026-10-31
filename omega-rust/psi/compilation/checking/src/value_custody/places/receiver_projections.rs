@@ -1,5 +1,6 @@
 //! Resolve projected types only beneath an exact, in-scope value declaration.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -76,21 +77,19 @@ pub fn expression(
         return Ok(None);
     }
     visited.push(handle);
-    let retained = match program.expression_table.expression(handle) {
+    let retained = match expression_table(program).expression(handle) {
         ExpressionNode::Borrow(borrow) => {
             expression(program, state, before, borrow.target, visited)?
         }
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             let Some(first) = members.first() else {
                 return Ok(None);
             };
             let Some(mut selected) = root(program, state, before, path.head_symbol, first) else {
                 return Ok(None);
             };
-            let symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let symbols = expression_table(program).name_path_member_symbols(path.member_symbols);
             for (index, member) in members.iter().enumerate() {
                 if index != 0 {
                     let Some(projected) = field(program, selected, member) else {
@@ -136,7 +135,7 @@ pub fn expression(
                 return Ok(None);
             }
             if matches!(
-                program.expression_table.expression(indexed.index),
+                expression_table(program).expression(indexed.index),
                 ExpressionNode::Range(_)
             ) {
                 return Ok(None);
@@ -168,7 +167,7 @@ fn check_symbol(
     if authored.is_valid() && authored != selected.symbol {
         return Err(vec![
             Diagnostic::error("projected call receiver disagrees with its exact declared field")
-                .with_source_span(program.expression_table.source_span(expression)),
+                .with_source_span(expression_table(program).source_span(expression)),
         ]);
     }
     Ok(())

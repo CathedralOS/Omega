@@ -43,6 +43,7 @@ use super::{
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
+use crate::places::place_at;
 use destination::{Destination, Root, StoreRoots, plain_record};
 use symbols::SymbolHandle;
 pub(in crate::execution::terminal_unit) use value::AssignmentSource;
@@ -431,7 +432,7 @@ fn plan_assignment(
     // to ordinary value rebinding rather than a peeled scalar store.
     if validation::assignment_stored_value_type(program, machine, state, assignment)
         .is_some_and(|installed| validation::reference_shell(program, installed).is_some())
-        && validation::canonical_place_from_expression_in_state(
+        && place_at(
             program,
             state.symbol,
             usize::try_from(statement_index).ok()?,
@@ -701,7 +702,7 @@ fn case_field_store(
     if !unrestricted_sum(field_data, program) {
         return None;
     }
-    let value_place = validation::canonical_place_from_expression_in_state(
+    let value_place = place_at(
         program,
         state.symbol,
         statement_index as usize,

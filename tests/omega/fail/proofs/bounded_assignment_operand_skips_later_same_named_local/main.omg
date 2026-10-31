@@ -5,7 +5,7 @@ domain u64::Total requires self <= 4;
 domain u64::Narrow requires self <= 3;
 
 machine shadow<const N: u64>(narrow: &[u64 in Narrow; 4]) -> u64
-requires N <= 100;
+requires N <= 100
 {
     let mut total: u64 in Total = 0;
     total = N + 1;

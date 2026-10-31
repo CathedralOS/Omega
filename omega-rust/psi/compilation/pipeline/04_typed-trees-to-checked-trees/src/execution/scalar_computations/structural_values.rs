@@ -15,6 +15,8 @@ use super::{
     Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
     SymbolHandle, TypeReferenceNode,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 use crate::values::operator_is_builtin;
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
@@ -63,12 +65,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<validation::CanonicalPlace> {
-        validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )
+        place_at(self.program, self.state, self.statement_index, expression)
     }
 
     /// Project a canonical place through its authored selector evaluations.
@@ -858,9 +855,7 @@ impl Builder<'_, '_> {
                 u32::try_from(self.statement_index).ok()?,
                 call_ordinal,
                 call_target,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expressions(self.program).expression_handles(call.arguments),
             );
             CheckedStructuralValueKind::Call { source_call }
         } else if matches!(

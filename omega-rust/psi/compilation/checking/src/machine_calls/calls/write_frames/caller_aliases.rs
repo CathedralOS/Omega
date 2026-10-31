@@ -13,6 +13,7 @@ use super::{
     type_may_carry_write,
 };
 use crate::declarations::symbols::PrefixSiteEntry;
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
 };
@@ -25,8 +26,8 @@ pub(super) fn caller_binding_type(
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<super::TypeReferenceHandle> {
-    let name = program.expression_table.name_path_node(argument)?;
-    let [_] = program.expression_table.name_path_members(name.members) else {
+    let name = expression_table(program).name_path_node(argument)?;
+    let [_] = expression_table(program).name_path_members(name.members) else {
         return None;
     };
     caller_name_root_type(program, current_machine, argument)
@@ -39,8 +40,8 @@ pub(super) fn caller_name_root_type(
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<super::TypeReferenceHandle> {
-    let name = program.expression_table.name_path_node(argument)?;
-    let members = program.expression_table.name_path_members(name.members);
+    let name = expression_table(program).name_path_node(argument)?;
+    let members = expression_table(program).name_path_members(name.members);
     let member = members.first()?;
     let root = name.head_symbol;
     if !root.is_valid() || (members.len() == 1 && root != name.symbol) {
@@ -1333,7 +1334,7 @@ pub(crate) fn expression_has_calls(
 ) -> bool {
     expression_any(program, root, |expression| {
         matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Call(_)
         )
     })
@@ -1349,9 +1350,9 @@ pub(super) fn expression_any(
         if predicate(expression) {
             return true;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                pending.extend(program.expression_table.match_pending(dispatch));
+                pending.extend(expression_table(program).match_pending(dispatch));
             }
             ExpressionNode::Atomic(atomic) => pending.extend(
                 crate::value_custody::atomic_operations::atomic_execution_children(program, atomic),
@@ -1361,17 +1362,16 @@ pub(super) fn expression_any(
             ExpressionNode::Cast(cast) => pending.push(cast.value),
             ExpressionNode::Call(call) => {
                 pending.push(call.receiver);
-                pending.extend(program.expression_table.expression_handles(call.arguments));
+                pending.extend(expression_table(program).expression_handles(call.arguments));
             }
             ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
             ExpressionNode::Member(member) => pending.push(member.receiver),
             ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
             ExpressionNode::ArrayLiteral(elements) => {
-                pending.extend(program.expression_table.expression_handles(*elements))
+                pending.extend(expression_table(program).expression_handles(*elements))
             }
             ExpressionNode::StructLiteral(literal) => pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .struct_fields(literal.fields)
                     .iter()
                     .map(|field| field.value),

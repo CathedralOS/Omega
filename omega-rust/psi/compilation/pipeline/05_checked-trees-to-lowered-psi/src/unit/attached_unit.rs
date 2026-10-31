@@ -52,6 +52,7 @@ use super::{
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
+use crate::checked_facts::flow_facts;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
@@ -425,9 +426,7 @@ pub(crate) fn lower_unit_closure(
             machine_ids
                 .iter()
                 .any(|(symbol, _)| *symbol == input.machine)
-                && checked
-                    .facts
-                    .flow
+                && flow_facts(checked)
                     .terminal_unit_effects
                     .callable_entry_for_machine(input.machine)
                     .is_some_and(|entry| entry.state == input.state)

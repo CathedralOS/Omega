@@ -6,6 +6,7 @@
 //! reaching a cycle does not invalidate caller-proven stores outside it, and
 //! acyclic helper substitution can establish a store within the cyclic body.
 use super::contracts::call_values;
+use crate::places::place_at;
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression as Boolean, CheckedStoredIntegerWrite, FlowCallFact,
     FlowStateFact, PerformedIntegerWrite, StoredIntegerWriteSite,
@@ -479,12 +480,7 @@ impl<'a> Admission<'a> {
         ordinal: usize,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<Vec<LocalWriteSource>> {
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            state.symbol,
-            ordinal,
-            expression,
-        )?;
+        let place = place_at(self.program, state.symbol, ordinal, expression)?;
         let root = place.root.as_symbol()?;
         let reference = self
             .program

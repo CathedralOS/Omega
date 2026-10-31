@@ -16,6 +16,7 @@
 //! payloads keep their ordinary accesses. Nested calls' own rosters, which
 //! stage 05 replays independently, keep their argument-order ends.
 
+use crate::frozen_program::expression_table;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use symbols::SymbolHandle;
@@ -47,21 +48,20 @@ impl DispatchExtraction {
         mut expression: ExpressionHandle,
         payload: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        if !program.expression_table.expression_is_valid(expression)
-            || !program.expression_table.expression_is_valid(payload)
+        if !expression_table(program).expression_is_valid(expression)
+            || !expression_table(program).expression_is_valid(payload)
         {
             return None;
         }
-        let source = program.expression_table.member_node(payload)?;
+        let source = expression_table(program).member_node(payload)?;
         source.case_variant.as_ref()?;
         loop {
-            match program.expression_table.expression(expression) {
+            match expression_table(program).expression(expression) {
                 ExpressionNode::Member(member) => {
                     if member.case_variant.is_some() {
                         // The nearest qualified projection owns this read.
                         // Nested extractions never also consume an outer copy.
-                        return program
-                            .expression_table
+                        return expression_table(program)
                             .expressions_structurally_equal(expression, payload)
                             .then_some(expression);
                     }
@@ -108,13 +108,13 @@ impl DispatchExtraction {
         // equalities and the authored `if` guard; only the case tests select.
         let mut conjuncts = vec![guard];
         while let Some(conjunct) = conjuncts.pop() {
-            let Some(binary) = program.expression_table.binary_node(conjunct) else {
+            let Some(binary) = expression_table(program).binary_node(conjunct) else {
                 continue;
             };
             match binary.operator {
                 BinaryOperator::And => conjuncts.extend([binary.left, binary.right]),
                 BinaryOperator::Equal => {
-                    let Some(case) = program.expression_table.name_path_node(binary.right) else {
+                    let Some(case) = expression_table(program).name_path_node(binary.right) else {
                         continue;
                     };
                     if crate::exact_case_reference_owner(program, binary.right).is_none() {
@@ -152,7 +152,7 @@ impl DispatchExtraction {
             return None;
         }
         let (payload, member) = loop {
-            match program.expression_table.expression(expression) {
+            match expression_table(program).expression(expression) {
                 ExpressionNode::Member(member) if member.case_variant.is_some() => {
                     break (expression, member);
                 }
@@ -168,8 +168,7 @@ impl DispatchExtraction {
         self.selected_cases
             .iter()
             .any(|(selected, case)| {
-                if !program
-                    .expression_table
+                if !expression_table(program)
                     .expressions_structurally_equal(*selected, member.receiver)
                 {
                     return false;

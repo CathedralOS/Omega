@@ -114,11 +114,21 @@ fn append_zero_initialized_field_domain_facts(
             )
         };
     }
-    for member in program.data_members(data) {
-        let Some(field) = member.as_field() else {
-            continue;
-        };
-
+    let members = program.data_members(data);
+    // Zero formation selects the first authored case, independently of its
+    // stable schema number. Its payload has the same field obligations as
+    // common storage, but only after that complete zero image is established.
+    // The ordinary field path builder retains the case discriminator segment.
+    let zero_payload = members
+        .iter()
+        .find_map(|member| member.as_variant())
+        .filter(|_| !validation::data_requires_establishment(program, data))
+        .map_or(&[][..], |variant| program.data_payload_fields(variant));
+    for field in members
+        .iter()
+        .filter_map(|member| member.as_field())
+        .chain(zero_payload.iter())
+    {
         let mut field_path = prefix.to_vec();
         validation::push_field_place_segments(program, &mut field_path, field.symbol);
 

@@ -3,6 +3,7 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
+use crate::flow::expressions;
 use typed_trees::statement::StatementNode;
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
@@ -344,11 +345,7 @@ fn preceding_reborrow_preserves_carrier(
         return false;
     };
     if name.head_symbol != source_symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
+        || expressions(program).name_path_members(name.members).len() != 1
     {
         return false;
     }

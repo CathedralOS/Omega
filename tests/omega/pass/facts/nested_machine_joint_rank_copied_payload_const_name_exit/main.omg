@@ -4,7 +4,7 @@ data Guard { stamp: u64; canary: u64; }
 data Payload<'storage> [copy] { case Pending(count: u64, guard: &'storage Guard); case Empty; }
 const PendingCount: u64 = 7;
 machine input<'storage>(guard: &'storage Guard, select: bool) -> Payload<'storage>
-ensures (result in Payload::Empty) || ((result in Payload::Pending) && result.count <= 7);
+ensures (result in Payload::Empty) || ((result in Payload::Pending) && result.count <= 7)
 {
     match select {
         true -> Payload::Pending { count: PendingCount, guard: guard }
@@ -19,23 +19,23 @@ machine replace<'storage>(value: &mut Payload<'storage>, guard: &'storage Guard,
     true
 }
 machine dispatch(counter: &mut u64, value: Payload, ignored: bool) crashes Trap
-requires (value in Payload::Empty) || ((value in Payload::Pending) && value.count <= 7);
+requires (value in Payload::Empty) || ((value in Payload::Pending) && value.count <= 7)
 {
     transition value {
         Payload::Pending { count, guard } -> walk(counter, count, guard)
         Payload::Empty -> done()
     }
     machine walk(counter: &mut u64, pending: u64, guard: &Guard) crashes Trap
-    terminates;
-    terminates by pending;
-    requires pending <= 7;
+    terminates
+    terminates by pending
+    requires pending <= 7
     {
         transition pending > 0 {
             true -> forward(pending, guard, counter)
             false -> finish(guard)
         }
         machine forward(pending: u64, guard: &Guard, counter: &mut u64) crashes Trap
-        requires pending > 0 && pending <= 7;
+        requires pending > 0 && pending <= 7
         {
             counter = ((counter as u64 in Wrapping) + 1) as u64;
             transition { _ -> walk(counter, pending - 1, guard) }

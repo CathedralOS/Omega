@@ -1,3 +1,4 @@
+use crate::access_plan::diagnostic::reject_when;
 use crate::plan_policy::normalized_identities::non_authoritative_resource_profile_compatibility_fingerprint;
 use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalReadBehavior,
@@ -9,21 +10,13 @@ pub fn validate_resource_profile(
     mut profile: ResourceProfile,
     length: u64,
 ) -> Result<ValidatedResourceProfile, AccessPlanDiagnostic> {
-    if length == 0 {
-        return Err(AccessPlanDiagnostic(
-            "resource profile must describe a nonempty range".into(),
-        ));
-    }
+    reject_when! { length == 0 => "resource profile must describe a nonempty range" }
     profile
         .regions
         .sort_by_key(|region| (region.offset, region.length));
     let mut normalized: Vec<ResourceRegion> = Vec::with_capacity(profile.regions.len());
     for mut region in profile.regions {
-        if region.length == 0 {
-            return Err(AccessPlanDiagnostic(
-                "resource-profile region cannot be empty".into(),
-            ));
-        }
+        reject_when! { region.length == 0 => "resource-profile region cannot be empty" }
         let end = region.offset.checked_add(region.length).ok_or_else(|| {
             AccessPlanDiagnostic("resource-profile region range overflows".into())
         })?;
@@ -96,10 +89,8 @@ fn normalize_external_capability(
         ));
     }
     normalize_transfer_rules(transfers)?;
-    if transfers.is_empty() {
-        return Err(AccessPlanDiagnostic(
-            "external capability must list at least one transfer rule".into(),
-        ));
+    reject_when! {
+        transfers.is_empty() => "external capability must list at least one transfer rule",
     }
     Ok(())
 }
@@ -127,10 +118,8 @@ fn normalize_atomic_capability(
             )));
         }
     }
-    if transfers.is_empty() {
-        return Err(AccessPlanDiagnostic(
-            "atomic capability must list at least one transfer rule".into(),
-        ));
+    reject_when! {
+        transfers.is_empty() => "atomic capability must list at least one transfer rule",
     }
     Ok(())
 }

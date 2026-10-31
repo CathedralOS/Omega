@@ -5,6 +5,7 @@
 //! storage. Absence is not layout authority: ordinary shape, placement and
 //! provider checks remain responsible for complete representability.
 
+use crate::frozen_program::expression_table;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -184,15 +185,13 @@ impl Search<'_> {
     ) -> Option<SymbolHandle> {
         self.remaining = self.remaining.checked_sub(1)?;
         if !expression.is_valid()
-            || self
-                .program
-                .expression_table
+            || expression_table(self.program)
                 .constant_integer_value(expression)
                 .is_some()
         {
             return None;
         }
-        let node = self.program.expression_table.expression(expression);
+        let node = expression_table(self.program).expression(expression);
         if let ExpressionNode::Name(path) = node {
             return self.value_symbol(path.symbol, bindings);
         }

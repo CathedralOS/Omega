@@ -35,9 +35,11 @@ pub(crate) fn retain_suspension_call_plans(
         .filter(|crossing| source_machines.contains(&crossing.machine))
     {
         let mut occurrences = source_calls.iter().filter(|occurrence| {
-            occurrence.source_state == crossing.state
-                && occurrence.statement_index == crossing.statement_index
-                && occurrence.call_ordinal == crossing.call_ordinal
+            occurrence.matches_statement(
+                crossing.state,
+                crossing.statement_index,
+                crossing.call_ordinal,
+            )
         });
         let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
             "possibly-suspending checked call has no exact Terminal operation join",

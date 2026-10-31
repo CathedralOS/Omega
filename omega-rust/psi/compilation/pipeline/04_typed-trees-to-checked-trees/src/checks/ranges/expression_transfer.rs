@@ -12,6 +12,7 @@
 //! Later arms keep the facts from patterns that already failed; they do not
 //! inherit the selected value.
 
+use crate::flow::expressions;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableCallExpression,
     TableIndexedExpression,
@@ -63,10 +64,7 @@ fn expression_has_effect_at_depth(
     include_fact_mutations: bool,
     depth: usize,
 ) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
         return false;
     };
     let next = depth + 1;
@@ -111,8 +109,7 @@ fn expression_has_effect_at_depth(
         ExpressionNode::Binary(binary) => {
             child_has_effect!(binary.left) || child_has_effect!(binary.right)
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .any(|value| child_has_effect!(*value)),
@@ -122,8 +119,7 @@ fn expression_has_effect_at_depth(
         ExpressionNode::Range(range) => {
             child_has_effect!(range.start) || child_has_effect!(range.end)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| child_has_effect!(field.value)),
@@ -217,8 +213,7 @@ impl ExpressionTransfer<'_, '_> {
                 self.transfer(facts, dispatch.subject, sink);
                 let arms = self.program.expression_table.match_arms(dispatch.arms);
                 let any_arm_needs_visit = arms.iter().any(|arm| {
-                    self.program
-                        .expression_table
+                    expressions(self.program)
                         .match_pattern_operands(arm.pattern)
                         .any(|pattern| {
                             expression_has_transfer_effect(self.program, pattern, checks_indexed)

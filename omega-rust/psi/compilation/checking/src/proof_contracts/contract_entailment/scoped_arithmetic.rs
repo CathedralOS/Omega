@@ -18,7 +18,7 @@
 
 pub(super) mod calls;
 mod formation;
-pub use formation::scoped_declared_integer_application_is_formed;
+pub use formation::scoped_declared_integer_application_formation;
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 
@@ -284,7 +284,7 @@ fn read_comparisons(
     Some(comparisons)
 }
 
-pub(super) fn install_hypotheses(
+pub(in crate::proof_contracts::contract_entailment) fn install_hypotheses(
     program: &dyn crate::CheckingInput,
     engine: &mut Engine<'_>,
     hypotheses: &[ScopedArithmeticHypothesis],

@@ -3,6 +3,7 @@
 //! and a member invocation's telescope are independent simultaneous scopes;
 //! compose outer scopes first so permutations never substitute their siblings.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::static_applications::StaticMachineApplicationHandle;
 use typed_trees::type_identity::{
@@ -46,8 +47,7 @@ impl<'program> CarrierCorrespondence<'program> {
         if !supplying.is_valid() {
             return Err("selected carrier lost its supplying application");
         }
-        let supplier = program
-            .expression_table
+        let supplier = expression_table(program)
             .static_machine_application(supplying)
             .lexical_owner;
         if !supplier.is_valid() {
@@ -73,7 +73,7 @@ impl<'program> CarrierCorrespondence<'program> {
                     if !handle.is_valid() {
                         return Err("selected carrier invocation lost its binding application");
                     }
-                    let binding = program.expression_table.static_machine_application(handle);
+                    let binding = expression_table(program).static_machine_application(handle);
                     if binding.registration_operation != template
                         || binding.binding_declaration != template
                     {
@@ -85,9 +85,8 @@ impl<'program> CarrierCorrespondence<'program> {
                     let map = program
                         .conformance_by_symbol(application.declaration)
                         .ok_or("selected carrier lost its map declaration")?;
-                    for binding_value in program
-                        .expression_table
-                        .static_machine_application_bindings(handle)
+                    for binding_value in
+                        expression_table(program).static_machine_application_bindings(handle)
                     {
                         if let Some((parameter, argument)) = program
                             .conformance_type_parameters(map)
@@ -159,8 +158,7 @@ impl<'program> Frame<'program> {
         if !application.callable_application.is_valid() {
             return Err("selected carrier lost its retained map application");
         }
-        let bindings = program
-            .expression_table
+        let bindings = expression_table(program)
             .static_machine_application_bindings(application.callable_application);
         if bindings.len() != parameters.len()
             || !parameters
@@ -190,14 +188,12 @@ impl<'program> Frame<'program> {
         program: &'program dyn crate::CheckingInput,
         handle: StaticMachineApplicationHandle,
     ) -> Result<Self, &'static str> {
-        let application = program.expression_table.static_machine_application(handle);
+        let application = expression_table(program).static_machine_application(handle);
         if !application.lexical_owner.is_valid() {
             return Err("selected carrier frame lost its lexical supplier");
         }
         let arguments = crate::machine_calls::static_bindings::index_identity_arguments(
-            program
-                .expression_table
-                .static_machine_application_bindings(handle),
+            expression_table(program).static_machine_application_bindings(handle),
         );
         Ok(Self {
             declaration: application.binding_declaration,

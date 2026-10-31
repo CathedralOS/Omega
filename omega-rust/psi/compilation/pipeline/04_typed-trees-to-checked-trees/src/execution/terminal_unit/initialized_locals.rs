@@ -10,6 +10,7 @@
 //! Treating a returned write-only descriptor as owned would lose its lending
 //! contract; treating it as mutable would manufacture observation authority.
 
+use crate::flow::expressions;
 use checked_trees::{CheckedInitializedLocal, CheckedStructuralAccess};
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -44,9 +45,7 @@ fn bound_type(
     local: &typed_trees::statement::TableLocalData,
 ) -> TypeReferenceHandle {
     if validation::reference_shell(program, local.type_reference).is_some()
-        || !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
+        || !expressions(program).expression_is_valid(local.initial_value)
     {
         return local.type_reference;
     }

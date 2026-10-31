@@ -1,6 +1,7 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, ExpressionNode,
-    Frame, Halt, HashSet, PrimitiveType, Reference, Value, trap, unsupported,
+    Frame, Halt, HashSet, PrimitiveType, Reference, Value, expression_table, trap,
+    type_reference_table, unsupported,
 };
 mod call_evaluation;
 mod layout_target_facts;
@@ -109,10 +110,8 @@ impl<'program> Evaluator<'program> {
                                 let states = self.program.machine_states(machine);
                                 states.len() == 1 && states[0].symbol == call.target_symbol
                             });
-                    let [left, right] = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
+                    let [left, right] =
+                        expression_table(self.program).expression_handles(call.arguments)
                     else {
                         return trap("selected binary requirement lost its exact arity");
                     };
@@ -509,10 +508,8 @@ impl<'program> Evaluator<'program> {
         let Some(subject_type) = self.expression_type_reference(binary.left, frame) else {
             return trap("case membership subject has no exact receiving type");
         };
-        let subject_type = self
-            .program
-            .type_reference_table
-            .unconstrained_type_reference(subject_type);
+        let subject_type =
+            type_reference_table(self.program).unconstrained_type_reference(subject_type);
         let Some(selected_owner) = self
             .program
             .closed_data_constructor_definition(subject_type, owner.symbol)

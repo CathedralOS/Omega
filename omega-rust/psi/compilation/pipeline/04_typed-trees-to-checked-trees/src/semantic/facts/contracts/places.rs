@@ -1,6 +1,7 @@
 use validation::call_target_parameters;
 use validation::effective_member_symbol;
 
+use crate::flow::expressions;
 use crate::semantic::places::{append_place_segment, resolve_place_member_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
@@ -245,9 +246,7 @@ fn contract_name_path_place(
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<PlaceHandle> {
     let members = program.expression_table.name_path_members(path.members);
-    let member_symbols = program
-        .expression_table
-        .name_path_member_symbols(path.member_symbols);
+    let member_symbols = expressions(program).name_path_member_symbols(path.member_symbols);
 
     let (mut place, start_index) = if members
         .first()

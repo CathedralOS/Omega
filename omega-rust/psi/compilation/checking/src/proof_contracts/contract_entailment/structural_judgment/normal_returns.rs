@@ -9,6 +9,8 @@
 mod array_elements;
 mod body_completion;
 mod collection_extents;
+mod completed_scalar_calls;
+pub(super) use completed_scalar_calls::CapturedResultEquation;
 mod match_captures;
 mod match_composition;
 mod operand_types;
@@ -18,6 +20,7 @@ use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
     owner_return_type, owner_symbol, selected_call_contract,
 };
+use crate::frozen_program::expression_table;
 
 use super::value_predicates::boolean_term;
 use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
@@ -251,7 +254,8 @@ impl<'program> StructuralJudge<'program> {
             _ => (value, None),
         };
         let mut paths = Vec::new();
-        for (left, right) in self.captured_result_equations.iter() {
+        for equation in self.captured_result_equations.iter() {
+            let (left, right) = (&equation.left, &equation.right);
             for term in [left, right] {
                 let StructuralTerm::Projection { subject, path } = term else {
                     continue;
@@ -303,16 +307,24 @@ impl<'program> StructuralJudge<'program> {
         if self.captured_result_equations.is_empty() {
             return value;
         }
-        self.completed_value_identity_at(value, 0)
+        self.completed_value_identity_at(value, 0, self.captured_result_equations.iter())
     }
 
-    fn completed_value_identity_at(&self, value: StructuralTerm, depth: usize) -> StructuralTerm {
+    /// Both views borrow the same ordered facts; numeric projection excludes
+    /// only producer-marked call identities, never public recipe equations.
+    fn completed_value_identity_at<'equations>(
+        &self,
+        value: StructuralTerm,
+        depth: usize,
+        equations: impl Iterator<Item = &'equations CapturedResultEquation> + Clone,
+    ) -> StructuralTerm {
         if depth >= 64 {
             return value;
         }
         let value = match value {
             StructuralTerm::Projection { subject, path } => {
-                let subject = self.completed_value_identity_at(*subject, depth + 1);
+                let subject =
+                    self.completed_value_identity_at(*subject, depth + 1, equations.clone());
                 path.split('.')
                     .try_fold(subject.clone(), |value, field| {
                         super::super::observed_projections::project_declared_field(
@@ -327,7 +339,9 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            other => other.map_children(|child| self.completed_value_identity_at(child, depth + 1)),
+            other => other.map_children(|child| {
+                self.completed_value_identity_at(child, depth + 1, equations.clone())
+            }),
         };
         if !matches!(
             value.semantic_value(),
@@ -337,7 +351,8 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return value;
         }
-        for (left, right) in self.captured_result_equations.iter() {
+        for equation in equations.clone() {
+            let (left, right) = (&equation.left, &equation.right);
             // Orient captured results toward earlier source observations:
             // normalize a later captured call result toward an earlier
             // observation or input parameter, avoiding circular flips.
@@ -362,7 +377,11 @@ impl<'program> StructuralJudge<'program> {
                 && replacement != &value
                 && !super::super::structural_terms::term_contains(replacement, &value)
             {
-                return self.completed_value_identity_at(replacement.clone(), depth + 1);
+                return self.completed_value_identity_at(
+                    replacement.clone(),
+                    depth + 1,
+                    equations.clone(),
+                );
             }
         }
         value
@@ -778,7 +797,7 @@ impl<'program> StructuralJudge<'program> {
             }
             for expression in visited {
                 if let ExpressionNode::SavedSubject(saved) =
-                    self.program.expression_table.expression(expression)
+                    expression_table(self.program).expression(expression)
                     && let Some(position) =
                         owned_arguments::capture_position_at_site(self.program, saved, site)
                 {
@@ -919,7 +938,7 @@ impl<'program> StructuralJudge<'program> {
                 )
             };
         }
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if let Some(value) = program.static_boolean_value(expression) {
             return Some(vec![
                 NormalReturnPath::observed(boolean_term(value), self)
@@ -936,11 +955,9 @@ impl<'program> StructuralJudge<'program> {
             ]);
         }
         if let ExpressionNode::SavedSubject(saved) = node
-            && program
-                .expression_table
-                .contains_value_capture(saved.capture)
+            && expression_table(program).contains_value_capture(saved.capture)
             && matches!(
-                program.expression_table.value_capture(saved.capture).owner,
+                expression_table(program).value_capture(saved.capture).owner,
                 typed_trees::expression::ValueCaptureOwner::Match
             )
         {
@@ -1014,7 +1031,7 @@ impl<'program> StructuralJudge<'program> {
                     .type_reference(cast.target_type),
                 typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
             )
-            && let ExpressionNode::Name(name) = program.expression_table.expression(cast.value)
+            && let ExpressionNode::Name(name) = expression_table(program).expression(cast.value)
             && name.symbol.is_valid()
             && program.symbols.get(name.symbol).kind == symbols::SymbolKind::Conformance
         {
@@ -1265,15 +1282,14 @@ impl<'program> StructuralJudge<'program> {
         let mut children_to_evaluate = Vec::new();
         let child_references =
             operand_types::receiving_types(program, scope.0, expression, node, scope.2);
-        let namespace_receiver = program
-            .expression_table
+        let namespace_receiver = expression_table(program)
             .call_node(expression)
             .filter(|call| {
                 super::super::structural_terms::static_call_receiver(program, scope.0.symbol, call)
             })
             .map(|call| call.receiver);
         if let ExpressionNode::Indexed(indexed) = node
-            && let Some(range) = program.expression_table.range_node(indexed.index)
+            && let Some(range) = expression_table(program).range_node(indexed.index)
         {
             // A window operation consumes its collection and each authored
             // bound, not a first-class Range value. Keep the same operand
@@ -1383,15 +1399,11 @@ impl<'program> StructuralJudge<'program> {
         let outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
+                let call_inputs = if let Some(call) = expression_table(program).call_node(expression)
                 {
                     let mut cursor = 0;
                     Some(
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .map(|source| {
+                        expression_table(program).expression_handles(call.arguments).iter().map(|source| {
                                 let offset = inputs[cursor..]
                                     .iter()
                                     .position(|(input, _)| input == source)?;
@@ -1580,7 +1592,7 @@ impl<'program> StructuralJudge<'program> {
                     *arguments = inputs;
                 }
                 if let ExpressionNode::StructLiteral(literal) = node {
-                    let fields = program.expression_table.struct_fields(literal.fields);
+                    let fields = expression_table(program).struct_fields(literal.fields);
                     let constructed = super::super::structural_terms::constructor_literal_term(
                         program,
                         expression,
@@ -1880,8 +1892,8 @@ impl<'program> StructuralJudge<'program> {
         let program = self.program;
         crate::expression_result_type_reference(program, scope.0, scope.1, expression).or_else(
             || {
-                let indexed = program.expression_table.indexed_node(expression)?;
-                program.expression_table.range_node(indexed.index)?;
+                let indexed = expression_table(program).indexed_node(expression)?;
+                expression_table(program).range_node(indexed.index)?;
                 crate::slice_view_shell(program, scope.2, &[])?;
                 if !self.completed_builtin_coordinates(expression, scope) {
                     return None;
@@ -1932,7 +1944,7 @@ impl<'program> StructuralJudge<'program> {
                     // carry the selected field type; retain that receiving carrier
                     // without claiming anything about its contents.
                     matches!(
-                        self.program.expression_table.expression(expression),
+                        expression_table(self.program).expression(expression),
                         ExpressionNode::String(_) | ExpressionNode::ArrayLiteral(_)
                     )
                     .then(|| {
@@ -1944,7 +1956,7 @@ impl<'program> StructuralJudge<'program> {
                     .flatten()
                     .filter(|element| {
                         matches!(
-                            self.program.expression_table.expression(expression),
+                            expression_table(self.program).expression(expression),
                             ExpressionNode::ArrayLiteral(_)
                         ) || self.program.primitive_type_reference(*element)
                             == Some(typed_trees::types::PrimitiveType::U8)
@@ -1962,7 +1974,7 @@ impl<'program> StructuralJudge<'program> {
                 &value,
             );
         }
-        if let ExpressionNode::String(bytes) = self.program.expression_table.expression(expression)
+        if let ExpressionNode::String(bytes) = expression_table(self.program).expression(expression)
             && let StructuralTerm::CapturedValue { result_type, .. } = &value
         {
             // The completed quoted-byte view has exact descriptor geometry.
@@ -2266,7 +2278,7 @@ impl<'program> StructuralJudge<'program> {
         writes: &NormalizedWriteFrame,
     ) -> Option<Vec<PostCallStorage>> {
         let program = self.program;
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         let ExpressionNode::Call(call) = node else {
             return None;
         };
@@ -2342,8 +2354,7 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let leading_operands = owner_leading_operands(&owner);
-        let Some(arguments) = program
-            .expression_table
+        let Some(arguments) = expression_table(program)
             .expression_handles(call.arguments)
             .get(leading_operands..)
         else {
@@ -2597,7 +2608,11 @@ impl<'program> StructuralJudge<'program> {
             captured.as_ref(),
             0,
         )?;
-        let mut equations = guarantees.equations;
+        let mut equations = guarantees
+            .equations
+            .into_iter()
+            .map(CapturedResultEquation::public)
+            .collect::<Vec<_>>();
         // A completed occurrence keeps its identity. Both existing value-call
         // judgments establish repeatability: conditional primitive normal
         // returns, and the custody-free denotational call owner. Neither an
@@ -2632,7 +2647,7 @@ impl<'program> StructuralJudge<'program> {
                 );
             }
             if repeatable {
-                equations.push((
+                equations.push(CapturedResultEquation::completed_call(
                     captured.clone(),
                     StructuralTerm::Application {
                         result_type: crate::expression_result_type_reference(
@@ -2661,7 +2676,10 @@ impl<'program> StructuralJudge<'program> {
                     presentation.type_reference,
                     actuals,
                 ) {
-                    equations.push((captured.clone(), source));
+                    equations.push(CapturedResultEquation::completed_call(
+                        captured.clone(),
+                        source,
+                    ));
                 }
             }
         }
@@ -2767,15 +2785,25 @@ impl<'program> StructuralJudge<'program> {
         if let (Some(captured), Some(_)) = (&captured, &result_presentation)
             && let SelectedCallContract::Concrete(callee, selected_state) = &owner
         {
-            equations.extend(self.returned_field_equations(
-                callee,
-                selected_state,
-                parameters,
-                actuals,
-                captured,
-            ));
+            equations.extend(
+                self.returned_field_equations(
+                    callee,
+                    selected_state,
+                    parameters,
+                    actuals,
+                    captured,
+                )
+                .into_iter()
+                .map(CapturedResultEquation::public),
+            );
         }
-        for (left, right) in equations {
+        for equation in equations {
+            // This producer already authenticated the completed call and its
+            // eager inputs. Preserve that identity instead of evaluating its
+            // description again; active dependency collectors still own the walk.
+            let completed_identity =
+                equation.completed_call_identity && !self.has_resolution_dependency_collector();
+            let (left, right) = (equation.left.clone(), equation.right.clone());
             let max_premise_occ = self.rewrites.max_premise_occurrence();
             let pattern_occ = match (
                 Self::term_max_captured_occurrence(&left),
@@ -2800,11 +2828,14 @@ impl<'program> StructuralJudge<'program> {
                 std::sync::Arc::make_mut(&mut self.rewrites)
                     .bump_integer_premise_revision_for_occurrences(occ);
             }
-            std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                .push((left.clone(), right.clone()));
+            std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
             std::sync::Arc::make_mut(&mut self.normal_guarantees)
                 .push((left.clone(), right.clone()));
-            self.intake_equation(left, right, 0);
+            if completed_identity {
+                self.intake_completed_call_identity(left, right);
+            } else {
+                self.intake_equation(left, right, 0);
+            }
         }
         if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
             let result_type = result_presentation.type_reference;
@@ -2839,7 +2870,7 @@ fn discarded_value_has_no_own_effects(
     scope: ValueScope<'_>,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Call(_) | ExpressionNode::Atomic(_) | ExpressionNode::Unary(_) => false,
         // A recast borrows existing backing; it does not execute a conversion.
         // Its completed reference may remain opaque without discarding the
@@ -2999,5 +3030,5 @@ fn program_expression_is_live(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    expression.is_valid() && program.expression_table.expression_is_valid(expression)
+    expression.is_valid() && expression_table(program).expression_is_valid(expression)
 }

@@ -4,10 +4,9 @@
 // borrow.
 data Bag { items: &[u32]; }
 data Pair { bag: Bag; }
-machine walk(bag: Bag, capacity: u64)
-requires bag.items.len <= capacity;
-terminates by bag.items -> Slice::Length in 0..=capacity;
--> u64 {
+machine walk(bag: Bag, capacity: u64) -> u64
+requires bag.items.len <= capacity
+terminates by bag.items -> Slice::Length in 0..=capacity {
     transition { _ -> step(&Pair { bag: bag }, capacity) }
     machine step(holder: &Pair, bound: u64) -> u64 {
         transition holder.bag.items.len > 0 {

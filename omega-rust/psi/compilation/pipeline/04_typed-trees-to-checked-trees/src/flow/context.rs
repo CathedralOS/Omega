@@ -4,6 +4,7 @@
 //! and memo tables for lookups that depend only on the program, which survive
 //! between sweeps.
 use crate::flow::StateMutationSummaryCache;
+use crate::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
@@ -64,9 +65,7 @@ impl PlacePreparation {
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Self {
         Self {
-            place: validation::canonical_place_from_expression_in_state(
-                program, state, statement, expression,
-            ),
+            place: place_at(program, state, statement, expression),
             entry_subject: None,
         }
     }
@@ -1045,6 +1044,21 @@ pub(crate) fn state_statements(
     statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
 ) -> &[typed_trees::statement::StatementNode] {
     program.statement_table.statements(statements)
+}
+
+/// The statements a state's statement span names, paired with their index.
+pub(crate) fn indexed_statements(
+    program: &dyn ::validation::CheckingInput,
+    statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
+) -> impl Iterator<Item = (usize, &typed_trees::statement::StatementNode)> {
+    program.statement_table.indexed_statements(statements)
+}
+
+/// The expression table of the program under check.
+pub(crate) fn expressions(
+    program: &dyn ::validation::CheckingInput,
+) -> &typed_trees::expression::ExpressionTable {
+    &program.expression_table
 }
 
 /// Every fact payload the active contexts carry, in span order.

@@ -2,6 +2,7 @@
 //! context can leave helper checking only when no retained declaration uses it.
 //! Rejoining that context afterward restores content, never a checked judgment.
 
+use crate::build_time_evaluation::expression_table;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -26,8 +27,7 @@ impl<'program> ProbeProjection<'program> {
                 if capture.instance != capture.template
                     && capture.supplying_application.is_valid()
                     && private_owner(
-                        original
-                            .expression_table
+                        expression_table(original)
                             .static_machine_application(capture.supplying_application)
                             .lexical_owner,
                     )
@@ -39,8 +39,7 @@ impl<'program> ProbeProjection<'program> {
                 if specialization.instance != specialization.template
                     && specialization.binding_application.is_valid()
                     && private_owner(
-                        original
-                            .expression_table
+                        expression_table(original)
                             .static_machine_application(specialization.binding_application)
                             .lexical_owner,
                     )
@@ -198,8 +197,7 @@ impl<'program> ProbeProjection<'program> {
                 .supplying_application
                 .is_valid()
                 .then(|| {
-                    self.original
-                        .expression_table
+                    expression_table(self.original)
                         .static_machine_application(row.supplying_application)
                         .lexical_owner
                 })

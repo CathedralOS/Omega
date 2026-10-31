@@ -2,7 +2,7 @@ use omega_language_std::console;
 data Point [copy] { x: u64; y: u64; }
 data Main { point: Point; }
 machine Point::zero() -> Point { Point { x: 0, y: 0 } }
-machine take(point: Point) -> u64 requires point == Point::zero(); { point.y }
+machine take(point: Point) -> u64 requires point == Point::zero() { point.y }
 machine mutate(point: &mut Point) { point.x = 1; }
 machine Main::main(main: &mut Main) reaches Console {
  main.point = Point { x: 0, y: 0 };

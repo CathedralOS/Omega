@@ -14,8 +14,8 @@ data Token {
 // A 512-byte budget includes trailing whitespace. Budget exhaustion is an
 // input error, distinct from the real EOF required after exactly 15 tokens.
 machine next_byte(reader: &mut InputReader) -> ByteRead reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let byte: ByteRead = block Console::read_byte();
@@ -43,8 +43,8 @@ crashes Trap
     }
 }
 machine token(reader: &mut InputReader) -> Token reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> skip(reader) }
@@ -111,8 +111,8 @@ crashes Trap
     }
 }
 public machine read_input(reader: &mut InputReader, chromatogram: &mut Chromatogram) -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(reader, chromatogram, 0) }

@@ -6,6 +6,7 @@
 //! alone does not redirect the completed read. Reference construction and
 //! copied-value alias publication use this same typed prefix discovery.
 
+use crate::places::place_at;
 use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
 use validation::CanonicalPlace;
@@ -28,7 +29,7 @@ pub(super) fn borrowed_bindings(
             validation::has_builtin_subslice_meaning(program, machine, Some(body), **source)
         })
         .filter_map(|source| {
-            validation::canonical_place_from_expression_in_state(
+            place_at(
                 program,
                 capture.state_symbol,
                 capture.statement_index,
@@ -38,7 +39,7 @@ pub(super) fn borrowed_bindings(
         .collect();
     let mut bindings = Vec::new();
     for source in sources {
-        let Some(mut place) = validation::canonical_place_from_expression_in_state(
+        let Some(mut place) = place_at(
             program,
             capture.state_symbol,
             capture.statement_index,

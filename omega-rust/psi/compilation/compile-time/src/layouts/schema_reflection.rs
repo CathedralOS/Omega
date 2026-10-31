@@ -1,5 +1,6 @@
 //! Exact typed-schema identity and fixed runtime-geometry reflection.
 
+use crate::build_time_evaluation::type_reference_table;
 use typed_trees::TypedTrees;
 use typed_trees::types::PrimitiveType;
 
@@ -170,9 +171,7 @@ fn scalar_leaf_width_bits(
         if let Some(primitive) = typed.primitive_type_reference(reference) {
             return u16::try_from(primitive_byte_size(primitive)?.checked_mul(8)?).ok();
         }
-        reference = typed
-            .type_reference_table
-            .unconstrained_type_reference(reference);
+        reference = type_reference_table(typed).unconstrained_type_reference(reference);
         match typed.type_reference_table.type_reference(reference) {
             typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
                 reference = *element_type
@@ -271,9 +270,7 @@ pub(super) fn reflected_field_layout(
             None,
         ));
     }
-    let carrier = typed
-        .type_reference_table
-        .unconstrained_type_reference(reference);
+    let carrier = type_reference_table(typed).unconstrained_type_reference(reference);
     let (size, align) = reflected_member_layout(typed, carrier, target, &mut Vec::new())?;
     let repeated = match typed.type_reference_table.type_reference(carrier) {
         typed_trees::types::TypeReferenceNode::FixedArray {
@@ -318,15 +315,11 @@ fn reflected_member_layout(
         let size = primitive_byte_size(primitive)?;
         return Some((size, size));
     }
-    let carrier = typed
-        .type_reference_table
-        .unconstrained_type_reference(reference);
+    let carrier = type_reference_table(typed).unconstrained_type_reference(reference);
     match typed.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::Reference { referee, .. } => {
             let target = target?;
-            let referent = typed
-                .type_reference_table
-                .unconstrained_type_reference(*referee);
+            let referent = type_reference_table(typed).unconstrained_type_reference(*referee);
             let words = if matches!(
                 typed.type_reference_table.type_reference(referent),
                 TypeReferenceNode::Slice { .. }

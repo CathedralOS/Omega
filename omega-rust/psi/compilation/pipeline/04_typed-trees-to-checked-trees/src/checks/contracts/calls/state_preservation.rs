@@ -5,10 +5,10 @@ use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use validation::canonical_place_from_expression_in_state;
 
 use super::super::assembly::expression_reads_overlapping_place;
 use crate::labels::symbol_name;
+use crate::places::place_at;
 
 /// The guard match above compares display labels, so it stands only while
 /// every unqualified name the instantiated requirement spells still refers to
@@ -73,7 +73,7 @@ pub(super) fn caller_state_preserves_label_names(
             let read_places = reads
                 .iter()
                 .filter_map(|read| {
-                    canonical_place_from_expression_in_state(
+                    place_at(
                         program,
                         state_flow.state_symbol,
                         call_flow.statement_index,

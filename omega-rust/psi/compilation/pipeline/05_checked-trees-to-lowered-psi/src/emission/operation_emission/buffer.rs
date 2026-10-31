@@ -15,12 +15,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct SourceCallCoordinate {
-    pub(crate) state: symbols::SymbolHandle,
-    pub(crate) statement_index: usize,
-    pub(crate) call_ordinal: usize,
-}
+pub(crate) use lowered_psi::LoweredSourceCallOrigin as SourceInvocation;
+pub(crate) use lowered_psi::LoweredStatementCallCoordinate as SourceCallCoordinate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceQuotientCall {
@@ -32,7 +28,7 @@ pub(crate) struct SourceQuotientCall {
 /// owner allocates its edge. Completion kind remains explicit: ordinary module
 /// nonreturn grants none of an external outcome's delegated domain authority.
 pub(crate) struct PendingInvocationCompletion {
-    pub(crate) coordinate: SourceCallCoordinate,
+    pub(crate) coordinate: SourceInvocation,
     pub(crate) source_site: Option<checked_trees::NominalMachineUseSite>,
     pub(crate) target: symbols::SymbolHandle,
     pub(crate) frontier: LoweredSourceFrontierBindings,
@@ -319,6 +315,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) operations: Vec<Operation>,
     pub(crate) storage_observations: StorageObservations,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
+    next_observation_scope: u64,
     pub(crate) quotient_adaptations: Vec<SourceQuotientAdaptation>,
     pub(crate) quotient_calls: Vec<SourceQuotientCall>,
     /// Source-only associations created by the actual reference emitter.
@@ -331,6 +328,14 @@ pub(crate) struct OperationBuffer {
 }
 
 impl OperationBuffer {
+    pub(crate) fn reserve_observation_scope(&mut self) -> Result<u64, LoweringError> {
+        let scope = self.next_observation_scope;
+        self.next_observation_scope = scope.checked_add(1).ok_or(LoweringError::Unsupported(
+            "declaration observation identity exceeds the producer's u64 scope space",
+        ))?;
+        Ok(scope)
+    }
+
     /// Immutable producer/arrival declarations describe a home's initial
     /// transport names. Only an actual fresh completion may use this catalog
     /// to publish a frame association; current reads use CurrentClaimNames.
@@ -642,6 +647,7 @@ impl OperationBuffer {
             operations: Vec::new(),
             storage_observations: StorageObservations::default(),
             source_calls: Vec::new(),
+            next_observation_scope: 0,
             quotient_adaptations: Vec::new(),
             quotient_calls: Vec::new(),
             loan_captures: Vec::new(),
@@ -691,14 +697,14 @@ impl OperationBuffer {
 
     pub(crate) fn record_source_call(
         &mut self,
-        coordinate: SourceCallCoordinate,
+        coordinate: impl Into<SourceInvocation>,
         source_site: Option<checked_trees::NominalMachineUseSite>,
         operation: OperationId,
         target: symbols::SymbolHandle,
         frontier_before_call: &LoweredSourceFrontierBindings,
     ) -> Result<(), LoweringError> {
         self.record_source_call_site(
-            coordinate,
+            coordinate.into(),
             source_site,
             LoweredSourceCallSite::Operation(operation),
             target,
@@ -712,17 +718,20 @@ impl OperationBuffer {
     // never depends on whether a route emitted Unit, scalar or structural data.
     fn record_source_call_site(
         &mut self,
-        coordinate: SourceCallCoordinate,
+        coordinate: SourceInvocation,
         source_site: Option<checked_trees::NominalMachineUseSite>,
         terminal_site: LoweredSourceCallSite,
         target: symbols::SymbolHandle,
         frontier_before_call: &LoweredSourceFrontierBindings,
     ) -> Result<(), LoweringError> {
-        if let Some(existing) = self.source_calls.iter().find(|existing| {
-            existing.source_state == coordinate.state
-                && existing.statement_index == coordinate.statement_index
-                && existing.call_ordinal == coordinate.call_ordinal
-        }) {
+        if let Some(existing) = self
+            .source_calls
+            .iter()
+            .find(|existing| existing.origin == coordinate)
+        {
+            let Some(coordinate) = coordinate.statement() else {
+                return unsupported("declaration call emitted twice in the same observation scope");
+            };
             return Err(LoweringError::DuplicateContentPartitionProducerCoordinate {
                 state: coordinate.state,
                 statement_index: coordinate.statement_index,
@@ -738,9 +747,7 @@ impl OperationBuffer {
         }
         self.source_calls.push(LoweredSourceCallOccurrence {
             source_site,
-            source_state: coordinate.state,
-            statement_index: coordinate.statement_index,
-            call_ordinal: coordinate.call_ordinal,
+            origin: coordinate,
             terminal_site,
             source_target: target,
             frontier_before_call: frontier_before_call.clone(),

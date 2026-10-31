@@ -11,7 +11,7 @@ data Main {
     linkage: Linkage;
 }
 
-machine Main::main(main: &mut Main) reaches Console blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches Console blocks crashes Trap {
     block Input::read(&mut main.input);
     transition main.input.valid && main.input.tokens[0] > 0 &&
                main.input.tokens[25] < 4 && main.input.tokens[26] < 4 && main.input.tokens[27] < 4 &&
@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console blocks; crashes Trap {
+machine entry_start() reaches Console blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

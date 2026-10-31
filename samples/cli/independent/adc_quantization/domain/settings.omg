@@ -13,8 +13,8 @@ public data Settings {
     count: i64 in Wrapping;
 }
 public machine settings(configuration: &mut Settings) -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     configuration.width = block number();

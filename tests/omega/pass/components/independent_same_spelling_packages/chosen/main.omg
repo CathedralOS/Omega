@@ -7,4 +7,4 @@ public Provider satisfies Value {
         ((41u64 as u64 in Wrapping) + (value as u64 in Wrapping)) as u64
     }
 }
-public machine component_entry() reaches Value invokes Value; { let value: u64 = Value::get(); }
+public machine component_entry() reaches Value invokes Value { let value: u64 = Value::get(); }

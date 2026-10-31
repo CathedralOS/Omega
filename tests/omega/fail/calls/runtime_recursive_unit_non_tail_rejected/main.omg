@@ -7,7 +7,7 @@ machine descend(value: u64) reaches Console {
         false -> done()
     }
     machine next(value: u64)
-    requires value > 0;
+    requires value > 0
     {
         Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
         descend(value - 1);

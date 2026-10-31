@@ -36,7 +36,7 @@ machine Bucket::push(bucket: &mut Bucket, value: u8 in Wrapping)
 requires
     bucket.length < bucket.items.len
 ensures
-    bucket.length > 0;
+    bucket.length > 0,
     bucket.length - 1 < bucket.items.len
 {
     let slots: &mut [u8] = &mut bucket.items[..];
@@ -48,7 +48,7 @@ ensures
 // Read within the live length through the slice view.
 machine Bucket::get(bucket: &Bucket, index: u64 in Wrapping) -> u8
 requires
-    bucket.length > index;
+    bucket.length > index,
     index < bucket.items.len
 {
     let slots: &[u8] = &bucket.items[..];
@@ -59,7 +59,7 @@ requires
 // local return spelling).
 machine Bucket::pop(bucket: &mut Bucket) -> u8
 requires
-    bucket.length > 0;
+    bucket.length > 0,
     bucket.length - 1 < bucket.items.len
 {
     let slots: &[u8] = &bucket.items[..];

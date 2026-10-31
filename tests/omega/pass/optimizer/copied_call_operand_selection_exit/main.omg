@@ -11,7 +11,7 @@ data Main {
 machine scale(value: i64, factor: i64) -> i64
 requires
     0 <= value && value <= 1000 &&
-    0 <= factor && factor <= 1000;
+    0 <= factor && factor <= 1000
 {
     let product: i64 = value * factor;
     product

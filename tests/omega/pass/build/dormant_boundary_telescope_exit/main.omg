@@ -1,0 +1,7 @@
+// Expected exit: 0
+// An unused ABI projection exceeding the normalized policy telescope capacity
+// remains a dormant refusal; retaining its declaration cannot reject main.
+boundary trait DormantWide {
+    machine unused(value0: u64, value1: u64, value2: u64, value3: u64, value4: u64, value5: u64, value6: u64, value7: u64, value8: u64, value9: u64, value10: u64, value11: u64, value12: u64, value13: u64, value14: u64, value15: u64, value16: u64, value17: u64, value18: u64, value19: u64, value20: u64, value21: u64, value22: u64, value23: u64, value24: u64, value25: u64, value26: u64, value27: u64, value28: u64, value29: u64, value30: u64, value31: u64, value32: u64) -> u64 reaches;
+}
+machine main() {}

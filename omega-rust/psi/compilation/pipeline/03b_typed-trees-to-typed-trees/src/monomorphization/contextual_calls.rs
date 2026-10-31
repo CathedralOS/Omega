@@ -20,6 +20,7 @@ mod static_operands;
 pub(super) use static_operands::{is_open as operand_is_open, names_any};
 
 use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let invocations = invocations::collect(program)?;
@@ -48,14 +49,11 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                     .get(invocation.requirements[0].parameter)
                     .parent
             });
-        let retained = program
-            .expression_table
-            .static_machine_application_mut(application);
+        let retained = expressions_of_mut(program).static_machine_application_mut(application);
         if !retained.binding_declaration.is_valid() {
             retained.binding_declaration = declaration;
         }
-        let mut bindings = program
-            .expression_table
+        let mut bindings = expressions_of(program)
             .static_machine_application_bindings(application)
             .to_vec();
         for (parameter, actual) in &invocation.types {
@@ -79,9 +77,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 });
             }
         }
-        program
-            .expression_table
-            .set_static_machine_application_bindings(application, &bindings);
+        expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
         let mut selected = invocation.machine_arguments.clone();
         let mut selection_changed = false;
         for (ordinal, (argument, expected)) in selected
@@ -146,8 +142,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             selection_changed = true;
         }
         if selection_changed {
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(application, &selected);
         }
         if invocation.use_site == invocations::InvocationUse::RetainedEvaluation {
@@ -161,7 +156,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         }
         let authored = match invocation.site {
             CallSite::Expression(handle) => {
-                let Some(call) = program.expression_table.call_node(handle) else {
+                let Some(call) = expressions_of(program).call_node(handle) else {
                     continue;
                 };
                 call.machine_arguments.clone()
@@ -189,7 +184,8 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         }
         match invocation.site {
             CallSite::Expression(handle) => {
-                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                if let ExpressionNode::Call(call) =
+                    expressions_of_mut(program).expression_mut(handle)
                 {
                     call.authored_machine_application = application;
                     call.machine_arguments = arguments;

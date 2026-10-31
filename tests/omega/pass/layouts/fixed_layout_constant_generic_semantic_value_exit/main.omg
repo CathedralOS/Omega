@@ -4,7 +4,7 @@ use omega::language::core::layout;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair<T [copy]> [copy] { lo: u64 in Delivered; hi: T; }
 PairLayout satisfies FixedLayout<Pair<u64>> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };

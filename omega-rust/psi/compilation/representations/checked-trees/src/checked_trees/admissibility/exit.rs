@@ -39,9 +39,6 @@ impl<'facts> ExitAcceptance<'facts> {
     }
 
     pub fn ensures(&self) -> &'facts [ContractProofFactRef] {
-        self.facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(self.exit.ensures)
+        self.facts.contract_fact_refs(self.exit.ensures)
     }
 }

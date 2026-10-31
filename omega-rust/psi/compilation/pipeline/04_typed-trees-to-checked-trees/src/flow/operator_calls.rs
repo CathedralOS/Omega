@@ -10,6 +10,7 @@ use validation::symbol_type_symbol;
 
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
+use crate::flow::expressions;
 
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
@@ -657,9 +658,7 @@ fn operator_contract_relative_place(
                         || (path.head_symbol.is_valid() && parameter.symbol == path.head_symbol)
                         || (path.symbol.is_valid() && parameter.symbol == path.symbol)
                 })?;
-            let member_symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let member_symbols = expressions(program).name_path_member_symbols(path.member_symbols);
             let mut segments = Vec::with_capacity(members.len().saturating_sub(1));
             for offset in 1..members.len() {
                 let symbol = member_symbols

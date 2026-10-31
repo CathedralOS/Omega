@@ -6,6 +6,7 @@
 use super::requirement_applications::selected_applications;
 use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees, failed};
 use crate::expression_roots::append_statement_roots;
+use crate::tables::{expressions_of, expressions_of_mut};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 macro_rules! err {
@@ -41,7 +42,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             let mut expressions = Vec::new();
             append_statement_roots(program, state, &mut expressions);
             for handle in expressions {
-                if let Some(call) = program.expression_table.call_node(handle) {
+                if let Some(call) = expressions_of(program).call_node(handle) {
                     calls.push((
                         CallSite::Expression(handle),
                         machine.symbol,
@@ -145,7 +146,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         match site {
             CallSite::Expression(handle) => {
                 let super::ExpressionNode::Call(call) =
-                    program.expression_table.expression_mut(handle)
+                    expressions_of_mut(program).expression_mut(handle)
                 else {
                     unreachable!()
                 };
@@ -279,8 +280,7 @@ fn realize_capture(
     {
         return Err(err!("selected capture has no exact owned realization"));
     }
-    let supplying_owner = program
-        .expression_table
+    let supplying_owner = expressions_of(program)
         .static_machine_application(supplying_application)
         .lexical_owner;
     let retained = program
@@ -292,8 +292,7 @@ fn realize_capture(
                     &captured.conformance_application,
                     application,
                 )
-                && program
-                    .expression_table
+                && expressions_of(program)
                     .static_machine_application(captured.supplying_application)
                     .lexical_owner
                     == supplying_owner
@@ -337,8 +336,7 @@ fn realize_capture(
                 })
                 .count();
             let selected_callbacks = if application.callable_application.is_valid() {
-                program
-                    .expression_table
+                expressions_of(program)
                     .static_machine_application_selected_machines(application.callable_application)
                     .to_vec()
             } else {
@@ -500,19 +498,15 @@ fn realize_capture(
                         );
                 }
             }
-            let binding = program.expression_table.retain_static_machine_application(
+            let binding = expressions_of_mut(program).retain_static_machine_application(
                 conformance.symbol,
                 conformance.alias.clone().unwrap_or_default(),
                 &application.arguments,
             );
-            let retained = program
-                .expression_table
-                .static_machine_application_mut(binding);
+            let retained = expressions_of_mut(program).static_machine_application_mut(binding);
             retained.lexical_owner = supplying_owner;
             retained.binding_declaration = conformance.symbol;
-            program
-                .expression_table
-                .set_static_machine_application_bindings(binding, &bindings);
+            expressions_of_mut(program).set_static_machine_application_bindings(binding, &bindings);
             let lifetimes = conformance
                 .lifetime_parameters
                 .iter()
@@ -524,11 +518,9 @@ fn realize_capture(
                     }
                 })
                 .collect::<Vec<_>>();
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_lifetimes(binding, &lifetimes);
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);
             candidate.binding_application = binding;
             let machine = &program.machines()[index];
@@ -558,8 +550,7 @@ fn realize_capture(
                             &capture.conformance_application,
                             application,
                         )
-                        && program
-                            .expression_table
+                        && expressions_of(program)
                             .static_machine_application(capture.supplying_application)
                             .lexical_owner
                             == supplying_owner

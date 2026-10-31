@@ -7,6 +7,7 @@
 //! Abstract mathematical and sealed catalog applications retain their existing
 //! declaration-owned formation authority; no runtime occurrence is manufactured.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::{SelectedCallContract, selected_call_contract};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -35,8 +36,7 @@ pub(crate) fn validate_specification_calls(
             ProofFact::Expression(expression) => pending.push((owner, *expression)),
             ProofFact::Membership(membership) => pending.push((owner, membership.value)),
             ProofFact::Proposition(application) => pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(application.arguments)
                     .iter()
                     .map(|expression| (owner, *expression)),
@@ -46,6 +46,18 @@ pub(crate) fn validate_specification_calls(
     pending.extend(crate::mathematical_applications::scoped_expression_nodes(
         program,
     ));
+    // Declared value bodies have the same operational admission obligations
+    // as specification expressions. Application formation separately proves
+    // argument requirements under the exact supplying values; a result
+    // guarantee alone cannot establish the callee's progress or purity.
+    for declaration in program.measures() {
+        pending.extend(
+            expression_table(program)
+                .expression_handles(declaration.body)
+                .iter()
+                .map(|expression| (declaration.symbol, *expression)),
+        );
+    }
     for proposition in program.propositions() {
         if let PropositionBody::Transparent {
             proposition: formula,
@@ -56,8 +68,7 @@ pub(crate) fn validate_specification_calls(
                     pending.push((proposition.symbol, *expression))
                 }
                 PropositionFormula::Application(application) => pending.extend(
-                    program
-                        .expression_table
+                    expression_table(program)
                         .expression_handles(application.arguments)
                         .iter()
                         .map(|expression| (proposition.symbol, *expression)),
@@ -68,12 +79,12 @@ pub(crate) fn validate_specification_calls(
     let mut requests = Vec::new();
     let mut visited = std::collections::HashSet::new();
     while let Some((caller, expression)) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression)
+        if !expression_table(program).expression_is_valid(expression)
             || !visited.insert((caller, expression))
         {
             continue;
         }
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         crate::expression_traversal::children(program, node, |child| pending.push((caller, child)));
         let ExpressionNode::Call(call) = node else {
             continue;
@@ -208,7 +219,7 @@ pub fn admit_specification_calls(
                 eprintln!(
                     "DENOTATION termination request={request:?} machine={} summary={summary:?} expression={:?}",
                     program.symbols.name(request.target_machine),
-                    program.expression_table.expression(request.call_expression),
+                    expression_table(program).expression(request.call_expression),
                 );
             }
             diagnostics.push(Diagnostic::error(format!(

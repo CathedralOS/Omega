@@ -11,6 +11,7 @@
 //! subject, even when a different sibling supplies a complete decreasing rank.
 
 use super::{ExpressionHandle, ExpressionNode, Machine, State, saved_arguments};
+use crate::frozen_program::expression_table;
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -374,9 +375,7 @@ fn completed_coordinates(
     source: &StateEntryCorrespondence,
     depth: usize,
 ) -> Option<CompletedCoordinateInventory> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     macro_rules! child_coordinates {
         ($statement:expr, $expression:expr $(,)?) => {
             completed_coordinates(
@@ -475,7 +474,7 @@ fn completed_coordinates(
         ExpressionNode::StructLiteral(literal) => {
             let mut completed = CompletedCoordinateInventory::complete(Vec::new());
             let mut supplied = Vec::new();
-            for field in program.expression_table.struct_fields(literal.fields) {
+            for field in expression_table(program).struct_fields(literal.fields) {
                 if supplied.contains(&field.field_symbol) {
                     return None;
                 }
@@ -505,8 +504,7 @@ fn completed_coordinates(
         }
         ExpressionNode::ArrayLiteral(values) => {
             let mut completed = CompletedCoordinateInventory::complete(Vec::new());
-            for (index, value) in program
-                .expression_table
+            for (index, value) in expression_table(program)
                 .expression_handles(*values)
                 .iter()
                 .enumerate()
@@ -945,7 +943,7 @@ pub(super) fn discover(
                 return None;
             }
             for (formal, actual) in formals.iter().zip(arrival.arguments) {
-                if program.expression_table.expression_is_valid(*actual) {
+                if expression_table(program).expression_is_valid(*actual) {
                     let coordinate = RankReceivingCoordinate {
                         destination: RankSubjectCoordinate {
                             parameter: formal.symbol,

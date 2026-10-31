@@ -1,6 +1,7 @@
 //! Invoke exact selected endpoint calls without preexecuting nested expressions.
 
 use super::integer_type::ScalarPosition;
+use crate::build_time_evaluation::expression_table;
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
 use crate::unique::extend_unique;
 use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
@@ -85,10 +86,7 @@ impl Invocation<'_> {
             return Err("range endpoint lost its call".into());
         };
         let entry = self.entry(self.machine(callee)?)?;
-        let arguments = self
-            .execution
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.execution).expression_handles(call.arguments);
         let parameters = self.execution.state_parameters(entry);
         if arguments.len() != parameters.len() {
             return Err(
@@ -166,10 +164,7 @@ impl Invocation<'_> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
-        let argument_handles = self
-            .execution
-            .expression_table
-            .expression_handles(call.arguments);
+        let argument_handles = expression_table(self.execution).expression_handles(call.arguments);
         if argument_handles.len() != literals.len() {
             return Err(
                 "range endpoint call argument count does not match its evaluated snapshots".into(),
@@ -272,10 +267,7 @@ impl ConstantCalls for Invocation<'_> {
         let Some(call) = self.execution.expression_table.call_node(expression) else {
             return Err("range endpoint lost its call".into());
         };
-        let arguments = self
-            .execution
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.execution).expression_handles(call.arguments);
         let parameters = self.execution.state_parameters(entry);
         if arguments.len() != parameters.len() {
             return Err(

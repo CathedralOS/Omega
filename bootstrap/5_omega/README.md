@@ -56,14 +56,21 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 16,498 lines / 571,918 bytes with SHA-256
-`1b83c166c1ecf30f7466a84f3ea9ad8ac2253341700c1e6c69bd2db3d6e3b1c5`.
+manifest materializes 16,493 lines / 571,866 bytes with SHA-256
+`ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29`.
 The manifest itself is 1,338 bytes, SHA-256
-`8001f20b7db045626d84573ed5b151f5709a8905b6efa52cd8a6513f7f78d9ac`;
+`27073567897cff13e63ae30fecf2997ed86140b646dfa3ed27d5ac972256dc4b`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
-D implements Omega.
+D implements Omega. The header-delimiter revision changes only the existing
+termination/reach continuation and keeps unsupported forms incomplete. Its
+twenty-invocation parser customer passed through the lower chain on macOS arm64:
+receipt reconstruction took 148.663 seconds and the customer took 6,529.480 seconds,
+returning exact `000000000041` (`Exit(0)` and `A`) with host status zero and empty
+stderr. This observes the bound D and customer identified above and in the
+[parser gate](../../tests/bootstrap/omega-parser/README.md); historical
+observations retain their original source subjects.
 The authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 

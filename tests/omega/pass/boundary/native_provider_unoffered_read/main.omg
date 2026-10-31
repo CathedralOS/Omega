@@ -19,7 +19,7 @@ linux_x86_64 machine read(fd: i32, buffer: &mut u64, count: u64) -> i64
 satisfies Probe::read via read_binding();
 linux_arm64 machine read(fd: i32, buffer: &mut u64, count: u64) -> i64
 satisfies Probe::read via arm_read_binding();
-machine entry_start() reaches Probe blocks; crashes Trap {
+machine entry_start() reaches Probe blocks crashes Trap {
     let mut value: u64 = 0;
     let count: i64 = block Probe::read(0, &mut value, 1);
     transition count == 1 && value == 65 { true -> done() _ -> bad() }

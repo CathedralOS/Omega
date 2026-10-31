@@ -11,10 +11,12 @@
 
 use omega_language_std::console;
 
-// FULLY EXACT -- no overflow domain: the `0 <= d <= 200` re-guard in `probe`
-// bounds the guard arithmetic `d * d` (<= 40000) and `n % d`, and the
-// `d = d + 1` step is guard-proven (`d < 200` on the direct edge into `advance`).
-data Trial [copy] {
+// The complete owner predicate bounds the square to 40000. Divisor-nonzero
+// requirements belong to the invoked trial steps; zero remains a valid owner.
+data Trial [copy]
+requires self.n >= 0 && self.n <= 1000,
+    self.d >= 0 && self.d <= 200
+{
     n: i32;
     d: i32;
 }
@@ -30,50 +32,44 @@ machine Main::main(main: &mut Main) reaches Console {
     main.trial.d = 2;
 
     transition {
-        _ -> probe(main)
+        _ -> block probe(main)
     }
 
-    // Re-assert d's bounds on the edge into the square test: d starts at 2 and
-    // only grows by guarded steps below 200, so the else arm is unreachable
-    // and routes to prime() as the give-up answer.
-    machine probe(main: &mut Main) {
-        transition main.trial.d >= 0 && main.trial.d <= 200 {
-            true -> probe_square(main)
-            _ -> prime(main)
-        }
-    }
-
-    // If d has passed sqrt(n) with no divisor found, n is prime.
-    machine probe_square(main: &mut Main) {
+    // The owner bounds the square; call admission independently proves d != 0.
+    machine probe(main: &mut Main)
+    requires main.trial.d > 0
+    {
         transition main.trial.d * main.trial.d > main.trial.n {
-            true -> prime(main)
-            _ -> test_divisor(main)
+            true -> block prime(main)
+            _ -> block test_divisor(main)
         }
     }
 
     // Does the current d divide n? (modulo in the guard subject)
-    machine test_divisor(main: &mut Main) {
+    machine test_divisor(main: &mut Main)
+    requires main.trial.d > 0
+    {
         transition main.trial.n % main.trial.d == 0 {
-            true -> found(main)
-            _ -> adv_guard(main)
+            true -> block found(main)
+            _ -> block adv_guard(main)
         }
     }
 
     // Re-assert d's headroom right before the increment: the `d < 200` guard on
-    // the direct edge into `advance` is what proves `d + 1` cannot overflow.
+    // the direct edge into `advance` proves `d + 1` remains in 0..=200.
     // (d never nears 200 -- the probe stops at sqrt(n) -- so the else arm is
     // unreachable and routes to prime() as the give-up answer.)
     machine adv_guard(main: &mut Main) {
         transition main.trial.d < 200 {
-            true -> advance(main)
-            _ -> prime(main)
+            true -> block advance(main)
+            _ -> block prime(main)
         }
     }
 
     machine advance(main: &mut Main) {
         main.trial.d = main.trial.d + 1;
         transition {
-            _ -> probe(main)
+            _ -> block probe(main)
         }
     }
 

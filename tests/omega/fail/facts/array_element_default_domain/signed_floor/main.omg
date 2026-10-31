@@ -1,0 +1,13 @@
+public data Tallies [copy]
+requires self.values[0] >= 0 && self.values[0] <= 16,
+    self.values[1] >= 0 && self.values[1] <= 16,
+    self.values[2] <= 16,
+    self.values[3] >= 0 && self.values[3] <= 16
+{ values: [i32; 4]; }
+
+public machine observe(tallies: &Tallies, index: u64) -> i32
+requires index < 4
+ensures result >= 0 && result <= 16
+{ tallies.values[index] }
+
+machine main() {}

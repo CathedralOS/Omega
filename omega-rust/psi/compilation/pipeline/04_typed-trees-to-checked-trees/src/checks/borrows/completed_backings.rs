@@ -10,6 +10,7 @@
 //! Copied descriptors follow their earlier producer rather than rereading a
 //! source slot that later operands may have replaced.
 
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{
     CapturedPlace, CheckFacts, FlowOperandCompletion, FlowOperandFact, FlowStateFact,
@@ -242,7 +243,7 @@ impl Resolver<'_> {
             }
             _ => {}
         }
-        let coordinate = validation::canonical_place_from_expression_in_state(
+        let coordinate = place_at(
             self.program,
             self.state.state_symbol,
             operand.statement_index,
@@ -314,7 +315,7 @@ impl Resolver<'_> {
                 return Err("the descriptor projection has another receiver occurrence");
             }
             if !crate::flow::operand_binds_live_view(self.program, receiver.type_reference)
-                && let Some(source) = validation::canonical_place_from_expression_in_state(
+                && let Some(source) = place_at(
                     self.program,
                     self.state.state_symbol,
                     receiver.statement_index,
@@ -557,7 +558,7 @@ impl Resolver<'_> {
         if control.operands.is_valid(operand.backing) && operand.backing != capture {
             let receiver = control.operands.get(operand.backing);
             if receiver.state_symbol == operand.state_symbol
-                && let Some(receiver_place) = validation::canonical_place_from_expression_in_state(
+                && let Some(receiver_place) = place_at(
                     self.program,
                     self.state.state_symbol,
                     receiver.statement_index,

@@ -2,16 +2,16 @@
 // Expected exit: 0
 data Remaining { canary: u64; values [erased]: &[u8]; }
 machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-terminates;
-terminates by remaining.values -> Slice::Length;
-requires remaining.values.len <= 7;
+terminates
+terminates by remaining.values -> Slice::Length
+requires remaining.values.len <= 7
 {
     transition remaining.values.len > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-    requires pending.values.len > 0 && pending.values.len <= 7;
+    requires pending.values.len > 0 && pending.values.len <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.values = pending.values[1..];
@@ -24,7 +24,7 @@ requires remaining.values.len <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine perform(counter: &mut u64, bytes: &[u8], select: bool) crashes Trap
-requires bytes.len <= 7;
+requires bytes.len <= 7
 {
     let mut remaining: Remaining = match select {
         true -> Remaining { canary: 641, values: bytes }

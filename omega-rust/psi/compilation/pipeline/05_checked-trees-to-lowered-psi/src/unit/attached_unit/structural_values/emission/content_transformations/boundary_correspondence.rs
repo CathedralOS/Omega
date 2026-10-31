@@ -1,6 +1,7 @@
 //! Preserve conditional body custody without publishing output membership.
 
 use super::{Emission, LoweringError, source_path, unsupported};
+use crate::checked_facts::flow_facts;
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyCustody, ContentBodyDerivation,
@@ -130,9 +131,7 @@ impl Emission<'_, '_, '_> {
                                     && target.projection == projection
                                     && source_path(
                                         self.checked,
-                                        self.checked
-                                            .facts
-                                            .flow
+                                        flow_facts(&self.checked)
                                             .ownership
                                             .segments
                                             .span_or_empty(entry.segments),
@@ -195,9 +194,7 @@ impl Emission<'_, '_, '_> {
             let mut input_subject = input.subject.clone();
             input_subject.segments.extend(source_path(
                 self.checked,
-                self.checked
-                    .facts
-                    .flow
+                flow_facts(&self.checked)
                     .ownership
                     .segments
                     .span_or_empty(address.input_segments),
@@ -205,9 +202,7 @@ impl Emission<'_, '_, '_> {
             let mut output_subject = output.subject.clone();
             output_subject.segments.extend(source_path(
                 self.checked,
-                self.checked
-                    .facts
-                    .flow
+                flow_facts(&self.checked)
                     .ownership
                     .segments
                     .span_or_empty(address.output_segments),
@@ -243,27 +238,19 @@ impl Emission<'_, '_, '_> {
         if law.callable == equation.state_symbol {
             return Ok(parameter);
         }
-        let flow = self
-            .checked
-            .facts
-            .flow
+        let flow = flow_facts(&self.checked)
             .control
             .state(equation.machine_symbol, equation.state_symbol)
             .ok_or(LoweringError::Unsupported(
                 "boundary body has no completion state flow",
             ))?;
-        let mut origins = self
-            .checked
-            .facts
-            .flow
+        let mut origins = flow_facts(&self.checked)
             .control
             .exits
             .span_or_empty(flow.exits)
             .iter()
             .flat_map(|exit| {
-                self.checked
-                    .facts
-                    .flow
+                flow_facts(&self.checked)
                     .control
                     .exit_parameter_origins
                     .span_or_empty(exit.parameter_origins)

@@ -9,6 +9,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralTypeShape, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceNode,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 use std::collections::BTreeSet;
 
 pub(crate) fn build_affine_array_construction_prefix(
@@ -92,12 +94,7 @@ pub(crate) fn build_affine_array_construction_prefix(
     let mut rows = Vec::with_capacity(assignments.len());
     for (expected_index, statement) in assignments.iter().enumerate() {
         let assignment = statement.as_assignment()?;
-        let target = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            expected_index + 1,
-            assignment.target,
-        )?;
+        let target = place_at(program, state.symbol, expected_index + 1, assignment.target)?;
         if target.root != facts::PlaceRoot::Symbol(local.symbol)
             || target.segments.as_slice()
                 != [facts::PlaceSegment::FixedIndex {
@@ -106,12 +103,9 @@ pub(crate) fn build_affine_array_construction_prefix(
         {
             return None;
         }
-        let literal = program
-            .expression_table
-            .struct_literal_node(assignment.value)?;
+        let literal = expressions(program).struct_literal_node(assignment.value)?;
         if literal.case_name.is_some()
-            || !program
-                .expression_table
+            || !expressions(program)
                 .struct_fields(literal.fields)
                 .is_empty()
         {

@@ -7,7 +7,9 @@ use typed_trees::name::Identifier;
 use typed_trees::types::TypeConstraintNode;
 
 mod float_predicate;
+mod rows;
 pub use float_predicate::FloatPredicate;
+pub use rows::FactTable;
 
 /// Exact checked ownership retained for one fact authored by a domain
 /// definition. The ordinary semantic fact remains the flow-facing row; this

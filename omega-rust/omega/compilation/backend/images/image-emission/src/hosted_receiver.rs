@@ -5,23 +5,11 @@
 //! and observes the same allocations after normal loan retirement. Its stack
 //! is a separate disjoint partition whose demand comes from the whole callee.
 
-mod aarch64;
-mod instructions;
-mod windows_x86_64;
+pub(super) mod aarch64;
+pub(super) mod instructions;
+pub(super) mod windows_x86_64;
 pub(crate) use aarch64::prepare as prepare_aarch64_entry;
 pub(crate) use instructions::validate_aarch64 as validate_aarch64_entry;
-
-use crate::hosted_entry_storage::{HostedEntryPartitions, HostedEntryStorage};
-
-// This bridge retains its Win32 observer call frame and fifth pointer slot;
-// the callee body demand is independent of this exact adapter occupancy.
-fn receiver_call_overhead(target: target::NativeTarget) -> u64 {
-    if target == target::NativeTarget::windows_x64() {
-        72
-    } else {
-        0
-    }
-}
 
 use diagnostics::Diagnostic;
 use program_entry_plan::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
@@ -50,7 +38,7 @@ impl HostedReceiverBinding {
     }
 }
 
-fn invalid(target: target::NativeTarget) -> Diagnostic {
+pub(super) fn invalid(target: target::NativeTarget) -> Diagnostic {
     Diagnostic::error(format!(
         "installed private entry RAM lost exact contract, storage, or entry custody for {target:?}"
     ))
@@ -67,14 +55,31 @@ pub(super) fn recipe_index_for_runtime_position(
         .position(|recipe| recipe.input().runtime_position as usize == ordinal)
 }
 
+pub use crate::hosted_entry_storage::HostedEntryPartitions as HostedReceiverPartitions;
+use crate::hosted_entry_storage::HostedEntryStorage;
+type HostedEntryPartitions = HostedReceiverPartitions;
+
+fn receiver_call_overhead(target: target::NativeTarget) -> u64 {
+    if target == target::NativeTarget::windows_x64() {
+        72
+    } else if target.architecture == target::Architecture::X86_64 {
+        // The external CALL pushes before entering the separately composed body.
+        8
+    } else {
+        0
+    }
+}
+
 impl HostedReceiverBinding {
-    /// The exact physical target this binding was admitted for. Partition and
-    /// instruction custody are derived under it, never inferred from bytes.
+    /// Partition under the exact physical target admitted with this binding.
     fn target(&self) -> target::NativeTarget {
         self.physical.target_slot().owner.native_target()
     }
 
-    pub fn partitions(&self, existing_bss_bytes: u64) -> Result<HostedEntryPartitions, Diagnostic> {
+    pub fn partitions(
+        &self,
+        existing_bss_bytes: u64,
+    ) -> Result<HostedReceiverPartitions, Diagnostic> {
         crate::hosted_entry_storage::partitions(
             self.target(),
             &self.demand,

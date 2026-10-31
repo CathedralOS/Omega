@@ -20,6 +20,9 @@ pub(super) fn retain(
 ) -> Result<Vec<LoweredBuildProviderRequirement>, LoweringError> {
     let mut requirements: Vec<LoweredBuildProviderRequirement> = Vec::new();
     for occurrence in calls {
+        let Some(site) = occurrence.origin.statement() else {
+            continue;
+        };
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
             occurrence.source_site
         else {
@@ -38,13 +41,12 @@ pub(super) fn retain(
             continue;
         };
         if requirements.iter().any(|requirement| {
-            requirement.selection == call.build_selection
-                && requirement.source_state == occurrence.source_state
+            requirement.selection == call.build_selection && requirement.source_state == site.state
         }) {
             continue;
         }
         let owner = checked
-            .machine_holding_state(occurrence.source_state)
+            .machine_holding_state(site.state)
             .ok_or(LoweringError::Unsupported(
                 "Build readiness lost its source owner",
             ))?;
@@ -90,7 +92,7 @@ pub(super) fn retain(
         }
         requirements.push(LoweredBuildProviderRequirement {
             selection: call.build_selection,
-            source_state: occurrence.source_state,
+            source_state: site.state,
             declaration,
             application: identities.intern(&application),
             boundaries: slots,

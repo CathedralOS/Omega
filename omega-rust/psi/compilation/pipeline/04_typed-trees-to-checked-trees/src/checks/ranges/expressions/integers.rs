@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
@@ -121,8 +122,7 @@ pub(in crate::checks::ranges) fn expression_name(
     let path = program.expression_table.name_path_node(expression)?;
     Some((
         path.symbol,
-        program
-            .expression_table
+        expressions(program)
             .name_path_members(path.members)
             .last()
             .map(|name| name.as_str()),

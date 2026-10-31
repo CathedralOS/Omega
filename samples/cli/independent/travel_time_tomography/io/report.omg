@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 use domain::model;
 public data Output { }
 public machine write_scaled(output: &mut Output, value: f64) reaches Console
-invokes Console;
+invokes Console
 {
     let converted: i64 in Saturating = I64::from_f64(value * 1000000.0);
     let units: i64 = (converted as i64) % 2000000000000000;
@@ -37,7 +37,7 @@ invokes Console;
     machine done(output: &mut Output) { Console::write_line(""); }
 }
 public machine report(output: &mut Output, problem: &Problem, fit: &Fit) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");
     Console::write("cell_first_micro="); write_scaled(output, fit.first);

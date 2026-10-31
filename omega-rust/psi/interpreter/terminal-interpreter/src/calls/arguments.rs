@@ -94,7 +94,7 @@ impl TerminalExecution<'_> {
         let mut opaque_arguments = Vec::new();
         for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
             if terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 parameter.structural_type,
             )
             .is_some()
@@ -115,7 +115,7 @@ impl TerminalExecution<'_> {
             .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?
             .into_call_arguments(
                 &opaque_parameters,
-                &self.program.structural_types(),
+                &self.structural_types(),
                 self.structural_cases.as_map(),
                 self.account.as_ref(),
             )

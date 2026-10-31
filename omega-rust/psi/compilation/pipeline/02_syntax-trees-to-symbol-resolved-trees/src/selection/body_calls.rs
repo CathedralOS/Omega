@@ -4,6 +4,9 @@
 //! routing and target-sibling binding. Each pass supplies only its decision;
 //! the reach over the body is defined once here.
 
+use crate::tables::body_expressions;
+use crate::tables::body_statements;
+use crate::tables::resolved_declarations;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbols::JoinedPath;
@@ -114,24 +117,18 @@ fn retarget_statement_span(
         match statement {
             symbol_resolved_trees::statement::StatementNode::Assembly(handle) => {
                 let graph = program.tables.declarations.assembly_graphs.get(handle);
-                let blocks = program
-                    .tables
-                    .declarations
+                let blocks = resolved_declarations(&program)
                     .assembly_blocks
                     .span_or_empty(graph.blocks)
                     .to_vec();
                 for block in blocks {
                     expressions.extend_from_slice(
-                        program
-                            .tables
-                            .declarations
+                        resolved_declarations(&program)
                             .assembly_expressions
                             .span_or_empty(block.requires),
                     );
                     expressions.extend_from_slice(
-                        program
-                            .tables
-                            .declarations
+                        resolved_declarations(&program)
                             .assembly_expressions
                             .span_or_empty(block.ensures),
                     );
@@ -152,11 +149,7 @@ fn retarget_statement_span(
             }
             symbol_resolved_trees::statement::StatementNode::Call(call) => {
                 expressions.extend_from_slice(
-                    program
-                        .tables
-                        .bodies
-                        .statements
-                        .expression_handles(call.arguments),
+                    body_statements(&program).expression_handles(call.arguments),
                 );
                 let site = CallSite {
                     target_symbol: call.target_symbol,
@@ -165,10 +158,7 @@ fn retarget_statement_span(
                     receiver_symbol: call.receiver_symbol,
                     requirement_application: arena::Handle::invalid(),
                     local_receiver: call.receiver.is_empty(),
-                    argument_count: program
-                        .tables
-                        .bodies
-                        .statements
+                    argument_count: body_statements(&program)
                         .expression_handles(call.arguments)
                         .len(),
                 };
@@ -220,12 +210,7 @@ fn retarget_transition_target(
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
     expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
-    let node = program
-        .tables
-        .bodies
-        .statements
-        .transition_target(target)
-        .clone();
+    let node = body_statements(&program).transition_target(target).clone();
     match node {
         symbol_resolved_trees::statement::TransitionTargetNode::Named {
             path,
@@ -233,11 +218,7 @@ fn retarget_transition_target(
             source_span,
             ..
         } => {
-            let members = program
-                .tables
-                .bodies
-                .statements
-                .name_path_members(path.members);
+            let members = body_statements(&program).name_path_members(path.members);
             let spelling = DiagnosticName::new(members.joined_path(), source_span);
             let replacement = members.last().and_then(|member| {
                 decide(&CallSite {
@@ -247,10 +228,7 @@ fn retarget_transition_target(
                     receiver_symbol: path.receiver_symbol,
                     requirement_application: arena::Handle::invalid(),
                     local_receiver: members.len() == 1,
-                    argument_count: program
-                        .tables
-                        .bodies
-                        .statements
+                    argument_count: body_statements(&program)
                         .expression_handles(arguments)
                         .len(),
                 })
@@ -270,13 +248,7 @@ fn retarget_transition_target(
                 }
                 retained.symbol = replacement;
             }
-            expressions.extend_from_slice(
-                program
-                    .tables
-                    .bodies
-                    .statements
-                    .expression_handles(arguments),
-            );
+            expressions.extend_from_slice(body_statements(&program).expression_handles(arguments));
         }
         symbol_resolved_trees::statement::TransitionTargetNode::Value(value) => {
             expressions.push(value);
@@ -295,24 +267,13 @@ fn retarget_expression(
         return;
     }
     visited.push(expression);
-    let node = program
-        .tables
-        .bodies
-        .expressions
-        .expression(expression)
-        .clone();
+    let node = body_expressions(&program).expression(expression).clone();
     let mut children = Vec::new();
     match node {
         symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
-                children.extend(
-                    program
-                        .tables
-                        .bodies
-                        .expressions
-                        .match_pattern_dependencies(arm.pattern),
-                );
+                children.extend(body_expressions(&program).match_pattern_dependencies(arm.pattern));
                 children.push(arm.value);
             }
         }
@@ -334,13 +295,8 @@ fn retarget_expression(
             if call.receiver.is_valid() {
                 children.push(call.receiver);
             }
-            children.extend_from_slice(
-                program
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression_handles(call.arguments),
-            );
+            children
+                .extend_from_slice(body_expressions(&program).expression_handles(call.arguments));
             let receiver_symbol = match program.tables.bodies.expressions.expression(call.receiver)
             {
                 symbol_resolved_trees::expression::ExpressionNode::Name(path)
@@ -357,10 +313,7 @@ fn retarget_expression(
                 receiver_symbol,
                 requirement_application: call.requirement_application,
                 local_receiver: !call.receiver.is_valid(),
-                argument_count: program
-                    .tables
-                    .bodies
-                    .expressions
+                argument_count: body_expressions(&program)
                     .expression_handles(call.arguments)
                     .len(),
             };
@@ -388,10 +341,7 @@ fn retarget_expression(
         }
         symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
             children.extend(
-                program
-                    .tables
-                    .bodies
-                    .expressions
+                body_expressions(&program)
                     .struct_fields(literal.fields)
                     .iter()
                     .map(|field| field.value),

@@ -51,7 +51,7 @@ impl TerminalExecution<'_> {
             // Authenticate the captured region even when its active case has
             // no linear claims. Stale bytes are never a restored owner.
             let returned = crate::custody::project_structural_value(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 owner,
                 &completion.path,
             )?;
@@ -83,7 +83,7 @@ impl TerminalExecution<'_> {
             }
             let case_membership = |current: &StructuralAffineDiscard| {
                 crate::structural_inputs::case_membership::stored_case_at_projection(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     self.structural_values.get(&current.place)?,
                     self.structural_cases.as_map(),
                     &current.path,
@@ -103,7 +103,7 @@ impl TerminalExecution<'_> {
             {
                 frontier.remove(&containing);
                 crate::custody::split_affine_frontier_at_projection(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     &mut frontier,
                     containing,
                     &completion.path,
@@ -120,7 +120,7 @@ impl TerminalExecution<'_> {
                     structural_type: returned.structural_type,
                 });
                 crate::custody::exclude_linear_regions(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     &mut frontier,
                     active_claims
                         .iter()
@@ -193,7 +193,7 @@ impl TerminalExecution<'_> {
         let result = &active_result;
         let case_membership = |current: &StructuralAffineDiscard| {
             crate::structural_inputs::case_membership::stored_case_at_projection(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &selected,
                 self.structural_cases.as_map(),
                 &current.path,
@@ -295,7 +295,7 @@ impl TerminalExecution<'_> {
             {
                 frontier.remove(&containing);
                 super::split_affine_frontier_at_projection(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     frontier,
                     containing,
                     &restored.path,
@@ -312,7 +312,7 @@ impl TerminalExecution<'_> {
                             (storage, current.path.as_slice())
                         };
                         crate::structural_inputs::case_membership::stored_case_at_projection(
-                            &self.program.structural_types(),
+                            &self.structural_types(),
                             root,
                             self.structural_cases.as_map(),
                             path,

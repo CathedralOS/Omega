@@ -26,11 +26,11 @@ linux_x86_64 machine initialize_native(allocation: Allocation in AllocationIssue
  requires allocation.pointer != 0 && value == 0 && allocation_size == 64;
 NativeHeap satisfies Heap {
  machine allocate(count: u64, allocation_size: u64) -> Allocation
- requires count == 1 && allocation_size >= 64; {
+ requires count == 1 && allocation_size >= 64 {
   allocate_native(count, allocation_size)
  }
  machine initialize(allocation: Allocation in AllocationIssued, value: i32, allocation_size: u64) -> &mut Frame<i32>
- requires allocation.pointer != 0 && value == 0 && allocation_size == 64; {
+ requires allocation.pointer != 0 && value == 0 && allocation_size == 64 {
   initialize_native(allocation, value, allocation_size)
  }
 }

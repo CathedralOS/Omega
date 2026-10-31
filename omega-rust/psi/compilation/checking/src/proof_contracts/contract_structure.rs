@@ -5,6 +5,7 @@
 //! Preparation and checked-fact construction borrow the same queries; neither
 //! pipeline mutation nor proof search is a dependency of this projection.
 
+use crate::frozen_program::expression_table;
 use checked_trees::{
     DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact, DeclaredContractKind,
     DeclaredContractParameter, DeclaredProgressPremise, DeclaredTermination,
@@ -281,8 +282,7 @@ fn project_declared_fact(
                     }
                 })
                 .collect::<Option<Vec<_>>>()?;
-            let argument_labels = program
-                .expression_table
+            let argument_labels = expression_table(program)
                 .expression_handles(application.arguments)
                 .iter()
                 .map(|argument| expression_identity(*argument))
@@ -356,7 +356,7 @@ pub fn is_true_crash_route(
         fact,
         typed_trees::domain::ProofFact::Expression(expression)
             if matches!(
-                program.expression_table.expression(*expression),
+                expression_table(program).expression(*expression),
                 typed_trees::expression::ExpressionNode::Boolean(true)
             )
     )

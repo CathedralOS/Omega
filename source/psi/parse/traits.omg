@@ -42,6 +42,7 @@ crashes Trap
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.declaration_first_parent = parser.output.trait_parent_count as u64 in Trapping;
         parser.declaration_first_contract = parser.output.contract_count as u64 in Trapping;
+        parser.declaration_contract_count = 0;
         parser.declaration_is_refinement = false;
         parser.declaration_type = 0;
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedTraitName);
@@ -207,6 +208,8 @@ crashes Trap
             return_type: 0,
             first_clause: parser.output.clause_count as u64 in Trapping,
             clause_count: 0,
+            first_contract: 0,
+            contract_count: 0,
             source_span: Parser::source_span(parser, parser.contract_start, parser.token_end)
         };
         Parser::retain_contract(parser, input, contract);
@@ -217,6 +220,8 @@ crashes Trap
     }
 
     machine body(parser: &mut Parser, input: &TokenStream) {
+        parser.declaration_contract_count =
+            (parser.output.contract_count as u64 in Trapping) - parser.declaration_first_contract;
         Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedTraitBody);
         parser.declaration_first_machine = parser.output.machine_count as u64 in Trapping;
         transition parser.output.accepted {
@@ -346,7 +351,7 @@ crashes Trap
             is_boundary: parser.declaration_is_boundary,
             is_public: parser.declaration_is_public,
             first_contract: parser.declaration_first_contract,
-            contract_count: (parser.output.contract_count as u64 in Trapping) - parser.declaration_first_contract,
+            contract_count: parser.declaration_contract_count,
             is_refinement: parser.declaration_is_refinement,
             base: parser.declaration_type,
             source_span: span

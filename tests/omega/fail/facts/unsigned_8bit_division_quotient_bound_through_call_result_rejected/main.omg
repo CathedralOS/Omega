@@ -4,16 +4,16 @@
 // Expected rejection: may overflow `u8`
 
 machine compute_quotient(d: u8, s: u8) -> u8
-    requires d >= 120u8 && d <= 120u8;
-    requires s >= 4u8 && s <= 5u8;
-    ensures result >= 24u8 && result <= 30u8;
+    requires d >= 120u8 && d <= 120u8
+    requires s >= 4u8 && s <= 5u8
+    ensures result >= 24u8 && result <= 30u8
 {
     d / s
 }
 
 machine divide_call_result(dividend: u8, divisor: u8) -> i32
-    requires dividend >= 120u8 && dividend <= 120u8;
-    requires divisor >= 4u8 && divisor <= 5u8;
+    requires dividend >= 120u8 && dividend <= 120u8
+    requires divisor >= 4u8 && divisor <= 5u8
 {
     let quotient: u8 = compute_quotient(dividend, divisor);
     let check: u8 = quotient - 30u8;

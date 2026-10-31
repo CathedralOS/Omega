@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine multiply_other_state(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 20i32;
-    requires rhs >= 5i32 && rhs <= 10i32;
+    requires lhs >= 10i32 && lhs <= 20i32
+    requires rhs >= 5i32 && rhs <= 10i32
 {
     let a: i32 in Saturating = lhs as i32 in Saturating;
     let b: i32 in Saturating = rhs as i32 in Saturating;
@@ -14,7 +14,7 @@ machine multiply_other_state(lhs: i32, rhs: i32) -> i32
         _ -> check_state(prod)
     }
     machine check_state(p: i32) -> i32
-        requires p >= 50i32 && p <= 200i32;
+        requires p >= 50i32 && p <= 200i32
     {
         let headroom: i32 = 200i32 - p;
         let margin: i32 = p - 50i32;

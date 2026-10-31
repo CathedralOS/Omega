@@ -7,6 +7,7 @@
 use super::super::argument_evaluation::Evaluation;
 use super::super::structural_values;
 use super::{OperationEnvironment, OperationFrame, StructuralResults};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
@@ -147,9 +148,7 @@ impl OperationFrame<'_, '_> {
                 access: crate::expression_preparation::bindings::structural_paths::terminal_access(
                     result.local.access,
                 ),
-                selection: checked
-                    .facts
-                    .flow
+                selection: flow_facts(checked)
                     .ownership
                     .owned_selection_for_expression(
                         state,
@@ -208,17 +207,13 @@ impl OperationEnvironment<'_> {
         let checked = self.checked;
         let first_new_place = *self.next_place;
         let node = checked.facts.values.structural_values.nodes.get(value);
-        let root = checked
-            .facts
-            .values
+        let root = value_facts(checked)
             .structural_values
             .root_for_value(value)
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its complete checked root",
             ))?;
-        let (preceding_bindings, operand_calls) = checked
-            .facts
-            .values
+        let (preceding_bindings, operand_calls) = value_facts(checked)
             .structural_values
             .call_schedule(value)
             .ok_or(LoweringError::Unsupported(
@@ -266,9 +261,7 @@ impl OperationEnvironment<'_> {
         let produced = {
             let mut environment = self.reborrow();
             environment.results = StructuralResults::Dense(&mut results);
-            let selection = checked
-                .facts
-                .flow
+            let selection = flow_facts(checked)
                 .ownership
                 .owned_selection_for_expression(node.state, node.statement_index, node.expression)
                 .map(|(handle, _)| handle)

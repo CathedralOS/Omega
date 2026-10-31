@@ -140,9 +140,7 @@ fn encode_scalar_node(
             encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
             encoder.field("index", |encoder| encode_scalar_expression(encoder, index))?;
-            encoder.field("inner_indexes", |encoder| {
-                encoder.sequence(inner_indexes, encode_scalar_expression)
-            })?;
+            encoder.sequence_field("inner_indexes", inner_indexes, encode_scalar_expression)?;
             encoder.field_by(
                 "element_path",
                 element_path.as_slice(),

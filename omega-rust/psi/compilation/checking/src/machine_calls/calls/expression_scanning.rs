@@ -11,6 +11,7 @@ use super::{
     validate_machine_call_type_parameter_bounds, validate_value_call_arguments,
 };
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
@@ -77,9 +78,9 @@ pub(super) fn receiver_member_chain(
     if !receiver.is_valid() {
         return None;
     }
-    match program.expression_table.expression(receiver) {
+    match expression_table(program).expression(receiver) {
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             (!members.is_empty()).then(|| {
                 members
                     .iter()
@@ -265,7 +266,7 @@ fn validate_expression_call_bounds(
         Some(current_state),
         call.target_symbol,
         &call.machine_arguments,
-        program.expression_table.expression_handles(call.arguments),
+        expression_table(program).expression_handles(call.arguments),
         diagnostics,
     );
     let evidence_receiver = super::generic_requirement::expression_conformance_receiver(
@@ -296,7 +297,7 @@ fn validate_expression_call_bounds(
                 current_machine,
                 Some(current_state),
                 value_environment,
-                program.expression_table.expression_handles(call.arguments),
+                expression_table(program).expression_handles(call.arguments),
                 &call.machine_arguments,
                 &requirement,
                 writable_roots,
@@ -311,7 +312,7 @@ fn validate_expression_call_bounds(
         }
         Ok(None) => {}
     }
-    let call_arguments = program.expression_table.expression_handles(call.arguments);
+    let call_arguments = expression_table(program).expression_handles(call.arguments);
     match super::dynamic_requirement::dynamic_selector_call(
         program,
         current_machine,
@@ -380,7 +381,7 @@ fn validate_expression_call_bounds(
         || builtin.and_then(register_read_mnemonic).is_some())
         && !call.receiver.is_valid()
     {
-        let arguments = program.expression_table.expression_handles(call.arguments);
+        let arguments = expression_table(program).expression_handles(call.arguments);
         if !arguments.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
                 "asm intrinsic `{}` takes 0 operands, found {}",
@@ -400,7 +401,7 @@ fn validate_expression_call_bounds(
         } else {
             ("rdmsr", 1)
         };
-        let arguments = program.expression_table.expression_handles(call.arguments);
+        let arguments = expression_table(program).expression_handles(call.arguments);
         if arguments.len() != 1 {
             diagnostics.push(Diagnostic::error(format!(
                 "asm intrinsic `{intrinsic}` takes 1 operand, found {}",
@@ -432,7 +433,7 @@ fn validate_expression_call_bounds(
             ));
             return;
         }
-        let arguments = program.expression_table.expression_handles(call.arguments);
+        let arguments = expression_table(program).expression_handles(call.arguments);
         let parameters = program.operator_parameters(operator);
         let operand_types = arguments
             .iter()
@@ -526,9 +527,9 @@ fn validate_expression_call_bounds(
     {
         (true, None)
     } else {
-        match program.expression_table.expression(call.receiver) {
+        match expression_table(program).expression(call.receiver) {
             ExpressionNode::Name(path) => {
-                let members = program.expression_table.name_path_members(path.members);
+                let members = expression_table(program).name_path_members(path.members);
                 if members.is_empty() || matches!(members, [r] if r.is_self_receiver()) {
                     (true, None)
                 } else {
@@ -540,7 +541,7 @@ fn validate_expression_call_bounds(
         }
     };
 
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let site = ValueCallSite {
         program,
         current_machine,
@@ -558,7 +559,7 @@ fn validate_expression_call_bounds(
     // (`Ascending::before(left, right)`); resolution already selected that
     // implementation's row, an ordinary machine called with its explicit
     // arguments.
-    if let Some(path) = program.expression_table.name_path_node(call.receiver)
+    if let Some(path) = expression_table(program).name_path_node(call.receiver)
         && path.symbol.is_valid()
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Conformance
     {
@@ -705,8 +706,7 @@ fn validate_expression_call_bounds(
         && !placed_accessor
         && machine_state_by_symbol(program, call.target_symbol).is_some()
     {
-        if program
-            .expression_table
+        if expression_table(program)
             .name_path_node(call.receiver)
             .is_some_and(|path| !path.head_symbol.is_valid() || !path.symbol.is_valid())
         {
@@ -725,8 +725,7 @@ fn validate_expression_call_bounds(
     if let Some((callee_machine, callee_state)) =
         machine_state_by_symbol(program, call.target_symbol)
     {
-        let qualifier = program
-            .expression_table
+        let qualifier = expression_table(program)
             .name_path_node(call.receiver)
             .map_or_else(symbols::SymbolHandle::invalid, |path| path.symbol);
         if namespace
@@ -809,7 +808,7 @@ fn validate_named_float_to_integer_call(
         current_machine.name,
         current_state.name,
         path,
-        program.expression_table.display_name(*value),
+        expression_table(program).display_name(*value),
         target.name(),
         target.name(),
         target.name(),

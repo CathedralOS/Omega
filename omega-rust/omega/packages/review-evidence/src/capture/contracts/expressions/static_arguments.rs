@@ -68,20 +68,16 @@ pub(crate) fn contract_call_static_parameter_kinds(
         })
         .collect::<Vec<_>>();
     let [parameter_kinds] = candidates.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call target rejoins {} static telescopes; expected exactly one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "contract call target rejoins {} static telescopes; expected exactly one",
             candidates.len()
-        ))]);
+        )));
     };
     if parameter_kinds.len() != supplied_count {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call supplies {supplied_count} static arguments for a checked telescope of {} parameters",
-            context.subject_kind,
-            context.subject_name,
-            parameter_kinds.len()
-        ))]);
+        return Err(context.rejected(format!(
+            "contract call supplies {supplied_count} static arguments for a checked telescope of {} parameters",
+            parameter_kinds.len(),
+        )));
     }
     Ok(parameter_kinds.clone())
 }
@@ -160,10 +156,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
             .authored_declaration_selections()
             .get(occurrence)
         else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` retains an unknown static-argument selection occurrence",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("retains an unknown static-argument selection occurrence"));
         };
         if selection.kind() != AuthoredDeclarationSelectionKind::StaticArgument {
             continue;
@@ -177,18 +170,16 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
             continue;
         }
         if selection.exposure() != context.selection_exposure {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` named const has the wrong retained static-argument selection exposure",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected(
+                "named const has the wrong retained static-argument selection exposure",
+            ));
         }
         selected_consts.push(target.selected_symbol());
     }
     if selected_consts != argument_consts {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` named const arguments do not match their exact authored static-argument selections",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected(
+            "named const arguments do not match their exact authored static-argument selections",
+        ));
     }
     Ok(())
 }

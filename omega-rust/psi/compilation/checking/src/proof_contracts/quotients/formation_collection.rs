@@ -1,6 +1,7 @@
 //! Collecting validated quotient formations and rejecting operation
 //! requests.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::quotients::ValidatedQuotientFormation;
 use crate::proof_contracts::quotients::carrier_fence::{
     CarrierFenceViolation, first_forbidden_carrier_content,
@@ -114,10 +115,7 @@ pub(crate) fn reject_quotient_operation_requests(
     termination: &dyn super::CheckedTerminationOracle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if !program
-        .expression_table
-        .iter_expressions()
-        .any(|(_, expression)| {
+    if !expression_table(program).iter_expressions().any(|(_, expression)| {
             matches!(expression, ExpressionNode::Call(call) if call.quotient_operation.is_some())
         })
     {
@@ -132,9 +130,8 @@ pub(crate) fn reject_quotient_operation_requests(
             let Some(result_root) = relation_plan::fallthrough_result_root(program, state) else {
                 continue;
             };
-            let ExpressionNode::Call(call) = program
-                .expression_table
-                .expression(result_root.request_expression)
+            let ExpressionNode::Call(call) =
+                expression_table(program).expression(result_root.request_expression)
             else {
                 continue;
             };
@@ -395,7 +392,7 @@ pub(crate) fn reject_quotient_operation_requests(
     // Preserve the global fail-closed fence for nested, contract-only, or
     // otherwise ownerless table expressions. Their context is deliberately not
     // guessed from arena proximity.
-    for (handle, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in expression_table(program).iter_expressions() {
         let ExpressionNode::Call(call) = expression else {
             continue;
         };

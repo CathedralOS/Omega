@@ -35,6 +35,14 @@ including interpreter disagreement. An explicit target compiles without running
 the image. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
+Host comparisons accept `--both --terminal-fuel-allowance <positive-u64>`.
+The allowance supplies each Terminal invocation independently, including each
+input case and stdin replay; it defaults to 10,000,000 logical fuel units.
+It requires `--both` without `--target`. Exhaustion remains a declined comparison.
+Native execution receives no fuel counter. Kept single-run artifacts and case
+outputs include `terminal.fuel.tsv` (case-prefixed in batch mode), recording the
+supplied allowance, actual charged units and schedule identity.
+
 `run --keep` retains the published native image, its exact `program.oterm`,
 `native.identity.txt`, and comparison streams when requested. It does not
 pretty-print the native object's internal evidence graph into a text dump.

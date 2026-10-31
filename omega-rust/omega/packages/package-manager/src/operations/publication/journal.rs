@@ -56,9 +56,7 @@ impl PackageFileJournal {
             return Err(PackagePublicationError::ByteLimitExceeded);
         }
         let mut bytes = Vec::new();
-        bytes
-            .try_reserve_exact(total)
-            .map_err(|_| PackagePublicationError::AllocationFailed)?;
+        crate::reserve!(bytes, total, PackagePublicationError);
         bytes.extend_from_slice(HEADER);
         for (name, payload) in rows {
             bytes.extend_from_slice(name);
@@ -175,9 +173,7 @@ fn read_payload<'a>(
 
 fn copy_payload(payload: &[u8]) -> Result<Vec<u8>, PackagePublicationError> {
     let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(payload.len())
-        .map_err(|_| PackagePublicationError::AllocationFailed)?;
+    crate::reserve!(bytes, payload.len(), PackagePublicationError);
     bytes.extend_from_slice(payload);
     Ok(bytes)
 }

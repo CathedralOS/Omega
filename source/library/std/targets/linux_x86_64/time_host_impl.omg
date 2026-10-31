@@ -135,7 +135,7 @@ linux_x86_64 machine TimeHostNativeProvider::wall_clock_epoch_offset_seconds() -
 linux_x86_64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
     satisfies TimeHost::sleep
 reaches TimeHost
-blocks;
+blocks
 {
     transition milliseconds > 2147483647 {
         true -> block in_parts(milliseconds)
@@ -160,7 +160,7 @@ blocks;
 // oversleep; this boundary promises neither an upper duration nor termination.
 linux_x86_64 machine TimeHostNativeProvider::wait_part_linux_x86_64(timeout_milliseconds: i32)
 reaches TimeHost
-blocks;
+blocks
 {
     transition { _ -> block wait(timeout_milliseconds) }
 

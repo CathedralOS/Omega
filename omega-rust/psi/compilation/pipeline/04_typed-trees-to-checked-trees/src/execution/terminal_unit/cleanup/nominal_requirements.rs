@@ -7,6 +7,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitNominalAffineCleanupRequirementPlan, ContractProofFactKind, ContractProofFactOwner,
     DataMember, Diagnostic, ExpressionNode, PrimitiveType, StateParameter, SymbolHandle,
 };
+use crate::places::place_at;
 
 pub(crate) fn nominal_cleanup_boolean_requirements(
     program: &dyn ::validation::CheckingInput,
@@ -239,8 +240,7 @@ pub(crate) fn direct_boolean_field_requirement(
         }
         _ => return None,
     };
-    let place =
-        validation::canonical_place_from_expression_in_state(program, state, 0, field_expression)?;
+    let place = place_at(program, state, 0, field_expression)?;
     let [facts::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
         return None;
     };

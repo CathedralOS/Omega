@@ -6,10 +6,9 @@ data Countdown where remaining <= 5, limit <= 5, spare <= 5 {
 
 measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
 
-machine walk(countdown: Countdown)
-requires countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit;
-terminates by countdown -> Countdown::Remaining in 0..=countdown.limit;
--> u64 {
+machine walk(countdown: Countdown) -> u64
+requires countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit
+terminates by countdown -> Countdown::Remaining in 0..=countdown.limit {
     transition countdown.remaining > 0 {
         true -> walk(Countdown {
             remaining: countdown.remaining - 1,

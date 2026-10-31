@@ -13,6 +13,7 @@
 //! complete operand tuple stable and never evaluates an initializer twice.
 
 use super::InferredUpdate;
+use crate::tables::expressions_of;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -82,12 +83,11 @@ pub(super) fn adapt(program: &TypedTrees, updates: &mut [InferredUpdate]) {
             let mut operand_uses = Vec::new();
             for &expression in &expressions {
                 let ExpressionNode::Indexed(indexed) =
-                    program.expression_table.expression(expression)
+                    expressions_of(program).expression(expression)
                 else {
                     continue;
                 };
-                let (spelling, operands) = match program.expression_table.expression(indexed.index)
-                {
+                let (spelling, operands) = match expressions_of(program).expression(indexed.index) {
                     ExpressionNode::Range(range) => (
                         OperatorSpelling::Range,
                         vec![indexed.collection, range.start, range.end],
@@ -175,7 +175,7 @@ fn capture_index(
     if !expression.is_valid() {
         return None;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Name(path) = expressions_of(program).expression(expression) else {
         return None;
     };
     captures
@@ -199,7 +199,7 @@ fn consumed_type(
             program,
             spelling,
             operands,
-            program.expression_table.source_span(expression),
+            expressions_of(program).source_span(expression),
         )
         .into_iter()
         .filter_map(|candidate| {

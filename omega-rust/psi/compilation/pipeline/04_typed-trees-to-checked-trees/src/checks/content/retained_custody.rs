@@ -17,6 +17,7 @@ mod structural_sources;
 
 pub(crate) use partitioned_results::check_boundary_partition_results;
 
+use crate::flow::expressions;
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
 use language_semantics::content::{
@@ -53,9 +54,7 @@ pub(crate) fn check_callable(
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
-            if program
-                .expression_table
-                .names_reserved_result(membership.value)
+            if expressions(program).names_reserved_result(membership.value)
                 && let Some(domain) = nominal_domain_application(program, membership.domain_symbol)
             {
                 push_unique_domain_application(&mut result_domains, domain);
@@ -96,9 +95,7 @@ pub(crate) fn check_callable(
                     let Some(membership) = fact.as_membership() else {
                         continue;
                     };
-                    if program
-                        .expression_table
-                        .names_parameter(membership.value, parameter)
+                    if expressions(program).names_parameter(membership.value, parameter)
                         && let Some(domain) =
                             nominal_domain_application(program, membership.domain_symbol)
                     {

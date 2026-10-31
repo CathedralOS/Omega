@@ -1,3 +1,4 @@
+use crate::places::place_at;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::super::expressions::ensured_call_result_bounds;
@@ -138,12 +139,7 @@ fn alias_source_label(
     if !validation::place_has_builtin_coordinates(program, machine, Some(state), value) {
         return None;
     }
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        value,
-    )?;
+    let place = place_at(program, state.symbol, statement_index, value)?;
     // A narrowed window changes element coordinates. Its independent extent
     // seeding below cannot donate the source's element-position facts.
     if !matches!(place.root, facts::PlaceRoot::Symbol(root) if root.is_valid())

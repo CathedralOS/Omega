@@ -9,6 +9,7 @@ use crate::evaluated_via_bindings::binding_values::{
 use crate::evaluated_via_bindings::{
     BindingVocabulary, EvaluatedNativeBinding, EvaluatedViaBindingRow, MATERIALIZER_SCHEMA_VERSION,
 };
+use crate::provider_planning::entry_state;
 use build_time_evaluation::{
     BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeProgram,
     CURRENT_EVALUATION_SEMANTICS,
@@ -65,11 +66,7 @@ pub(crate) fn evaluate_one(
             "ordinary external `via` does not resolve to one exact producer entry",
         ));
     };
-    if typed
-        .machine_states(producer)
-        .first()
-        .is_none_or(|first| first.symbol != entry.symbol)
-    {
+    if entry_state(typed, producer).is_none_or(|first| first.symbol != entry.symbol) {
         return Err(at(
             source_span,
             "ordinary external `via` target is not the producer entry state",
@@ -94,7 +91,7 @@ pub(crate) fn evaluate_one(
     } else {
         *producer
     };
-    let entry = typed.machine_states(producer).first().ok_or_else(|| {
+    let entry = entry_state(typed, producer).ok_or_else(|| {
         at(
             source_span,
             "ordinary external `via` producer body has no entry state",

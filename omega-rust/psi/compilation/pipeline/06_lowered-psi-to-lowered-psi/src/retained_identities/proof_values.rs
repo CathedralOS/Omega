@@ -19,6 +19,26 @@ pub(crate) fn retain_proposition(
     });
 }
 
+/// Values a machine's contract names: every `requires` proposition, both kinds
+/// of `ensures` clause, and the guard predicates of its crash routes. They are
+/// proof terms, not uses, so a rewrite that removes or renumbers a value keeps
+/// every identity they mention exact.
+pub(crate) fn retain_contract_values(
+    contract: &terminal_psi::MachineContract,
+    retained_values: &mut BTreeSet<ValueId>,
+) {
+    for proposition in &contract.requires {
+        retain_proposition(proposition, retained_values);
+    }
+    for clause in &contract.ensures {
+        retain_proposition(&clause.proposition, retained_values);
+    }
+    for guarantee in &contract.outcome_specific_ensures {
+        retain_proposition(&guarantee.proposition, retained_values);
+    }
+    retain_crash_routes(&contract.crash_routes, retained_values);
+}
+
 /// Erased-argument lanes carry caller-side proof terms: retain every identity
 /// they name so a rewrite cannot strip a formal's evidence.
 pub(crate) fn retain_erased_arguments(
