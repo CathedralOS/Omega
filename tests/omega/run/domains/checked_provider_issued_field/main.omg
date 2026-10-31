@@ -22,7 +22,9 @@ machine Main::main(context: &mut Main) reaches Source crashes Trap {
 }
 
 CheckedSourceSourceImplementation satisfies Source {
-    Source::open = CheckedSource::open;
+    machine open() -> Package reaches {
+        CheckedSource::open()
+    }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
