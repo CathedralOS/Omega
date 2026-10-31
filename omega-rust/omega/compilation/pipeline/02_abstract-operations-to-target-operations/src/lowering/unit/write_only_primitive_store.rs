@@ -11,6 +11,7 @@
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::known_integers::KnownUnitInteger;
 use crate::LoweringError;
+use crate::lowering::control_flow::scalar_sources::runtime_indices;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -165,12 +166,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     // The target keeps the complete path, including each pointer crossing;
     // selection must reconstruct and apply each region around its pointer load.
     let runs = projection.selector_runs();
-    let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
-        runs,
-        function,
-        scalar_sources,
-    )
-    .map_err(|_| invalid())?;
+    let indices = runtime_indices(runs, function, scalar_sources).map_err(|_| invalid())?;
     let (_, source) = if let Some(block_value) = block_value {
         if block_value.value != value.value || block_value.scalar_type != value.scalar_type {
             return Err(invalid());
