@@ -1,0 +1,33 @@
+// Fact: widening an observed u8 to an i32 payload preserves 0..255 in ByteParcel::Byte, so 255 - value remains exact through transport.
+// Place: target_body
+// Invalid: adding one to the converted byte can produce 256.
+
+public data ByteParcel [copy]
+requires (self in ByteParcel::Empty) || ((self in ByteParcel::Byte) && self.value >= 0 && self.value <= 255)
+{
+    case Empty;
+    case Byte(value: i32);
+}
+public machine make(byte: u8) -> ByteParcel {
+    ByteParcel::Byte { value: (byte as i32) + 1 }
+}
+public machine consume(parcel: ByteParcel) -> i32 {
+    transition parcel {
+        ByteParcel::Byte { value } -> (255 - value)
+        ByteParcel::Empty -> (-1)
+    }
+}
+boundary trait ByteSource { machine produce(byte: u8) -> ByteParcel reaches; }
+HostedByteSource satisfies ByteSource {
+    machine produce(byte: u8) -> ByteParcel { make(byte) }
+}
+machine main() reaches ByteSource crashes Trap {
+    let first: i32 = consume(ByteSource::produce(128u8));
+    let second: i32 = consume(ByteSource::produce(255u8));
+    transition first == 127 && second == 0 && consume(ByteParcel::Empty) == -1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
