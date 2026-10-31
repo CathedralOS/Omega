@@ -257,7 +257,7 @@ impl Emission<'_, '_, '_> {
                         id.get().checked_add(1).ok_or(LoweringError::Unsupported(
                             "representation count obligation identity overflows",
                         ))?,
-                    )?,
+                    ),
                 }
             }
             None => terminal_psi::ElementViewRegion::WholeCollection,

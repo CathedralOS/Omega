@@ -105,7 +105,7 @@ machine inspect(image: u64) -> bool invokes ImageReadback {
     }
 }
 
-machine main() reaches Console invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
+machine main() reaches Console invokes Console invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
     let space: u64 = cg_color_space_rgb();
     let image: u64 = snapshot(space);
     cg_color_space_release(space);
