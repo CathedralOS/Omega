@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::analyses::liveness::LivenessError;
 use register_model::RegisterOperandAccess;
+use register_model::RegisterUnitId;
 use selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
     LivenessPosition, OperandPosition, SuccessorLiveness,
@@ -88,11 +89,11 @@ pub(crate) fn compute_terminal_liveness_reusing(
 /// and reverse transfer are shared with full liveness.
 pub(crate) struct UnitInstructionLiveness {
     pub(crate) instruction: selected_instructions::SelectedInstructionId,
-    pub(crate) unit_live_in: Vec<register_model::RegisterUnitId>,
-    pub(crate) unit_live_out: Vec<register_model::RegisterUnitId>,
+    pub(crate) unit_live_in: Vec<RegisterUnitId>,
+    pub(crate) unit_live_out: Vec<RegisterUnitId>,
 }
 pub(crate) struct UnitBlockLiveness {
-    pub(crate) unit_live_in: Vec<register_model::RegisterUnitId>,
+    pub(crate) unit_live_in: Vec<RegisterUnitId>,
     pub(crate) instructions: Vec<UnitInstructionLiveness>,
 }
 pub(crate) struct UnitFunctionLiveness {
@@ -101,7 +102,7 @@ pub(crate) struct UnitFunctionLiveness {
 pub(crate) fn compute_function_units_filtered(
     function_index: usize,
     function: &SelectedFunction,
-    unit_filter: &[register_model::RegisterUnitId],
+    unit_filter: &[RegisterUnitId],
     needed_blocks: &[bool],
 ) -> Result<UnitFunctionLiveness, LivenessError> {
     let flow = flow::FunctionFlow::compute_units_filtered(function_index, function, unit_filter)?;
@@ -205,10 +206,7 @@ pub(crate) fn compute_function_units_filtered(
         .collect();
     Ok(UnitFunctionLiveness { blocks })
 }
-fn transfer_units(
-    live: &mut BTreeSet<register_model::RegisterUnitId>,
-    instruction: &SelectedInstruction,
-) {
+fn transfer_units(live: &mut BTreeSet<RegisterUnitId>, instruction: &SelectedInstruction) {
     for killed in instruction
         .implicit_defs
         .iter()

@@ -40,6 +40,7 @@ use crate::rewrites::block_edges::{
 use crate::rewrites::condition_state::{
     EventSite, adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
+use crate::rewrites::plan_function;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -212,8 +213,7 @@ pub(super) fn admit_shadowed_compare<'source, E: Copy, V>(
     agreement: ShadowAgreement<V>,
     per_unit: impl FnOnce(&crate::rewrites::ConePropagation) -> Result<usize, E>,
 ) -> Result<Admission<'source>, E> {
-    let (plan, function) =
-        crate::rewrites::plan_function(source, function_index, environment, || refusals.source)?;
+    let (plan, function) = plan_function(source, function_index, environment, || refusals.source)?;
     let (block_index, compare_index) = member_position(function, compare).ok_or(refusals.source)?;
     let block = &function.blocks[block_index];
     let compare_instruction = &block.instructions[compare_index];
@@ -391,10 +391,9 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, DeadCompareError> {
-    let (plan, function) =
-        crate::rewrites::plan_function(source, function_index, environment, || {
-            DeadCompareError::SourceMismatch
-        })?;
+    let (plan, function) = plan_function(source, function_index, environment, || {
+        DeadCompareError::SourceMismatch
+    })?;
     let (block_index, compare_index) =
         member_position(function, compare).ok_or(DeadCompareError::SourceMismatch)?;
     let block = &function.blocks[block_index];
