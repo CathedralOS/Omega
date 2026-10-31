@@ -5,7 +5,6 @@
 //! `call_operations`, `structural_operations` and the earlier owners), then
 //! settles the block terminator through its `settle_*` method (`terminators`).
 
-use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{
     bind_affine_frontier, bind_arguments, bind_entry_claims, bind_structural_arguments,
@@ -910,14 +909,21 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.structural_values.require(&place)
     }
 
-    /// Every live structural value: the running frame's own table, then each
-    /// suspended caller's.
+    /// Every live structural value: current and suspended frame bindings, then
+    /// the completed owned result. Returning ends its place binding, not its
+    /// storage ownership; inspection and retained loans need that same owner.
     pub(crate) fn live_structural_values(&self) -> impl Iterator<Item = &TerminalStructuralValue> {
-        self.structural_values.values().chain(
-            self.call_stack
-                .iter()
-                .flat_map(|frame| frame.structural_values.values()),
-        )
+        self.structural_values
+            .values()
+            .chain(
+                self.call_stack
+                    .iter()
+                    .flat_map(|frame| frame.structural_values.values()),
+            )
+            .chain(self.result.iter().filter_map(|result| match result {
+                crate::TerminalExecutionResult::Structural(result) => Some(&result.value),
+                _ => None,
+            }))
     }
 
     /// Every scalar bound to `arguments`, in order.

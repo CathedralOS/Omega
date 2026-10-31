@@ -7,8 +7,8 @@ use build_evaluation::terminal_bindings::TerminalBuildBindingHost;
 use build_evaluation::terminal_requests::TerminalBuildRequestHost;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalEffectHandler, TerminalEntryStorageError, TerminalEntryStorageValue,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalStructuralInputs,
+    TerminalEffectHandler, TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram,
+    TerminalStorageObservationError, TerminalStorageObservationValue, TerminalStructuralInputs,
     TerminalStructuralValue,
 };
 
@@ -125,7 +125,7 @@ fn exercise(
                 assert!(format!("{error:?}").contains("original compiler-issued Build"));
                 assert_eq!(
                     instance.observe_borrowed_entry(0, &identifier),
-                    Err(TerminalEntryStorageError::NormalReturnRequired)
+                    Err(TerminalStorageObservationError::NormalReturnRequired)
                 );
                 drop(instance);
                 assert!(host.into_executed().unwrap().is_empty());
@@ -146,7 +146,7 @@ fn exercise(
             }
             assert!(instance.result().is_some());
             assert!(paused_after_effect);
-            let TerminalEntryStorageValue::Bytes(bytes) =
+            let TerminalStorageObservationValue::Bytes(bytes) =
                 instance.observe_borrowed_entry(0, &identifier).unwrap()
             else {
                 panic!("identifier byte readback");

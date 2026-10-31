@@ -11,8 +11,8 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalProgram, TerminalScalarValue, TerminalStorageContents,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    TerminalStorageContents, TerminalStorageObservationError, TerminalStorageObservationValue,
     TerminalStructuralInputs, TerminalStructuralValue,
 };
 
@@ -454,7 +454,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 .expect("host establishes zero-backed borrowed input");
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NormalReturnRequired)
+                Err(TerminalStorageObservationError::NormalReturnRequired)
             );
             let mut meter = TerminalFuelMeter::with_allowance(0);
             assert!(matches!(
@@ -463,7 +463,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
             ));
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NormalReturnRequired)
+                Err(TerminalStorageObservationError::NormalReturnRequired)
             );
             meter.replenish(100_000).unwrap();
             assert_eq!(
@@ -486,7 +486,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                     instance
                         .observe_borrowed_entry(0, &[signature_path[0], Path::FixedIndex(1)])
                         .unwrap(),
-                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                    TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
                             value: IntegerValue::Unsigned(9),
                             ..
@@ -496,7 +496,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 ));
                 assert_eq!(
                     instance.observe_borrowed_entry(0, &[signature_path[0], Path::FixedIndex(3)]),
-                    Err(TerminalEntryStorageError::UnknownPath)
+                    Err(TerminalStorageObservationError::UnknownPath)
                 );
                 assert!(matches!(
                     instance
@@ -505,7 +505,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                             &[terminal_mutable_boundary::field(artifact, "revision")]
                         )
                         .unwrap(),
-                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                    TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
                             value: IntegerValue::Unsigned(42),
                             ..
@@ -531,13 +531,14 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                     report,
                     optimization_core::OptimizationReportRequest::Suppressed
                 );
-                let TerminalEntryStorageValue::Storage(TerminalStorageContents::Case(selected)) =
-                    instance
-                        .observe_borrowed_entry(
-                            0,
-                            &[terminal_mutable_boundary::field(artifact, "subsystem")],
-                        )
-                        .unwrap()
+                let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(
+                    selected,
+                )) = instance
+                    .observe_borrowed_entry(
+                        0,
+                        &[terminal_mutable_boundary::field(artifact, "subsystem")],
+                    )
+                    .unwrap()
                 else {
                     panic!("Build subsystem retains its selected case");
                 };
@@ -556,16 +557,18 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
             }
             assert_eq!(
                 instance.observe_borrowed_entry(1, &identifier_path),
-                Err(TerminalEntryStorageError::NotBorrowedEntryArgument { argument_index: 1 })
+                Err(TerminalStorageObservationError::NotBorrowedEntryArgument {
+                    argument_index: 1
+                })
             );
             assert_eq!(
                 instance.observe_borrowed_entry(0, &[]),
-                Err(TerminalEntryStorageError::UnknownPath)
+                Err(TerminalStorageObservationError::UnknownPath)
             );
             instance.close().unwrap();
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::Closed)
+                Err(TerminalStorageObservationError::Closed)
             );
         }
     }
@@ -587,8 +590,8 @@ fn zeroed_instance<'host, 'artifact>(
         .unwrap()
 }
 
-fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
-    let TerminalEntryStorageValue::Bytes(bytes) = observed else {
+fn assert_bytes(observed: TerminalStorageObservationValue<'_>, expected: &[u8]) {
+    let TerminalStorageObservationValue::Bytes(bytes) = observed else {
         panic!("expected byte readback");
     };
     assert_eq!(bytes.len(), expected.len());
@@ -622,14 +625,63 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
             );
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NotBorrowedEntryArgument { argument_index: 0 })
+                Err(TerminalStorageObservationError::NotBorrowedEntryArgument {
+                    argument_index: 0
+                })
             );
         } else {
             assert!(matches!(status, TerminalExecutionStatus::Crashed(_)));
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NormalReturnRequired)
+                Err(TerminalStorageObservationError::NormalReturnRequired)
             );
+        }
+    }
+}
+
+// Build project requests and designated binding operands have distinct source
+// issuers. Route only through the exact captured roster; sending every slot to
+// the binding host correctly refuses an ordinary Build::application effect.
+fn bind_build_hosts(
+    instance: &mut terminal_interpreter::TerminalInstance<'_, '_>,
+    produced: &psi_compiler::ProducedTerminalProgram,
+    original: &TerminalStructuralValue,
+    binding: &std::sync::Arc<build_evaluation::terminal_bindings::TerminalBuildBindingHost>,
+) {
+    let artifact = produced.artifact().expect("portable inspection");
+    let project = build_evaluation::terminal_requests::TerminalBuildRequestHost::new(
+        artifact.view().into(),
+        produced.build_requests(),
+        original.clone(),
+        None,
+    )
+    .expect("original project-request custody");
+    let requests = produced
+        .build_requests()
+        .calls_for(artifact.view().into())
+        .unwrap();
+    let bindings = produced
+        .build_bindings()
+        .calls_for(artifact.view().into())
+        .unwrap();
+    for boundary in instance.unbound_imports().collect::<Vec<_>>() {
+        let declaration = artifact
+            .semantic_module()
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == boundary)
+            .unwrap();
+        match (
+            requests.iter().any(|call| call.boundary == boundary),
+            bindings.iter().any(|call| call.boundary == boundary),
+        ) {
+            (true, false) => instance
+                .bind_import(boundary, project.adapter(declaration.into()))
+                .unwrap(),
+            (false, true) => instance
+                .bind_import(boundary, binding.adapter(declaration.into()))
+                .unwrap(),
+            _ => panic!("Build import must have exactly one source-issued host roster"),
         }
     }
 }
@@ -673,17 +725,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             )
             .unwrap();
             let mut instance = zeroed_instance(&program, &arguments);
-            for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-                let declaration = artifact
-                    .semantic_module()
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == boundary)
-                    .unwrap();
-                instance
-                    .bind_import(boundary, host.adapter(declaration.into()))
-                    .unwrap();
-            }
+            bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
             assert!(
                 build_evaluation::terminal_settings::extract(&instance, admission, &initial)
                     .unwrap_err()
@@ -839,17 +881,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         .unwrap();
         let arguments = [original];
         let mut instance = zeroed_instance(&program, &arguments);
-        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-            let declaration = artifact
-                .semantic_module()
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == boundary)
-                .unwrap();
-            instance
-                .bind_import(boundary, host.adapter(declaration.into()))
-                .unwrap();
-        }
+        bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
         let result = instance.invoke(meter);
         if completes {
             assert_eq!(
@@ -887,7 +919,8 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
                 "refusal must not replay effects"
             );
         }
-        assert_eq!(instance.effects().len(), 8);
+        // The authored application request precedes four binding prepare/commit pairs.
+        assert_eq!(instance.effects().len(), 1 + 4 * 2);
         drop(instance);
         assert_eq!(host.into_executed().unwrap().len(), 4);
     };
@@ -971,17 +1004,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
                 ..Default::default()
             })
             .unwrap();
-        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-            let declaration = artifact
-                .semantic_module()
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == boundary)
-                .unwrap();
-            instance
-                .bind_import(boundary, host.adapter(declaration.into()))
-                .unwrap();
-        }
+        bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
         let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
@@ -1026,7 +1049,8 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
                 settings.application_identifier,
                 Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
             );
-            assert_eq!(instance.effects().len(), 8);
+            // The authored application request precedes four binding prepare/commit pairs.
+            assert_eq!(instance.effects().len(), 1 + 4 * 2);
             assert!(
                 sponsor.live_payload_bytes() > 0,
                 "readback retains the original backing"

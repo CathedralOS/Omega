@@ -9,9 +9,9 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalEntryStorageValue, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalInstantiation,
-    TerminalInterpretError, TerminalProgram, TerminalScalarValue, TerminalStorageContents,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
+    TerminalInstanceError, TerminalInstantiation, TerminalInterpretError, TerminalProgram,
+    TerminalScalarValue, TerminalStorageContents, TerminalStorageObservationValue,
     TerminalStructuralInputs, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 
@@ -149,7 +149,7 @@ fn observe_program(
             if initial.is_some()
                 && !matches!(
                     instance.observe_borrowed_entry(0, &[]).map_err(describe)?,
-                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                    TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer { value: IntegerValue::Unsigned(observed), .. }, ..
                     }) if matches!(expected, ExpectedResult::Unsigned(expected) if observed == u128::from(expected))
                 )
