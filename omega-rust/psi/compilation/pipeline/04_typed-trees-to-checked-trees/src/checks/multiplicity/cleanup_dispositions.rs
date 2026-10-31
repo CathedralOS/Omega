@@ -4,6 +4,7 @@
 //! second control-flow analysis. The producer forks this state alongside its
 //! ordinary ownership state for each outgoing edge.
 mod case_exclusions;
+use crate::flow::canonical_place_segments_may_overlap;
 use case_exclusions::CaseExclusions;
 
 use checked_trees::{
@@ -940,18 +941,14 @@ impl RemainingCustody {
         for removed in &mut self.excluded {
             if removed.root == root
                 && removed.cause == ContextualCleanupExclusionCause::Unestablished
-                && crate::flow::canonical_place_segments_may_overlap(program, &removed.path, path)
+                && canonical_place_segments_may_overlap(program, &removed.path, path)
             {
                 removed.cause = ContextualCleanupExclusionCause::Unknown;
             }
         }
         self.inactive_cases.retain(|inactive| {
             inactive.root != root
-                || !crate::flow::canonical_place_segments_may_overlap(
-                    program,
-                    &inactive.segments,
-                    path,
-                )
+                || !canonical_place_segments_may_overlap(program, &inactive.segments, path)
         });
     }
 

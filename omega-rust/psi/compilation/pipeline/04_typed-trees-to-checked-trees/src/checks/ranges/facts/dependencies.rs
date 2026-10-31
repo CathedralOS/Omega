@@ -5,6 +5,7 @@
 //! to the receiving state. Field/index paths survive that join; spelling alone cannot keep a
 //! stale predecessor parameter current or authorize an unrelated binding.
 
+use crate::flow;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
@@ -207,7 +208,7 @@ impl<'field> RangeFacts<'field> {
         if !complete || reads.len() != 1 {
             return None;
         }
-        reads[0] = crate::flow::rebase_exact_local_place(
+        reads[0] = flow::rebase_exact_local_place(
             program,
             state.symbol,
             self.statement_index,
@@ -226,7 +227,7 @@ impl<'field> RangeFacts<'field> {
                 let [place] = row_reads.as_slice() else {
                     return None;
                 };
-                crate::flow::rebase_exact_local_place(
+                flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
@@ -267,7 +268,7 @@ impl<'field> RangeFacts<'field> {
                     return None;
                 };
                 let length = self.exact_length(&row.label)?;
-                let place = crate::flow::rebase_exact_local_place(
+                let place = flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
@@ -342,7 +343,7 @@ impl<'field> RangeFacts<'field> {
                 let [place] = row.reads.as_deref()? else {
                     return None;
                 };
-                let place = crate::flow::rebase_exact_local_place(
+                let place = flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
@@ -358,7 +359,7 @@ impl<'field> RangeFacts<'field> {
                     let suffix = &place.segments[storage.segments.len()..];
                     if !suffix
                         .iter()
-                        .all(|segment| crate::flow::fixed_selection_segment(segment))
+                        .all(|segment| flow::fixed_selection_segment(segment))
                     {
                         return None;
                     }
@@ -462,7 +463,7 @@ impl<'field> RangeFacts<'field> {
         {
             return;
         }
-        let Some(place) = crate::flow::canonical_place_from_symbol(symbol) else {
+        let Some(place) = flow::canonical_place_from_symbol(symbol) else {
             return;
         };
         let length = self.capture_length(program, machine, state, source);
@@ -603,11 +604,11 @@ impl<'field> RangeFacts<'field> {
         if !complete
             || !reads
                 .iter()
-                .any(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
+                .any(|read| flow::canonical_places_agree(program, read, &descriptor))
         {
             return None;
         }
-        reads.retain(|read| !crate::flow::canonical_places_agree(program, read, &descriptor));
+        reads.retain(|read| !flow::canonical_places_agree(program, read, &descriptor));
         Some(CapturedLength {
             collection,
             descriptor,
@@ -801,7 +802,7 @@ impl<'field> RangeFacts<'field> {
         .and_then(|descriptor| {
             reads
                 .iter()
-                .position(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
+                .position(|read| flow::canonical_places_agree(program, read, &descriptor))
         });
         if complete && scope.evaluation.symbol != state.symbol {
             complete = state_transport::transport_reads(
@@ -896,7 +897,7 @@ impl<'field> RangeFacts<'field> {
                     && match (left.3, right.3) {
                         (None, None) => true,
                         (Some(left), Some(right)) => {
-                            crate::flow::canonical_places_agree(program, left, right)
+                            flow::canonical_places_agree(program, left, right)
                         }
                         _ => false,
                     }
@@ -956,7 +957,7 @@ impl<'field> RangeFacts<'field> {
                     && reads.iter().all(|read| {
                         writes.iter().all(|write| {
                             if row.descriptor.as_ref().is_some_and(|descriptor| {
-                                crate::flow::canonical_places_agree(program, descriptor, read)
+                                flow::canonical_places_agree(program, descriptor, read)
                             }) {
                                 !super::invalidation::write_covers_place(program, write, read)
                             } else {
@@ -1068,11 +1069,7 @@ fn places_overlap(
     right: &CanonicalPlace,
 ) -> bool {
     (left.root) == (right.root)
-        && crate::flow::canonical_place_segments_may_overlap(
-            program,
-            &left.segments,
-            &right.segments,
-        )
+        && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 
 fn same_reads(
@@ -1086,7 +1083,7 @@ fn same_reads(
     // Separate guard occurrences may copy the same typed selector tree into
     // different arena slots. Compare their meaning, not those allocation slots.
     let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
-        crate::flow::canonical_places_agree(program, left, right)
+        flow::canonical_places_agree(program, left, right)
     };
     if std::ptr::eq(left, right) {
         return left.iter().all(|read| equal(read, read));

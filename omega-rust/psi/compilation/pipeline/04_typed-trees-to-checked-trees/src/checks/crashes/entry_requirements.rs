@@ -2,6 +2,7 @@
 //! after body storage changes. Named-state requirements describe an arrival,
 //! not the invocation snapshot, and must never enter this collection.
 
+use crate::facts::canonical_crash_contract_predicate;
 use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
 use typed_trees::expression::ExpressionHandle;
 
@@ -45,16 +46,14 @@ pub(super) fn collect(
             if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {
                 continue;
             }
-            result
-                .conjuncts
-                .push(crate::facts::canonical_crash_contract_predicate(
-                    program,
-                    *expression,
-                    false,
-                    program.state_parameters(entry),
-                    parameter_names,
-                    content_conservation,
-                ));
+            result.conjuncts.push(canonical_crash_contract_predicate(
+                program,
+                *expression,
+                false,
+                program.state_parameters(entry),
+                parameter_names,
+                content_conservation,
+            ));
             if let Some(consequences) = common.collect(*expression, false, 0) {
                 result.consequences.extend(consequences);
             }
@@ -86,16 +85,14 @@ pub(super) fn collect(
                 continue;
             }
             if common.establishes(*expression, false, &result.consequences, 0) == Some(true) {
-                result
-                    .consequences
-                    .push(crate::facts::canonical_crash_contract_predicate(
-                        program,
-                        *expression,
-                        false,
-                        program.state_parameters(entry),
-                        parameter_names,
-                        content_conservation,
-                    ));
+                result.consequences.push(canonical_crash_contract_predicate(
+                    program,
+                    *expression,
+                    false,
+                    program.state_parameters(entry),
+                    parameter_names,
+                    content_conservation,
+                ));
                 result.consequences.sort_unstable();
                 result.consequences.dedup();
             }

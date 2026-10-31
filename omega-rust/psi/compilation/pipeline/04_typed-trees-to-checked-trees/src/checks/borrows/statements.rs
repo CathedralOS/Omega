@@ -1,3 +1,5 @@
+use crate::borrow::view_link::substituted_result_is_view_free;
+use crate::collections::push_unique;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use validation::find_state_in_machine;
@@ -309,7 +311,7 @@ pub(super) fn check_statement_borrows<'p>(
                             )
                         });
                         for handle in call.completed_reference_loans.handles() {
-                            crate::collections::push_unique(&mut current_loans, handle);
+                            push_unique(&mut current_loans, handle);
                         }
                     }
                     for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
@@ -317,7 +319,7 @@ pub(super) fn check_statement_borrows<'p>(
                             && !loan.established_by_call.is_valid()
                             && loan.formation_expression == *expression
                     }) {
-                        crate::collections::push_unique(&mut current_loans, handle);
+                        push_unique(&mut current_loans, handle);
                     }
                 }
                 StatementStep::Move {
@@ -732,9 +734,7 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
             validation::expression_result_type_reference(program, machine, source, *argument)?;
         if [parameter.type_reference, actual]
             .into_iter()
-            .all(|reference| {
-                crate::borrow::view_link::substituted_result_is_view_free(program, reference, &[])
-            })
+            .all(|reference| substituted_result_is_view_free(program, reference, &[]))
         {
             continue;
         }
@@ -771,18 +771,16 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
             };
         } else {
             let (_, local) = program.state_local_declaration(source, root)?;
-            if !crate::borrow::view_link::substituted_result_is_view_free(
-                program,
-                local.type_reference,
-                &[],
-            ) || !call_frames?.local_backing_survives_state_jump(
-                machine,
-                source,
-                call.statement_index,
-                target,
-                arguments,
-                root,
-            ) {
+            if !substituted_result_is_view_free(program, local.type_reference, &[])
+                || !call_frames?.local_backing_survives_state_jump(
+                    machine,
+                    source,
+                    call.statement_index,
+                    target,
+                    arguments,
+                    root,
+                )
+            {
                 return None;
             }
         }

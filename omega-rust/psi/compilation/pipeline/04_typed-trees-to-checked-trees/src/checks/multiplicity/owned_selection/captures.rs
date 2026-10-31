@@ -3,6 +3,8 @@
 //! rows describe only the exact value transport at completion, not an AST
 //! recognizer or another ownership evaluator.
 
+use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowOperandCompletion, FlowOperandFact};
 use diagnostics::Diagnostic;
@@ -57,7 +59,7 @@ impl SelectionProduction {
         state: SymbolHandle,
         statement: usize,
         evaluation: checked_trees::FlowPermissionEvaluation,
-        places: &[crate::checks::multiplicity::linear_obligations::LinearPlace],
+        places: &[LinearPlace],
     ) -> Result<Option<Self>, Diagnostic> {
         let Some(flow) = facts.flow.control.state(machine, state) else {
             return Ok(None);
@@ -300,10 +302,7 @@ impl SelectionProduction {
                 None
             };
             let mut claims = Vec::new();
-            for template in crate::checks::multiplicity::linear_validation::linear_claim_frontier(
-                program,
-                owner.type_reference,
-            ) {
+            for template in linear_claim_frontier(program, owner.type_reference) {
                 let mut path = owner.source.segments.clone();
                 path.extend_from_slice(&template.path);
                 let same_completion = |event: &&checked_trees::FlowPermissionEventFact| {
@@ -621,7 +620,7 @@ pub(in crate::checks::multiplicity) fn evaluated_source_custody<'evaluation>(
     events: &[checked_trees::FlowPermissionEventFact],
 ) -> Result<
     (
-        &'evaluation [crate::checks::multiplicity::linear_obligations::LinearPlace],
+        &'evaluation [LinearPlace],
         &'evaluation super::super::cleanup_dispositions::RemainingCustody,
         super::super::cleanup_dispositions::CustodyCut,
     ),
@@ -683,7 +682,7 @@ fn collect(
     facts: &CheckFacts,
     machine: SymbolHandle,
     evaluation: checked_trees::FlowPermissionEvaluation,
-    places: &[crate::checks::multiplicity::linear_obligations::LinearPlace],
+    places: &[LinearPlace],
     operand: &FlowOperandFact,
     arm: Handle<TableMatchArm>,
     destination: &[PlaceSegment],
@@ -731,10 +730,7 @@ fn collect(
         FlowOperandCompletion::Constructed(children) => {
             // Nominal obligations belong to the completed constructor itself.
             // Transparent storage instead transports its contained owners.
-            let frontier = crate::checks::multiplicity::linear_validation::linear_claim_frontier(
-                program,
-                operand.type_reference,
-            );
+            let frontier = linear_claim_frontier(program, operand.type_reference);
             if !frontier.iter().any(|claim| claim.path.is_empty()) {
                 let before = owners.len();
                 for child in facts.flow.control.operand_children.span_or_empty(children) {

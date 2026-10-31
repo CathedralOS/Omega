@@ -1,6 +1,7 @@
 //! Domain predicates over exact, live assignment values. Mutation invalidation
 //! owns their lifetime; this consumer neither replays a body nor assumes zeros.
 
+use crate::flow::canonical_places_agree;
 use validation::CanonicalPlace;
 
 use crate::flow::expressions;
@@ -329,9 +330,7 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
                         semantic,
                         semantic.places.get(place),
                     )
-                    .is_some_and(|candidate| {
-                        crate::flow::canonical_places_agree(program, &candidate, subject)
-                    })
+                    .is_some_and(|candidate| canonical_places_agree(program, &candidate, subject))
             })
     })
 }
@@ -500,8 +499,7 @@ impl AssignedValues<'_> {
                         self.semantic,
                         self.semantic.places.get(place),
                     )?;
-                    crate::flow::canonical_places_agree(self.program, &candidate, subject)
-                        .then_some(variant)
+                    canonical_places_agree(self.program, &candidate, subject).then_some(variant)
                 })
         })
     }

@@ -1,4 +1,5 @@
 use super::RangeFacts;
+use crate::flow;
 use validation::CanonicalPlace;
 
 use language_core::place_field;
@@ -22,12 +23,12 @@ impl RangeFacts<'_> {
         if !self.has_relational_bounds() {
             if !self.measured_results.is_empty() || !self.scalar_binding_dependencies.is_empty() {
                 let mut owned_frames = None;
-                let shared_frames = crate::flow::shared_call_frames_or(
+                let shared_frames = flow::shared_call_frames_or(
                     self.checked_calls.and_then(|context| context.call_frames()),
                     program,
                     &mut owned_frames,
                 );
-                let writes = crate::flow::statement_storage_writes(
+                let writes = flow::statement_storage_writes(
                     program,
                     machine.symbol,
                     state.symbol,
@@ -46,7 +47,7 @@ impl RangeFacts<'_> {
         let extent = self.mutable_byte_view_extent(program, machine, state, assignment.target);
         let target = program.expression_table.display_name(assignment.target);
         let mut owned_frames = None;
-        let shared_frames = crate::flow::shared_call_frames_or(
+        let shared_frames = flow::shared_call_frames_or(
             self.checked_calls.and_then(|context| context.call_frames()),
             program,
             &mut owned_frames,
@@ -64,7 +65,7 @@ impl RangeFacts<'_> {
             || !self.measured_results.is_empty()
             || self.has_descriptor_facts())
         .then(|| {
-            crate::flow::statement_storage_writes(
+            flow::statement_storage_writes(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -202,7 +203,7 @@ impl RangeFacts<'_> {
         let call_writes = call_writes.and_then(|writes| writes.aliases);
         self.retire_captured_observations(program, call_writes.as_deref());
         let mut owned_frames = None;
-        let shared_frames = crate::flow::shared_call_frames_or(
+        let shared_frames = flow::shared_call_frames_or(
             self.checked_calls.and_then(|context| context.call_frames()),
             program,
             &mut owned_frames,
@@ -215,7 +216,7 @@ impl RangeFacts<'_> {
             paths
                 .filter(|_| !self.expression_dependencies.is_empty())
                 .and_then(|paths| {
-                    crate::flow::frame_storage_writes(
+                    flow::frame_storage_writes(
                         program,
                         machine.symbol,
                         state.symbol,
@@ -373,9 +374,9 @@ fn descriptor_covered(
     label: &str,
 ) -> Option<bool> {
     let place = if symbol.is_valid() {
-        crate::flow::canonical_place_from_symbol(symbol)?
+        flow::canonical_place_from_symbol(symbol)?
     } else {
-        crate::flow::place_from_origin_path(program, state, statement_index, label)?
+        flow::place_from_origin_path(program, state, statement_index, label)?
     };
     Some(
         writes
@@ -393,11 +394,7 @@ pub(super) fn write_covers_place(
 ) -> bool {
     (write.root) == (place.root)
         && write.segments.len() <= place.segments.len()
-        && crate::flow::canonical_place_segments_may_overlap(
-            program,
-            &write.segments,
-            &place.segments,
-        )
+        && flow::canonical_place_segments_may_overlap(program, &write.segments, &place.segments)
 }
 
 /// Whether a write to `path` expires the bound labelled `name`.

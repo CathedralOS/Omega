@@ -7,6 +7,7 @@ use super::{
     semantic_contexts_prove_boolean_expression,
 };
 use crate::checks::contracts::{captured_predicates, prover, return_values};
+use crate::flow::captured_observation_places;
 
 impl ExitScalars<'_, '_> {
     pub(super) fn current_predicate(&self, expression: ExpressionHandle) -> Option<bool> {
@@ -147,19 +148,15 @@ impl ExitScalars<'_, '_> {
                     entry.return_type,
                     &binding.place.segments,
                 )?;
-                let observed = crate::flow::captured_observation_places(
-                    self.program,
-                    &self.facts.flow,
-                    values.first()?,
-                )?;
+                let observed =
+                    captured_observation_places(self.program, &self.facts.flow, values.first()?)?;
                 let [observed] = observed.as_slice() else {
                     return None;
                 };
                 if !values.iter().all(|value| {
-                    crate::flow::captured_observation_places(self.program, &self.facts.flow, value)
-                        .is_some_and(|places| {
-                            places.len() == 1 && places[0].projected == observed.projected
-                        })
+                    captured_observation_places(self.program, &self.facts.flow, value).is_some_and(
+                        |places| places.len() == 1 && places[0].projected == observed.projected,
+                    )
                 }) {
                     return None;
                 }

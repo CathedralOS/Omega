@@ -4,6 +4,8 @@
 //! write footprints in the admitted control order; no source expression or
 //! call initializer is replayed to recover a value.
 use crate::flow::expressions;
+use crate::values::resolve_structural_parameter_path;
+use crate::values::structural_parameter_place;
 use checked_trees::CheckFacts;
 use facts::{FactPayload, ProgramPoint};
 use symbols::SymbolHandle;
@@ -472,11 +474,9 @@ impl<'program> QueryArguments<'program> {
         let frame = self.frames.get(frame)?;
         let parameters = program.proposition_parameters(frame.declaration);
         let project = |occurrence| {
-            let (position, path, _) =
-                crate::values::structural_parameter_place(program, parameters, occurrence)?;
-            let (_, segments, _, _) = crate::values::resolve_structural_parameter_path(
-                program, parameters, position, &path,
-            )?;
+            let (position, path, _) = structural_parameter_place(program, parameters, occurrence)?;
+            let (_, segments, _, _) =
+                resolve_structural_parameter_path(program, parameters, position, &path)?;
             Some((position, segments))
         };
         if let Some((position, mut segments)) = project(expression) {
@@ -530,10 +530,9 @@ impl QueryArguments<'_> {
                 let frame = self.frames.get(frame)?;
                 let parameters = program.proposition_parameters(frame.declaration);
                 let (position, path, _) =
-                    crate::values::structural_parameter_place(program, parameters, expression)?;
-                let (_, mut segments, _, _) = crate::values::resolve_structural_parameter_path(
-                    program, parameters, position, &path,
-                )?;
+                    structural_parameter_place(program, parameters, expression)?;
+                let (_, mut segments, _, _) =
+                    resolve_structural_parameter_path(program, parameters, position, &path)?;
                 segments.extend_from_slice(suffix);
                 self.source_projection(program, *frame.arguments.get(position as usize)?, &segments)
             }

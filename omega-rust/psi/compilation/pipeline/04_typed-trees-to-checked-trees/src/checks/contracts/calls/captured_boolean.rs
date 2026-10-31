@@ -3,7 +3,9 @@
 //! Such a predicate must use its retained capture; syntax-only proof routes may
 //! not reinterpret both observations as the invocation's final storage value.
 
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::places::place_at;
+use crate::semantic::facts::contract_parameter_position;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{Fact, FactPayload};
 
@@ -411,14 +413,8 @@ fn actual_for_formal_place<'program>(
     declared: &validation::CanonicalPlace,
 ) -> Option<call_values::Actual<'program>> {
     let symbol = declared.root.as_symbol()?;
-    let position = crate::semantic::facts::contract_parameter_position(
-        program,
-        &facts.proof,
-        contract,
-        target,
-        symbol,
-    )
-    .ok()??;
+    let position =
+        contract_parameter_position(program, &facts.proof, contract, target, symbol).ok()??;
     call_values::actual_at(program, state, call, position, declared.segments.clone())
 }
 
@@ -461,7 +457,7 @@ fn bound_contract_predicate(
     let parameters = declared_parameters
         .iter()
         .map(|parameter| {
-            let position = crate::semantic::facts::contract_parameter_position(
+            let position = contract_parameter_position(
                 program,
                 &facts.proof,
                 contract,
@@ -531,11 +527,7 @@ fn source_substitution_preserves_captures(
         call.call_ordinal,
     ))?;
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        expression,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, expression, &mut occurrences);
     let invocation = facts.flow.control.operands.span(call.operands)?.last();
     for occurrence in occurrences {
         let declared = validation::canonical_place_from_expression(program, occurrence)?;
@@ -553,7 +545,7 @@ fn source_substitution_preserves_captures(
             if contract.fact != source_fact {
                 continue;
             }
-            let selected = crate::semantic::facts::contract_parameter_position(
+            let selected = contract_parameter_position(
                 program,
                 &facts.proof,
                 contract,
@@ -657,18 +649,10 @@ fn capture_preserves_source(
         return Some(false);
     }
     let mut observations = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        capture.expression,
-        &mut observations,
-    );
+    append_expression_occurrences(program, capture.expression, &mut observations);
     for segment in remaining {
         if let facts::PlaceSegment::Index { expression } = segment {
-            crate::facts::contract_occurrences::append_expression_occurrences(
-                program,
-                *expression,
-                &mut observations,
-            );
+            append_expression_occurrences(program, *expression, &mut observations);
         }
     }
     for observation in observations {
@@ -725,11 +709,7 @@ fn reference_construction_preserves_source(
     );
     for segment in remaining {
         if let facts::PlaceSegment::Index { expression } = segment {
-            crate::facts::contract_occurrences::append_expression_occurrences(
-                program,
-                *expression,
-                &mut selectors,
-            );
+            append_expression_occurrences(program, *expression, &mut selectors);
         }
     }
     for selector in selectors {

@@ -1,5 +1,6 @@
 //! arm windows slice of borrowed_windows.
 
+use crate::flow::DiscoveredMoveEvent;
 use validation::CanonicalPlace;
 
 use super::{FrameWalk, StorageWalk, place_spelling};
@@ -190,7 +191,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         &mut self,
         walk: &StorageWalk<'_>,
         statement_index: usize,
-        event: &crate::flow::DiscoveredMoveEvent,
+        event: &DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) {
         let arm = self.effective_arm(walk, event);
@@ -334,7 +335,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         walk: &StorageWalk<'_>,
         statement_index: usize,
         event_index: usize,
-        event: &crate::flow::DiscoveredMoveEvent,
+        event: &DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) -> Option<ArmWindowVerdict> {
         let arm = self.effective_arm(walk, event);
@@ -524,11 +525,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// The arm this move evaluates on: the recorded `source_arm`, or — for
     /// call-flow events, which the discovery sink emits unattributed — the
     /// arm whose subtree contains the resolved call site.
-    fn effective_arm(
-        &self,
-        walk: &StorageWalk<'_>,
-        event: &crate::flow::DiscoveredMoveEvent,
-    ) -> ArmHandle {
+    fn effective_arm(&self, walk: &StorageWalk<'_>, event: &DiscoveredMoveEvent) -> ArmHandle {
         let program = walk.program;
         let machine = walk.machine;
         let state = walk.state;
@@ -564,7 +561,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     fn event_site_expression(
         &self,
         walk: &StorageWalk<'_>,
-        event: &crate::flow::DiscoveredMoveEvent,
+        event: &DiscoveredMoveEvent,
     ) -> ExpressionHandle {
         let program = walk.program;
         let machine = walk.machine;
