@@ -1,0 +1,7 @@
+accepted runtime portable result-storage $=case:Accepted @Accepted/packet/front=19 @Accepted/packet/rear=23 @Accepted/packet/items/0=case:Number @Accepted/packet/items/0/@Number/value=73 @Accepted/packet/items/1=case:Empty @Accepted/packet/message=bytes:accepted @Rejected/packet/front=unknown @Accepted/packet/items/2=unknown
+rejected runtime portable result-storage $=case:Rejected @Rejected/packet/front=31 @Rejected/packet/rear=37 @Rejected/code=41 @Rejected/packet/items/0=case:Empty @Rejected/packet/items/1=case:Number @Rejected/packet/items/1/@Number/value=97 @Rejected/packet/message=bytes:rejected @Accepted/packet/front=unknown
+scalar_case runtime portable result-storage $=case:Number @Number/value=73 @Empty=unknown
+empty_case runtime portable result-storage $=case:Empty @Number/value=unknown
+scalar_array runtime portable result-storage 0/0=7 0/1=19 1/0=23 1/1=31 2/0=unknown 0/2=unknown
+number runtime portable result-storage $=nonstructural
+crashing runtime portable result-storage crash

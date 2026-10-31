@@ -1,0 +1,63 @@
+// Expected exit: 0
+// Normal result observation must follow real nested tags and array contents,
+// preserve neighboring common fields, and retain borrowed literal bytes.
+data Item [copy] { case Number(value: u32); case Empty; }
+data Packet {
+    front: u32;
+    items: [Item; 2];
+    rear: u32;
+    message: &[u8];
+}
+data Reply { case Accepted(packet: Packet); case Rejected(packet: Packet, code: u32); }
+
+machine accepted() -> Reply {
+    Reply::Accepted { packet: Packet {
+        front: 19, items: [Item::Number { value: 73 }, Item::Empty],
+        rear: 23, message: "accepted",
+    } }
+}
+machine rejected() -> Reply {
+    Reply::Rejected { packet: Packet {
+        front: 31, items: [Item::Empty, Item::Number { value: 97 }],
+        rear: 37, message: "rejected",
+    }, code: 41 }
+}
+machine scalar_case() -> Item { Item::Number { value: 73 } }
+machine empty_case() -> Item { Item::Empty }
+machine scalar_array() -> [[u32; 2]; 2] { [[7, 19], [23, 31]] }
+machine number() -> u32 { 73 }
+machine crashing() -> Reply crashes Trap { crash Trap; }
+
+machine item_value(item: Item) -> u32 {
+    match item { Item::Number { value } -> value, Item::Empty -> 29 }
+}
+machine packet_valid(packet: &Packet, accepted: bool) -> bool {
+    transition accepted {
+        true -> (packet.front == 19 && packet.rear == 23
+            && item_value(packet.items[0]) == 73 && item_value(packet.items[1]) == 29
+            && packet.message.len == 8)
+        false -> (packet.front == 31 && packet.rear == 37
+            && item_value(packet.items[0]) == 29 && item_value(packet.items[1]) == 97
+            && packet.message.len == 8)
+    }
+}
+machine validate(reply: Reply, accepted: bool) -> bool {
+    match reply {
+        Reply::Accepted { packet } -> accepted && packet_valid(&packet, true),
+        Reply::Rejected { packet, code } -> !accepted && code == 41 && packet_valid(&packet, false),
+    }
+}
+machine main() crashes Trap {
+    let first: Reply = accepted();
+    let second: Reply = rejected();
+    let matrix: [[u32; 2]; 2] = scalar_array();
+    transition validate(first, true) && validate(second, false)
+        && item_value(scalar_case()) == 73 && item_value(empty_case()) == 29
+        && matrix[0][0] == 7 && matrix[0][1] == 19
+        && matrix[1][0] == 23 && matrix[1][1] == 31 && number() == 73 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

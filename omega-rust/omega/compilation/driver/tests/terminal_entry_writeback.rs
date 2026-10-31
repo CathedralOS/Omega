@@ -11,8 +11,8 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalProgram, TerminalScalarValue, TerminalStorageContents,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    TerminalStorageContents, TerminalStorageObservationError, TerminalStorageObservationValue,
     TerminalStructuralInputs, TerminalStructuralValue,
 };
 
@@ -454,7 +454,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 .expect("host establishes zero-backed borrowed input");
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NormalReturnRequired)
+                Err(TerminalStorageObservationError::NormalReturnRequired)
             );
             let mut meter = TerminalFuelMeter::with_allowance(0);
             assert!(matches!(
@@ -463,7 +463,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
             ));
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NormalReturnRequired)
+                Err(TerminalStorageObservationError::NormalReturnRequired)
             );
             meter.replenish(100_000).unwrap();
             assert_eq!(
@@ -486,7 +486,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                     instance
                         .observe_borrowed_entry(0, &[signature_path[0], Path::FixedIndex(1)])
                         .unwrap(),
-                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                    TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
                             value: IntegerValue::Unsigned(9),
                             ..
@@ -496,7 +496,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 ));
                 assert_eq!(
                     instance.observe_borrowed_entry(0, &[signature_path[0], Path::FixedIndex(3)]),
-                    Err(TerminalEntryStorageError::UnknownPath)
+                    Err(TerminalStorageObservationError::UnknownPath)
                 );
                 assert!(matches!(
                     instance
@@ -505,7 +505,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                             &[terminal_mutable_boundary::field(artifact, "revision")]
                         )
                         .unwrap(),
-                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                    TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
                         value: TerminalScalarValue::Integer {
                             value: IntegerValue::Unsigned(42),
                             ..
@@ -531,13 +531,14 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                     report,
                     optimization_core::OptimizationReportRequest::Suppressed
                 );
-                let TerminalEntryStorageValue::Storage(TerminalStorageContents::Case(selected)) =
-                    instance
-                        .observe_borrowed_entry(
-                            0,
-                            &[terminal_mutable_boundary::field(artifact, "subsystem")],
-                        )
-                        .unwrap()
+                let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(
+                    selected,
+                )) = instance
+                    .observe_borrowed_entry(
+                        0,
+                        &[terminal_mutable_boundary::field(artifact, "subsystem")],
+                    )
+                    .unwrap()
                 else {
                     panic!("Build subsystem retains its selected case");
                 };
@@ -556,16 +557,18 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
             }
             assert_eq!(
                 instance.observe_borrowed_entry(1, &identifier_path),
-                Err(TerminalEntryStorageError::NotBorrowedEntryArgument { argument_index: 1 })
+                Err(TerminalStorageObservationError::NotBorrowedEntryArgument {
+                    argument_index: 1
+                })
             );
             assert_eq!(
                 instance.observe_borrowed_entry(0, &[]),
-                Err(TerminalEntryStorageError::UnknownPath)
+                Err(TerminalStorageObservationError::UnknownPath)
             );
             instance.close().unwrap();
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::Closed)
+                Err(TerminalStorageObservationError::Closed)
             );
         }
     }
@@ -587,8 +590,8 @@ fn zeroed_instance<'host, 'artifact>(
         .unwrap()
 }
 
-fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
-    let TerminalEntryStorageValue::Bytes(bytes) = observed else {
+fn assert_bytes(observed: TerminalStorageObservationValue<'_>, expected: &[u8]) {
+    let TerminalStorageObservationValue::Bytes(bytes) = observed else {
         panic!("expected byte readback");
     };
     assert_eq!(bytes.len(), expected.len());
@@ -622,13 +625,15 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
             );
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NotBorrowedEntryArgument { argument_index: 0 })
+                Err(TerminalStorageObservationError::NotBorrowedEntryArgument {
+                    argument_index: 0
+                })
             );
         } else {
             assert!(matches!(status, TerminalExecutionStatus::Crashed(_)));
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
-                Err(TerminalEntryStorageError::NormalReturnRequired)
+                Err(TerminalStorageObservationError::NormalReturnRequired)
             );
         }
     }

@@ -20,8 +20,8 @@ pub(crate) use component_binding::ComponentBindings;
 pub use component_binding::TerminalComponentBinding;
 mod component_return;
 pub(crate) use component_return::ComponentOwnedReturn;
-mod entry_storage;
-pub use entry_storage::{TerminalEntryStorageError, TerminalEntryStorageValue};
+mod storage_observation;
+pub use storage_observation::{TerminalStorageObservationError, TerminalStorageObservationValue};
 
 use std::collections::BTreeMap;
 

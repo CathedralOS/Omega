@@ -12,7 +12,7 @@ use package_compilation::build_execution::build_value::{
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
 use terminal_interpreter::{
-    TerminalEntryStorageValue, TerminalInstance, TerminalScalarValue, TerminalStorageContents,
+    TerminalInstance, TerminalScalarValue, TerminalStorageContents, TerminalStorageObservationValue,
 };
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
@@ -140,7 +140,7 @@ fn read_structural(
             let observed = instance
                 .observe_borrowed_entry(0, path)
                 .map_err(|error| format!("Build case readback: {error:?}"))?;
-            let TerminalEntryStorageValue::Storage(TerminalStorageContents::Case(selected)) = observed
+            let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(selected)) = observed
             else {
                 return Err("Build sum readback did not retain its selected case".to_owned());
             };
@@ -189,18 +189,18 @@ fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<Build
         .observe_borrowed_entry(0, path)
         .map_err(|error| format!("Build field readback: {error:?}"))?;
     match observed {
-        TerminalEntryStorageValue::Bytes(bytes) => {
+        TerminalStorageObservationValue::Bytes(bytes) => {
             let mut copied = vec![0; bytes.len()];
             bytes
                 .copy_to(&mut copied)
                 .map_err(|error| format!("Build byte readback: {error:?}"))?;
             Ok(BuildTimeValue::Text(copied))
         }
-        TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+        TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
             value: TerminalScalarValue::Boolean(value),
             ..
         }) => Ok(BuildTimeValue::Bool(value)),
-        TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+        TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
             value: TerminalScalarValue::Integer { value, .. },
             ..
         }) => {
