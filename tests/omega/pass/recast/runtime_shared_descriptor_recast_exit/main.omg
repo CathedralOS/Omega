@@ -19,6 +19,23 @@ requires pixels.len == 0
     let bytes: &[u8] = pixels as &[u8];
     bytes.len == 0
 }
+data Cursor { calls: u64 in Wrapping; }
+machine selected(cursor: &mut Cursor) -> u64 ensures result == 1 {
+    cursor.calls = cursor.calls + 1;
+    1
+}
+// One-byte elements isolate ordered descriptor selection from count scaling.
+// The selected descriptor must complete once before its representation is read.
+machine projected(views: &[&[i8]; 2], cursor: &mut Cursor) -> bool {
+    let bytes: &[u8] = views[selected(cursor)] as &[u8];
+    transition bytes.len == 3 {
+        true -> read(bytes)
+        _ -> false
+    }
+    machine read(bytes: &[u8]) -> bool requires bytes.len == 3 {
+        bytes[0] == 0x41 && bytes[1] == 0x42 && bytes[2] == 0x43
+    }
+}
 machine main() reaches Console {
     let pixels: [i32; 6] = [0x00112233, 0, 0, 0x00445566, 0, 0x00778899];
     let guarded: [i32; 8] = [0x007f7f7f, 0x00112233, 0, 0, 0x00445566, 0, 0x00778899, 0x007e7e7e];
@@ -26,7 +43,12 @@ machine main() reaches Console {
     let narrowed: bool = inspect(&guarded[1..7]);
     let none: [i32; 0];
     let empty_view: bool = empty(&none[..]);
-    transition whole && narrowed && empty_view {
+    let first: [i8; 3] = [0x11, 0x12, 0x13];
+    let second: [i8; 3] = [0x41, 0x42, 0x43];
+    let views: [&[i8]; 2] = [&first[..], &second[..]];
+    let mut cursor: Cursor = Cursor { calls: 0 };
+    let projection: bool = projected(&views, &mut cursor);
+    transition whole && narrowed && empty_view && projection && cursor.calls == 1 {
         true -> passed()
         _ -> failed()
     }

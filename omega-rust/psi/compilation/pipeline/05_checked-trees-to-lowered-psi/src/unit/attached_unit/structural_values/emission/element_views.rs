@@ -167,20 +167,15 @@ impl Emission<'_, '_, '_> {
             self.structural_type,
             self.structural_types,
         )?;
-        let bindings = self.structural_bindings();
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let parameters = self.checked.state_parameters(authored);
-        let argument = match loan {
-            LoanAccess::Shared => {
-                bindings.shared_structural_argument(identities, self.checked, source, parameters)?
+        if source.access
+            != match loan {
+                LoanAccess::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                LoanAccess::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
             }
-            LoanAccess::Mutable => bindings.borrowed_structural_argument(
-                identities,
-                self.checked,
-                source,
-                parameters,
-            )?,
-        };
+        {
+            return unsupported("element view changes its supplying loan access");
+        }
+        let argument = self.readable_place_argument(identities, expression, source)?;
         // The descriptor captures the byte endpoints now. Later field writes
         // and state transfers keep this formed region; they never reread the
         // authored selector to reconstruct a different borrowed window.

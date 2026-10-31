@@ -119,7 +119,7 @@ impl Builder<'_, '_> {
         if let Some(kind) = self.copied_dispatch_place(expression, expected) {
             return Some(kind);
         }
-        let (source, leaf, _) = self.borrowed_leaf_argument(expression, expected)?;
+        let (source, leaf, _) = self.borrowed_leaf_argument(expression, expected, expression)?;
         let computations = source
             .computation_operands(&self.plans.operands)
             .collect::<Vec<_>>();
@@ -138,10 +138,13 @@ impl Builder<'_, '_> {
     /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
     /// named root as a parameter/local/`self` source plus the canonical
     /// member path, with `type_identity` naming the projected leaf.
+    /// The consuming operation owns selector evaluation; its expression may
+    /// differ from the selected source when a recast consumes that descriptor.
     pub(in crate::execution::scalar_computations) fn borrowed_leaf_argument(
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
+        evaluation_owner: ExpressionHandle,
     ) -> Option<(
         checked_trees::CheckedUnitStructuralArgumentPlan,
         TypeReferenceHandle,
@@ -163,7 +166,7 @@ impl Builder<'_, '_> {
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
-        let selectors = self.projection_selector_evaluations(expression, expression)?;
+        let selectors = self.projection_selector_evaluations(evaluation_owner, expression)?;
         let (_, mut path) = self.projected_place_path(&place, &selectors)?;
         // A local owns its descriptor, whereas a borrowed formal already
         // denotes its referent. Selecting below the local crosses that stored
@@ -216,7 +219,7 @@ impl Builder<'_, '_> {
             access: checked_trees::CheckedStructuralAccess::SharedBorrow,
         };
         source.retain_projection_evaluations(
-            self.projection_selector_span(expression, &selectors)?,
+            self.projection_selector_span(evaluation_owner, &selectors)?,
             &self.plans.operands,
         )?;
         Some((source, projected.reference, selectors))
