@@ -1,5 +1,6 @@
 //! Outcome-specific arm facts and the exact outcome case tests.
 
+use crate::facts::contract_occurrences::fact_referenced_occurrences;
 use crate::flow::expressions;
 use crate::flow::state_statements;
 use crate::proof::proposition_vocabulary::{
@@ -144,10 +145,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         },
                         target_state,
                     );
-                    let referenced_occurrences =
-                        crate::facts::contract_occurrences::fact_referenced_occurrences(
-                            program, row.fact,
-                        )
+                    let referenced_occurrences = fact_referenced_occurrences(program, row.fact)
                         .into_iter()
                         .map(|occurrence| checked_trees::OutcomeReferencedOccurrence {
                             occurrence,
