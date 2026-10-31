@@ -305,12 +305,35 @@ pub(crate) fn validate_suffix_landings(
                                 assignment.target,
                             )
                         {
-                            validate_suffix_landing(
-                                program,
-                                assignment.value,
-                                declared,
-                                diagnostics,
-                            );
+                            // An atomic event delivers its authored operands at
+                            // the cell's resident type. The assignment's own
+                            // value is only the generated carrier, so a
+                            // suffixed literal, or a constant that expands to
+                            // one, reaches the cell through the operands.
+                            if let Some(event) = super::atomic_operations::atomic_assignment_carrier(
+                                program, assignment,
+                            ) {
+                                let resident =
+                                    super::atomic_operations::atomic_resident_type_reference(
+                                        program, declared,
+                                    )
+                                    .unwrap_or(declared);
+                                for &operand in &event.operands {
+                                    validate_suffix_landing(
+                                        program,
+                                        operand,
+                                        resident,
+                                        diagnostics,
+                                    );
+                                }
+                            } else {
+                                validate_suffix_landing(
+                                    program,
+                                    assignment.value,
+                                    declared,
+                                    diagnostics,
+                                );
+                            }
                         }
                     }
                     StatementNode::LocalData(local)

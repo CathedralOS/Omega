@@ -1,0 +1,20 @@
+// Expected exit: 0.
+// An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
+use omega::language::core::atomic;
+data Cell { value: AtomicU32; }
+machine perform(cell: &Cell, expected: u32, select: bool) -> u32 {
+    let low: u32 = 7;
+    let high: u32 = 9;
+    let prior: u32 = cell.value.compare_exchange(expected, match select { true -> low false -> high }, NoOrdering, NoOrdering);
+    prior
+}
+machine main() crashes Trap {
+    let cell: Cell;
+    cell.value.store(3, NoOrdering);
+    let first: u32 = perform(&cell, 3, true);
+    let second: u32 = perform(&cell, 3, false);
+    let observed: u32 = cell.value.load(NoOrdering);
+    transition first == 3 && second == 7 && observed == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
