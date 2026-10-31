@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "static_count_changed_to_zero");
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

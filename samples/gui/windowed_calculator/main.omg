@@ -24,7 +24,9 @@ public boundary trait Input {
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics;
 }
 public boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires Count > 0
+    requires title[Count - 1] == 0
         reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -84,7 +86,9 @@ public boundary trait Gui {
 // Selection supplies code. The application carries its window as an owned
 // state argument, borrowing it for observations and the event pump.
 CalcGuiProvider satisfies Gui {
-    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires Count > 0
+    requires title[Count - 1] == 0
         reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -94,7 +98,7 @@ CalcGuiProvider satisfies Gui {
             ProcessOutput + ProcessExit
         invokes ObjectiveC invokes CoreGraphics invokes AppKit
     {
-        macos_window_create(class_name, title, style, x, y, width, height)
+        macos_window_create<Count>(class_name, title, style, x, y, width, height)
     }
     machine window_destroy(window: Window) reaches
         GlobalInputObservation + NativeCodeExecution + WindowManagement +
@@ -197,7 +201,8 @@ requires
     self.button_col >= 0 && self.button_col <= 3 &&
     self.button_code >= 0 && self.button_code <= 31 &&
     self.button_lx >= 0 && self.button_lx <= 15 &&
-    self.button_ly >= 0 && self.button_ly <= 8
+    self.button_ly >= 0 && self.button_ly <= 8 &&
+    self.title[10] == 0
 {
 
     cls: [u8; 7];
@@ -304,7 +309,7 @@ machine Main::main(main: &mut Main) reaches
     main.frame = 0;
 
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
-    let window: Window = Gui::window_create(main.cls, &main.title[0], 0x10cf0000, 160, 120, 528, 551);
+    let window: Window = Gui::window_create(main.cls, &main.title, 0x10cf0000, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 

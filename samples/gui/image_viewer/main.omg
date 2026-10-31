@@ -23,7 +23,9 @@ public boundary trait Input {
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics;
 }
 public boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires Count > 0
+    requires title[Count - 1] == 0
         reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -31,14 +33,14 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
+        invokes ObjectiveC invokes CoreGraphics invokes AppKit;
     machine window_destroy(window: Window) reaches
         GlobalInputObservation + NativeCodeExecution + WindowManagement +
         SurfacePresentation + WindowEventObservation + WindowEventDispatch +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC; invokes CoreGraphics;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
@@ -48,7 +50,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC; invokes CoreGraphics;
+        invokes ObjectiveC invokes CoreGraphics;
     machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -80,33 +82,115 @@ public boundary trait Gui {
         ProcessOutput + ProcessExit invokes ObjectiveC;
 }
 ViewerGuiProvider satisfies Gui {
-    Gui::window_create = macos_window_create;
-    Gui::window_destroy = macos_window_destroy;
-    Gui::get_dc = macos_window_get_dc;
-    Gui::blit = macos_window_blit;
-    Gui::msg_peek = macos_window_msg_peek;
-    Gui::msg_translate = macos_window_msg_translate;
-    Gui::msg_dispatch = macos_window_msg_dispatch;
-    Gui::is_window = macos_window_is_window;
-    Gui::foreground_window = macos_window_foreground_window;
+    machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    requires Count > 0
+    requires title[Count - 1] == 0
+        reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
+        invokes ObjectiveC invokes CoreGraphics invokes AppKit
+    {
+        macos_window_create<Count>(class_name, title, style, x, y, width, height)
+    }
+    machine window_destroy(window: Window) reaches
+        GlobalInputObservation + NativeCodeExecution + WindowManagement +
+        SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics
+    {
+        macos_window_destroy(window);
+    }
+    machine get_dc(window_state: &Window, window: u64) -> u64 reaches
+    {
+        macos_window_get_dc(window_state, window)
+    }
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+        reaches
+            GlobalInputObservation + NativeCodeExecution + WindowManagement +
+            SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
+        invokes ObjectiveC invokes CoreGraphics
+    {
+        macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
+    }
+    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_msg_peek(window_state, message)
+    }
+    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32 reaches
+    {
+        macos_window_msg_translate(window_state, message)
+    }
+    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_msg_dispatch(window_state, message)
+    }
+    machine is_window(window_state: &Window, window: u64) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_is_window(window_state, window)
+    }
+    machine foreground_window(window_state: &Window) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC
+    {
+        macos_window_foreground_window(window_state)
+    }
 }
 ViewerInputProvider satisfies Input {
-    Input::key_state = macos_key_state;
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics
+    {
+        macos_key_state(virtual_key)
+    }
 }
 ViewerClockProvider satisfies Clock {
-    Clock::sleep = macos_sleep;
+    machine sleep(milliseconds: u32) reaches ClockObservation + ExecutionDelay invokes DarwinClock
+    {
+        macos_sleep(milliseconds);
+    }
 }
 
 data Main
-where
-    current >= 0 && current <= 2,
-    src >= 0 && src <= 16384,
-    dst >= 0 && dst <= 4096,
-    col >= 0 && col <= 64,
-    b >= 0 && b <= 255,
-    g >= 0 && g <= 255,
-    r >= 0 && r <= 255,
-    pumped >= 0 && pumped <= 16,
+requires
+    self.current >= 0 && self.current <= 2 &&
+    self.src >= 0 && self.src <= 16384 &&
+    self.dst >= 0 && self.dst <= 4096 &&
+    self.col >= 0 && self.col <= 64 &&
+    self.b >= 0 && self.b <= 255 &&
+    self.g >= 0 && self.g <= 255 &&
+    self.r >= 0 && self.r <= 255 &&
+    self.pumped >= 0 && self.pumped <= 16 &&
+    self.title[12] == 0
 {
     cls: [u8; 7];
     title: [u8; 13];
@@ -184,7 +268,7 @@ machine Main::main(main: &mut Main) reaches
     main.info[3] = 2097153;
     main.current = 0;
     // Create the owned window before loading so every failure path can release it.
-    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
+    let window: Window = Gui::window_create(main.cls, &main.title, 282001408, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 

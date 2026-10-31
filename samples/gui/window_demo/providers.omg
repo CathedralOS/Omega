@@ -16,6 +16,7 @@ reaches
         psel: 0, mask: 0, evt: 0, relsel: 0, dsel: 0, vsel: 0, ksel: 0, pool: 0 }
 }
 public macos_arm64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+requires title[10] == 0
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -32,8 +33,9 @@ reaches
         _ -> empty_window()
     }
     machine create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i64, height: i64) -> Window
-    requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
-        macos_window_create(class_name, &title[0], style, x, y, width as i32, height as i32)
+    requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647
+    requires title[10] == 0 {
+        macos_window_create<11>(class_name, &title, style, x, y, width as i32, height as i32)
     }
 }
 
