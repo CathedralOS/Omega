@@ -364,10 +364,29 @@ pub(super) fn fact_names_field(
     fact: &typed_trees::domain::ProofFact,
     field: &str,
 ) -> bool {
-    let reads = predicate_read_set(program, definition, fact);
+    let reads = predicate_read_set(program, definition, fact, false);
     declared_predicate_fields(program, definition)
         .into_iter()
         .any(|declared| declared.name.as_str() == field && reads.fields.contains(&declared.symbol))
+}
+
+pub(crate) fn data_predicate_fields(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    fact: &typed_trees::domain::ProofFact,
+) -> Vec<symbols::SymbolHandle> {
+    predicate_read_set(program, definition, fact, false).fields
+}
+
+pub(super) fn fact_reads_field_contents(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    fact: &typed_trees::domain::ProofFact,
+    field: symbols::SymbolHandle,
+) -> bool {
+    predicate_read_set(program, definition, fact, true)
+        .fields
+        .contains(&field)
 }
 
 #[derive(Default)]
@@ -435,6 +454,7 @@ fn predicate_read_set(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: &typed_trees::domain::ProofFact,
+    contents_only: bool,
 ) -> PredicateReadSet {
     let declared = declared_predicate_fields(program, definition);
     let receiving_field = |symbol| {
@@ -497,6 +517,23 @@ fn predicate_read_set(
             continue;
         }
         visited.push((expression, whole_subject));
+        // An element store leaves the descriptor's own metadata unchanged.
+        // Authenticate the selected measure on the declared field carrier;
+        // an ordinary record member merely named `len` still reads contents.
+        if contents_only
+            && let Some(member) = program.expression_table.member_node(expression)
+            && let Some(field) = membership_field(program, definition, member.receiver)
+            && crate::value_custody::places::collection_operations::collection_measure_member(
+                program,
+                member,
+                crate::value_custody::places::collection_operations::MeasureReceiver::Declared(
+                    field.type_reference,
+                ),
+            )
+            .is_some()
+        {
+            continue;
+        }
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 if let Some(symbol) = receiving_field(path.symbol) {

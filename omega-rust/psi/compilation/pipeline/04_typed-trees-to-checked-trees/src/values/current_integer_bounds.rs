@@ -183,6 +183,13 @@ impl<'a> CurrentIntegerBounds<'a> {
         // of the per-slot coverage. Preserve it even when the collection's
         // full extent is unavailable or another slot has only carrier bounds.
         let exact = self.exact(place, primitive);
+        if !place
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, PlaceSegment::Index { .. }))
+        {
+            return exact;
+        }
         let projected = self.projected(place, primitive, &mut 4096);
         match (exact, projected) {
             (Some(exact), Some(projected)) => {
