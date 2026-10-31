@@ -9,7 +9,7 @@ use crate::sections::semantic_module::structural_place_wire::{
 use crate::sections::semantic_module::wire::decode_counted;
 use terminal_psi::{
     EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceTermDeclaration,
+    EvidenceTermDeclaration, OutcomeSpecificCallArgumentSubstitution,
 };
 
 pub(super) fn encode_evidence_term(
@@ -97,16 +97,14 @@ pub(super) fn decode_evidence_contract_lane(
             let kind = reader.u8()?;
             let argument_position = reader.u32()?;
             Ok(match kind {
-                1 => EvidenceArgumentSubject::Parameter(
-                    terminal_psi::OutcomeSpecificCallArgumentSubstitution {
-                        argument_position,
-                        parameter_position: reader.u32()?,
-                        structural_path: reader
-                            .boolean()?
-                            .then(|| decode_structural_path(reader))
-                            .transpose()?,
-                    },
-                ),
+                1 => EvidenceArgumentSubject::Parameter(OutcomeSpecificCallArgumentSubstitution {
+                    argument_position,
+                    parameter_position: reader.u32()?,
+                    structural_path: reader
+                        .boolean()?
+                        .then(|| decode_structural_path(reader))
+                        .transpose()?,
+                }),
                 2 => EvidenceArgumentSubject::Result { argument_position },
                 3 => EvidenceArgumentSubject::Closed { argument_position },
                 4 => EvidenceArgumentSubject::Unknown { argument_position },
