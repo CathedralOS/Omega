@@ -5,6 +5,8 @@ use super::{
 use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
 mod application_formation;
+#[cfg(test)]
+mod denotation_tests;
 mod denotations;
 #[cfg(test)]
 mod difference_constraint_tests;

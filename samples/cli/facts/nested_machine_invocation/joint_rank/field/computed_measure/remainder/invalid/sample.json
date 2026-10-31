@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "ranking"
+    "preserving cycle has no strict measure DECREASE"
   ]
 }
