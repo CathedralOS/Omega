@@ -108,13 +108,7 @@ pub(crate) fn check_range_under_non_exact_domain(
     // in Wrapping` may parse as Constrained(Constrained(u8, [Range]),
     // [Domain]), where the shallow per-node accessors see only one
     // constraint set each.
-    fn has_range_constraint(
-        program: &dyn crate::CheckingInput,
-        handle: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
-        declares_bracketed_range(program, handle)
-    }
-    if !has_range_constraint(program, handle) {
+    if !declares_bracketed_range(program, handle) {
         return;
     }
     let domain = program.type_reference_table.arithmetic_domain(handle);
