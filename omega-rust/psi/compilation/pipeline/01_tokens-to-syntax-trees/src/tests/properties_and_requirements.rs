@@ -333,6 +333,17 @@ fn parses_trait_owned_fixed_operator_requirements() {
 }
 
 #[test]
+fn nested_operational_contract_still_requires_its_declaration_terminator() {
+    let error = super::parse_source_error(
+        "machine schedule<machine Callback>() \
+         requires machine Callback() invokes First invokes Second {}",
+        "tokenize nested operational contract",
+        "outer body must not terminate the nested declaration",
+    );
+    assert!(error.message.contains("expected `;`"), "{}", error.message);
+}
+
+#[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
         machine run() reaches Console invokes First invokes Second suspends blocks {
