@@ -111,10 +111,6 @@ pub(crate) fn requirement_realization_arguments<'program>(
                 && program.machine_type_parameters(machine).is_empty()
         })
         .ok_or("public realization has no closed checked body")?;
-    let entry = program
-        .machine_states(provider)
-        .first()
-        .ok_or("public realization has no executable entry")?;
     let (realization_machine, realization_state) =
         if let Some(selecting) = program.conformance_by_symbol(row.selecting_declaration) {
             let mut entries = selecting.rows.iter().filter(|member| {
@@ -159,15 +155,25 @@ pub(crate) fn requirement_realization_arguments<'program>(
                     .symbol,
             )
         };
-    let lineage = program
-        .requirement_realization_entry_lineage(
-            entry.symbol,
-            call.target_symbol,
-            row.selecting_declaration,
-            realization_machine,
-        )
-        .filter(|lineage| lineage.last().copied() == Some((realization_machine, realization_state)))
+    let mut entries = program.machine_states(provider).iter().filter_map(|entry| {
+        program
+            .requirement_realization_entry_lineage(
+                entry.symbol,
+                call.target_symbol,
+                row.selecting_declaration,
+                realization_machine,
+            )
+            .filter(|lineage| {
+                lineage.last().copied() == Some((realization_machine, realization_state))
+            })
+            .map(|lineage| (entry, lineage))
+    });
+    let (entry, lineage) = entries
+        .next()
         .ok_or("public realization lost its exact authored entry lineage")?;
+    if entries.next().is_some() {
+        return Err("public realization has ambiguous authored entry copies");
+    }
     let source = program
         .state_by_symbol(realization_state)
         .ok_or("public realization lost its authored state")?;
