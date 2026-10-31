@@ -332,6 +332,21 @@ fn selected_body_dependencies(
     crate::BuildTimeAdmissionPlan::infer_execution_dependencies(program, operators, execution);
 }
 
+/// Only a callable reference demands its implementation. Lexical ancestry
+/// retains declaration context, not the bodies enclosing a type or constant.
+fn dependency_machine(program: &TypedTrees, dependency: SymbolHandle) -> SymbolHandle {
+    if !dependency.is_valid() {
+        return SymbolHandle::invalid();
+    }
+    match program.symbols.get(dependency).kind {
+        symbols::SymbolKind::Machine => dependency,
+        symbols::SymbolKind::State => program
+            .machine_holding_state(dependency)
+            .map_or_else(SymbolHandle::invalid, |machine| machine.symbol),
+        _ => SymbolHandle::invalid(),
+    }
+}
+
 /// Calls are not the whole checking domain: a demanded signature, data predicate,
 /// or domain fact can itself require an implementation. Close those references
 /// with the representation's shared traversal before removing any root. Keeping
@@ -365,8 +380,13 @@ fn declaration_dependencies(
         if has_endpoint_owners && endpoint_owners != DeclarationSelection::from_symbols([]) {
             let endpoint_refs = collect_selected_program_references(program, &endpoint_owners);
             for mut symbol in endpoint_refs.symbols {
+                let body = dependency_machine(program, symbol);
                 while symbol.is_valid() {
-                    if roster.contains(symbol) && !endpoint_owners.contains(symbol) {
+                    if roster.contains(symbol)
+                        && !endpoint_owners.contains(symbol)
+                        && (program.symbols.get(symbol).kind != symbols::SymbolKind::Machine
+                            || symbol == body)
+                    {
                         selection.include(symbol);
                     }
                     symbol = program.symbols.get(symbol).parent;
@@ -430,8 +450,13 @@ fn declaration_dependencies(
             );
         }
         for mut symbol in referenced_symbols {
+            let body = dependency_machine(program, symbol);
             while symbol.is_valid() {
-                if roster.contains(symbol) && !selection.contains(symbol) {
+                if roster.contains(symbol)
+                    && !selection.contains(symbol)
+                    && (program.symbols.get(symbol).kind != symbols::SymbolKind::Machine
+                        || symbol == body)
+                {
                     selection.include(symbol);
                     changed = true;
                 }

@@ -345,12 +345,19 @@ fn validate_retained_implementation_arguments(
     use typed_trees::static_applications::StaticMachineBindingValue;
     let typed = program.typed_program();
     if !typed.data_implementation_applications.is_empty() {
-        let live = typed_trees::references::collect_program_type_occurrences(typed);
+        let mut owners = typed
+            .data_implementation_applications
+            .iter()
+            .map(|(_, selected)| selected.lexical_owner)
+            .collect::<Vec<_>>();
+        owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
+        owners.dedup();
+        let live = typed_trees::references::authored_type_occurrences(typed, &owners)
+            .into_iter()
+            .map(|occurrence| (occurrence.lexical_owner, occurrence.reference))
+            .collect::<std::collections::HashSet<_, symbols::BuildSymbolHasher>>();
         for (_, selected) in typed.data_implementation_applications.iter() {
-            if !live.iter().any(|occurrence| {
-                occurrence.reference == selected.source_application
-                    && occurrence.lexical_owner == selected.lexical_owner
-            }) {
+            if !live.contains(&(selected.lexical_owner, selected.source_application)) {
                 return Err(
                     "data implementation demand lost its live authored constructor occurrence"
                         .into(),
