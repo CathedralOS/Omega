@@ -53,6 +53,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::TypeParameter;
 use symbol_resolved_trees::machine::Machine;
 use symbol_resolved_trees::signature::StateParameter;
+use symbol_resolved_trees::types::TypeConstraint;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use syntax_trees::operator_spelling::OperatorSpelling;
@@ -560,7 +561,7 @@ fn extend_name_positions<'program>(
                 .constraints
                 .span_or_empty(constrained.constraints)
             {
-                if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint {
+                if let TypeConstraint::Domain(domain) = constraint {
                     positions.push(TypePosition::Domain {
                         name: domain.name.as_str(),
                     });
@@ -879,9 +880,7 @@ impl<'program> ShapeNormalizer<'program> {
                     .span_or_empty(constrained.constraints)
                     .iter()
                     .map(|constraint| match constraint {
-                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
-                            if !domain.arguments.is_empty() =>
-                        {
+                        TypeConstraint::Domain(domain) if !domain.arguments.is_empty() => {
                             let arguments = self
                                 .program
                                 .child_type_references(domain.arguments)

@@ -14,6 +14,7 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DomainDefinition;
 use syntax_trees::item::Item;
@@ -251,10 +252,10 @@ pub(crate) fn type_reference_slug(
         TypeReferenceNode::Named(name) => Some(name.as_str(syntax).to_string()),
         TypeReferenceNode::ConstExpression(expression) => {
             match syntax.expressions.expression(*expression) {
-                syntax_trees::expression::ExpressionNode::Integer(literal) => {
+                ExpressionNode::Integer(literal) => {
                     super::integer_literal_value(literal).map(|value| value.to_string())
                 }
-                syntax_trees::expression::ExpressionNode::Name(path) => {
+                ExpressionNode::Name(path) => {
                     let [member] = syntax.expressions.identifier_path_members(*path) else {
                         return None;
                     };
@@ -509,11 +510,9 @@ pub(crate) fn closed_argument_identity(
         )),
         TypeReferenceNode::ConstExpression(expression) if is_constant => {
             match syntax.expressions.expression(*expression) {
-                syntax_trees::expression::ExpressionNode::Integer(literal) => {
-                    super::integer_literal_value(literal)
-                        .map(|value| ClosedArgumentIdentity::Constant(value.to_string()))
-                }
-                syntax_trees::expression::ExpressionNode::Name(path) => {
+                ExpressionNode::Integer(literal) => super::integer_literal_value(literal)
+                    .map(|value| ClosedArgumentIdentity::Constant(value.to_string())),
+                ExpressionNode::Name(path) => {
                     let [member] = syntax.expressions.identifier_path_members(*path) else {
                         return None;
                     };

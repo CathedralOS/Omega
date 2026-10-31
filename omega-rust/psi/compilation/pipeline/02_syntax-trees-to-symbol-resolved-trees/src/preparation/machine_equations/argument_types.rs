@@ -14,6 +14,7 @@ use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::{SyntaxTrees, types::TypeReferenceHandle};
@@ -24,7 +25,7 @@ mod projections;
 pub(crate) enum DeclaredTypeOrigin {
     Parameter(Handle<symbol_resolved_trees::signature::StateParameter>),
     Result(Handle<symbol_resolved_trees::state::State>),
-    Field(Handle<symbol_resolved_trees::data::DataMember>),
+    Field(Handle<DataMember>),
     Payload(Handle<symbol_resolved_trees::data::DataField>),
     Constant(usize),
 }
@@ -45,9 +46,7 @@ impl DeclaredTypeOrigin {
                 Some((state.symbol, state.return_type.as_ref()?))
             }
             Self::Field(handle) => {
-                let symbol_resolved_trees::data::DataMember::Field(field) =
-                    declarations.data_members.get(handle)
-                else {
+                let DataMember::Field(field) = declarations.data_members.get(handle) else {
                     return None;
                 };
                 Some((field.symbol, &field.type_reference))
@@ -218,11 +217,10 @@ fn expression_types<'trees>(
                     syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
                     _ => target,
                 };
-                let reference =
-                    syntax
-                        .tables
-                        .type_references
-                        .insert_reference(referee, borrow.access);
+                let reference = syntax
+                    .tables
+                    .type_references
+                    .insert_reference(referee, borrow.access);
                 // The resolved declaration anchors nominal selection; the
                 // authored reference carries this expression's constructor.
                 borrowed.push((reference, declaration));

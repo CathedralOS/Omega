@@ -19,6 +19,7 @@ use source::SourceSpan;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 use symbols::SymbolKind;
 use syntax_trees::identifier::JoinedSyntaxPath;
+use syntax_trees::item::ConstInitializerCustody;
 use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
 
 mod resolved_payload;
@@ -38,7 +39,7 @@ pub(crate) fn retained_constant_custody(
     program: &SymbolResolvedTrees,
     owner: &symbol_resolved_trees::constant::ConstDeclaration,
     purpose: InitializerCustodyPurpose,
-) -> Result<syntax_trees::item::ConstInitializerCustody, Diagnostic> {
+) -> Result<ConstInitializerCustody, Diagnostic> {
     use super::initializer_dependencies::{DependencyPurpose, collect_declaration};
     let source = program
         .symbols
@@ -49,7 +50,7 @@ pub(crate) fn retained_constant_custody(
                 "retained constant lost its declaration source",
             )
         })?;
-    let mut custody = syntax_trees::item::ConstInitializerCustody::default();
+    let mut custody = ConstInitializerCustody::default();
     if matches!(purpose, InitializerCustodyPurpose::Value) {
         append_retained_custody(
             program,
@@ -60,7 +61,7 @@ pub(crate) fn retained_constant_custody(
         )?;
         return Ok(custody);
     }
-    let mut retained = syntax_trees::item::ConstInitializerCustody::default();
+    let mut retained = ConstInitializerCustody::default();
     append_retained_custody(
         program,
         owner,
@@ -456,7 +457,7 @@ fn reconstruct(
                 }
                 pending.push(dependency);
             } else {
-                let mut retained = syntax_trees::item::ConstInitializerCustody::default();
+                let mut retained = ConstInitializerCustody::default();
                 append_retained_custody(
                     program,
                     declaration,
@@ -487,7 +488,7 @@ fn append_retained_custody(
     program: &SymbolResolvedTrees,
     owner: &symbol_resolved_trees::constant::ConstDeclaration,
     root: SourceSpan,
-    custody: &mut syntax_trees::item::ConstInitializerCustody,
+    custody: &mut ConstInitializerCustody,
     purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<(), Diagnostic> {
     let owner_source = program.symbols.symbol_source_span(owner.symbol);
@@ -650,7 +651,7 @@ pub(crate) fn finalize_operator_obligations(
 fn attach_custody(
     program: &mut SymbolResolvedTrees,
     root: ExpressionHandle,
-    custody: &syntax_trees::item::ConstInitializerCustody,
+    custody: &ConstInitializerCustody,
     available: &super::initializer_dependencies::ConstInitializerDependencies,
     declaration: SourceSpan,
 ) -> Result<InitializerRootCustody, Diagnostic> {
@@ -830,10 +831,7 @@ fn replace_initializer_lanes(
     Ok(())
 }
 
-fn same_custody(
-    expected: &syntax_trees::item::ConstInitializerCustody,
-    actual: &syntax_trees::item::ConstInitializerCustody,
-) -> bool {
+fn same_custody(expected: &ConstInitializerCustody, actual: &ConstInitializerCustody) -> bool {
     expected.selections.len() == actual.selections.len()
         && expected
             .selections

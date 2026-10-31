@@ -16,7 +16,7 @@ use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
-    QuotientDefinition, TypeParameter, TypeParameterKind,
+    QuotientDefinition, QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
 };
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -190,33 +190,29 @@ fn lower_data_definition_with_argument_origins(
                     .equivalence
                     .as_ref()
                     .map(|selection| {
-                        Ok::<_, Diagnostic>(
-                            symbol_resolved_trees::data::QuotientEquivalenceSelection {
-                                relation: syntax_items(&syntax_trees)
-                                    .identifier_path_members(selection.relation)
-                                    .iter()
-                                    .map(|name| {
-                                        crate::lowering::name::lower_name(syntax_trees, name)
-                                    })
-                                    .collect(),
-                                relation_symbol: SymbolHandle::invalid(),
-                                trait_name: crate::lowering::name::lower_name(
-                                    syntax_trees,
-                                    &selection.trait_name,
-                                ),
-                                trait_symbol: SymbolHandle::invalid(),
-                                trait_arguments: lower_child_type_references(
-                                    lowerer,
-                                    syntax_trees,
-                                    selection.trait_arguments,
-                                )?,
-                                conformance_name: crate::lowering::name::lower_name(
-                                    syntax_trees,
-                                    &selection.conformance_name,
-                                ),
-                                conformance_symbol: SymbolHandle::invalid(),
-                            },
-                        )
+                        Ok::<_, Diagnostic>(QuotientEquivalenceSelection {
+                            relation: syntax_items(&syntax_trees)
+                                .identifier_path_members(selection.relation)
+                                .iter()
+                                .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
+                                .collect(),
+                            relation_symbol: SymbolHandle::invalid(),
+                            trait_name: crate::lowering::name::lower_name(
+                                syntax_trees,
+                                &selection.trait_name,
+                            ),
+                            trait_symbol: SymbolHandle::invalid(),
+                            trait_arguments: lower_child_type_references(
+                                lowerer,
+                                syntax_trees,
+                                selection.trait_arguments,
+                            )?,
+                            conformance_name: crate::lowering::name::lower_name(
+                                syntax_trees,
+                                &selection.conformance_name,
+                            ),
+                            conformance_symbol: SymbolHandle::invalid(),
+                        })
                     })
                     .transpose()?,
             })

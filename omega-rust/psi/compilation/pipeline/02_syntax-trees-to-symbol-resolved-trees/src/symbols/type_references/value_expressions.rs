@@ -11,6 +11,8 @@ use symbol_resolved_trees::{
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::name::DiagnosticName;
 
 /// Constant and field types contain the same value expressions as parameter types.
 /// Resolve them after declaration and type identities exist, before typing can
@@ -80,11 +82,11 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
         };
         for (member_offset, member) in members.iter().enumerate() {
             let (fields, payload) = match member {
-                symbol_resolved_trees::data::DataMember::Field(field) => {
+                DataMember::Field(field) => {
                     scope.symbol = definition.symbol;
                     (std::slice::from_ref(field), None)
                 }
-                symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                DataMember::Variant(variant) => {
                     // Payload subjects shadow common fields and global names.
                     // The symbol hierarchy retains the enclosing data owner.
                     scope.symbol = variant.symbol;
@@ -119,9 +121,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
         }
     }
     for (handle, reference) in field_updates {
-        if let symbol_resolved_trees::data::DataMember::Field(field) =
-            declarations.data_members.get_mut(handle)
-        {
+        if let DataMember::Field(field) = declarations.data_members.get_mut(handle) {
             field.type_reference = reference;
         }
     }
@@ -326,16 +326,14 @@ fn resolve_index_subject(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     parameters: &[StateParameter],
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    name: &DiagnosticName,
 ) -> Option<SymbolHandle> {
     // The type occurrence owns one span, so every path segment retains that
     // span rather than manufacturing source offsets across whitespace.
     let members = name
         .as_str()
         .split("::")
-        .map(|member| {
-            symbol_resolved_trees::name::DiagnosticName::from_str(member, name.source_span())
-        })
+        .map(|member| DiagnosticName::from_str(member, name.source_span()))
         .collect::<Vec<_>>();
     let Some((head_name, suffix)) = members.split_first() else {
         return None;

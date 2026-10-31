@@ -13,13 +13,14 @@ use std::sync::Arc;
 
 use diagnostics::Diagnostic;
 use source::SourceMap;
+use std::path::Path;
 use symbols::{
     SourceScopedTopLevelBinding, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
     builtin_function_symbols, builtin_type_symbols,
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
+use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, DomainDefinition, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -61,9 +62,7 @@ pub(crate) fn is_core_layout_storage_source(
             file.origin == source::SourceOrigin::Toolchain
                 && file.package_identity.is_none()
                 && file.path.strip_prefix(&file.package_root).ok()
-                    == Some(std::path::Path::new(
-                        language_core::layout_storage::SOURCE_FILE_NAME,
-                    ))
+                    == Some(Path::new(language_core::layout_storage::SOURCE_FILE_NAME))
                 && file.source.as_bytes() == language_core::layout_storage::SOURCE
         })
 }
@@ -550,10 +549,7 @@ impl<'base> ConstantSelection<'base> {
         authored: &str,
         reference: source::SourceSpan,
         carrier: Option<&str>,
-    ) -> Vec<(
-        symbols::SymbolHandle,
-        &'syntax syntax_trees::item::DomainDefinition,
-    )> {
+    ) -> Vec<(symbols::SymbolHandle, &'syntax DomainDefinition)> {
         let selected = self
             .symbols
             .find_top_level_by_name_and_kinds_from_source(
@@ -645,7 +641,7 @@ impl<'base> ConstantSelection<'base> {
         authored: &str,
         reference: source::SourceSpan,
         carrier: Option<&str>,
-    ) -> Option<&'syntax syntax_trees::item::DomainDefinition> {
+    ) -> Option<&'syntax DomainDefinition> {
         let pool = self.pooled_domains(syntax, authored, reference, carrier);
         // A preferred generic family owns or contests this selection, but its
         // closed membership still belongs to the downstream family
@@ -686,10 +682,7 @@ impl<'base> ConstantSelection<'base> {
         authored: &str,
         reference: source::SourceSpan,
         carrier: Option<&str>,
-    ) -> Option<(
-        symbols::SymbolHandle,
-        &'syntax syntax_trees::item::DomainDefinition,
-    )> {
+    ) -> Option<(symbols::SymbolHandle, &'syntax DomainDefinition)> {
         let pool = self.pooled_domains(syntax, authored, reference, carrier);
         let (first_symbol, first) = pool.first()?;
         let first_path = self.symbols.display_path(*first_symbol, "::");

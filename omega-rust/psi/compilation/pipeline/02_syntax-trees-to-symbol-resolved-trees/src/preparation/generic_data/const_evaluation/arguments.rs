@@ -22,6 +22,7 @@ use crate::preparation::generic_data::monomorphizable_argument_slugs;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_syntax_integer_range;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::LandedIntegerType;
 
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
@@ -148,12 +149,9 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                             )).with_source_span(name.source_span())
                         })?;
                     let replacement = match value.decode_encoding() {
-                        Some(
-                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                                value,
-                                ..
-                            },
-                        ) => value.to_string(),
+                        Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                            value.to_string()
+                        }
                         _ => value.atom(),
                     };
                     syntax

@@ -59,7 +59,7 @@ use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use source::SourceSpan;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
@@ -491,9 +491,7 @@ pub(crate) fn classify_type_equations(
                         vec![nested(binary.left)?, nested(binary.right)?],
                     ))
                 }
-                ExpressionNode::Unary(unary)
-                    if unary.operator == syntax_trees::expression::UnaryOperator::LogicalNot =>
-                {
+                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                     Some((TypeBooleanOperator::Not, vec![nested(unary.operand)?]))
                 }
                 _ => None,

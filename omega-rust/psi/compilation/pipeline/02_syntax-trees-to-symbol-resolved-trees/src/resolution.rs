@@ -31,10 +31,28 @@ pub use continuations::{
 };
 use diagnostics::Diagnostic;
 use lowerer::{ConstResolutionMode, Lowerer};
+use lowering::machine::mark_token_bound_domain_homes;
+use lowering::machine::reject_duplicate_direct_token_bindings;
+use lowering::mathematical::lower_mathematical_definitions;
+use preparation::generic_data::const_destination_requires_proof;
+use preparation::generic_data::domain_heads::normalize;
+use preparation::machine_equations::SourceLinks;
+use preparation::machine_equations::complete;
+use preparation::machine_equations::required;
+use preparation::machine_equations::validate_declarations;
+use preparation::module_normalization::validate_with_const_resolution_mode;
+use preparation::trait_defaults::synthesize_trait_defaults_after_module_validation;
+use selection::body_calls::CallSelectionInput;
+use selection::conformance_blocks::route_conformance_requirement_calls;
+use selection::conformance_blocks::route_named_implementation_calls;
 use source::SourceMap;
+use std::mem::take;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::item::ConstDefinition;
 
 /// One syntax forest and the custody it resolves under.
 ///
@@ -116,7 +134,7 @@ pub fn resolve_deferred(
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
-    if preparation::machine_equations::required(&syntax, base.as_deref()) {
+    if required(&syntax, base.as_deref()) {
         // Header applications need exact declaration selection, not executable
         // bodies. Body applications retain their syntax and complete on demand.
         loop {
@@ -134,7 +152,7 @@ pub fn resolve_deferred(
             let selection = provisional.take_constant_selection()?;
             let links = provisional.equation_sources.take().unwrap_or_default();
             let before = syntax.root_item_handles().len();
-            preparation::machine_equations::complete(
+            complete(
                 &mut syntax,
                 &provisional.symbol_resolved_trees,
                 &links,
@@ -198,7 +216,7 @@ fn index_deferred(
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     index_declarations(&mut lowerer, &syntax)?;
     finish_resolution(&mut lowerer, &syntax, &[], &[])?;
-    let pending = std::mem::take(&mut lowerer.pending_machine_bodies);
+    let pending = take(&mut lowerer.pending_machine_bodies);
     let pending_type_inputs =
         type_inputs::bind(&lowerer.symbol_resolved_trees, &lowerer.pending_type_inputs)?;
     let selection = lowerer.take_constant_selection()?;
@@ -210,8 +228,8 @@ fn index_deferred(
         sources.statements.clear();
         sources
     });
-    let supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
-    let conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);
+    let supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
+    let conformance_inputs = take(&mut lowerer.conformance_inputs);
     Ok(DeferredResolvedFrontier {
         syntax: Arc::new(syntax),
         trees: Arc::new(lowerer.into_trees()),
@@ -232,7 +250,7 @@ fn index_deferred(
 fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     lowerer.defer_machine_bodies = true;
     lowering::lower_items(lowerer, syntax)?;
-    lowering::mathematical::lower_mathematical_definitions(lowerer, syntax)?;
+    lower_mathematical_definitions(lowerer, syntax)?;
     selection::select_operator_homes(lowerer)?;
     crate::symbols::assign_declarations(lowerer)
 }
@@ -245,13 +263,13 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
 /// This product grants neither body typing nor execution authority.
 pub struct ConstArgumentSelection {
     program: SymbolResolvedTrees,
-    expressions: Vec<symbol_resolved_trees::expression::ExpressionHandle>,
+    expressions: Vec<ExpressionHandle>,
 }
 
 impl ConstArgumentSelection {
     pub fn original_call_target(
         &self,
-        expression: symbol_resolved_trees::expression::ExpressionHandle,
+        expression: ExpressionHandle,
     ) -> Option<symbols::SymbolHandle> {
         if !self.expressions.contains(&expression) {
             return None;
@@ -263,7 +281,7 @@ impl ConstArgumentSelection {
             .expressions
             .expression(expression)
         {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            ExpressionNode::Call(call) => {
                 call.authored_call_binding.map(|binding| binding.original)
             }
             _ => None,
@@ -274,14 +292,7 @@ impl ConstArgumentSelection {
         &self.program
     }
 
-    pub fn expressions(
-        &self,
-    ) -> impl Iterator<
-        Item = (
-            symbol_resolved_trees::expression::ExpressionHandle,
-            &symbol_resolved_trees::expression::ExpressionNode,
-        ),
-    > {
+    pub fn expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expressions.iter().copied().map(|expression| {
             (
                 expression,
@@ -368,7 +379,7 @@ pub fn prepare_const_initializer_selection(
 pub fn prepare_const_qualification_selection<'authored>(
     request: ResolutionRequest,
     authored: &'authored SyntaxTrees,
-    destinations: impl IntoIterator<Item = &'authored syntax_trees::item::ConstDefinition>,
+    destinations: impl IntoIterator<Item = &'authored ConstDefinition>,
 ) -> Result<Option<ConstInitializerSelection>, Vec<Diagnostic>> {
     let destinations = destinations.into_iter().collect::<Vec<_>>();
     if destinations.is_empty() {
@@ -388,15 +399,11 @@ pub fn prepare_const_qualification_selection<'authored>(
             top_level_bindings.clone(),
             retained_base.clone(),
         )?;
-    preparation::generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
+    normalize(&mut syntax, Some(&constant_selection))?;
     let mut demanded = false;
     for definition in destinations {
         if (definition.pending_qualification.is_some()
-            || preparation::generic_data::const_destination_requires_proof(
-                authored,
-                definition,
-                Some(&constant_selection),
-            ))
+            || const_destination_requires_proof(authored, definition, Some(&constant_selection)))
             && constant::pending_const_initializer_leaves(authored, definition, &constant_selection)
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
@@ -410,16 +417,13 @@ pub fn prepare_const_qualification_selection<'authored>(
     if !demanded {
         return Ok(None);
     }
-    preparation::module_normalization::validate_with_const_resolution_mode(
+    validate_with_const_resolution_mode(
         &syntax,
         &constant_selection,
         ConstResolutionMode::InitializerSelection,
     )?;
-    preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
-        &mut syntax,
-        &constant_selection,
-    )?;
-    preparation::machine_equations::validate_declarations(&syntax)?;
+    synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
+    validate_declarations(&syntax)?;
     let mut lowerer = Lowerer::new(sources.clone(), top_level_bindings.clone());
     lowerer.constant_selection = Some(constant_selection);
     lowerer.const_resolution_mode = ConstResolutionMode::InitializerSelection;
@@ -508,7 +512,7 @@ fn begin_complete(request: ResolutionRequest) -> Result<(SyntaxTrees, Lowerer), 
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
-    if preparation::machine_equations::required(&syntax, base.as_deref()) {
+    if required(&syntax, base.as_deref()) {
         let mut provisional = Lowerer::new(sources, bindings);
         provisional.constant_selection = lowerer.constant_selection.take();
         provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
@@ -517,12 +521,7 @@ fn begin_complete(request: ResolutionRequest) -> Result<(SyntaxTrees, Lowerer), 
             provisional.seed_resolved_base(Arc::clone(base))?;
         }
         let (trees, selection, links) = drive_recorded(provisional, &syntax)?;
-        preparation::machine_equations::complete(
-            &mut syntax,
-            &trees,
-            &links.unwrap_or_default(),
-            &selection,
-        )?;
+        complete(&mut syntax, &trees, &links.unwrap_or_default(), &selection)?;
         lowerer.constant_selection = Some(selection);
     }
     lowerer.structural_type_equations_pending = false;
@@ -548,7 +547,7 @@ fn begin(
         constants,
         retained_base.clone(),
     )?;
-    preparation::machine_equations::validate_declarations(&prepared.syntax)?;
+    validate_declarations(&prepared.syntax)?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);
     lowerer.constant_selection = Some(prepared.constant_selection);
     lowerer.const_resolution_mode = constants;
@@ -578,7 +577,7 @@ fn drive_recorded(
     (
         SymbolResolvedTrees,
         ConstantSelection<'static>,
-        Option<preparation::machine_equations::SourceLinks>,
+        Option<SourceLinks>,
     ),
     Vec<Diagnostic>,
 > {
@@ -587,7 +586,7 @@ fn drive_recorded(
     // collection (`SyntaxTreeRoots::mathematical_definitions`), outside the
     // `Item` grammar, so they lower through their own entry point after the
     // ordinary items (PROOF-CONTRACT-MIGRATION).
-    lowering::mathematical::lower_mathematical_definitions(&mut lowerer, syntax)?;
+    lower_mathematical_definitions(&mut lowerer, syntax)?;
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
     crate::symbols::assign(&mut lowerer)?;
@@ -603,7 +602,7 @@ fn drive_recorded(
 fn finish_resolution(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
-    inputs: &[selection::body_calls::CallSelectionInput],
+    inputs: &[CallSelectionInput],
     completed_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let predecessor = lowerer.seed.as_ref().map(|seed| Arc::clone(&seed.source));
@@ -649,7 +648,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     // A token-bearing machine attached to a domain gives that domain its
     // denotation role before the selections below classify predicate-only
     // domains; it needs the attached symbols the assignment just settled.
-    lowering::machine::mark_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
+    mark_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
     constant::finalize(lowerer)?;
     selection::finalize_authored_selections(lowerer)?;
     let expressions = lowerer
@@ -664,25 +663,17 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
 
     constant::finalize_operator_obligations(lowerer)?;
     selection::finalize(lowerer)?;
-    lowering::machine::reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
+    reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
     Ok(())
 }
 
 fn finish_resolved_tables(
     lowerer: &mut Lowerer,
-    inputs: &[selection::body_calls::CallSelectionInput],
+    inputs: &[CallSelectionInput],
     machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
-    selection::conformance_blocks::route_conformance_requirement_calls(
-        &mut lowerer.symbol_resolved_trees,
-        inputs,
-        machines,
-    )?;
-    selection::conformance_blocks::route_named_implementation_calls(
-        &mut lowerer.symbol_resolved_trees,
-        inputs,
-        machines,
-    );
+    route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, inputs, machines)?;
+    route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
     crate::symbols::target_siblings::bind_sibling_calls(
         &mut lowerer.symbol_resolved_trees,

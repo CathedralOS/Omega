@@ -37,7 +37,9 @@ use crate::preparation::generic_data::arguments::{
 };
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::LandedIntegerType;
+use syntax_trees::item::TypeParameterKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::preparation::generic_data) enum CanonicalConstNode {
@@ -570,10 +572,7 @@ fn closed_application_argument_labels(
         .map(|(parameter, argument)| {
             closed_parameter_argument_identity(syntax, selection, *argument, &parameter.kind)
                 .ok_or("generic const carrier is not a closed monomorphizable application")?;
-            if matches!(
-                parameter.kind,
-                syntax_trees::item::TypeParameterKind::Implementation
-            ) {
+            if matches!(parameter.kind, TypeParameterKind::Implementation) {
                 return selected_implementation_label(syntax, *argument, selection);
             }
             if let Some(slug) =
@@ -1021,10 +1020,7 @@ pub(crate) fn closed_fixed_array_length(
                 &definition,
                 Some(selection),
             )?;
-            let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                value,
-                ..
-            }) = value.decode_encoding()
+            let Some(DecodedCanonicalConstValue::Integer { value, .. }) = value.decode_encoding()
             else {
                 return Err("array extent constant must have an integer carrier".to_owned());
             };

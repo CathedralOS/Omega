@@ -27,6 +27,8 @@ use crate::selection::signature_free_requirements::{
     SignatureFreeMachineResolutionError, SignatureFreeRequirementResolutionError,
     resolve_signature_free_machine, resolve_signature_free_requirement,
 };
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone)]
 struct AuthoredRouteResolution {
@@ -535,10 +537,8 @@ fn collect_member_domain_symbols<'program>(
     traversal.ancestors.push((data_symbol, scope));
     for member in program.data_members(data.storage.members) {
         let fields = match member {
-            symbol_resolved_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            symbol_resolved_trees::data::DataMember::Variant(variant) => {
-                program.data_payload_fields(variant.payload)
-            }
+            DataMember::Field(field) => std::slice::from_ref(field),
+            DataMember::Variant(variant) => program.data_payload_fields(variant.payload),
         };
         for field in fields {
             collect_type_reference_domain_symbols(
@@ -693,10 +693,7 @@ fn domain_definition(
     program.domain_definition_by_symbol(symbol)
 }
 
-fn expression_is_bare_result(
-    program: &SymbolResolvedTrees,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
-) -> bool {
+fn expression_is_bare_result(program: &SymbolResolvedTrees, expression: ExpressionHandle) -> bool {
     let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(expression)
     else {
         return false;

@@ -14,7 +14,12 @@ use language_semantics::{
 };
 use std::fmt;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::data::TypeParameter;
+use symbol_resolved_trees::machine::Machine;
 use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::signature::AuthoredServiceReachRow;
+use symbol_resolved_trees::signature::AuthoredServiceReachTarget;
+use symbol_resolved_trees::signature::StateSignature;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 #[derive(Debug, Clone)]
@@ -28,7 +33,7 @@ pub(crate) enum PendingAuthoredServiceReach {
     /// reconstructs their meaning under a later consumer's source selection.
     Resolved {
         row: ServiceReachRowId,
-        authored: Option<symbol_resolved_trees::signature::AuthoredServiceReachRow>,
+        authored: Option<AuthoredServiceReachRow>,
     },
 }
 
@@ -40,13 +45,7 @@ impl PendingAuthoredServiceReach {
         rows: &mut ServiceReachRowTable,
         owner: SymbolHandle,
         installation_bound: bool,
-    ) -> Result<
-        (
-            ServiceReachRowId,
-            Option<symbol_resolved_trees::signature::AuthoredServiceReachRow>,
-        ),
-        Diagnostic,
-    > {
+    ) -> Result<(ServiceReachRowId, Option<AuthoredServiceReachRow>), Diagnostic> {
         match self {
             Self::Resolved { row, authored } => {
                 if authored.as_ref().is_some_and(|authored| {
@@ -250,7 +249,7 @@ fn pending_signature_service_reach(
 fn validate_signature_service_reaches(
     program: &SymbolResolvedTrees,
     services: &ServiceReachTable,
-    signature: &symbol_resolved_trees::signature::StateSignature,
+    signature: &StateSignature,
     pending: &PendingSignatureServiceReach,
 ) -> Result<(), Diagnostic> {
     let PendingAuthoredServiceReach::Authored { authored, .. } = &pending.reaches else {
@@ -286,7 +285,7 @@ impl fmt::Display for SignatureOwnerDisplay<'_> {
 fn validate_machine_service_reaches(
     program: &SymbolResolvedTrees,
     services: &ServiceReachTable,
-    machine: &symbol_resolved_trees::machine::Machine,
+    machine: &Machine,
     authored: &[DiagnosticName],
     is_authored: bool,
 ) -> Result<(), Diagnostic> {
@@ -320,7 +319,7 @@ fn resolve_authored_service_reach(
     keyword_source_spans: &[source::SourceSpan],
     authored: &[DiagnosticName],
     installation_bound: bool,
-) -> Result<Option<symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
+) -> Result<Option<AuthoredServiceReachRow>, Diagnostic> {
     if keyword_source_spans.is_empty() {
         if authored.is_empty() {
             return Ok(None);
@@ -343,20 +342,18 @@ fn resolve_authored_service_reach(
                     "authored service-reach member `{name}` resolves outside the normalized service table"
                 ))
             })?;
-            Ok(symbol_resolved_trees::signature::AuthoredServiceReachTarget {
+            Ok(AuthoredServiceReachTarget {
                 service: definition.symbol,
                 source_span: name.source_span(),
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    Ok(Some(
-        symbol_resolved_trees::signature::AuthoredServiceReachRow {
-            owner,
-            keyword_source_spans: keyword_source_spans.to_vec(),
-            targets,
-            installation_bound,
-        },
-    ))
+    Ok(Some(AuthoredServiceReachRow {
+        owner,
+        keyword_source_spans: keyword_source_spans.to_vec(),
+        targets,
+        installation_bound,
+    }))
 }
 
 fn normalize_machine_parameter_rows(
@@ -364,7 +361,7 @@ fn normalize_machine_parameter_rows(
     services: &ServiceReachTable,
     rows: &mut ServiceReachRowTable,
     signature_service_reaches: &[PendingSignatureServiceReach],
-) -> Result<Vec<symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
+) -> Result<Vec<AuthoredServiceReachRow>, Diagnostic> {
     use symbol_resolved_trees::data::TypeParameterKind;
 
     let mut roots = program
@@ -446,9 +443,9 @@ fn normalize_machine_parameter_rows(
 }
 
 fn collect_parameter_spans(
-    arena: &arena::Arena<symbol_resolved_trees::data::TypeParameter>,
-    span: arena::HandleSpan<symbol_resolved_trees::data::TypeParameter>,
-    spans: &mut Vec<arena::HandleSpan<symbol_resolved_trees::data::TypeParameter>>,
+    arena: &arena::Arena<TypeParameter>,
+    span: arena::HandleSpan<TypeParameter>,
+    spans: &mut Vec<arena::HandleSpan<TypeParameter>>,
 ) {
     use symbol_resolved_trees::data::TypeParameterKind;
     if span.is_empty() || spans.contains(&span) {

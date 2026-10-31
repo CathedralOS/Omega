@@ -19,6 +19,11 @@ use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use symbol_resolved_trees::name::DiagnosticName;
+use syntax::expression::ExpressionNode;
+use syntax::item::Item;
+use syntax::types::TypeReferenceNode;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -34,12 +39,12 @@ pub(crate) fn lower_item(
     lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
         lower_item_with_exposure(lowerer, syntax_trees, item)
     })?;
-    if matches!(item, syntax::item::Item::Conformance(_)) {
+    if matches!(item, Item::Conformance(_)) {
         lowerer
             .conformance_inputs
             .push((declaration, conformance_ordinal));
     }
-    if matches!(item, syntax::item::Item::Data(_))
+    if matches!(item, Item::Data(_))
         && let Some(sources) = &mut lowerer.equation_sources
     {
         sources.data_declarations.push((declaration, data_ordinal));
@@ -51,15 +56,15 @@ pub(crate) fn lower_item(
 fn lower_item_with_exposure(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    item: &syntax::item::Item,
+    item: &Item,
 ) -> Result<(), Diagnostic> {
     match item {
-        syntax::item::Item::Data(data_definition) => {
+        Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
             crate::lowering::wire::derive_wire_schema(lowerer, &lowered);
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
         }
-        syntax::item::Item::Domain(domain_definition) => {
+        Item::Domain(domain_definition) => {
             let domain_definition =
                 lower_domain_definition(lowerer, syntax_trees, domain_definition)?;
             lowerer
@@ -72,7 +77,7 @@ fn lower_item_with_exposure(
         // toolchain source; it lowers to the catalog's declaration, and every
         // other such signature rejects with the body/boundary/external-leaf
         // guidance.
-        syntax::item::Item::Machine(machine)
+        Item::Machine(machine)
             if machine.target.is_none()
                 && !machine.target_family_interface
                 && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
@@ -84,17 +89,17 @@ fn lower_item_with_exposure(
             )?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
-        syntax::item::Item::Machine(machine) => {
+        Item::Machine(machine) => {
             // Product members keep their exact authored target and separate
             // symbols. The bodyless generated head owns the portable path;
             // Build helpers instead retain their admitted execution selection.
             lower_machine_into(lowerer, syntax_trees, machine)?;
         }
-        syntax::item::Item::Trait(trait_definition) => {
+        Item::Trait(trait_definition) => {
             let trait_definition = lower_trait_definition(lowerer, syntax_trees, trait_definition)?;
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
-        syntax::item::Item::Conformance(conformance) => {
+        Item::Conformance(conformance) => {
             let arguments =
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
             let type_parameters = crate::lowering::data::lower_type_parameters(
@@ -192,7 +197,7 @@ fn lower_item_with_exposure(
                                 realization_machine: symbols::SymbolHandle::invalid(),
                                 realization_state: symbols::SymbolHandle::invalid(),
                                 realization_name:
-                                    symbol_resolved_trees::name::DiagnosticName::generated(
+                                    DiagnosticName::generated(
                                         realization_name,
                                     ),
                                 authored_realization_source_span,
@@ -230,22 +235,22 @@ fn lower_item_with_exposure(
                 },
             );
         }
-        syntax::item::Item::Measure(measure) => {
+        Item::Measure(measure) => {
             let measure = lower_measure_definition(lowerer, syntax_trees, measure)?;
             lowerer.symbol_resolved_trees.measures.push(measure);
         }
-        syntax::item::Item::Operator(operator) => {
+        Item::Operator(operator) => {
             let operator = lower_operator_definition(lowerer, syntax_trees, operator)?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
-        syntax::item::Item::Proposition(proposition) => {
+        Item::Proposition(proposition) => {
             let proposition = lower_proposition_definition(lowerer, syntax_trees, proposition)?;
             lowerer.symbol_resolved_trees.propositions.push(proposition);
         }
         // Const values exist only until symbol resolution: every use
         // substitutes the initializer. A detached resolved root remains for
         // later resolution continuations, not as runtime constant storage.
-        syntax::item::Item::Const(definition) => {
+        Item::Const(definition) => {
             let pending = lowerer.const_resolution_mode
                 != crate::resolution::lowerer::ConstResolutionMode::Complete
                 && crate::constant::requires_const_initializer_evaluation(syntax_trees, definition)
@@ -353,41 +358,33 @@ fn lower_item_with_exposure(
                 },
             );
         }
-        syntax::item::Item::Module(module) => {
+        Item::Module(module) => {
             lowerer
                 .namespace_declarations
                 .record_module(syntax_trees, module.path);
         }
-        syntax::item::Item::Use(import) => {
+        Item::Use(import) => {
             lowerer
                 .namespace_declarations
                 .record_import(syntax_trees, import.path);
         }
-        syntax::item::Item::Capability(_) | syntax::item::Item::Package(_) => {}
+        Item::Capability(_) | Item::Package(_) => {}
     }
 
     Ok(())
 }
 
-fn item_expression_exposure(
-    item: &syntax::item::Item,
-) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+fn item_expression_exposure(item: &Item) -> AuthoredDeclarationSelectionExposure {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
 
     match item {
-        syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
-        syntax::item::Item::Conformance(definition) if definition.is_public => {
-            Exposure::PublicInterface
-        }
-        syntax::item::Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
-        syntax::item::Item::Proposition(definition) if definition.is_public => {
-            Exposure::PublicInterface
-        }
-        syntax::item::Item::Machine(machine) => {
-            crate::lowering::machine::machine_interface_exposure(machine)
-        }
-        syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
-        syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
+        Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
+        Item::Conformance(definition) if definition.is_public => Exposure::PublicInterface,
+        Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
+        Item::Proposition(definition) if definition.is_public => Exposure::PublicInterface,
+        Item::Machine(machine) => crate::lowering::machine::machine_interface_exposure(machine),
+        Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
+        Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
         _ => Exposure::PrivateImplementation,
     }
 }
@@ -429,9 +426,7 @@ fn lower_closed_machine_row(
             provisional_requirement_ordinal: requirement_ordinal,
             realization_machine: symbols::SymbolHandle::invalid(),
             realization_state: symbols::SymbolHandle::invalid(),
-            realization_name: symbol_resolved_trees::name::DiagnosticName::generated(
-                realization_name,
-            ),
+            realization_name: DiagnosticName::generated(realization_name),
             authored_realization_source_span: Some(authored_realization_source_span),
             provisional_realization_ordinal: None,
             source: symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
@@ -474,7 +469,7 @@ fn lower_closed_machine_row(
         provisional_requirement_ordinal: requirement_ordinal,
         realization_machine: symbols::SymbolHandle::invalid(),
         realization_state: symbols::SymbolHandle::invalid(),
-        realization_name: symbol_resolved_trees::name::DiagnosticName::generated(realization_name),
+        realization_name: DiagnosticName::generated(realization_name),
         authored_realization_source_span: None,
         provisional_realization_ordinal: Some(realization_ordinal),
         source,
@@ -495,7 +490,7 @@ fn sealed_requirement_call(
     let (callee_path, callee_span) = sole_static_call(syntax_trees, machine)?;
     let mut matched = None;
     for item in syntax_trees.root_items() {
-        let syntax::item::Item::Machine(candidate) = item else {
+        let Item::Machine(candidate) = item else {
             continue;
         };
         if candidate.name.as_str(syntax_trees) != callee_path {
@@ -566,19 +561,17 @@ fn syntax_type_spelling(
     reference: syntax::types::TypeReferenceHandle,
 ) -> Option<String> {
     match syntax_trees.type_references.type_reference(reference) {
-        syntax::types::TypeReferenceNode::Named(name) => {
-            Some(name.as_str(syntax_trees).to_string())
-        }
-        syntax::types::TypeReferenceNode::Unit => Some("()".to_string()),
-        syntax::types::TypeReferenceNode::Reference { referee, .. } => Some(format!(
+        TypeReferenceNode::Named(name) => Some(name.as_str(syntax_trees).to_string()),
+        TypeReferenceNode::Unit => Some("()".to_string()),
+        TypeReferenceNode::Reference { referee, .. } => Some(format!(
             "&{}",
             syntax_type_spelling(syntax_trees, *referee)?
         )),
-        syntax::types::TypeReferenceNode::Slice { element_type } => Some(format!(
+        TypeReferenceNode::Slice { element_type } => Some(format!(
             "[{}]",
             syntax_type_spelling(syntax_trees, *element_type)?
         )),
-        syntax::types::TypeReferenceNode::Generic {
+        TypeReferenceNode::Generic {
             base_name,
             arguments,
             ..
@@ -626,9 +619,7 @@ fn sole_static_call(
     else {
         return None;
     };
-    let syntax::expression::ExpressionNode::Call(call) =
-        syntax_trees.expressions.expression(*expression)
-    else {
+    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(*expression) else {
         return None;
     };
     if !call.target_is_static {
@@ -639,9 +630,7 @@ fn sole_static_call(
     if !call.receiver.is_valid() {
         return Some((target_name, target_span));
     }
-    let syntax::expression::ExpressionNode::Name(path) =
-        syntax_trees.expressions.expression(call.receiver)
-    else {
+    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(call.receiver) else {
         return None;
     };
     let members = syntax_trees.expressions.identifier_path_members(*path);

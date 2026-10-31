@@ -6,6 +6,15 @@ use super::references::{
     assign_struct_literal_symbols,
 };
 use crate::symbols::scope::MachineScope;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::expression::ExpressionTable;
+use symbol_resolved_trees::expression::MatchPattern;
+use symbol_resolved_trees::expression::StaticMachineArgument;
+use symbol_resolved_trees::expression::TableMatchArm;
+use symbol_resolved_trees::expression::TableMatchExpression;
+use symbol_resolved_trees::signature::StateParameter;
+use symbol_resolved_trees::types::TypeReference;
 
 /// Public entry into a walk: reborrow the shared tables and scope into the
 /// visit context, then run the named method on the carried value.
@@ -14,10 +23,10 @@ macro_rules! context_wrapped {
         pub(in crate::symbols) fn $name(
             symbols: &SymbolTable,
             machine: &MachineScope<'_>,
-            parameters: &[symbol_resolved_trees::signature::StateParameter],
+            parameters: &[StateParameter],
             state_symbol: SymbolHandle,
-            expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-            child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+            expression_table: &mut ExpressionTable,
+            child_type_references: &mut arena::Arena<TypeReference>,
             $parameter: $ty,
         ) {
             ExpressionSymbolContext {
@@ -35,7 +44,7 @@ macro_rules! context_wrapped {
 
 context_wrapped! {
     assign_static_argument_type_symbols(
-        argument: &symbol_resolved_trees::expression::StaticMachineArgument
+        argument: &StaticMachineArgument
     ) => assign_static_argument_type_symbols
 }
 
@@ -45,11 +54,11 @@ context_wrapped! {
 pub(in crate::symbols) fn assign_static_arguments_type_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    machine_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    expression_table: &mut ExpressionTable,
+    child_type_references: &mut arena::Arena<TypeReference>,
+    machine_arguments: &[StaticMachineArgument],
 ) {
     for argument in machine_arguments {
         assign_static_argument_type_symbols(
@@ -67,11 +76,11 @@ pub(in crate::symbols) fn assign_static_arguments_type_symbols(
 pub(in crate::symbols) fn assign_statement_expression_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    child_type_references: &mut arena::Arena<TypeReference>,
+    expression: ExpressionHandle,
 ) {
     if !expression.is_valid() {
         return;
@@ -90,13 +99,13 @@ pub(in crate::symbols) fn assign_statement_expression_symbols(
 
 context_wrapped! {
     assign_expression_span_symbols(
-        expressions: HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>
+        expressions: HandleSpan<ExpressionHandle>
     ) => assign_expression_span_symbols
 }
 
 context_wrapped! {
     assign_expression_table_symbols(
-        expression: symbol_resolved_trees::expression::ExpressionHandle
+        expression: ExpressionHandle
     ) => assign_expression_table_symbols
 }
 
@@ -106,19 +115,16 @@ context_wrapped! {
 struct ExpressionSymbolContext<'visit, 'scope> {
     symbols: &'visit SymbolTable,
     machine: &'visit MachineScope<'scope>,
-    parameters: &'visit [symbol_resolved_trees::signature::StateParameter],
+    parameters: &'visit [StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &'visit mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &'visit mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+    expression_table: &'visit mut ExpressionTable,
+    child_type_references: &'visit mut arena::Arena<TypeReference>,
 }
 
 impl ExpressionSymbolContext<'_, '_> {
     /// Reassigns one type reference with this context's symbol table, machine
     /// scope, parameters, state symbol, and child arenas — every walk's call.
-    fn reassign_type_reference(
-        &mut self,
-        type_reference: arena::Handle<symbol_resolved_trees::types::TypeReference>,
-    ) {
+    fn reassign_type_reference(&mut self, type_reference: arena::Handle<TypeReference>) {
         crate::symbols::type_references::reassign_type_reference_symbols_and_values(
             self.symbols,
             self.machine,
@@ -130,10 +136,7 @@ impl ExpressionSymbolContext<'_, '_> {
         );
     }
 
-    fn assign_static_argument_type_symbols(
-        &mut self,
-        argument: &symbol_resolved_trees::expression::StaticMachineArgument,
-    ) {
+    fn assign_static_argument_type_symbols(&mut self, argument: &StaticMachineArgument) {
         if argument.type_reference.is_valid() {
             self.reassign_type_reference(argument.type_reference);
         }
@@ -151,10 +154,7 @@ impl ExpressionSymbolContext<'_, '_> {
         }
     }
 
-    fn assign_expression_span_symbols(
-        &mut self,
-        expressions: HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>,
-    ) {
+    fn assign_expression_span_symbols(&mut self, expressions: HandleSpan<ExpressionHandle>) {
         let count = expressions.count();
         for offset in 0..count {
             let expression = self.expression_table.expression_handles(expressions)[offset as usize];
@@ -162,16 +162,13 @@ impl ExpressionSymbolContext<'_, '_> {
         }
     }
 
-    fn assign_expression_table_symbols(
-        &mut self,
-        expression: symbol_resolved_trees::expression::ExpressionHandle,
-    ) {
+    fn assign_expression_table_symbols(&mut self, expression: ExpressionHandle) {
         if !expression.is_valid() {
             return;
         }
 
         match self.expression_table.expression(expression).clone() {
-            symbol_resolved_trees::expression::ExpressionNode::Match(mut dispatch) => {
+            ExpressionNode::Match(mut dispatch) => {
                 self.assign_expression_table_symbols(dispatch.subject);
                 for offset in 0..dispatch.arms.count() {
                     let mut arm = self.expression_table.match_arms(dispatch.arms)[offset as usize];
@@ -186,9 +183,7 @@ impl ExpressionSymbolContext<'_, '_> {
                     self.expression_table
                         .match_arm_mut(dispatch.arms.handle_at(offset))
                         .pattern = arm.pattern;
-                    if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
-                        arm.pattern
-                    {
+                    if let MatchPattern::Destructure(pattern) = arm.pattern {
                         let head = self
                             .expression_table
                             .name_path_node(pattern.head)
@@ -210,13 +205,12 @@ impl ExpressionSymbolContext<'_, '_> {
                     }
                     self.assign_expression_table_symbols(arm.value);
                 }
-                *self.expression_table.expression_mut(expression) =
-                    symbol_resolved_trees::expression::ExpressionNode::Match(dispatch);
+                *self.expression_table.expression_mut(expression) = ExpressionNode::Match(dispatch);
             }
             // The definition's subject and each head are visited by Match.
             // An alias is not another use/evaluation of that source subtree.
-            symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
-            symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::Atomic(atomic) => {
                 // The instruction-observed prior has its own destination expression,
                 // distinct from references inside the arithmetic-shaped carrier.
                 // Resolve it in the same state scope so downstream consumers bind
@@ -224,26 +218,26 @@ impl ExpressionSymbolContext<'_, '_> {
                 self.assign_expression_table_symbols(atomic.result);
                 self.assign_expression_table_symbols(atomic.value);
             }
-            symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            ExpressionNode::ArrayLiteral(values) => {
                 self.assign_expression_span_symbols(values);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+            ExpressionNode::Binary(binary) => {
                 self.assign_expression_table_symbols(binary.left);
                 self.assign_expression_table_symbols(binary.right);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-            | symbol_resolved_trees::expression::ExpressionNode::Float(_)
-            | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
-            | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-            | symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
-            symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::String(_) => {}
+            ExpressionNode::Cast(cast) => {
                 self.assign_expression_table_symbols(cast.value);
                 self.reassign_type_reference(cast.target_type);
                 for handle in cast.semantic_domain_arguments.handles() {
                     self.reassign_type_reference(handle);
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            ExpressionNode::Call(call) => {
                 for argument in &call.machine_arguments {
                     self.assign_static_argument_type_symbols(argument);
                 }
@@ -266,11 +260,11 @@ impl ExpressionSymbolContext<'_, '_> {
                     expression,
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Indexed(indexed) => {
                 self.assign_expression_table_symbols(indexed.collection);
                 self.assign_expression_table_symbols(indexed.index);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+            ExpressionNode::Range(range) => {
                 if range.start.is_valid() {
                     self.assign_expression_table_symbols(range.start);
                 }
@@ -278,7 +272,7 @@ impl ExpressionSymbolContext<'_, '_> {
                     self.assign_expression_table_symbols(range.end);
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+            ExpressionNode::Member(member) => {
                 let receiver = member.receiver;
                 let member_name = member.member.clone();
                 self.assign_expression_table_symbols(receiver);
@@ -292,7 +286,7 @@ impl ExpressionSymbolContext<'_, '_> {
                     expression,
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+            ExpressionNode::Membership(membership) => {
                 self.assign_expression_table_symbols(membership.value);
                 assign_membership_symbol(
                     self.symbols,
@@ -301,13 +295,13 @@ impl ExpressionSymbolContext<'_, '_> {
                     expression,
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            ExpressionNode::Borrow(inner) => {
                 self.assign_expression_table_symbols(inner.target);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+            ExpressionNode::Unary(unary) => {
                 self.assign_expression_table_symbols(unary.operand);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+            ExpressionNode::Name(path) => {
                 assign_name_symbol(
                     self.symbols,
                     self.machine,
@@ -318,7 +312,7 @@ impl ExpressionSymbolContext<'_, '_> {
                     expression,
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            ExpressionNode::StructLiteral(struct_literal) => {
                 let count = struct_literal.fields.count();
                 for offset in 0..count {
                     let field = &self.expression_table.struct_fields(struct_literal.fields)
@@ -327,8 +321,8 @@ impl ExpressionSymbolContext<'_, '_> {
                 }
                 assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
             }
-            symbol_resolved_trees::expression::ExpressionNode::TypeExpression(type_reference)
-            | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
+            ExpressionNode::TypeExpression(type_reference)
+            | ExpressionNode::ZeroValue(type_reference) => {
                 self.reassign_type_reference(type_reference);
             }
         }
@@ -341,8 +335,8 @@ impl ExpressionSymbolContext<'_, '_> {
     /// executable-predicate obligations as an authored `subject in Domain`.
     fn normalize_domain_pattern(
         &mut self,
-        dispatch: &mut symbol_resolved_trees::expression::TableMatchExpression,
-        arm: &mut symbol_resolved_trees::expression::TableMatchArm,
+        dispatch: &mut TableMatchExpression,
+        arm: &mut TableMatchArm,
     ) {
         use symbol_resolved_trees::expression::{
             BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableBinaryExpression,

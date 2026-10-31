@@ -18,6 +18,7 @@ use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_const_index_type;
 use crate::preparation::generic_data::validate_syntax_integer_range;
 use crate::preparation::generic_data::work_domain::TypePositionPurpose;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 
 pub(in crate::preparation::generic_data) fn integer_literal_value(
     value: &IntegerLiteral,
@@ -392,12 +393,9 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                             "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
                         )).with_source_span(name.source_span()))?;
                     let replacement = match value.decode_encoding() {
-                        Some(
-                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                                value,
-                                ..
-                            },
-                        ) => value.to_string(),
+                        Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                            value.to_string()
+                        }
                         _ => value.atom(),
                     };
                     let initializer = syntax.expressions.source_span(definition.value);

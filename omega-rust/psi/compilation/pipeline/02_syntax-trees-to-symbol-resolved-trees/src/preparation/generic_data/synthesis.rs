@@ -813,15 +813,14 @@ fn synthesize_instance(
         .tables
         .type_references
         .insert_type_reference_handles(instance.argument_handles.iter().copied());
-    let generic_instance =
-        syntax
-            .tables
-            .type_references
-            .insert(syntax_trees::types::TypeReferenceNode::Generic {
-                base_name: base_info.origin_name.clone(),
-                lifetime_arguments: Vec::new(),
-                arguments: origin_arguments,
-            });
+    let generic_instance = syntax
+        .tables
+        .type_references
+        .insert(TypeReferenceNode::Generic {
+            base_name: base_info.origin_name.clone(),
+            lifetime_arguments: Vec::new(),
+            arguments: origin_arguments,
+        });
 
     let members: Vec<DataMember> = syntax.tables.items.data_members(base_info.members).to_vec();
     let properties = base_info.properties;

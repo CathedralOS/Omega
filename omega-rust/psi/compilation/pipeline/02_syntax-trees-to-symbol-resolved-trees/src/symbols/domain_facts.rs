@@ -11,6 +11,21 @@ use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 use super::expressions::assign_membership_symbol;
 use super::lookup::diagnostic_path_source_span;
 use super::targets::resolve_free_call_target_symbol;
+use language_semantics::declaration_selection::CollectionMeasure;
+use std::iter::once;
+use symbol_resolved_trees::data::DataDefinition;
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::data::TypeParameter;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::domain::ProofFact;
+use symbol_resolved_trees::expression::BinaryOperator;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::expression::ExpressionTable;
+use symbol_resolved_trees::expression::TableNamePath;
+use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::types::TypeConstraint;
+use symbol_resolved_trees::types::TypeReference;
 
 mod case_members;
 
@@ -81,7 +96,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 .span_or_empty(domain.type_parameters)
                 .iter()
                 .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
-                .chain(std::iter::once((
+                .chain(once((
                     domain.subject_name.as_str().to_owned(),
                     domain.subject_symbol,
                 )))
@@ -109,19 +124,10 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         let descriptor_parameters = program
             .data_type_parameters(definition.type_parameters)
             .iter()
-            .filter(|parameter| {
-                matches!(
-                    parameter.kind,
-                    symbol_resolved_trees::data::TypeParameterKind::Value { .. }
-                )
-            })
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
             .zip(program.data_members(definition.members))
             .filter_map(|(parameter, member)| match member {
-                symbol_resolved_trees::data::DataMember::Field(field)
-                    if field.name == parameter.name =>
-                {
-                    Some(parameter.symbol)
-                }
+                DataMember::Field(field) if field.name == parameter.name => Some(parameter.symbol),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -138,10 +144,10 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 .span_or_empty(definition.members)
                 .iter()
                 .filter_map(|member| match member {
-                    symbol_resolved_trees::data::DataMember::Field(field) => {
+                    DataMember::Field(field) => {
                         Some((field.name.as_str().to_owned(), field.symbol))
                     }
-                    symbol_resolved_trees::data::DataMember::Variant(_) => None,
+                    DataMember::Variant(_) => None,
                 }),
         );
         if definition.predicate_subject_symbol.is_valid() {
@@ -156,9 +162,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .span_or_empty(definition.members)
             .iter()
             .filter_map(|member| match member {
-                symbol_resolved_trees::data::DataMember::Variant(variant)
-                    if !variant.where_facts.is_empty() =>
-                {
+                DataMember::Variant(variant) if !variant.where_facts.is_empty() => {
                     let mut scope = resolved_declarations(&program)
                         .data_payload_fields
                         .span_or_empty(variant.payload)
@@ -183,7 +187,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 _ => None,
             })
             .collect::<Vec<_>>();
-        std::iter::once((
+        once((
             definition.where_facts,
             local_symbols,
             Some(definition.type_parameters),
@@ -202,7 +206,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             type_parameters.map(|parameters| data_type_parameters.span_or_empty(parameters));
         for fact in proof_facts.span_mut_or_empty(facts) {
             match fact {
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                ProofFact::Membership(membership) => {
                     if let Some(type_parameters) = type_parameters {
                         let local_type_parameters =
                             data_type_parameters.span_or_empty(type_parameters);
@@ -234,7 +238,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         diagnostic_path_source_span(members),
                     );
                 }
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                ProofFact::Expression(expression) => {
                     assign_proof_expression_symbols(
                         symbols,
                         &domain_symbols,
@@ -268,7 +272,7 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
             let mut saw_membership = false;
             let mut memberships_admit_zero = true;
             for fact in facts {
-                let symbol_resolved_trees::domain::ProofFact::Membership(membership) = fact else {
+                let ProofFact::Membership(membership) = fact else {
                     continue;
                 };
                 saw_membership = true;
@@ -279,10 +283,8 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
             let expressions_gate_zero = facts
                 .iter()
                 .filter_map(|fact| match fact {
-                    symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
-                        Some(*expression)
-                    }
-                    symbol_resolved_trees::domain::ProofFact::Membership(_) => None,
+                    ProofFact::Expression(expression) => Some(*expression),
+                    ProofFact::Membership(_) => None,
                 })
                 .any(|expression| {
                     zero_fold(program, definition, expression).is_none_or(|value| value == 0)
@@ -299,8 +301,8 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
                 .span_or_empty(definition.members)
                 .iter()
                 .filter_map(|member| match member {
-                    symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant),
-                    symbol_resolved_trees::data::DataMember::Field(_) => None,
+                    DataMember::Variant(variant) => Some(variant),
+                    DataMember::Field(_) => None,
                 })
                 .next()
                 .is_some_and(|variant| {
@@ -309,10 +311,10 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
                         .span_or_empty(variant.where_facts)
                         .iter()
                         .any(|fact| match fact {
-                            symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                            ProofFact::Expression(expression) => {
                                 fact_expression_is_constant_false(program, *expression)
                             }
-                            symbol_resolved_trees::domain::ProofFact::Membership(_) => false,
+                            ProofFact::Membership(_) => false,
                         })
                 });
             (
@@ -342,24 +344,22 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
 
 fn zero_fold(
     program: &SymbolResolvedTrees,
-    definition: &symbol_resolved_trees::data::DataDefinition,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    definition: &DataDefinition,
+    expression: ExpressionHandle,
 ) -> Option<i128> {
     use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
     match program.tables.bodies.expressions.expression(expression) {
-        ExpressionNode::Name(path) => resolved_declarations(&program).data_members
+        ExpressionNode::Name(path) => resolved_declarations(&program)
+            .data_members
             .span_or_empty(definition.members)
             .iter()
             .any(|member| {
-                matches!(member, symbol_resolved_trees::data::DataMember::Field(field)
+                matches!(member, DataMember::Field(field)
                     if path.symbol.is_valid() && field.symbol == path.symbol)
             })
             .then_some(0),
         ExpressionNode::Member(member)
-            if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
-                member.member.as_str(),
-            )
-            .is_some() =>
+            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
             // A stored zero sequence is empty. A call or static subject is
             // not a field valuation merely because its member is named len.
@@ -394,13 +394,11 @@ fn zero_fold(
 /// counted -- an unprovable fact is not a contradiction.
 fn fact_expression_is_constant_false(
     program: &SymbolResolvedTrees,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> bool {
     match program.tables.bodies.expressions.expression(expression) {
-        symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
-            literal.decimal_value_i128() == Some(0)
-        }
-        symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => !*value,
+        ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
+        ExpressionNode::Boolean(value) => !*value,
         _ => false,
     }
 }
@@ -410,13 +408,10 @@ fn resolved_domain_byte_predicate(
     domain_symbol: SymbolHandle,
 ) -> Option<ByteSequencePredicate> {
     let domain = program.domain_definition_by_symbol(domain_symbol)?;
-    let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
-        program.proof_facts(domain.facts)
-    else {
+    let [ProofFact::Expression(expression)] = program.proof_facts(domain.facts) else {
         return None;
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
-        program.tables.bodies.expressions.expression(*expression)
+    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(*expression)
     else {
         return None;
     };
@@ -427,9 +422,7 @@ fn resolved_domain_byte_predicate(
     let [argument] = body_expressions(&program).expression_handles(call.arguments) else {
         return None;
     };
-    let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-        program.tables.bodies.expressions.expression(*argument)
-    else {
+    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(*argument) else {
         return None;
     };
     let members = body_expressions(&program).name_path_members(path.members);
@@ -444,25 +437,25 @@ fn resolved_domain_byte_predicate(
 struct ProofExpressionContext<'visit> {
     symbols: &'visit SymbolTable,
     domain_symbols: &'visit [(String, SymbolHandle, language_semantics::SemanticDomainId)],
-    child_type_references: &'visit mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &'visit arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: Option<&'visit [symbol_resolved_trees::data::TypeParameter]>,
+    child_type_references: &'visit mut arena::Arena<TypeReference>,
+    type_constraints: &'visit arena::Arena<TypeConstraint>,
+    local_type_parameters: Option<&'visit [TypeParameter]>,
     local_symbols: &'visit [(String, SymbolHandle)],
     logical_data_subject: bool,
-    expression_table: &'visit mut symbol_resolved_trees::expression::ExpressionTable,
+    expression_table: &'visit mut ExpressionTable,
     case_selections: Vec<case_members::CaseSelection>,
 }
 
 fn assign_proof_expression_symbols(
     symbols: &SymbolTable,
     domain_symbols: &[(String, SymbolHandle, language_semantics::SemanticDomainId)],
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: Option<&[symbol_resolved_trees::data::TypeParameter]>,
+    child_type_references: &mut arena::Arena<TypeReference>,
+    type_constraints: &arena::Arena<TypeConstraint>,
+    local_type_parameters: Option<&[TypeParameter]>,
     local_symbols: &[(String, SymbolHandle)],
     logical_data_subject: bool,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    expression: ExpressionHandle,
 ) {
     ProofExpressionContext {
         symbols,
@@ -485,9 +478,9 @@ impl ProofExpressionContext<'_> {
     /// already-bound path is left alone.
     fn assign_lexical_subject(
         &mut self,
-        members: arena::HandleSpan<symbol_resolved_trees::name::DiagnosticName>,
+        members: arena::HandleSpan<DiagnosticName>,
         member_symbols: arena::HandleSpan<SymbolHandle>,
-        expression: symbol_resolved_trees::expression::ExpressionHandle,
+        expression: ExpressionHandle,
     ) -> bool {
         let Some(name) = self.expression_table.name_path_members(members).first() else {
             return false;
@@ -505,9 +498,7 @@ impl ProofExpressionContext<'_> {
         let Some(symbol) = matching else {
             return false;
         };
-        if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-            self.expression_table.expression_mut(expression)
-        {
+        if let ExpressionNode::Name(path) = self.expression_table.expression_mut(expression) {
             path.head_symbol = symbol;
             if members.count() == 1 {
                 path.symbol = symbol;
@@ -520,10 +511,10 @@ impl ProofExpressionContext<'_> {
         true
     }
 
-    fn assign(&mut self, expression: symbol_resolved_trees::expression::ExpressionHandle) {
+    fn assign(&mut self, expression: ExpressionHandle) {
         let expression_node = self.expression_table.expression(expression).clone();
         match expression_node {
-            symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
+            ExpressionNode::Match(dispatch) => {
                 self.assign(dispatch.subject);
                 for arm in self.expression_table.match_arms(dispatch.arms).to_vec() {
                     for pattern in self
@@ -536,28 +527,28 @@ impl ProofExpressionContext<'_> {
                     self.assign(arm.value);
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
-            symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::Atomic(atomic) => {
                 self.assign(atomic.value);
                 if atomic.result.is_valid() {
                     self.assign(atomic.result);
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            ExpressionNode::ArrayLiteral(values) => {
                 for value in self.expression_table.expression_handles(values).to_vec() {
                     self.assign(value);
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+            ExpressionNode::Binary(binary) => {
                 self.assign(binary.left);
                 let selection_count = self.case_selections.len();
-                if binary.operator == symbol_resolved_trees::expression::BinaryOperator::And {
+                if binary.operator == BinaryOperator::And {
                     self.collect_case_selections(binary.left);
                 }
                 self.assign(binary.right);
                 self.case_selections.truncate(selection_count);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            ExpressionNode::Call(call) => {
                 if call.receiver.is_valid() {
                     self.assign(call.receiver);
                 }
@@ -586,21 +577,21 @@ impl ProofExpressionContext<'_> {
                         (Some(_), Some(_)) => SymbolHandle::invalid(),
                         (None, _) => resolve_free_call_target_symbol(self.symbols, &call.target),
                     };
-                    if let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+                    if let ExpressionNode::Call(call) =
                         self.expression_table.expression_mut(expression)
                     {
                         call.target_symbol = target_symbol;
                     }
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+            ExpressionNode::Cast(cast) => {
                 // Declaration predicates have the same type-bearing cast syntax as
                 // machine contracts. Resolve its target and qualification indices
                 // in this declaration's generic scope, not from its later spelling.
                 // Signature contracts already used their machine/trait scope.
                 if let Some(parameters) = self.local_type_parameters {
-                    for reference in std::iter::once(cast.target_type)
-                        .chain(cast.semantic_domain_arguments.handles())
+                    for reference in
+                        once(cast.target_type).chain(cast.semantic_domain_arguments.handles())
                     {
                         let mut target = self.child_type_references.get(reference).clone();
                         super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
@@ -615,11 +606,11 @@ impl ProofExpressionContext<'_> {
                 }
                 self.assign(cast.value);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Indexed(indexed) => {
                 self.assign(indexed.collection);
                 self.assign(indexed.index);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+            ExpressionNode::Range(range) => {
                 if range.start.is_valid() {
                     self.assign(range.start);
                 }
@@ -627,7 +618,7 @@ impl ProofExpressionContext<'_> {
                     self.assign(range.end);
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+            ExpressionNode::Membership(membership) => {
                 self.assign(membership.value);
                 let (name, reference_span) = {
                     let members = self.expression_table.name_path_members(membership.domain);
@@ -646,7 +637,7 @@ impl ProofExpressionContext<'_> {
                 );
                 let domain_symbol =
                     resolve_domain_symbol(self.symbols, self.domain_symbols, &name, reference_span);
-                if let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
+                if let ExpressionNode::Membership(membership) =
                     self.expression_table.expression_mut(expression)
                 {
                     membership.domain_symbol = domain_symbol;
@@ -656,12 +647,12 @@ impl ProofExpressionContext<'_> {
                     }
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+            ExpressionNode::Member(member) => {
                 // A declaration predicate's logical subject projects to its
                 // exact field binder. No runtime receiver is introduced.
                 let logical_receiver = self.logical_data_subject
                     && matches!(self.expression_table.expression(member.receiver),
-                        symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                        ExpressionNode::Name(path)
                         if self.expression_table.name_path_members(path.members).len() == 1
                             && self.expression_table.name_path_members(path.members)[0].as_str() == "self");
                 if logical_receiver {
@@ -688,28 +679,22 @@ impl ProofExpressionContext<'_> {
                             0,
                             *symbol,
                         );
-                        *self.expression_table.expression_mut(expression) =
-                            symbol_resolved_trees::expression::ExpressionNode::Name(
-                                symbol_resolved_trees::expression::TableNamePath::new(
-                                    members,
-                                    member_symbols,
-                                    *symbol,
-                                    *symbol,
-                                ),
-                            );
+                        *self.expression_table.expression_mut(expression) = ExpressionNode::Name(
+                            TableNamePath::new(members, member_symbols, *symbol, *symbol),
+                        );
                         return;
                     }
                 }
                 self.assign(member.receiver);
                 self.assign_guarded_case_member(expression);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            ExpressionNode::Borrow(inner) => {
                 self.assign(inner.target);
             }
-            symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+            ExpressionNode::Unary(unary) => {
                 self.assign(unary.operand);
             }
-            symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            ExpressionNode::StructLiteral(struct_literal) => {
                 for field in self
                     .expression_table
                     .struct_fields(struct_literal.fields)
@@ -723,7 +708,7 @@ impl ProofExpressionContext<'_> {
                     expression,
                 );
             }
-            symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+            ExpressionNode::Name(path) => {
                 // Lexical subjects keep their exact local identity: an
                 // already-bound path is left alone, a sole matching subject
                 // binds below, and remaining static type names select the
@@ -753,7 +738,7 @@ impl ProofExpressionContext<'_> {
                 {
                     return;
                 }
-                let name = symbol_resolved_trees::name::DiagnosticName::from_str(
+                let name = DiagnosticName::from_str(
                     &members.joined_path(),
                     diagnostic_path_source_span(members),
                 );
@@ -806,20 +791,19 @@ impl ProofExpressionContext<'_> {
                         selected,
                     );
                 }
-                if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-                    self.expression_table.expression_mut(expression)
+                if let ExpressionNode::Name(path) = self.expression_table.expression_mut(expression)
                 {
                     path.head_symbol = head;
                     path.symbol = symbol;
                 }
             }
-            symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-            | symbol_resolved_trees::expression::ExpressionNode::Float(_)
-            | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
-            | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
-            | symbol_resolved_trees::expression::ExpressionNode::String(_)
-            | symbol_resolved_trees::expression::ExpressionNode::TypeExpression(_)
-            | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::TypeExpression(_)
+            | ExpressionNode::ZeroValue(_) => {}
         }
     }
 }

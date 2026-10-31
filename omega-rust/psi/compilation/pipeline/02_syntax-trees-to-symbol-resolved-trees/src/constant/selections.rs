@@ -2,11 +2,15 @@
 
 use crate::constant::carrier;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::CanonicalConstValue;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionRecordError,
 };
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolKind;
 
 /// Attach the authored const selection to the substituted expression. The
@@ -130,9 +134,9 @@ pub(crate) fn finalize_const_declarations(
             ).with_source_span(declaration.scope.source_span()));
         }
         let exposure = if declaration.is_public {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            AuthoredDeclarationSelectionExposure::PrivateImplementation
         };
         program
             .record_resolved_authored_declaration_selection(
@@ -233,9 +237,7 @@ pub(crate) fn finalize_const_argument_selections(
                 Diagnostic::error("constant lost its receiving generic slot")
                     .with_source_span(origin.reference)
             })?;
-            let symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
-                &parameter.kind
-            else {
+            let TypeParameterKind::Const { type_reference } = &parameter.kind else {
                 return Err(
                     Diagnostic::error("constant did not enter a const parameter")
                         .with_source_span(origin.reference),
@@ -255,19 +257,14 @@ pub(crate) fn finalize_const_argument_selections(
                 {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }
-                let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } =
-                    argument
-                else {
+                let TypeReference::Named { symbol, name, .. } = argument else {
                     return Err(Diagnostic::error(
                         "nominal constant receiving argument lost its canonical value",
                     )
                     .with_source_span(origin.reference));
                 };
                 if (symbol.is_valid() && *symbol != declaration.symbol)
-                    || !language_semantics::const_value::CanonicalConstValue::from_atom(
-                        name.as_str(),
-                    )
-                    .is_some_and(|value| {
+                    || !CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
                         Some(value.encoding.as_str()) == origin.evaluated_value.encoding()
                     })
                 {
@@ -315,7 +312,7 @@ pub(crate) fn finalize_const_argument_selections(
             .declarations
             .child_type_references
             .span_mut_or_empty(arguments)[ordinal];
-        if let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument {
+        if let TypeReference::Named { symbol, name, .. } = argument {
             *symbol = selected;
             *name = selected_name;
         }

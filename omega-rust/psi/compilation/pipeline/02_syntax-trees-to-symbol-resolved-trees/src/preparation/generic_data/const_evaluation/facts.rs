@@ -30,6 +30,8 @@ use super::anonymous::{
 };
 use super::arguments::validate_declared_integer;
 use numerics::literals::LandedIntegerType;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::DomainDefinition;
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
@@ -526,9 +528,7 @@ pub(super) fn prove_const_data_predicates(
             .data_members(definition.members)
             .iter()
             .find_map(|member| match member {
-                syntax_trees::item::DataMember::Variant(variant)
-                    if variant.name.as_str(syntax) == case_name =>
-                {
+                DataMember::Variant(variant) if variant.name.as_str(syntax) == case_name => {
                     Some(variant)
                 }
                 _ => None,
@@ -579,7 +579,7 @@ pub(super) fn prove_const_data_predicates(
         .copied()
         .filter(|(name, _)| {
             members.iter().any(|member| match member {
-                syntax_trees::item::DataMember::Field(field) => field.name.as_str(syntax) == *name,
+                DataMember::Field(field) => field.name.as_str(syntax) == *name,
                 _ => false,
             })
         })
@@ -847,10 +847,7 @@ fn evaluate_named_const_domain(
 /// The selected declaration's complete logical path — module prefix plus the
 /// declared name. This label alone is not declaration identity: distinct
 /// packages can publish identical logical paths.
-fn module_domain_key(
-    syntax: &SyntaxTrees,
-    domain: &syntax_trees::item::DomainDefinition,
-) -> String {
+fn module_domain_key(syntax: &SyntaxTrees, domain: &DomainDefinition) -> String {
     match crate::preparation::generic_data::module_constants::module_path(
         syntax,
         domain.name.source_span().source_id,
@@ -919,7 +916,7 @@ fn carrier_satisfies_declared_bounds(
 /// authored spans select declarations in the fact author's source context.
 fn evaluate_selected_domain_facts(
     syntax: &SyntaxTrees,
-    domain: &syntax_trees::item::DomainDefinition,
+    domain: &DomainDefinition,
     domain_key: String,
     carrier: &str,
     subject_binding: ConstSubjectBinding<'_>,

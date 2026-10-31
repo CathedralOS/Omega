@@ -12,6 +12,7 @@ use crate::preparation::declaration_selection::{
 use crate::tables::syntax_type_references;
 use source::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -422,7 +423,7 @@ pub(crate) fn pending_const_initializer_leaves(
 fn require_closed_data<'syntax>(
     selection: &crate::preparation::declaration_selection::ConstantSelection,
     syntax: &'syntax SyntaxTrees,
-    name: &syntax_trees::identifier::Identifier,
+    name: &Identifier,
 ) -> Result<&'syntax syntax_trees::item::DataDefinition, String> {
     let declared = selection.data(syntax, name)?;
     if !declared.type_parameters.is_empty() || !declared.lifetime_parameters.is_empty() {
@@ -437,7 +438,7 @@ fn require_closed_data<'syntax>(
 fn name_selects_const(
     syntax: &SyntaxTrees,
     selection: &crate::preparation::declaration_selection::ConstantSelection,
-    path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+    path: arena::HandleSpan<Identifier>,
 ) -> bool {
     let members = syntax.expressions.identifier_path_members(path);
     let (Some(first), Some(last)) = (members.first(), members.last()) else {
@@ -448,8 +449,5 @@ fn name_selects_const(
         Span::new(first.source_span().span.start, last.source_span().span.end),
     );
     let name = members.joined_path_in(syntax);
-    selection.selects_const(
-        syntax,
-        &syntax_trees::identifier::Identifier::new(name, reference),
-    )
+    selection.selects_const(syntax, &Identifier::new(name, reference))
 }

@@ -4,6 +4,9 @@
 
 use crate::tables::body_expressions;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
@@ -92,10 +95,7 @@ fn named_type_operand(
                     && program.tables.declarations.data_type_parameters.iter().any(
                         |(_, parameter)| {
                             parameter.symbol == path.symbol
-                                && matches!(
-                                    parameter.kind,
-                                    symbol_resolved_trees::data::TypeParameterKind::Type
-                                )
+                                && matches!(parameter.kind, TypeParameterKind::Type)
                         },
                     );
             if !type_binder
@@ -115,7 +115,7 @@ fn named_type_operand(
             Some(TypeReference::Named {
                 supplied_operand_owner: Default::default(),
                 symbol: path.symbol,
-                name: symbol_resolved_trees::name::DiagnosticName::new(
+                name: DiagnosticName::new(
                     name,
                     program.tables.bodies.expressions.source_span(expression),
                 ),
@@ -160,10 +160,7 @@ fn has_type_role(
 fn materialize_type_operand(
     program: &mut SymbolResolvedTrees,
     expression: ExpressionHandle,
-) -> (
-    TypeReference,
-    Vec<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
-) {
+) -> (TypeReference, Vec<AuthoredDeclarationSelectionOccurrenceId>) {
     use symbol_resolved_trees::types::{
         ConstrainedTypeReference, ConstrainedTypeReferenceStorage, ReferenceTypeReference,
         ReferenceTypeReferenceStorage, SliceTypeReference, SliceTypeReferenceStorage,

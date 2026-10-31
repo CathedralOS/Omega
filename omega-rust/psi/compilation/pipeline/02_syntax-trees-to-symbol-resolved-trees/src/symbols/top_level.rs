@@ -52,6 +52,16 @@ use super::top_level::mathematical::assign_mathematical_symbols;
 use super::top_level::operators::assign_root_operator_symbols;
 use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
+use std::collections::HashSet;
+use symbol_resolved_trees::data::MachineParameterContract;
+use symbol_resolved_trees::data::PropositionParameterSignature;
+use symbol_resolved_trees::data::TypeParameter;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::machine::GenericConformanceBound;
+use symbol_resolved_trees::signature::StateParameter;
+use symbol_resolved_trees::signature::StateSignature;
+use symbol_resolved_trees::types::TypeConstraint;
+use symbol_resolved_trees::types::TypeReference;
 
 /// Trait-side tables both machine and trait assignment consult: which
 /// traits are transparent refinements, and each trait's per-parameter
@@ -59,7 +69,7 @@ use super::top_level::traits::assign_trait_symbols;
 pub(super) fn trait_parameter_tables(
     program: &SymbolResolvedTrees,
 ) -> (
-    std::collections::HashSet<SymbolHandle>,
+    HashSet<SymbolHandle>,
     Vec<(SymbolHandle, Vec<bool>)>,
     Vec<(SymbolHandle, Vec<bool>)>,
 ) {
@@ -82,10 +92,7 @@ pub(super) fn trait_parameter_tables(
                     .span_or_empty(trait_definition.type_parameters)
                     .iter()
                     .map(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
-                        )
+                        matches!(parameter.kind, TypeParameterKind::Proposition { .. })
                     })
                     .collect::<Vec<_>>(),
             )
@@ -98,14 +105,15 @@ pub(super) fn trait_parameter_tables(
         .map(|definition| {
             (
                 definition.symbol,
-                resolved_declarations(&program).data_type_parameters
+                resolved_declarations(&program)
+                    .data_type_parameters
                     .span_or_empty(definition.type_parameters)
                     .iter()
                     .map(|parameter| {
                         matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                            TypeParameterKind::Machine {
+                                contract: MachineParameterContract::RequirementIdentity
                             }
                         )
                     })
@@ -152,12 +160,8 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
             .flatten();
         for parameter in data_type_parameters.span_mut_or_empty(conformance.type_parameters) {
             let kind = match parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                    SymbolKind::MachineParameter
-                }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
-                    SymbolKind::PropositionParameter
-                }
+                TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
+                TypeParameterKind::Proposition { .. } => SymbolKind::PropositionParameter,
                 _ => SymbolKind::TypeParameter,
             };
             parameter.symbol = next_child_of_kind(&mut children, symbols, kind);
@@ -203,10 +207,10 @@ pub(super) fn next_child_of_kind(
 /// walk takes it as one context instead of a nine-position argument list.
 pub(super) struct SignatureSymbolTables<'a> {
     pub symbols: &'a SymbolTable,
-    pub data_type_parameters: &'a mut Arena<symbol_resolved_trees::data::TypeParameter>,
-    pub state_parameters: &'a mut Arena<symbol_resolved_trees::signature::StateParameter>,
-    pub child_type_references: &'a mut Arena<symbol_resolved_trees::types::TypeReference>,
-    pub type_constraints: &'a Arena<symbol_resolved_trees::types::TypeConstraint>,
+    pub data_type_parameters: &'a mut Arena<TypeParameter>,
+    pub state_parameters: &'a mut Arena<StateParameter>,
+    pub child_type_references: &'a mut Arena<TypeReference>,
+    pub type_constraints: &'a Arena<TypeConstraint>,
 }
 
 impl SignatureSymbolTables<'_> {
@@ -214,9 +218,9 @@ impl SignatureSymbolTables<'_> {
     /// contract carries one — the guard every parameter-kind site performs.
     pub(super) fn assign_parameter_contract_symbols(
         &mut self,
-        contract: &mut symbol_resolved_trees::data::MachineParameterContract,
+        contract: &mut MachineParameterContract,
         owner_symbol: SymbolHandle,
-        inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+        inherited_type_parameters: &[TypeParameter],
     ) {
         if let Some(signature) = contract.structural_mut() {
             assign_machine_parameter_signature_symbols(
@@ -236,8 +240,8 @@ impl SignatureSymbolTables<'_> {
     /// entirely (`resolve_reference_arms`).
     pub(super) fn resolve_type_parameter_kind_symbols(
         &mut self,
-        span: arena::HandleSpan<symbol_resolved_trees::data::TypeParameter>,
-        local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+        span: arena::HandleSpan<TypeParameter>,
+        local_type_parameters: &[TypeParameter],
         machine_parameter_arm: MachineParameterArm,
         resolve_reference_arms: bool,
     ) {
@@ -248,9 +252,7 @@ impl SignatureSymbolTables<'_> {
                 (parameter.symbol, parameter.kind.clone())
             };
             let resolved_kind = match kind {
-                symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference }
-                    if resolve_reference_arms =>
-                {
+                TypeParameterKind::Const { mut type_reference } if resolve_reference_arms => {
                     crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         self.child_type_references,
@@ -258,11 +260,9 @@ impl SignatureSymbolTables<'_> {
                         local_type_parameters,
                         &mut type_reference,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+                    TypeParameterKind::Const { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Value { mut type_reference }
-                    if resolve_reference_arms =>
-                {
+                TypeParameterKind::Value { mut type_reference } if resolve_reference_arms => {
                     crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         self.child_type_references,
@@ -270,17 +270,16 @@ impl SignatureSymbolTables<'_> {
                         local_type_parameters,
                         &mut type_reference,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
+                    TypeParameterKind::Value { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract }
+                TypeParameterKind::Machine { mut contract }
                     if !matches!(machine_parameter_arm, MachineParameterArm::Skip) =>
                 {
                     if matches!(
                         machine_parameter_arm,
                         MachineParameterArm::ResolveWithAuthoredTraitArguments
-                    ) && let symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
-                        trait_arguments,
-                        ..
+                    ) && let MachineParameterContract::AuthoredNominal {
+                        trait_arguments, ..
                     } = &contract
                     {
                         crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints(
@@ -296,9 +295,9 @@ impl SignatureSymbolTables<'_> {
                         parameter_symbol,
                         local_type_parameters,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
+                    TypeParameterKind::Machine { contract }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
+                TypeParameterKind::Proposition { mut contract } => {
                     assign_proposition_parameter_signature_symbols(
                         symbols,
                         self.state_parameters,
@@ -308,7 +307,7 @@ impl SignatureSymbolTables<'_> {
                         parameter_symbol,
                         local_type_parameters,
                     );
-                    symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
+                    TypeParameterKind::Proposition { contract }
                 }
                 other => other,
             };
@@ -328,9 +327,9 @@ pub(super) enum MachineParameterArm {
 
 pub(super) fn assign_machine_parameter_signature_symbols(
     tables: &mut SignatureSymbolTables<'_>,
-    contract: &mut symbol_resolved_trees::signature::StateSignature,
+    contract: &mut StateSignature,
     owner_symbol: SymbolHandle,
-    inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    inherited_type_parameters: &[TypeParameter],
 ) {
     use symbol_resolved_trees::data::TypeParameterKind;
 
@@ -400,12 +399,12 @@ pub(super) fn assign_machine_parameter_signature_symbols(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign_proposition_parameter_signature_symbols(
     symbols: &SymbolTable,
-    state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    contract: &mut symbol_resolved_trees::data::PropositionParameterSignature,
+    state_parameters: &mut Arena<StateParameter>,
+    child_type_references: &mut Arena<TypeReference>,
+    type_constraints: &Arena<TypeConstraint>,
+    contract: &mut PropositionParameterSignature,
     owner_symbol: SymbolHandle,
-    inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    inherited_type_parameters: &[TypeParameter],
 ) {
     let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();
     for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
@@ -425,10 +424,10 @@ pub(super) fn assign_proposition_parameter_signature_symbols(
 /// identical pass over `conformance_bounds`.
 pub(super) fn assign_conformance_bound_symbols(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
-    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    bounds: &mut [symbol_resolved_trees::machine::GenericConformanceBound],
+    child_type_references: &mut Arena<TypeReference>,
+    type_constraints: &Arena<TypeConstraint>,
+    local_type_parameters: &[TypeParameter],
+    bounds: &mut [GenericConformanceBound],
     trait_proposition_slots: &[(SymbolHandle, Vec<bool>)],
     trait_machine_identity_slots: &[(SymbolHandle, Vec<bool>)],
 ) {

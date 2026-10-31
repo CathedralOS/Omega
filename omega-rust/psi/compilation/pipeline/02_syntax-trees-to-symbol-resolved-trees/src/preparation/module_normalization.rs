@@ -32,7 +32,11 @@ use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::ConstDefinition;
 use syntax_trees::item::Item;
+use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_with_selection(
@@ -178,10 +182,7 @@ pub(crate) fn validate_with_const_resolution_mode(
     Ok(())
 }
 
-pub(crate) fn module_literal_constant(
-    syntax: &SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
-) -> bool {
+pub(crate) fn module_literal_constant(syntax: &SyntaxTrees, constant: &ConstDefinition) -> bool {
     use syntax_trees::expression::ExpressionNode;
     if !scalar_literal_tree(syntax, constant.value) {
         return false;
@@ -211,7 +212,7 @@ pub(crate) fn module_literal_constant(
             }
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: syntax_trees::types::FixedArrayLength::Literal(_),
+                length: FixedArrayLength::Literal(_),
             } => type_reference = *element_type,
             _ => return false,
         }
@@ -223,8 +224,8 @@ pub(crate) fn module_literal_constant(
 /// other leaf — named, constrained, builtin — keeps its existing owner.
 fn generic_const_carrier_leaf<'a>(
     syntax: &'a SyntaxTrees,
-    constant: &syntax_trees::item::ConstDefinition,
-) -> Option<&'a syntax_trees::identifier::Identifier> {
+    constant: &ConstDefinition,
+) -> Option<&'a Identifier> {
     let mut carrier = constant.type_reference;
     loop {
         carrier = match syntax.type_references.type_reference(carrier) {
@@ -235,10 +236,7 @@ fn generic_const_carrier_leaf<'a>(
     }
 }
 
-fn scalar_literal_tree(
-    syntax: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> bool {
+fn scalar_literal_tree(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
     use syntax_trees::expression::ExpressionNode;
     match syntax.expressions.expression(expression) {
         ExpressionNode::Boolean(_)

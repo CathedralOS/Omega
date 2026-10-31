@@ -14,11 +14,14 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
     AuthoredDeclarationSelectionLateBinding as LateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
-    BuildOperation, CompilerDerivedSelectionPartition,
+    BuildOperation, CompilerDerivedSelectionPartition, ResolvedAuthoredCallBinding,
 };
 use source::SourceSpan;
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+use std::collections::HashSet;
+use symbol_resolved_trees::domain::ProofFact;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -203,7 +206,7 @@ pub(crate) fn finalize_authored_expression_selections(
     finalize_expression_groups(program, authored_expressions)?;
 
     for pending in pending_proof_memberships {
-        if let symbol_resolved_trees::domain::ProofFact::Expression(expression) =
+        if let ProofFact::Expression(expression) =
             program.tables.declarations.proof_facts.get(pending.fact)
             && matches!(program.tables.bodies.expressions.expression(*expression),
                 ExpressionNode::Membership(membership)
@@ -214,7 +217,7 @@ pub(crate) fn finalize_authored_expression_selections(
             // The ordinary expression pass retained both case selections.
             continue;
         }
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+        let ProofFact::Membership(membership) =
             program.tables.declarations.proof_facts.get(pending.fact)
         else {
             return Err(Diagnostic::error(
@@ -250,12 +253,11 @@ pub(crate) fn finalize_authored_expression_selections(
                 ),
         }
         .map_err(record_diagnostic)?;
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
-            program
-                .tables
-                .declarations
-                .proof_facts
-                .get_mut(pending.fact)
+        let ProofFact::Membership(membership) = program
+            .tables
+            .declarations
+            .proof_facts
+            .get_mut(pending.fact)
         else {
             unreachable!("validated authored proof-membership fact changed variant")
         };
@@ -278,7 +280,7 @@ pub(super) fn normalize_case_membership_facts(
     pending: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
     for pending in pending {
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+        let ProofFact::Membership(membership) =
             program.tables.declarations.proof_facts.get(pending.fact)
         else {
             continue;
@@ -333,8 +335,7 @@ pub(super) fn normalize_case_membership_facts(
             .tables
             .declarations
             .proof_facts
-            .get_mut(pending.fact) =
-            symbol_resolved_trees::domain::ProofFact::Expression(expression);
+            .get_mut(pending.fact) = ProofFact::Expression(expression);
     }
     Ok(())
 }
@@ -1024,18 +1025,16 @@ fn collect_statement_static_argument_candidates(
 /// cannot assume a callee symbol exists for it.
 fn contract_clause_expression_handles(
     program: &SymbolResolvedTrees,
-) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
-    let mut handles = std::collections::HashSet::default();
+) -> HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
+    let mut handles = HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
         for fact in resolved_declarations(&program)
             .proof_facts
             .span_or_empty(contract.facts)
         {
             let root = match fact {
-                symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
-                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
-                    membership.value
-                }
+                ProofFact::Expression(expression) => *expression,
+                ProofFact::Membership(membership) => membership.value,
             };
             collect_expression_subtree(program, root, &mut handles);
         }
@@ -1046,7 +1045,7 @@ fn contract_clause_expression_handles(
 fn collect_expression_subtree(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
-    handles: &mut std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
+    handles: &mut HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
 ) {
     if !root.is_valid() || !handles.insert(root) {
         return;
@@ -1129,11 +1128,8 @@ fn collect_expression_subtree(
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
-    type_operands: &std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
-    contract_clause_expressions: &std::collections::HashSet<
-        ExpressionHandle,
-        symbols::BuildSymbolHasher,
-    >,
+    type_operands: &HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
+    contract_clause_expressions: &HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
 ) -> Result<Vec<Candidate>, Diagnostic> {
     let expressions = &program.tables.bodies.expressions;
     let expression_span = expressions.source_span(expression);
@@ -1465,10 +1461,7 @@ fn resolved_or_late(symbol: SymbolHandle, late: LateBinding) -> CandidateTarget 
     }
 }
 
-fn path_span(
-    members: &[symbol_resolved_trees::name::DiagnosticName],
-    fallback: SourceSpan,
-) -> SourceSpan {
+fn path_span(members: &[DiagnosticName], fallback: SourceSpan) -> SourceSpan {
     let Some(first) = members.first() else {
         return fallback;
     };
@@ -1664,12 +1657,10 @@ fn finalize_expression_groups(
                     original,
                     program.tables.bodies.expressions.expression_mut(expression),
                 ) {
-                    call.authored_call_binding = Some(
-                        language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
-                            selected: call.target_symbol,
-                            original,
-                        },
-                    );
+                    call.authored_call_binding = Some(ResolvedAuthoredCallBinding {
+                        selected: call.target_symbol,
+                        original,
+                    });
                 }
             }
         }

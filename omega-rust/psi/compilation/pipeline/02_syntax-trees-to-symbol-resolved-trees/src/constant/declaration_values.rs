@@ -6,13 +6,18 @@ use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
+use language_core::constant_value::EvaluatedConstant;
+use numerics::literals::FloatFormat;
 use source::{SourceSpan, Span};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbols::JoinedPath;
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{ConstDefinition, DataMember};
+use syntax_trees::types::TypeConstraintNode;
+use syntax_trees::types::TypeReferenceNode;
 
 /// Even unused private constants owe their exact nominal destination. Check
 /// resolved constructor and field identities after specialization, without
@@ -108,7 +113,7 @@ pub(crate) fn evaluated_declaration_value(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
-) -> Result<language_core::constant_value::EvaluatedConstant, String> {
+) -> Result<EvaluatedConstant, String> {
     use language_core::constant_value::EvaluatedConstant;
     if let Some(normalization) = &definition.normalization {
         // This is provisional producer output, not accepted value evidence.
@@ -116,11 +121,10 @@ pub(crate) fn evaluated_declaration_value(
         // before substitution or publication of this resolution result.
         return Ok(normalization.result_value.clone());
     }
-    if let syntax_trees::expression::ExpressionNode::UndeterminedNaN(format) =
-        syntax.expressions.expression(definition.value)
+    if let ExpressionNode::UndeterminedNaN(format) = syntax.expressions.expression(definition.value)
     {
         let mut carrier = definition.type_reference;
-        while let syntax_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+        while let TypeReferenceNode::Constrained { base_type, .. } =
             syntax.type_references.type_reference(carrier)
         {
             carrier = *base_type;
@@ -131,8 +135,8 @@ pub(crate) fn evaluated_declaration_value(
             );
         };
         let actual = match name.as_str(syntax) {
-            "f32" => numerics::literals::FloatFormat::F32,
-            "f64" => numerics::literals::FloatFormat::F64,
+            "f32" => FloatFormat::F32,
+            "f64" => FloatFormat::F64,
             _ => {
                 return Err(
                     "semantic NaN constant requires its exact declared floating carrier".into(),
@@ -261,17 +265,12 @@ pub(crate) fn validate_const_definition(
     // An unused private declaration never acquires a use-site proof obligation.
     // Its constrained destination is still mandatory; failure to encode a
     // public/index value must not swallow a false declaration-site predicate.
-    if let syntax_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+    if let TypeReferenceNode::Constrained { constraints, .. } =
         syntax_type_references(&syntax).type_reference(definition.type_reference)
         && syntax_type_references(&syntax)
             .constraints(*constraints)
             .iter()
-            .any(|constraint| {
-                matches!(
-                    constraint,
-                    syntax_trees::types::TypeConstraintNode::Domain(_)
-                )
-            })
+            .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
     {
         crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
             syntax, definition, selection,
@@ -361,7 +360,7 @@ fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) ->
 /// module body names need not yet carry their finalized constant ledger rows.
 pub(crate) fn selected_expression_constant(
     program: &SymbolResolvedTrees,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Option<(SourceSpan, symbols::SymbolHandle)> {
     let table = &program.tables.bodies.expressions;
     let path = table.name_path_node(expression)?;

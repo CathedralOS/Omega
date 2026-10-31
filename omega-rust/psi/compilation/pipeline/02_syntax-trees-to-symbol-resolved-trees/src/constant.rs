@@ -91,33 +91,32 @@ pub(crate) use substitution::{semantic_const_name, substitute_resolved_constants
 
 use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
+use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::ConstDefinition;
+use syntax_trees::types::TypeReferenceNode;
 
 /// A direct implementation selection is a symbolic literal, not an evaluated
 /// table address. Ordinary resolution and dynamic selection checking retain
 /// and authenticate its implementation and complete target application, even
 /// when the declaration has no use. Public canonical identity remains separate.
-pub(crate) fn direct_selector_literal(
-    syntax: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> bool {
-    let syntax_trees::expression::ExpressionNode::Cast(cast) =
-        syntax.expressions.expression(expression)
-    else {
+pub(crate) fn direct_selector_literal(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    let ExpressionNode::Cast(cast) = syntax.expressions.expression(expression) else {
         return false;
     };
     !cast.form.is_recast()
-        && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
+        && cast.domain == ArithmeticDomain::Exact
         && cast.semantic_domain.is_empty()
         && cast.semantic_domain_arguments.is_empty()
         && matches!(
             syntax.type_references.type_reference(cast.target_type),
-            syntax_trees::types::TypeReferenceNode::DynamicTrait { .. }
+            TypeReferenceNode::DynamicTrait { .. }
         )
         && matches!(
             syntax.expressions.expression(cast.value),
-            syntax_trees::expression::ExpressionNode::Name(_)
+            ExpressionNode::Name(_)
         )
 }
 

@@ -27,12 +27,29 @@ use crate::lowering::state::{
 use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use language_semantics::declaration_selection::CollectionMeasure;
+use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
+use std::mem::replace;
+use symbol_resolved_trees::data::TypeParameter;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::machine::{
-    GenericConformanceBound, Machine, MachineBodyStatus, MachineStorage, TraitConformance,
+    GenericConformanceBound, GenericDataMachineOrigin, Machine, MachineBodyStatus, MachineStorage,
+    TraitConformance, TraitDefaultOrigin,
 };
+use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::state::State;
 use symbols::SymbolHandle;
+use syntax::expression::BinaryOperator;
+use syntax::expression::ExpressionNode;
+use syntax::identifier::Identifier;
+use syntax::item::ExternalBinding;
+use syntax::item::Item;
+use syntax::item::SatisfiesClause;
+use syntax::item::StateHandle;
+use syntax_trees::item::CapabilityContractKind;
+use syntax_trees::item::ProofFact;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Prepared syntax bound to the one declaration roster that indexed it.
@@ -42,7 +59,7 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 pub(crate) struct PendingMachineBody {
     pub(crate) machine_ordinal: usize,
     source: syntax::item::Machine,
-    states: Vec<(Handle<State>, syntax::item::StateHandle)>,
+    states: Vec<(Handle<State>, StateHandle)>,
 }
 
 impl PendingMachineBody {
@@ -69,7 +86,7 @@ impl PendingMachineBody {
 /// exported contracts do not make a private declaration source-nameable.
 pub(crate) fn machine_interface_exposure(
     machine: &syntax::item::Machine,
-) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+) -> AuthoredDeclarationSelectionExposure {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
     if machine.is_public
         || (machine.boundary
@@ -146,9 +163,15 @@ fn lower_lexical_machine_parts(
         .collect();
     let interface_exposure = machine_interface_exposure(machine);
     let states = lowerer.with_authored_expression_exposure(
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states,
-            interface_exposure == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface),
+        AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        |lowerer| {
+            lower_machine_states(
+                lowerer,
+                syntax_trees,
+                machine.states,
+                interface_exposure == AuthoredDeclarationSelectionExposure::PublicInterface,
+            )
+        },
     )?;
     let body_status = if lowerer.defer_machine_bodies && !machine.bodyless {
         lowerer.pending_machine_bodies.push(PendingMachineBody {
@@ -183,7 +206,7 @@ fn lower_lexical_machine_parts(
     } = type_equations::lower(lowerer, syntax_trees, machine)?;
     let mut predicates = Vec::new();
     for fact in syntax_trees.items.proof_facts(machine.where_facts) {
-        let syntax_trees::item::ProofFact::Expression(expression) = fact else {
+        let ProofFact::Expression(expression) = fact else {
             return Err(Diagnostic::error(
                 "machine static type predicate lacks an expression owner",
             )
@@ -220,7 +243,7 @@ fn lower_lexical_machine_parts(
     let ranking_range = if machine.ranking_range.is_valid() {
         lower_expression_into_table(lowerer, syntax_trees, machine.ranking_range)?
     } else {
-        symbol_resolved_trees::expression::ExpressionHandle::invalid()
+        ExpressionHandle::invalid()
     };
     let service_reaches = lower_service_reach_names(syntax_trees, machine.service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
@@ -231,11 +254,11 @@ fn lower_lexical_machine_parts(
     // `<path>::<target>` symbol. The independent head occupies the portable
     // path; same-target calls bind exact member symbols during resolution.
     let target_symbol_name = match &sibling_target {
-        Some(target) => symbol_resolved_trees::name::DiagnosticName::new(
+        Some(target) => DiagnosticName::new(
             format!("{}::{}", machine.name.as_str(syntax_trees), target.as_str()),
             machine.name.source_span(),
         ),
-        None => symbol_resolved_trees::name::DiagnosticName::default(),
+        None => DiagnosticName::default(),
     };
     let attached_data = machine
         .attached_data
@@ -290,10 +313,8 @@ fn lower_lexical_machine_parts(
                 .capability_contracts(machine.contracts)
                 .iter()
                 .any(|contract| {
-                    matches!(
-                        contract.kind,
-                        syntax_trees::item::CapabilityContractKind::Ensures
-                    ) && !contract.facts.is_empty()
+                    matches!(contract.kind, CapabilityContractKind::Ensures)
+                        && !contract.facts.is_empty()
                 });
             if authors_fact {
                 language_semantics::MachineSupplyMode::AdmissionClaim
@@ -327,14 +348,14 @@ fn lower_lexical_machine_parts(
         symbol: SymbolHandle::invalid(),
         lexical_parent,
         name: machine_name,
-        generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
+        generic_data_origin: GenericDataMachineOrigin {
             template_source: crate::lowering::name::lower_name(
                 syntax_trees,
                 &machine.generic_data_template,
             ),
             ..Default::default()
         },
-        trait_default_origin: symbol_resolved_trees::machine::TraitDefaultOrigin {
+        trait_default_origin: TraitDefaultOrigin {
             trait_source: crate::lowering::name::lower_name(
                 syntax_trees,
                 &machine.default_body_trait,
@@ -392,7 +413,7 @@ fn lower_lexical_machine_parts(
     });
     lowerer.current_compiler_selection_partition = None;
     for child in machine.nested_machines.handles() {
-        let syntax::item::Item::Machine(child) = syntax_trees.items.item(child) else {
+        let Item::Machine(child) = syntax_trees.items.item(child) else {
             return Err(Diagnostic::error(
                 "a machine lexical scope contains a non-machine declaration",
             ));
@@ -484,10 +505,9 @@ fn with_pending_machine_scope<T>(
         ));
     }
     let partition = declaration.compiler_selection_partition;
-    let previous_defer = std::mem::replace(&mut lowerer.defer_machine_bodies, false);
-    let previous_partition =
-        std::mem::replace(&mut lowerer.current_compiler_selection_partition, partition);
-    let previous_boundary = std::mem::replace(
+    let previous_defer = replace(&mut lowerer.defer_machine_bodies, false);
+    let previous_partition = replace(&mut lowerer.current_compiler_selection_partition, partition);
+    let previous_boundary = replace(
         &mut lowerer.current_machine_is_boundary,
         pending.source.boundary,
     );
@@ -503,10 +523,9 @@ fn with_pending_machine_scope<T>(
         .filter_map(|contract| contract.binding.as_ref())
         .map(|binding| binding.as_str(syntax).to_owned())
         .collect();
-    let previous_evidence =
-        std::mem::replace(&mut lowerer.current_evidence_term_names, evidence_names);
+    let previous_evidence = replace(&mut lowerer.current_evidence_term_names, evidence_names);
     let result = lowerer.with_authored_expression_exposure(
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        AuthoredDeclarationSelectionExposure::PrivateImplementation,
         operation,
     );
     lowerer.defer_machine_bodies = previous_defer;
@@ -522,7 +541,7 @@ fn compiler_selection_partition(
     machine_ordinal: usize,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-) -> Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition> {
+) -> Option<CompilerDerivedSelectionPartition> {
     // Only compiler-derived declarations carry generated names; an authored
     // spelling must never receive a partition.
     if machine.name.is_source_backed() {
@@ -538,7 +557,7 @@ fn compiler_selection_partition(
         return machine
             .attached_data
             .is_some()
-            .then(|| language_semantics::declaration_selection::CompilerDerivedSelectionPartition::from_compiler_ordinal(ordinal));
+            .then(|| CompilerDerivedSelectionPartition::from_compiler_ordinal(ordinal));
     };
     let requirement_name = requirement.requirement.as_ref()?;
     if requirement.trait_name.is_source_backed()
@@ -549,11 +568,9 @@ fn compiler_selection_partition(
     {
         return None;
     }
-    Some(
-        language_semantics::declaration_selection::CompilerDerivedSelectionPartition::from_compiler_ordinal(
-            ordinal,
-        ),
-    )
+    Some(CompilerDerivedSelectionPartition::from_compiler_ordinal(
+        ordinal,
+    ))
 }
 
 pub(crate) fn lower_generic_conformance_bounds(
@@ -600,7 +617,7 @@ fn build_termination_plan(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
     states: HandleSpan<Handle<State>>,
-    type_parameters: HandleSpan<symbol_resolved_trees::data::TypeParameter>,
+    type_parameters: HandleSpan<TypeParameter>,
 ) -> language_semantics::MachineTerminationPlan {
     use language_semantics::{
         MachineTerminationPlan, RankingWitness, TerminationGuarantee, TerminationInterface,
@@ -644,7 +661,7 @@ fn build_termination_plan(
             // source-like; the checker verifies it structurally and fails
             // compilation otherwise.
             rank_range: machine.ranking_range.is_valid().then(|| {
-                let syntax::expression::ExpressionNode::Range(range) =
+                let ExpressionNode::Range(range) =
                     syntax_trees.expressions.expression(machine.ranking_range)
                 else {
                     return language_semantics::RankRange::default();
@@ -673,11 +690,11 @@ fn render_ranked_subject(
 ) -> String {
     match syntax_trees.expressions.expression(subject) {
         // Range endpoints are commonly literals (`in 0..=capacity`).
-        syntax::expression::ExpressionNode::Integer(literal) => literal.to_string(),
-        syntax::expression::ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
+        ExpressionNode::Integer(literal) => literal.to_string(),
+        ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
             .identifier_path_members(*path)
             .joined_path_with_in(syntax_trees, "."),
-        syntax::expression::ExpressionNode::Member(member) => format!(
+        ExpressionNode::Member(member) => format!(
             "{}.{}",
             render_ranked_subject(syntax_trees, member.receiver),
             member.member.as_str(syntax_trees)
@@ -686,12 +703,7 @@ fn render_ranked_subject(
         // 23, but retaining its exact normalized spelling lets the checked
         // stage issue the directed tuple-view migration diagnostic without
         // consulting the legacy expression-span projection.
-        syntax::expression::ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                syntax::expression::BinaryOperator::Subtract
-            ) =>
-        {
+        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
             format!(
                 "{} - {}",
                 render_ranked_subject(syntax_trees, binary.left),
@@ -711,7 +723,7 @@ fn elaborate_ranking_view(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
     states: HandleSpan<Handle<State>>,
-    type_parameters: HandleSpan<symbol_resolved_trees::data::TypeParameter>,
+    type_parameters: HandleSpan<TypeParameter>,
     subjects: &[syntax::expression::ExpressionHandle],
 ) -> (language_semantics::RankingViewId, String) {
     use language_semantics::RankingViewId;
@@ -756,23 +768,20 @@ fn elaborate_single_subject_default(
     lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     states: HandleSpan<Handle<State>>,
-    type_parameters: HandleSpan<symbol_resolved_trees::data::TypeParameter>,
+    type_parameters: HandleSpan<TypeParameter>,
     subject: syntax::expression::ExpressionHandle,
 ) -> (language_semantics::RankingViewId, String) {
     use language_semantics::RankingViewId;
     use symbol_resolved_trees::types::TypeReference;
 
-    if let syntax::expression::ExpressionNode::Member(member) =
-        syntax_trees.expressions.expression(subject)
+    if let ExpressionNode::Member(member) = syntax_trees.expressions.expression(subject)
         && CollectionMeasure::from_authored_spelling(member.member.as_str(syntax_trees))
             == Some(CollectionMeasure::Length)
     {
         return canonical_view(RankingViewId::NAT_DESCENDING);
     }
 
-    let syntax::expression::ExpressionNode::Name(path) =
-        syntax_trees.expressions.expression(subject)
-    else {
+    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(subject) else {
         return (RankingViewId::NULL, String::new());
     };
     let trees = &lowerer.symbol_resolved_trees;
@@ -798,10 +807,8 @@ fn elaborate_single_subject_default(
                 .iter()
                 .find(|parameter| parameter.name.as_str() == subject_name.as_str(syntax_trees))?;
             match &parameter.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
-                | symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } => {
-                    Some(type_reference)
-                }
+                TypeParameterKind::Value { type_reference }
+                | TypeParameterKind::Const { type_reference } => Some(type_reference),
                 _ => None,
             }
         });
@@ -843,8 +850,8 @@ fn elaborate_single_subject_default(
 fn lower_machine_ranking_view(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    order: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
+    order: HandleSpan<Identifier>,
+) -> HandleSpan<DiagnosticName> {
     crate::lowering::name::lower_name_members(
         syntax_trees,
         order,
@@ -860,7 +867,7 @@ fn lower_ranking_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     source_expressions: HandleSpan<syntax::expression::ExpressionHandle>,
-) -> Result<HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
+) -> Result<HandleSpan<ExpressionHandle>, Diagnostic> {
     let mut lowered = Vec::new();
 
     for expression in syntax_expressions(&syntax_trees).expression_handles(source_expressions) {
@@ -874,7 +881,7 @@ fn lower_ranking_expressions(
 fn lower_machine_trait_conformances(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    satisfies: HandleSpan<syntax::item::SatisfiesClause>,
+    satisfies: HandleSpan<SatisfiesClause>,
 ) -> Result<HandleSpan<TraitConformance>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -895,7 +902,7 @@ fn lower_machine_trait_conformances(
             .is_valid()
             .then(|| lower_expression_into_table(lowerer, syntax_trees, clause.via_expression))
             .transpose()?
-            .unwrap_or_else(symbol_resolved_trees::expression::ExpressionHandle::invalid);
+            .unwrap_or_else(ExpressionHandle::invalid);
         lowerer
             .symbol_resolved_trees
             .tables
@@ -928,37 +935,29 @@ fn lower_machine_trait_conformances(
 
 fn external_binding_identity(
     syntax_trees: &syntax_trees::SyntaxTrees,
-    binding: &syntax::item::ExternalBinding,
+    binding: &ExternalBinding,
 ) -> language_semantics::ExternalBindingIdentity {
     use language_semantics::ExternalBindingIdentity;
 
     match binding {
-        syntax::item::ExternalBinding::Syscall { number } => {
-            ExternalBindingIdentity::Syscall { number: *number }
-        }
-        syntax::item::ExternalBinding::CompilerIntrinsic => {
-            ExternalBindingIdentity::CompilerIntrinsic
-        }
-        syntax::item::ExternalBinding::VtableSlot { index } => {
+        ExternalBinding::Syscall { number } => ExternalBindingIdentity::Syscall { number: *number },
+        ExternalBinding::CompilerIntrinsic => ExternalBindingIdentity::CompilerIntrinsic,
+        ExternalBinding::VtableSlot { index } => {
             ExternalBindingIdentity::VtableSlot { index: *index }
         }
-        syntax::item::ExternalBinding::VtableField { field } => {
-            ExternalBindingIdentity::VtableField {
-                field: field.as_str(syntax_trees).to_owned(),
-            }
-        }
-        syntax::item::ExternalBinding::TableFunction { field } => {
-            ExternalBindingIdentity::TableFunction {
-                field: field.as_str(syntax_trees).to_owned(),
-            }
-        }
+        ExternalBinding::VtableField { field } => ExternalBindingIdentity::VtableField {
+            field: field.as_str(syntax_trees).to_owned(),
+        },
+        ExternalBinding::TableFunction { field } => ExternalBindingIdentity::TableFunction {
+            field: field.as_str(syntax_trees).to_owned(),
+        },
     }
 }
 
 fn lower_machine_states(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    states: HandleSpan<syntax::item::StateHandle>,
+    states: HandleSpan<StateHandle>,
     is_public: bool,
 ) -> Result<HandleSpan<Handle<State>>, Diagnostic> {
     let mut span = HandleSpan::empty();
