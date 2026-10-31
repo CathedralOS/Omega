@@ -7,8 +7,8 @@
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
 use crate::places::place_at;
 use checked_trees::{
-    CheckedNaturalRankMeasure as RankMeasure, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStateNaturalRank as NaturalRank,
+    CheckedIntegerRankObservation, CheckedNaturalRankMeasure as RankMeasure,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStateNaturalRank as NaturalRank,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -84,87 +84,103 @@ pub(super) fn record(
             root: facts::PlaceRoot::Symbol(coordinate.parameter),
             segments: coordinate.path.clone(),
         };
-        let mut declaration_bindings = bindings
-            .coordinates
-            .iter()
-            .map(|binding| (place(&binding.entry), place(&binding.destination)))
-            .collect::<Vec<_>>();
-        let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
-            .and_then(|subjects| subjects.first().copied());
-        if let RankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
-            let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
-                inputs
-                    .iter()
-                    .map(|input| {
-                        let entry = admitted.coordinates.get(input.entry);
-                        let destination = admitted.coordinates.get(input.destination);
-                        Some((
-                            validation::CanonicalPlace {
-                                root: facts::PlaceRoot::Symbol(entry.parameter),
-                                segments: admitted.path_segments.span(entry.path)?.to_vec(),
-                            },
-                            validation::CanonicalPlace {
-                                root: facts::PlaceRoot::Symbol(destination.parameter),
-                                segments: admitted.path_segments.span(destination.path)?.to_vec(),
-                            },
-                        ))
-                    })
-                    .collect::<Option<Vec<_>>>()
-            }) else {
-                continue;
-            };
-            declaration_bindings.extend(inputs);
-        }
-        let parameters = inputs
-            .iter()
-            .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
-            .cloned()
-            .collect::<Vec<_>>();
-        let Some(parameter_types) = parameters
-            .iter()
-            .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-            .collect::<Option<Vec<_>>>()
-        else {
+        let Some(components) = admitted.observation_components.span(rank.components) else {
             continue;
         };
-        let statement_nodes_start = plans.nodes.storage_slice().len();
-        let mut builder = Builder {
-            program,
-            shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
-            operators,
-            semantic,
-            flow,
-            borrow,
-            proof,
-            pure,
-            exact_integer_casts,
-            machine: owner.symbol,
-            state: state.symbol,
-            statement_index: 0,
-            parameters: &parameters,
-            authored_parameters: &inputs,
-            declaration_parameters: &inputs,
-            declaration_scope: None,
-            declaration_values: Vec::new(),
-            declaration_bindings: &declaration_bindings,
-            parameter_types: &parameter_types,
-            locals: &[],
-            plans,
-            structural_values,
-            statement_nodes_start,
-            scalar_occurrences: Vec::new(),
-            integer_occurrences: Vec::new(),
-        };
-        let root = observation(&mut builder, rank, subject, &bindings, admitted);
-        if let Some(root) = root {
-            let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
+        for (component, rank) in components.iter().enumerate() {
+            let Ok(component) = u32::try_from(component) else {
+                continue;
+            };
+            let mut declaration_bindings = bindings
+                .coordinates
+                .iter()
+                .map(|binding| (place(&binding.entry), place(&binding.destination)))
+                .collect::<Vec<_>>();
+            let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
+                .and_then(|subjects| subjects.first().copied());
+            if let RankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
+                let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
+                    inputs
+                        .iter()
+                        .map(|input| {
+                            let entry = admitted.coordinates.get(input.entry);
+                            let destination = admitted.coordinates.get(input.destination);
+                            Some((
+                                validation::CanonicalPlace {
+                                    root: facts::PlaceRoot::Symbol(entry.parameter),
+                                    segments: admitted.path_segments.span(entry.path)?.to_vec(),
+                                },
+                                validation::CanonicalPlace {
+                                    root: facts::PlaceRoot::Symbol(destination.parameter),
+                                    segments: admitted
+                                        .path_segments
+                                        .span(destination.path)?
+                                        .to_vec(),
+                                },
+                            ))
+                        })
+                        .collect::<Option<Vec<_>>>()
+                }) else {
+                    continue;
+                };
+                declaration_bindings.extend(inputs);
+            }
+            let parameters = inputs
+                .iter()
+                .filter(|parameter| {
+                    crate::values::scalar::occupies_scalar_position(program, parameter)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            let Some(parameter_types) = parameters
+                .iter()
+                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                .collect::<Option<Vec<_>>>()
+            else {
+                continue;
+            };
+            let statement_nodes_start = plans.nodes.storage_slice().len();
+            let mut builder = Builder {
+                program,
+                shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
+                operators,
+                semantic,
+                flow,
+                borrow,
+                proof,
+                pure,
+                exact_integer_casts,
+                machine: owner.symbol,
+                state: state.symbol,
+                statement_index: 0,
+                parameters: &parameters,
+                authored_parameters: &inputs,
+                declaration_parameters: &inputs,
+                declaration_scope: None,
+                declaration_values: Vec::new(),
+                declaration_bindings: &declaration_bindings,
+                parameter_types: &parameter_types,
+                locals: &[],
+                plans,
+                structural_values,
+                statement_nodes_start,
+                scalar_occurrences: Vec::new(),
+                integer_occurrences: Vec::new(),
+            };
+            let root = observation(&mut builder, rank, subject, &bindings, admitted);
+            if let Some(root) = root {
+                let _ = builder.push_scalar_root(
+                    CheckedScalarExpressionRole::RankObservation { component },
+                    root,
+                );
+            }
         }
     }
 }
 
 fn input_coordinate(
     builder: &mut Builder<'_, '_>,
-    rank: &NaturalRank,
+    rank: &CheckedIntegerRankObservation,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
     primitive_type: PrimitiveType,
@@ -216,7 +232,7 @@ fn input_coordinate(
 
 fn observation<'program>(
     builder: &mut Builder<'program, '_>,
-    rank: &NaturalRank,
+    rank: &CheckedIntegerRankObservation,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
     admitted: &'program checked_trees::CheckedRankArrivalPlan,
@@ -300,7 +316,7 @@ fn observation<'program>(
             if coordinate.parameter != rank.parameter {
                 return None;
             }
-            let (_, state) = validation::find_state(builder.program, rank.state)?;
+            let (_, state) = validation::find_state(builder.program, builder.state)?;
             let parameter = builder
                 .program
                 .state_parameters(state)

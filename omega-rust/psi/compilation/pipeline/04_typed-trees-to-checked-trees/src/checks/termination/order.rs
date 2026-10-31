@@ -75,9 +75,10 @@ pub(super) enum RankingOrder {
         field_symbol: SymbolHandle,
         owner: SymbolHandle,
     },
-    /// A declared lexicographic `measure`; the stored field names are the ordered
-    /// projection components compared left-to-right.
-    Lexicographic(Vec<Identifier>),
+    /// A declared lexicographic view. The complete invocation-component owner
+    /// resolves and retains its ordered field identities; classification grants
+    /// no source-shape-based comparison proof.
+    Lexicographic,
 }
 
 /// The result of resolving the ordering for a `terminates by` clause: either a
@@ -261,8 +262,8 @@ impl RankingOrder {
         let measure = find_declared_measure(program, order)?;
 
         if measure.lexicographic {
-            let components = lexicographic_component_fields(program, measure)?;
-            return Some(Self::Lexicographic(components));
+            return lexicographic_components_are_named(program, measure)
+                .then_some(Self::Lexicographic);
         }
 
         let Some(shape) = measure_body_shape(program, measure) else {
@@ -512,29 +513,21 @@ fn ranking_subject_type_reference(
     operand_type_reference(program, expression)
 }
 
-fn lexicographic_component_fields(
+fn lexicographic_components_are_named(
     program: &dyn ::validation::CheckingInput,
     measure: &MeasureDefinition,
-) -> Option<Vec<Identifier>> {
+) -> bool {
     let body = program.expression_table.expression_handles(measure.body);
-    if body.is_empty() {
-        return None;
-    }
-    let mut fields = Vec::with_capacity(body.len());
-    for component in body {
-        match program.expression_table.expression(*component) {
-            ExpressionNode::Name(path) => {
-                let member = expressions(program)
+    !body.is_empty()
+        && body.iter().all(
+            |component| match program.expression_table.expression(*component) {
+                ExpressionNode::Name(path) => !expressions(program)
                     .name_path_members(path.members)
-                    .last()
-                    .cloned()?;
-                fields.push(member);
-            }
-            ExpressionNode::Member(member) => fields.push(member.member.clone()),
-            _ => return None,
-        }
-    }
-    Some(fields)
+                    .is_empty(),
+                ExpressionNode::Member(_) => true,
+                _ => false,
+            },
+        )
 }
 
 fn expression_type_name(

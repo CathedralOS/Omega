@@ -36,9 +36,9 @@ pub use control_flow::{
     RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
     TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
-    TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
-    TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
-    structural_parameter_position,
+    TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, TrappingIntegerOperation,
+    TrappingIntegerPrimitive, structural_parameter_position,
 };
 pub mod identity;
 pub use identity::*;

@@ -124,3 +124,126 @@ fn machine_parameter_order_has_no_erased_formal_lane() {
         [0, 2, 1]
     );
 }
+
+fn rank_tuple_fixture() -> terminal_psi::TerminalRankedScc {
+    use terminal_psi::{
+        TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalNaturalCycle,
+        TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc,
+    };
+    let narrow = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let wide = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let value = |integer_type, identity| TerminalIntegerRankValue {
+        integer_type,
+        value: ValueId::new(identity).unwrap(),
+    };
+    let mut observations = arena::Arena::new();
+    // Allocation history is not a portable coordinate. The codec copies only
+    // the complete typed rows and reconstructs its own arena ownership.
+    observations.insert(value(wide, 999));
+    let header = observations.insert_many([value(narrow, 1), value(wide, 2)]);
+    let arrival = observations.insert_many([value(narrow, 3), value(wide, 4)]);
+    let block = semantic_vocabulary::BlockId::new(1).unwrap();
+    TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+        observations,
+        ranks: vec![TerminalBlockNaturalRank {
+            block,
+            values: header,
+        }],
+        edges: vec![TerminalNaturalRankEdge {
+            edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+            source: block,
+            target: block,
+            successor_ranks: arrival,
+            comparison: TerminalNaturalRankComparison::Strict,
+        }],
+    }])
+}
+
+#[test]
+fn rank_tuple_wire_retains_order_types_and_ssa_values_without_arena_coordinates() {
+    let original = rank_tuple_fixture();
+    let mut writer = super::Writer::default();
+    super::encode_ranked_scc(&mut writer, Some(&original)).unwrap();
+    let bytes = writer.finish();
+    assert_eq!(bytes[0], 3);
+    assert_eq!(
+        super::decode_ranked_scc(&mut super::Reader::new(&bytes)).unwrap(),
+        Some(original)
+    );
+    assert_eq!(
+        super::decode_ranked_scc(&mut super::Reader::new(&[2])),
+        Err(crate::CodecError::InvalidTag("TerminalRankedScc", 2))
+    );
+}
+
+#[test]
+fn rank_tuple_wire_rejects_a_dropped_successor_suffix() {
+    let mut original = rank_tuple_fixture();
+    let terminal_psi::TerminalRankedScc::Natural(components) = &mut original;
+    let component = &mut components[0];
+    let first = component
+        .rank_values(component.edges[0].successor_ranks)
+        .unwrap()[0];
+    component.edges[0].successor_ranks = component.observations.insert_many([first]);
+    let mut writer = super::Writer::default();
+    assert_eq!(
+        super::encode_ranked_scc(&mut writer, Some(&original)),
+        Err(crate::CodecError::MalformedRanking(
+            "incomplete or differently typed rank tuple"
+        ))
+    );
+
+    // A foreign producer need not use our writer. Pin the decoder's own arity
+    // check with a complete byte row whose successor has lost one component.
+    let mut writer = super::Writer::default();
+    writer.u8(3);
+    writer.len("components", 1).unwrap();
+    writer.len("blocks", 1).unwrap();
+    writer.id(semantic_vocabulary::BlockId::new(1).unwrap());
+    writer.len("rank", 2).unwrap();
+    for identity in [1, 2] {
+        super::encode_integer_type(
+            &mut writer,
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        );
+        writer.id(ValueId::new(identity).unwrap());
+    }
+    writer.len("edges", 1).unwrap();
+    writer.id(semantic_vocabulary::EdgeId::new(1).unwrap());
+    writer.id(semantic_vocabulary::BlockId::new(1).unwrap());
+    writer.id(semantic_vocabulary::BlockId::new(1).unwrap());
+    writer.len("successor", 1).unwrap();
+    super::encode_integer_type(
+        &mut writer,
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+    );
+    writer.id(ValueId::new(3).unwrap());
+    writer.u8(2);
+    let bytes = writer.finish();
+    assert_eq!(
+        super::decode_ranked_scc(&mut super::Reader::new(&bytes)),
+        Err(crate::CodecError::MalformedRanking(
+            "incomplete or differently typed rank tuple"
+        ))
+    );
+}
+
+#[test]
+fn rank_tuple_wire_rejects_reordered_differently_typed_components() {
+    let mut original = rank_tuple_fixture();
+    let terminal_psi::TerminalRankedScc::Natural(components) = &mut original;
+    let component = &mut components[0];
+    let mut values = component
+        .rank_values(component.edges[0].successor_ranks)
+        .unwrap()
+        .to_vec();
+    values.swap(0, 1);
+    component.edges[0].successor_ranks = component.observations.insert_many(values);
+    let mut writer = super::Writer::default();
+    assert_eq!(
+        super::encode_ranked_scc(&mut writer, Some(&original)),
+        Err(crate::CodecError::MalformedRanking(
+            "incomplete or differently typed rank tuple"
+        ))
+    );
+}

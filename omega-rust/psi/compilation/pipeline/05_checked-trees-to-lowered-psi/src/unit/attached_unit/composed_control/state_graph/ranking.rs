@@ -35,8 +35,8 @@ use crate::checked_facts::value_facts;
 use crate::expression_preparation::bindings::CapturedStructuralFormal;
 use std::collections::BTreeMap;
 use terminal_psi::{
-    TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge,
+    TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalNaturalCycle,
+    TerminalNaturalRankComparison, TerminalNaturalRankEdge,
 };
 
 /// Retain every observation required by the exact admitted source body.
@@ -70,14 +70,31 @@ pub(super) fn require_witness_ranks(
                     "Unit graph lost its required rank observations",
                 ))?;
         for required in observations.iter().filter(|rank| rank.state == state.state) {
-            if !plan.natural_ranks.iter().any(|rank| {
-                rank.state == required.state
-                    && rank.parameter == required.parameter
-                    && rank.parameter_position == required.parameter_position
-                    && rank.measure == required.measure
-                    && rank.observation.is_valid()
-            }) {
-                return unsupported("Unit graph ranking certificate is not retained");
+            let wanted = arrivals
+                .observation_components
+                .span(required.components)
+                .ok_or(LoweringError::Unsupported(
+                    "required rank lost its complete component span",
+                ))?;
+            let retained = plan
+                .natural_ranks
+                .iter()
+                .find(|rank| rank.state == required.state)
+                .and_then(|rank| plan.rank_components.span(rank.components))
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph ranking certificate is not retained",
+                ))?;
+            if wanted.is_empty()
+                || wanted.len() != retained.len()
+                || !wanted.iter().zip(retained).all(|(wanted, actual)| {
+                    wanted.parameter == actual.parameter
+                        && wanted.parameter_position == actual.parameter_position
+                        && wanted.measure == actual.measure
+                        && wanted.function == actual.function
+                        && actual.observation.is_valid()
+                })
+            {
+                return unsupported("Unit graph ranking tuple is incomplete or substituted");
             }
         }
     }
@@ -86,11 +103,11 @@ pub(super) fn require_witness_ranks(
 
 /// Find the retained executable observation, independent of the source measure's
 /// proof/order descriptor. Its arena node keeps the signed integer carrier.
-pub(super) fn observation<'a>(
+pub(super) fn observations<'a>(
     checked: &'a checked_trees::CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
-) -> Result<Option<&'a checked_trees::CheckedScalarComputationRoot>, LoweringError> {
+) -> Result<Option<Vec<&'a checked_trees::CheckedScalarComputationRoot>>, LoweringError> {
     let Some(rank) = plan
         .natural_ranks
         .iter()
@@ -98,24 +115,38 @@ pub(super) fn observation<'a>(
     else {
         return Ok(None);
     };
-    let mut roots = value_facts(checked)
-        .scalar_computations
-        .roots
-        .iter()
-        .map(|(_, root)| root)
-        .filter(|root| {
-            root.state == state.state
-                && root.root == rank.observation
-                && root.statement_ordinal == 0
-                && root.role == checked_trees::CheckedScalarExpressionRole::RankObservation
-        });
-    let root = roots.next().ok_or(LoweringError::Unsupported(
-        "Unit graph rank lost its retained observation root",
-    ))?;
-    if roots.next().is_some() || !rank.observation.is_valid() {
-        return unsupported("Unit graph rank duplicates its observation custody");
+    let components = plan
+        .rank_components
+        .span(rank.components)
+        .filter(|values| !values.is_empty())
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph rank lost its ordered component span",
+        ))?;
+    let mut observations = Vec::with_capacity(components.len());
+    for (component, value) in components.iter().enumerate() {
+        let component = u32::try_from(component)
+            .map_err(|_| LoweringError::Unsupported("rank component ordinal exceeds u32"))?;
+        let mut roots = value_facts(checked)
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| {
+                root.state == state.state
+                    && root.root == value.observation
+                    && root.statement_ordinal == 0
+                    && root.role
+                        == checked_trees::CheckedScalarExpressionRole::RankObservation { component }
+            });
+        let root = roots.next().ok_or(LoweringError::Unsupported(
+            "Unit graph rank lost its retained observation root",
+        ))?;
+        if roots.next().is_some() || !value.observation.is_valid() {
+            return unsupported("Unit graph rank duplicates its observation custody");
+        }
+        observations.push(root);
     }
-    Ok(Some(root))
+    Ok(Some(observations))
 }
 
 /// Bind a state telescope to completed values without changing their physical
@@ -163,8 +194,8 @@ pub(super) fn formal_bindings(
 
 pub(super) fn retain(
     machine: &mut TerminalMachine,
-    ranks: &BTreeMap<BlockId, ValueId>,
-    edges: &BTreeMap<semantic_vocabulary::EdgeId, (ValueId, TerminalNaturalRankComparison)>,
+    ranks: &BTreeMap<BlockId, Vec<ValueId>>,
+    edges: &BTreeMap<semantic_vocabulary::EdgeId, (Vec<ValueId>, TerminalNaturalRankComparison)>,
 ) -> Result<(), LoweringError> {
     if ranks.is_empty() {
         return Ok(());
@@ -173,6 +204,7 @@ pub(super) fn retain(
     for members in terminal_semantics::control_graph::control_cycle_members(machine)
         .map_err(LoweringError::InvalidControlGraph)?
     {
+        let mut observations = arena::Arena::new();
         let mut retained_edges = Vec::new();
         let mut retained_ranks = Vec::new();
         for block in &machine.blocks {
@@ -181,9 +213,13 @@ pub(super) fn retain(
             }
             retained_ranks.push(TerminalBlockNaturalRank {
                 block: block.id,
-                value: *ranks.get(&block.id).ok_or(LoweringError::Unsupported(
-                    "Unit graph cyclic rank lost a block",
-                ))?,
+                values: retain_rank_values(
+                    machine,
+                    &mut observations,
+                    ranks.get(&block.id).ok_or(LoweringError::Unsupported(
+                        "Unit graph cyclic rank lost a block",
+                    ))?,
+                )?,
             });
             let successors = match &block.terminator {
                 Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
@@ -201,35 +237,68 @@ pub(super) fn retain(
                 if !members.contains(&target) {
                     continue;
                 }
-                let (successor_rank, comparison) = edges.get(&edge).copied().ok_or(
+                let (successor_rank, comparison) = edges.get(&edge).ok_or(
                     LoweringError::Unsupported("Unit graph cyclic rank lost an edge"),
                 )?;
                 retained_edges.push(TerminalNaturalRankEdge {
                     edge,
                     source: block.id,
                     target,
-                    successor_rank,
-                    comparison,
+                    successor_ranks: retain_rank_values(
+                        machine,
+                        &mut observations,
+                        successor_rank,
+                    )?,
+                    comparison: *comparison,
                 });
             }
         }
         retained_ranks.sort_by_key(|rank| rank.block);
         retained_edges.sort_by_key(|edge| edge.edge);
-        let first_rank = retained_ranks
-            .first()
-            .ok_or(LoweringError::Unsupported("natural component has no rank"))?;
-        let rank_type = rank_type(machine, first_rank.value)?;
-        components.push(TerminalNaturalCycle {
-            rank_type,
+        let component = TerminalNaturalCycle {
+            observations,
             ranks: retained_ranks,
             edges: retained_edges,
-        });
+        };
+        if component.ranks.is_empty()
+            || component
+                .ranks
+                .iter()
+                .any(|rank| component.rank_values(rank.values).is_none())
+            || component
+                .edges
+                .iter()
+                .any(|edge| component.rank_values(edge.successor_ranks).is_none())
+        {
+            return unsupported("cyclic rank lost its complete ordered carrier signature");
+        }
+        components.push(component);
     }
     if components.is_empty() {
         return unsupported("Unit graph rank has no cyclic component");
     }
     machine.ranked_scc = Some(TerminalRankedScc::Natural(components));
     Ok(())
+}
+
+fn retain_rank_values(
+    machine: &TerminalMachine,
+    observations: &mut arena::Arena<TerminalIntegerRankValue>,
+    values: &[ValueId],
+) -> Result<arena::HandleSpan<TerminalIntegerRankValue>, LoweringError> {
+    if values.is_empty() {
+        return unsupported("cyclic rank has no ordered observations");
+    }
+    let values = values
+        .iter()
+        .map(|value| {
+            Ok(TerminalIntegerRankValue {
+                integer_type: rank_type(machine, *value)?,
+                value: *value,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok(observations.insert_many(values))
 }
 
 fn rank_type(machine: &TerminalMachine, value: ValueId) -> Result<IntegerType, LoweringError> {

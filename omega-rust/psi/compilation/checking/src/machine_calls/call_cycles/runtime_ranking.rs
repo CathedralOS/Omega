@@ -4,7 +4,6 @@
 //! prefix; only a complete prefix supplies a publishable component decision.
 //! No source subject or public termination claim is added.
 
-mod comparison;
 mod meaning;
 mod occurrences;
 mod prefix;
@@ -24,19 +23,25 @@ use crate::RankingRangeMeasure;
 use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
+    call_member_premise_symbols, prove_captured_rank_call, prove_ranking_range_call,
 };
-use comparison::Comparison;
 use projection::RankProjection;
 
 /// Exact scalar coordinates from the runtime component judgment. These are
 /// transient query results, not another executable representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeNaturalState {
+    pub state: SymbolHandle,
+    /// Ordered components of one source-admitted relation, never independent
+    /// ranking alternatives. Every state in the component keeps this arity.
+    pub values: Vec<ValidatedRuntimeIntegerRank>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRuntimeIntegerRank {
     pub application: Option<crate::IntegerApplicationFormation>,
     /// Exact declared application, or ZII for a normalized primitive view.
     pub measure: SymbolHandle,
-    pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub coordinate: crate::RankSubjectCoordinate,
     pub entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
@@ -366,10 +371,10 @@ pub(super) fn project_component(
             // A fresh invocation saves an entry value. A normalized label
             // entry instead consumes its admitted state-inductive telescope
             // and range regime, including the original preservation checks.
-            let captured_scalar = states
+            let captured_components = states
                 .first()
                 .is_some_and(|entry| entry.symbol == state.symbol)
-                && ranks[position].captured_scalar().is_some();
+                && ranks[position].captured_components(program).is_some();
             for (statement_ordinal, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -381,7 +386,7 @@ pub(super) fn project_component(
                     // Captured scalar comparisons execute this complete prefix
                     // through the ordinary value ledger. They never reuse a
                     // retired entry-relative storage reading after a write.
-                    if captured_scalar {
+                    if captured_components {
                         continue;
                     }
                     if prefix::preserves_rank(
@@ -455,7 +460,7 @@ pub(super) fn project_component(
                     }
                 };
                 let mut site_guards = guards.clone();
-                if !captured_scalar
+                if !captured_components
                     && !prefix::preserves_rank(
                         program,
                         machine,
@@ -684,20 +689,23 @@ fn admit_ranked_edge(
     if arguments.len() != parameters.iter().count() {
         return Err("call arguments do not match the exact entry parameters");
     }
-    let Some(argument) = arguments.get(ranks[callee_position].argument_position) else {
+    if arguments
+        .get(ranks[callee_position].argument_position)
+        .is_none()
+    {
         return Err("the ranked parameter has no corresponding actual argument");
-    };
+    }
     observed.push(callee);
     let strict;
     if let (Some(source), Some(destination)) = (
-        ranks[caller_rank_index].captured_scalar(),
-        ranks[callee_position].captured_scalar(),
+        ranks[caller_rank_index].captured_components(program),
+        ranks[callee_position].captured_components(program),
     ) && program
         .machine_states(caller)
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol)
     {
-        let progress = prove_captured_scalar_rank_call(
+        let progress = prove_captured_rank_call(
             program,
             caller,
             state,
@@ -708,14 +716,22 @@ fn admit_ranked_edge(
             transition_target,
             arguments,
         )?;
-        if let (Some(component), Some(application)) =
-            (natural.as_mut(), progress.source_application)
-        {
+        for (index, application) in progress.source_applications.into_iter().enumerate() {
+            let Some(application) = application else {
+                continue;
+            };
+            let Some(component) = natural.as_mut() else {
+                continue;
+            };
             if let Some(row) = component
                 .states
                 .iter_mut()
                 .find(|row| row.state == state.symbol)
             {
+                let row = row
+                    .values
+                    .get_mut(index)
+                    .ok_or("the captured rank application lost its ordered component")?;
                 if row.measure != application.measure()
                     || row
                         .application
@@ -792,23 +808,7 @@ fn admit_ranked_edge(
             }
         }
     } else {
-        match comparison::argument_comparison(
-            program,
-            caller.symbol,
-            &ranks[caller_rank_index],
-            *argument,
-            site_guards,
-            &RankingRangeCallSite {
-                state,
-                entry_parameters: caller_bindings,
-            },
-        ) {
-            Some(Comparison::Strict) => strict = true,
-            Some(Comparison::Equal) => strict = false,
-            None => {
-                return Err("ranking preservation or strict DECREASE is unproven at a call site");
-            }
-        }
+        return Err("ranked invocation has no complete captured value comparison");
     };
     if !strict {
         let source = component_states
