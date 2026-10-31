@@ -167,6 +167,13 @@ pub fn aarch64_register_constraint_catalog(
             allocatable(1, RegisterOperandAccess::Def, GPR64),
         ]
     };
+    // Every early-clobber definition here is a GPR64 output written before its
+    // inputs are consumed.
+    let early_def = |operand: u16| {
+        let mut row = allocatable(operand, RegisterOperandAccess::Def, GPR64);
+        row.early_clobber = true;
+        row
+    };
 
     let sp_units = view("sp").units.clone();
     let pc_units = view("pc").units.clone();
@@ -677,8 +684,7 @@ pub fn aarch64_register_constraint_catalog(
             GPR64,
         );
         result.early_clobber = load;
-        let mut scratch = allocatable(2, RegisterOperandAccess::Def, GPR64);
-        scratch.early_clobber = true;
+        let scratch = early_def(2);
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
@@ -703,11 +709,7 @@ pub fn aarch64_register_constraint_catalog(
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
-            {
-                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
+            early_def(2),
         ],
     ));
     constraints.push(instruction_row(
@@ -721,11 +723,7 @@ pub fn aarch64_register_constraint_catalog(
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
-            {
-                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
+            early_def(2),
         ],
     ));
     constraints.push(instruction_row(
@@ -769,16 +767,8 @@ pub fn aarch64_register_constraint_catalog(
             operands: vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
-                {
-                    let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                    output.early_clobber = true;
-                    output
-                },
-                {
-                    let mut scratch = allocatable(3, RegisterOperandAccess::Def, GPR64);
-                    scratch.early_clobber = true;
-                    scratch
-                },
+                early_def(2),
+                early_def(3),
             ],
             implicit_uses: Vec::new(),
             implicit_defs: view("nzcv").units.clone(),
@@ -801,11 +791,7 @@ pub fn aarch64_register_constraint_catalog(
             key,
             operands: (0..sources)
                 .map(|operand| allocatable(operand, RegisterOperandAccess::Use, GPR64))
-                .chain((sources..sources + 2).map(|operand| {
-                    let mut output = allocatable(operand, RegisterOperandAccess::Def, GPR64);
-                    output.early_clobber = true;
-                    output
-                }))
+                .chain((sources..sources + 2).map(early_def))
                 .collect(),
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
@@ -825,9 +811,7 @@ pub fn aarch64_register_constraint_catalog(
             .map(|operand| allocatable(operand, RegisterOperandAccess::Use, GPR64))
             .collect::<Vec<_>>();
         if observes {
-            let mut output = allocatable(inputs, RegisterOperandAccess::Def, GPR64);
-            output.early_clobber = true;
-            operands.push(output);
+            operands.push(early_def(inputs));
         }
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
