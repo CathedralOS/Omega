@@ -28,6 +28,7 @@
 //! references. Kernel-term elaboration and checking a definition body
 //! against its declared result remain later legs.
 
+use crate::typed_expressions::expression_table;
 use checked_trees::{
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter,
@@ -265,8 +266,7 @@ fn mathematical_type_identity(
                 MathematicalType::Arrow { .. } => format!("({callee_identity})"),
                 _ => callee_identity,
             };
-            let arguments = program
-                .expression_table
+            let arguments = expression_table(program)
                 .expression_handles(*arguments)
                 .iter()
                 .map(|argument| {

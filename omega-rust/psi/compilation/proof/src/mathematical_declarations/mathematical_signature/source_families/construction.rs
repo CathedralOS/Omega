@@ -2,6 +2,7 @@
 //! children. A receiving application is not evidence that a value inhabits it.
 
 use super::super::Elaborator;
+use crate::typed_expressions::expression_table;
 use diagnostics::Diagnostic;
 use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle};
 use symbols::SymbolHandle;
@@ -457,9 +458,7 @@ impl Elaborator<'_> {
             0
         };
         let selected = &family.cases[case];
-        let fields = self
-            .program
-            .expression_table
+        let fields = expression_table(self.program)
             .struct_fields(literal.fields)
             .to_vec();
         if fields.len() != family.common.len() + selected.payload.len() + selected.children.len() {
@@ -772,9 +771,7 @@ impl Elaborator<'_> {
                     "source constructor lost its exact declared field correspondence".into(),
                 )
             })?;
-        let mut operands = self
-            .program
-            .expression_table
+        let mut operands = expression_table(self.program)
             .struct_fields(literal.fields)
             .iter()
             .filter_map(|operand| {

@@ -23,7 +23,7 @@ use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, FloatRange, ProofConstraint,
     ProofPlan,
 };
-use crate::typed_expressions::{dehoisted_condition, dehoisted_operand};
+use crate::typed_expressions::{dehoisted_condition, dehoisted_operand, expression_table};
 use arena::HandleSpan;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
@@ -797,9 +797,7 @@ fn same_float_place(
                         machine,
                         Some(state),
                         *right,
-                    ) && program
-                        .expression_table
-                        .expressions_structurally_equal(*left, *right)
+                    ) && expression_table(program).expressions_structurally_equal(*left, *right)
                 }
                 _ => left == right,
             })
@@ -844,11 +842,7 @@ pub(crate) fn float_range_for_initializer(
     proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
 ) -> Option<FloatRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.value)
-    {
+    match expression_table(proof_plan.program).expression(obligation.value) {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
             Some(FloatRange::closed(value))

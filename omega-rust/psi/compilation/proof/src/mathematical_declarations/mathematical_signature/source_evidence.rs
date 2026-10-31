@@ -6,6 +6,7 @@ use super::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Elaborator, TermHandle, TypeParameterKind,
     TypeReferenceNode,
 };
+use crate::typed_expressions::{expression_table, statement_table};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -94,8 +95,7 @@ impl Elaborator<'_> {
                         .iter()
                         .map(|parameter| parameter.type_reference)
                         .chain(
-                            self.program
-                                .statement_table
+                            statement_table(self.program)
                                 .statements(state.statement_nodes)
                                 .iter()
                                 .filter_map(|statement| {
@@ -192,9 +192,7 @@ impl Elaborator<'_> {
                 }
                 // Constructors used only in erased locals still demand their
                 // own predicate proof, even without a mathematical call.
-                let constructors = self
-                    .program
-                    .statement_table
+                let constructors = statement_table(self.program)
                     .statements(state.statement_nodes)
                     .iter()
                     .filter_map(|statement| match statement {
@@ -202,9 +200,7 @@ impl Elaborator<'_> {
                             if local.relevance == language_core::BindingRelevance::Erased
                                 && self.known_source_family(local.type_reference)
                                 && matches!(
-                                    self.program
-                                        .expression_table
-                                        .expression(local.initial_value),
+                                    expression_table(self.program).expression(local.initial_value),
                                     ExpressionNode::StructLiteral(_)
                                 ) =>
                         {
@@ -696,8 +692,7 @@ impl Elaborator<'_> {
     /// Retain each exact immutable erased local use from its checked initializer.
     /// A use cannot acquire evidence merely from its receiving destination.
     pub(super) fn retain_source_evidence_aliases(&mut self) -> Result<(), Vec<Diagnostic>> {
-        if self.prepared.source_evidence.is_empty()
-            && self.prepared.source_constructors.is_empty()
+        if self.prepared.source_evidence.is_empty() && self.prepared.source_constructors.is_empty()
         {
             return Ok(());
         }
@@ -705,9 +700,7 @@ impl Elaborator<'_> {
             self.program,
             &arena::Arena::default(),
         );
-        let mut pending = self
-            .program
-            .expression_table
+        let mut pending = expression_table(self.program)
             .iter_expressions()
             .filter_map(|(expression, node)| {
                 let ExpressionNode::Name(path) = node else {

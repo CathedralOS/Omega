@@ -7,6 +7,7 @@ use super::{
     LevelArgument, Signature, SymbolHandle, Term, TermHandle, TypeParameter, TypeParameterKind,
     TypeReferenceNode, infer_sort,
 };
+use crate::typed_expressions::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -30,9 +31,7 @@ impl Elaborator<'_> {
         if self.authored_index.is_empty() {
             return Ok(Vec::new());
         }
-        let candidate_calls = self
-            .program
-            .expression_table
+        let candidate_calls = expression_table(self.program)
             .iter_expressions()
             .filter_map(|(expression, node)| {
                 let ExpressionNode::Call(call) = node else {
@@ -81,9 +80,7 @@ impl Elaborator<'_> {
             self.captured_expressions.clear();
             self.source_family_values.clear();
             let mut captures = Vec::new();
-            let mut pending = self
-                .program
-                .expression_table
+            let mut pending = expression_table(self.program)
                 .expression_handles(call.arguments)
                 .to_vec();
             let mut seen = Vec::new();

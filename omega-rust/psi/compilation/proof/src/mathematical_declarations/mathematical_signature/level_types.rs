@@ -3,6 +3,7 @@
 //! entries and term domains inside the signature under construction.
 
 use crate::mathematical_declarations::FixedCore;
+use crate::typed_expressions::expression_table;
 use proof_admission::{Level, Term, TermHandle};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -112,9 +113,7 @@ impl<'a> Elaborator<'a> {
             MathematicalType::Application { callee, arguments } => {
                 let callee = self.elaborate_mathematical_type(*callee)?;
                 let mut inputs = Vec::new();
-                for argument in self
-                    .program
-                    .expression_table
+                for argument in expression_table(self.program)
                     .expression_handles(*arguments)
                     .to_vec()
                 {

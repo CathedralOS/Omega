@@ -22,7 +22,8 @@ use crate::obligations::{
     IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
 };
 use crate::typed_expressions::{
-    dehoisted_operand, expression_contains_call_node, expression_type_reference,
+    dehoisted_operand, expression_contains_call_node, expression_table, expression_type_reference,
+    statement_table,
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -148,9 +149,8 @@ pub fn build_proof_plan(program: &dyn ::validation::CheckingInput) -> ProofPlan<
                         );
                     }
                     StatementNode::Call(table_call) => {
-                        let receiver = program
-                            .statement_table
-                            .name_path_members(table_call.receiver);
+                        let receiver =
+                            statement_table(program).name_path_members(table_call.receiver);
                         collect_bounded_call_argument_obligations(
                             program,
                             machine,
@@ -161,8 +161,7 @@ pub fn build_proof_plan(program: &dyn ::validation::CheckingInput) -> ProofPlan<
                                 target: table_call.target.clone(),
                                 receiver: (!receiver.is_empty())
                                     .then(|| display_name_path(receiver)),
-                                arguments: program
-                                    .statement_table
+                                arguments: statement_table(program)
                                     .expression_handles(table_call.arguments),
                             },
                             &mut proof_plan,
@@ -242,8 +241,7 @@ pub(crate) fn estimated_proof_obligation_capacity(
                     StatementNode::Assignment(_) => capacity = capacity.saturating_add(1),
                     StatementNode::Call(call) => {
                         capacity = capacity.saturating_add(
-                            program
-                                .statement_table
+                            statement_table(program)
                                 .expression_handles(call.arguments)
                                 .len(),
                         );
@@ -384,8 +382,7 @@ fn collect_bounded_assignment_obligation(
     };
     // A window receives elements of its collection, not one scalar. Extent and
     // selector admission belong to checking; this walk owes element predicates.
-    let collection_window = program
-        .expression_table
+    let collection_window = expression_table(program)
         .indexed_node(target)
         .filter(|indexed| program.expression_table.range_node(indexed.index).is_some());
     let construction_type = collection_window
@@ -1158,8 +1155,7 @@ fn collect_array_element_obligations(
     else {
         return;
     };
-    for (element_index, element) in program
-        .expression_table
+    for (element_index, element) in expression_table(program)
         .expression_handles(*elements)
         .iter()
         .enumerate()
@@ -1191,16 +1187,14 @@ fn collect_bounded_state_return_obligation(
     return_type: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    let Some(typed_trees::statement::StatementNode::Expression(value)) = program
-        .statement_table
+    let Some(typed_trees::statement::StatementNode::Expression(value)) = statement_table(program)
         .statements(state.statement_nodes)
         .last()
     else {
         return;
     };
     let value = *value;
-    let statement_index = program
-        .statement_table
+    let statement_index = statement_table(program)
         .statements(state.statement_nodes)
         .len()
         - 1;
@@ -1282,10 +1276,7 @@ fn incoming_state_guard(
     let mut guard: Option<(TransitionGuardNode, SymbolHandle)> = None;
 
     for source_state in program.machine_states(machine) {
-        for statement in program
-            .statement_table
-            .statements(source_state.statement_nodes)
-        {
+        for statement in statement_table(program).statements(source_state.statement_nodes) {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
@@ -1402,8 +1393,7 @@ fn expressions_equivalent_for_precondition(
                     (false, false) => true,
                     _ => false,
                 }
-                && program
-                    .expression_table
+                && expression_table(program)
                     .expression_handles(left.arguments)
                     .iter()
                     .zip(program.expression_table.expression_handles(right.arguments))
