@@ -52,8 +52,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
 };
 use calling_conventions::validate_boundary_entry_plan;
 use target::NormalizedComponentLocator;
-use target_operations::TargetStructuralHomeLayout;
-use target_operations::TargetStructuralHomeOrigin;
+use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeOrigin};
 use terminal_psi::SemanticFingerprint;
 
 /// Machine-state bit positions beyond the closed `MachineState` vocabulary

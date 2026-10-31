@@ -1,11 +1,10 @@
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyDecodeError,
     FixedViewCopyPlan, FixedViewCopyPolicy,
 };
-use selected_instructions::LiveRangeIdentity;
 
 use super::{
     copy::{decode_copy, encode_copy},

@@ -4,16 +4,13 @@ use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u64, length,
 };
-use selected_instructions::LocalStorageSlotId;
-use selected_instructions::SelectedMemoryAccessOrigin;
+use selected_instructions::{LocalStorageSlotId, SelectedMemoryAccessOrigin};
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedFunction,
     SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedOutgoingArgumentSlot,
 };
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::EdgeId;
-use semantic_vocabulary::InvocationSite;
+use semantic_vocabulary::{BlockId, EdgeId, InvocationSite};
 use semantic_vocabulary::{OperationId, PlaceId};
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_local_slot(
     cursor: &mut Cursor<'_>,

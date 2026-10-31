@@ -10,8 +10,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::block::en
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::block::encode_successor;
 use crate::register_homes::recovery::fixed_view_copy::codec::tests::function_with_operand;
 use optimization_core::AcceptedObligationFactIdentity;
-use semantic_vocabulary::IntegerType;
-use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::{IntegerType, ScalarType};
 fn successor() -> SelectedSuccessor {
     SelectedSuccessor {
         role: SelectedSuccessorRole::Semantic,

@@ -12,8 +12,7 @@ use selected_instructions::{
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
-use register_model::FrameAbiPreservationConvention;
-use register_model::Sha256RegisterDigest;
+use register_model::{FrameAbiPreservationConvention, Sha256RegisterDigest};
 
 crate::identity_newtype! { pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]); }
 

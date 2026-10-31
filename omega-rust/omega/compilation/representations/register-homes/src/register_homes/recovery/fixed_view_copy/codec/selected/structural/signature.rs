@@ -17,8 +17,7 @@ use selected_instructions::effects::program::identity::{
 };
 use semantic_vocabulary::ReferenceOriginExtent;
 use semantic_vocabulary::{PlaceId, ServiceId, StructuralDomainId, StructuralTypeId};
-use terminal_codec::encode_access_lifecycle_catalog;
-use terminal_codec::encode_access_view_input_catalog;
+use terminal_codec::{encode_access_lifecycle_catalog, encode_access_view_input_catalog};
 use terminal_psi::StructuralReferenceOrigin;
 pub(super) fn encode_signature(
     bytes: &mut Vec<u8>,
