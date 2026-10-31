@@ -1,6 +1,6 @@
 //! Shared ordinary call operands, requirements and crash substitution.
 use super::super::{
-    BTreeMap, MachineId, ObligationId, Proposition, StructuralArgument,
+    BTreeMap, MachineId, ObligationId, Proposition, ScalarTerm, StructuralArgument,
     StructuralParameterDeclaration, StructuralTypeDeclaration,
     substitute_structural_crash_route_roots,
 };
@@ -25,6 +25,7 @@ use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_val
 pub(crate) struct Target<'a> {
     pub parameters: &'a [StructuralParameterDeclaration],
     pub scalar_parameters: &'a [ValueDeclaration],
+    pub erased_scalar_parameters: &'a [ValueDeclaration],
     pub predicate_parameters: &'a [StructuralParameterDeclaration],
     /// The exact `requires` rows the callee's emitted contract carries, in
     /// contract order: closed authored clauses merged ahead of runtime
@@ -232,6 +233,7 @@ pub(super) fn prepare(
         Target { ..target },
         &crate::unit::effective_crash_routes(checked, *target_machine)?,
         &terminal_scalar_values,
+        &erased_arguments,
         &terminal_arguments,
         structural_types,
         &caller_types,
@@ -323,6 +325,7 @@ pub(crate) fn prepare_computed_module_call(
             signature.call_target(),
             crash_routes,
             arguments,
+            &erased_arguments,
             &emitted_structural_arguments,
             calls.structural_types,
             &caller_types,
@@ -388,6 +391,7 @@ pub(crate) fn prepare_crash_continuations(
     target: Target<'_>,
     routes: &[checked_trees::CrashRouteBucket],
     terminal_scalar_values: &[ValueDeclaration],
+    erased_arguments: &[ScalarTerm],
     terminal_arguments: &[StructuralArgument],
     structural_types: &[StructuralTypeDeclaration],
     caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
@@ -399,7 +403,10 @@ pub(crate) fn prepare_crash_continuations(
     if target.scalar_parameters.len() != terminal_scalar_values.len() {
         return unsupported("Unit call scalar requirement arity is inconsistent");
     }
-    let scalar_substitutions = target
+    if target.erased_scalar_parameters.len() != erased_arguments.len() {
+        return unsupported("call erased scalar requirement arity is inconsistent");
+    }
+    let mut scalar_substitutions = target
         .scalar_parameters
         .iter()
         .zip(terminal_scalar_values)
@@ -407,20 +414,36 @@ pub(crate) fn prepare_crash_continuations(
             if formal.scalar_type != actual.scalar_type {
                 return unsupported("Unit call scalar requirement parameter type is inconsistent");
             }
-            Ok((formal.id, *actual))
+            Ok((formal.id, ScalarTerm::value(actual.id, actual.scalar_type)))
         })
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+    // The callee predicate namespace includes proof-only scalars. Rebind those
+    // to their completed terms as well, without allocating runtime values. The
+    // simultaneous substitution must not recursively reinterpret caller IDs as
+    // callee formals when their numeric namespaces happen to overlap.
+    for (formal, actual) in target.erased_scalar_parameters.iter().zip(erased_arguments) {
+        actual
+            .validate()
+            .map_err(LoweringError::InvalidCrashPredicate)?;
+        if formal.scalar_type != actual.scalar_type() {
+            return unsupported("call erased scalar requirement parameter type is inconsistent");
+        }
+        if scalar_substitutions
+            .insert(formal.id, actual.clone())
+            .is_some()
+        {
+            return unsupported("call requirement repeats a scalar formal identity");
+        }
+    }
     let mut crash_continuations = {
         let target_routes = routes.to_vec();
         if target.parameters.is_empty() {
             lower_checked_crash_route_buckets(identities, &target_routes, terminal_scalar_values)?
         } else {
-            // Only structural crash substitution reads the callee's runtime
-            // requirements, instantiated at this call. A callee without
-            // structural formals may keep a requirement over an erased
-            // formal, which has no runtime actual to substitute. Preserve
-            // callee requirement slots after substitution, even if reordered
-            // or equal arguments change canonical term order.
+            // Structural crash substitution reads the complete entry predicate
+            // namespace, including erased scalars. Preserve requirement slots
+            // after exact substitution even when equal or reordered actuals
+            // change canonical term order.
             let target_runtime_requirements = target
                 .runtime_requirements
                 .iter()

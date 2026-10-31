@@ -1242,9 +1242,7 @@ impl StateGraphEmission<'_, '_> {
         } else {
             terminal_psi::TerminalNaturalRankComparison::Strict
         };
-        let arriving_rank = if current_rank.is_some()
-            && let Some(root) = ranking::observation(checked, plan, target_state)?
-        {
+        let arriving_rank = if let Some(root) = ranking::observation(checked, plan, target_state)? {
             // Scalar and structural operands are already complete. Rejoin the
             // exact target telescope here, before projected transfer or cleanup.
             let mut scalar_slots = Vec::with_capacity(arguments.len());
@@ -1348,6 +1346,13 @@ impl StateGraphEmission<'_, '_> {
         } else {
             None
         };
+        // The private rank phi follows the authored scalar telescope. It is
+        // always computed, including an acyclic predecessor entering a cycle.
+        match (self.rank_parameters[target], arriving_rank) {
+            (Some(_), Some(rank)) => arguments.push(rank),
+            (None, None) => {}
+            _ => return unsupported("ranked arrival lost its completed observation"),
+        }
         sequence.require_closed()?;
         let owner_arguments =
             self.captured_loans

@@ -337,9 +337,9 @@ impl StateGraphEmission<'_, '_> {
             &evaluation.structural_parameters,
             &self.catalogs.structural_types,
         );
-        // Observe the immutable arrival values before the first authored
-        // statement. Mutable formal homes have been established above, but
-        // the retained root's Parameters bind the captured scalar snapshots.
+        // Every cyclic header receives its already-completed observation.
+        // The source telescope stays unchanged: the extra phi is not a local,
+        // argument capture or implicit authority in the authored program.
         let current_rank = if let Some(root) = ranking::observation(checked, plan, state)? {
             let scalar_slots = values
                 .iter()
@@ -366,50 +366,41 @@ impl StateGraphEmission<'_, '_> {
                 &scalar_slots,
                 &structural_actuals,
             )?;
-            let observation_entry = evaluation.current;
-            let observed = StateFrame::new(checked, owner, state, &self.state_erased[position])
-                .evaluate(
-                    self.catalogs,
-                    &state_parameters,
-                    &mut sequence,
-                    FrameValues {
-                        source_value_count: values.len(),
-                        evaluation: &mut evaluation,
-                        values: &mut values,
-                        next_value: &mut next_value,
-                        next_block: &mut next_block,
-                        next_edge: &mut next_edge,
-                        operations: &mut operations,
-                    },
-                    |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.retained_observation(
-                            identities,
-                            checked,
-                            root,
-                            &bindings,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
-                            &mut environment,
-                        )
-                    },
-                )?;
-            // Admitted source measures are pure scalar observations. Their
-            // prepared chains complete inline before the body, so this value
-            // dominates every cyclic block carrying the state's rank. Never
-            // attach a later completion's SSA value to pre-observation blocks
-            // if a retained root unexpectedly contains selective control.
-            if evaluation.current != observation_entry {
-                return unsupported("Unit graph entry rank has pre-observation control");
-            }
-            if observed.scalar_type.as_integer().is_none() {
+            let rank_type = crate::scalar_lowering::computations::computation_value_type(
+                identities,
+                checked,
+                &evaluation.shared_qualifications,
+                root.root,
+                &bindings,
+                &values
+                    .iter()
+                    .map(|value| value.value_type())
+                    .collect::<Vec<_>>(),
+            )?;
+            if rank_type.scalar_type.as_integer().is_none() {
                 return unsupported("Unit graph rank observation lost its integer carrier");
             }
-            Some(observed.id)
+            let rank = ValueDeclaration {
+                id: self.rank_parameters[position].ok_or(LoweringError::Unsupported(
+                    "ranked state has no completed observation parameter",
+                ))?,
+                scalar_type: rank_type.scalar_type,
+                qualifications: rank_type.qualifications,
+            };
+            evaluation.parameters.push(rank);
+            if position == 0 {
+                self.initialize_invocation_rank(
+                    identities,
+                    root,
+                    &evaluation,
+                    rank,
+                    &mut operations,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                )?;
+            }
+            Some(rank.id)
         } else {
             None
         };

@@ -1009,6 +1009,9 @@ impl<'program> Engine<'program> {
         if self.opaque_terms.iter().any(|(minted, _)| *minted == atom) {
             return;
         }
+        if matches!(&term, OpaqueTerm::Conditional { .. }) {
+            self.conditional_terms.push(self.opaque_terms.len());
+        }
         self.opaque_terms.push((atom, term));
     }
 }

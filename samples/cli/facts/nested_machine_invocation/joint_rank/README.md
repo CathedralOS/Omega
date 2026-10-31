@@ -232,3 +232,8 @@ retains the smaller direct-call shape used to locate the first refusal.
 [Call formation, captured inputs and execution evidence](local/computed_measure/call/README.md)
 cover this production's nine places, its composition probe and invalid controls.
 The parent `NESTED-MACHINE-UNIFICATION` outcome remains open.
+
+[Structured scalar measure bodies](local/computed_measure/structured/README.md)
+continue this fact through ordered conditional values. All nine places execute
+in both engines on macOS ARM64 and their no-progress twins reject. The linked
+page records the ingress compositions and the remaining parent acceptance.

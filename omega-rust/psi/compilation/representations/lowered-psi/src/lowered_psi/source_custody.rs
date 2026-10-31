@@ -12,7 +12,8 @@ pub struct LoweredStatementCallCoordinate {
 }
 
 /// A declaration's checked call definition can execute at entry and at several
-/// arrivals. Its observation scope distinguishes those emitted invocations.
+/// arrivals. The owning block and buffer-local ordinal distinguish those
+/// emitted invocations across separately emitted state buffers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoweredSourceCallOrigin {
     Statement(LoweredStatementCallCoordinate),
@@ -20,6 +21,7 @@ pub enum LoweredSourceCallOrigin {
         state: symbols::SymbolHandle,
         application: checked_trees::CheckedRankApplicationFormationHandle,
         call: arena::Handle<checked_trees::CheckedDeclarationCall>,
+        observation_block: BlockId,
         observation: u64,
     },
 }

@@ -20,6 +20,8 @@ mod intervals;
 mod lower_bound_queries;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 pub(super) use lower_bound_queries::{LowerBoundQueries, PreparedLowerBoundIndex};
+mod conditional_values;
+use conditional_values::ConditionalValueArm;
 mod call_values;
 mod captured_calls;
 mod mathematical_terms;
@@ -210,6 +212,13 @@ impl Polynomial {
 /// transported operands rather than dropping the term.
 #[derive(Clone)]
 pub(super) enum OpaqueTerm {
+    DeclarationApplication {
+        measure: SymbolHandle,
+        input: Polynomial,
+    },
+    Conditional {
+        arms: Vec<ConditionalValueArm>,
+    },
     /// A selected declaration application under completed actual values.
     /// This identity carries no formation, progress or result guarantee.
     Call {
@@ -344,6 +353,11 @@ pub(super) struct Engine<'program> {
     /// necessarily minted earlier, so one ordered pass transports nested
     /// terms innermost-first.
     opaque_terms: Vec<(String, OpaqueTerm)>,
+    /// Forked proof paths share only the mint namespace, not logical facts.
+    /// Dense IDs avoid embedding entire nested definitions in atom strings.
+    denotation_identities: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    conditional_terms: Vec<usize>,
+    conditional_work_remaining: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
     matrix: difference_matrix::DifferenceBounds,
@@ -424,6 +438,11 @@ impl<'program> Engine<'program> {
             nonzero_differences: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
             opaque_terms: Vec::new(),
+            denotation_identities: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            conditional_terms: Vec::new(),
+            conditional_work_remaining: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(
+                1 << 20,
+            )),
             matrix: difference_matrix::DifferenceBounds::default(),
             requires_unsatisfiable: false,
         }
@@ -458,6 +477,9 @@ impl<'program> Engine<'program> {
                 removed_existing_interval = true;
             }
         }
+        let retained = self.opaque_terms.len();
+        self.conditional_terms
+            .retain(|position| *position < retained);
         removed_existing_interval
     }
 
@@ -477,7 +499,9 @@ impl<'program> Engine<'program> {
                 OpaqueTerm::IntegerPolicy { .. }
                 | OpaqueTerm::ShiftLeft { .. }
                 | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
-                OpaqueTerm::Call { .. } => None,
+                OpaqueTerm::Call { .. }
+                | OpaqueTerm::Conditional { .. }
+                | OpaqueTerm::DeclarationApplication { .. } => None,
                 OpaqueTerm::Quotient { .. }
                 | OpaqueTerm::Remainder { .. }
                 | OpaqueTerm::ShiftRight { .. } => None,
@@ -492,7 +516,9 @@ impl<'program> Engine<'program> {
         self.opaque_terms
             .get(index)
             .and_then(|(name, term)| match term {
-                OpaqueTerm::Call { .. } => None,
+                OpaqueTerm::Call { .. }
+                | OpaqueTerm::Conditional { .. }
+                | OpaqueTerm::DeclarationApplication { .. } => None,
                 OpaqueTerm::IntegerPolicy { .. }
                 | OpaqueTerm::ShiftLeft { .. }
                 | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
@@ -545,6 +571,12 @@ impl<'program> Engine<'program> {
                 | OpaqueTerm::ShiftRight { value, count, .. } => {
                     poly_mentions(value) || poly_mentions(count)
                 }
+                OpaqueTerm::DeclarationApplication { input, .. } => poly_mentions(input),
+                OpaqueTerm::Conditional { arms } => arms.iter().any(|arm| {
+                    let mut mentions = false;
+                    arm.visit_operands(|value| mentions |= poly_mentions(value));
+                    mentions
+                }),
                 OpaqueTerm::Call { arguments, .. } => arguments.iter().any(poly_mentions),
                 OpaqueTerm::Bitwise { left, right, .. } => {
                     poly_mentions(left) || poly_mentions(right)
@@ -596,7 +628,9 @@ impl<'program> Engine<'program> {
         for position in 0..self.opaque_terms.len() {
             let (atom, term) = self.opaque_terms[position].clone();
             let interval = match term {
-                OpaqueTerm::Call { .. } => continue,
+                OpaqueTerm::Call { .. }
+                | OpaqueTerm::Conditional { .. }
+                | OpaqueTerm::DeclarationApplication { .. } => continue,
                 OpaqueTerm::IntegerPolicy {
                     primitive,
                     domain,
