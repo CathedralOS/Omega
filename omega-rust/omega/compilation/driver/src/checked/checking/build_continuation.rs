@@ -422,9 +422,6 @@ pub(super) fn lower_typed_frontier(
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
-    // Only build helpers select an execution target here. Product families
-    // retain a canonical frontend shared by every requested product target.
-    let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
     let execution = execution_profile
         .or_else(target::TargetProfile::host_if_supported)
         .ok_or_else(|| vec![Diagnostic::error(
@@ -438,11 +435,6 @@ pub(super) fn lower_typed_frontier(
             execution.target_name(),
         ))]);
     }
-    build_evaluation::select_build_helpers(
-        &mut syntax.syntax_trees,
-        execution,
-        &build_scope_sources,
-    );
     let build_source_id = syntax.build_source_id;
     let request = psi_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,

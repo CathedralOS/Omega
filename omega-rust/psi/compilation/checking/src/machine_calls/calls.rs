@@ -911,7 +911,6 @@ fn validate_value_call_arguments(
 }
 
 mod topology;
-pub use topology::target_family_members;
 pub(crate) use topology::target_normal_completion_possible;
 pub use topology::{
     CompletingTransfer, call_target_entry_symbol, call_target_has_checked_body_contract,

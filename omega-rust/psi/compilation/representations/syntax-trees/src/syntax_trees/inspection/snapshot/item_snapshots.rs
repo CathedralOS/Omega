@@ -119,9 +119,6 @@ pub enum ItemSnapshot {
         spelling: Option<&'static str>,
         is_public: bool,
         bodyless: bool,
-        target: Option<IdentifierSnapshot>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        authored_target: Option<IdentifierSnapshot>,
         boundary: bool,
         is_top_level_boundary_requirement: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -666,14 +663,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             spelling: value.spelling.map(|spelling| spelling.symbol()),
             is_public: value.is_public,
             bodyless: value.bodyless,
-            target: value
-                .target
-                .as_ref()
-                .map(|value| snapshot_identifier(syntax_trees, value)),
-            authored_target: value
-                .authored_target
-                .as_ref()
-                .map(|value| snapshot_identifier(syntax_trees, value)),
             boundary: value.boundary,
             is_top_level_boundary_requirement: value.is_top_level_boundary_requirement,
             lifetime_parameters: value

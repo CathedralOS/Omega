@@ -301,8 +301,7 @@ fn attached_machine_list(
             // sibling binding.
             (!closed_realization
                 && machine.symbol.is_valid()
-                && machine.attached_data_symbol.is_valid()
-                && machine.target.is_none())
+                && machine.attached_data_symbol.is_valid())
             .then_some(AttachedMachine {
                 owner: machine.attached_data_symbol,
                 machine: machine.symbol,

@@ -286,15 +286,11 @@ fn declared_return_range(
         .then(|| crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol))
         .flatten();
     let can_have_ensured = is_independent
-        && (callee.as_ref().is_some_and(|callee| {
+        && callee.as_ref().is_some_and(|callee| {
             callee.contracts.iter().any(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Ensures
             })
-        }) || crate::machine_calls::calls::machine_state_by_symbol(
-            program,
-            call.target_symbol,
-        )
-        .is_some_and(|(machine, _)| machine.target_family_interface));
+        });
     let ensured = if can_have_ensured {
         let actuals = cached_actuals
             .get_or_insert_with(|| {

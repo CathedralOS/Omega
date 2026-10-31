@@ -164,10 +164,7 @@ pub(super) fn project(
             PackagePolicyRowKind::Callable,
             initial,
             audit,
-            |encoder| {
-                encode_nominal(encoder, &callable.identity)?;
-                values::identity::encode_target_context(encoder, &callable.target_context)
-            },
+            |encoder| encode_nominal(encoder, &callable.identity),
             |encoder| callable_policy::encode_callable(encoder, callable),
         )?;
     }
@@ -227,10 +224,7 @@ pub(super) fn project(
             PackagePolicyRowKind::ExternalSupply,
             true,
             true,
-            |encoder| {
-                encode_nominal(encoder, supply.callable())?;
-                values::identity::encode_target_context(encoder, supply.target_context())
-            },
+            |encoder| encode_nominal(encoder, supply.callable()),
             |encoder| values::external_policy::validated_value(encoder, supply),
         )?;
     }

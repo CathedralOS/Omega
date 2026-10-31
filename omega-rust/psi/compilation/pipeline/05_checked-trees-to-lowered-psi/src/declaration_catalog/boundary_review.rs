@@ -51,7 +51,6 @@ pub(super) fn prepare<'facts>(
                 .map(|(_, declaration)| CheckedBodyCandidate {
                     body: (),
                     declaration: &declaration.selection,
-                    target: declaration.selection.target.as_deref(),
                     is_product: declaration.selection.is_product,
                 })
                 .collect();

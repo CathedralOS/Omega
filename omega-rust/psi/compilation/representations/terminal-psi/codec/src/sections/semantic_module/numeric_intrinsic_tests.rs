@@ -1,5 +1,5 @@
+use super::declaration_catalog_tests::{identity_table, unit_machine};
 use super::module_wire::encode_raw;
-use super::target_family_tests::{identity_table, unit_machine};
 use crate::{decode_module, encode_module, semantic_fingerprint};
 use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericResult, NumericType};
 use semantic_vocabulary::{

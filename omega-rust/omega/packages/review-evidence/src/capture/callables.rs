@@ -9,5 +9,4 @@ mod policy;
 mod policy_parameters;
 mod reach_dependency;
 mod surface;
-mod target_context;
 pub(crate) use policy::project_checked_callable_policy;

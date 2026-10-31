@@ -4,4 +4,3 @@
 //! the checker-transformed program, without preparing another copy.
 
 pub(crate) mod checking;
-pub(crate) mod target_helpers;

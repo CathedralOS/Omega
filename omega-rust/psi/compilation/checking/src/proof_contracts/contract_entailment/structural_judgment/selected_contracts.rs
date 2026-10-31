@@ -521,9 +521,8 @@ impl StructuralJudge<'_> {
         } = resolving.selected_application_carrier(application, depth)?;
         // An empty equation query must not re-prove entry requirements.
         // Portable families may supply equations through their selected bodies.
-        if !matches!(&owner, SelectedCallContract::Concrete(machine, _) if machine.target_family_interface)
-            && !owner_contracts(self.program, &owner)
-                .any(|contract| contract.kind == SignatureContractKind::Ensures)
+        if !owner_contracts(self.program, &owner)
+            .any(|contract| contract.kind == SignatureContractKind::Ensures)
             && resolving.recorded_body_boolean(&owner, depth + 1).is_none()
         {
             phase_profile::count("05.selected.empty_result_equations", 1);
@@ -556,126 +555,7 @@ impl StructuralJudge<'_> {
         depth: usize,
     ) -> Option<SelectedGuarantees> {
         let program = self.program;
-        if let SelectedCallContract::Concrete(machine, state) = owner
-            && machine.target_family_interface
-        {
-            if program.machine_states(machine).first()?.symbol != state.symbol {
-                return None;
-            }
-            let parameters = program.state_parameters(state);
-            let static_parameters = program.machine_type_parameters(machine);
-            let static_binders = static_parameters
-                .iter()
-                .enumerate()
-                .map(|(ordinal, parameter)| (parameter.symbol, format!("static{ordinal}")))
-                .collect::<Vec<_>>();
-            let members = crate::machine_calls::calls::target_family_members(program, machine)?;
-            let mut common: Option<SelectedGuarantees> = None;
-            for member in members {
-                let machine = program.machine(member.machine)?;
-                let entry = program.machine_states(machine).first()?;
-                let member_parameters = program.state_parameters(entry);
-                let member_static = program.machine_type_parameters(machine);
-                if parameters.len() != member_parameters.len()
-                    || static_parameters.len() != member_static.len()
-                {
-                    return None;
-                }
-                let member_binders = member_static
-                    .iter()
-                    .enumerate()
-                    .map(|(ordinal, parameter)| (parameter.symbol, format!("static{ordinal}")))
-                    .collect::<Vec<_>>();
-                // The public family and each body own distinct binder symbols.
-                // Preserve complete declaration order and exact const carriers
-                // before transporting a known static value to a member.
-                if !static_parameters.iter().zip(member_static).all(|(parameter, member)| {
-                    use typed_trees::data::TypeParameterKind;
-                    match (&parameter.kind, &member.kind) {
-                        (TypeParameterKind::Type, TypeParameterKind::Type) => true,
-                        (TypeParameterKind::Const { type_reference: parameter },
-                         TypeParameterKind::Const { type_reference: member }) => {
-                            let identity = |reference, binders| {
-                                program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                                    binders,
-                                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-                                })
-                            };
-                            let parameter = identity(*parameter, &static_binders);
-                            parameter.is_valid() && parameter == identity(*member, &member_binders)
-                        }
-                        _ => false,
-                    }
-                }) {
-                    return None;
-                }
-                let member_bindings = |bindings: &[(SymbolHandle, StructuralTerm)]| {
-                    parameters
-                        .iter()
-                        .zip(member_parameters)
-                        .filter_map(|(parameter, member)| {
-                            bindings
-                                .iter()
-                                .find(|(symbol, _)| *symbol == parameter.symbol)
-                                .map(|(_, value)| (member.symbol, value.clone()))
-                        })
-                        .chain(static_parameters.iter().zip(member_static).filter_map(
-                            |(parameter, member)| {
-                                bindings
-                                    .iter()
-                                    .find(|(symbol, _)| *symbol == parameter.symbol)
-                                    .map(|(_, value)| (member.symbol, value.clone()))
-                            },
-                        ))
-                        .collect::<Vec<_>>()
-                };
-                let member_type_bindings = static_parameters
-                    .iter()
-                    .zip(member_static)
-                    .filter_map(|(parameter, member)| {
-                        type_bindings
-                            .iter()
-                            .find(|(symbol, _)| *symbol == parameter.symbol)
-                            .map(|(_, reference)| (member.symbol, *reference))
-                    })
-                    .collect::<Vec<_>>();
-                let guarantees = self.declared_guarantees(
-                    &SelectedCallContract::Concrete(machine, entry),
-                    &member_bindings(entry_bindings),
-                    &member_bindings(bindings),
-                    &member_type_bindings,
-                    result,
-                    depth,
-                )?;
-                if let Some(common) = &mut common {
-                    common.equations.retain(|(left, right)| {
-                        guarantees
-                            .equations
-                            .iter()
-                            .any(|(other_left, other_right)| {
-                                (left == other_left && right == other_right)
-                                    || (left == other_right && right == other_left)
-                            })
-                    });
-                    common.content.retain_mut(|law| {
-                        let Some(other) = guarantees
-                            .content
-                            .iter()
-                            .find(|other| law.same_equation(other))
-                        else {
-                            return false;
-                        };
-                        // Every portable member owes its own proved source.
-                        // Equal substituted equations do not merge authorities.
-                        law.retain_family_sources(other);
-                        true
-                    });
-                } else {
-                    common = Some(guarantees);
-                }
-            }
-            return common;
-        }
+
         self.declared_guarantees(
             owner,
             entry_bindings,
@@ -934,17 +814,7 @@ impl StructuralJudge<'_> {
                     continue;
                 }
                 visited_states.push(state.symbol);
-                if machine.target_family_interface {
-                    if states.first()?.symbol != state.symbol {
-                        return None;
-                    }
-                    for member in
-                        crate::machine_calls::calls::target_family_members(program, machine)?
-                    {
-                        pending_states.push(member.machine);
-                    }
-                    continue;
-                }
+
                 if !machine.body_is_present
                     || program.primitive_type_reference(state.return_type)
                         != Some(typed_trees::types::PrimitiveType::Bool)

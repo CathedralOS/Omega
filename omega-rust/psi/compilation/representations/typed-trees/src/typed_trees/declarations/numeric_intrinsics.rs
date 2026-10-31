@@ -368,8 +368,6 @@ impl TypedTrees {
             || !machine.lifetime_parameters.is_empty()
             || !self.machine_type_parameters(machine).is_empty()
             || machine.attached_data.is_some()
-            || machine.target_family_interface
-            || self.machine_authored_target(machine).is_some()
         {
             return None;
         }

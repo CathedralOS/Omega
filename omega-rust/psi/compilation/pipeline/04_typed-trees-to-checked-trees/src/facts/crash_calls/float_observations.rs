@@ -229,10 +229,7 @@ impl<'a> FloatObservations<'a> {
                 }
                 let (callee, entry) =
                     validation::find_machine_head(self.program, call.target_symbol)?;
-                if !callee.supplies_checked_body()
-                    || !callee.body_is_present
-                    || callee.target_family_interface
-                {
+                if !callee.supplies_checked_body() || !callee.body_is_present {
                     return None;
                 }
                 let returned = typed_trees::statement::direct_state_return_values(

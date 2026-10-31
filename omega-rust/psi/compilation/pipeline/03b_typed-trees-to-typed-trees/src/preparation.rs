@@ -455,12 +455,23 @@ fn normalize_open_index_identities(
 /// preparation runs while const endpoint folds are still outstanding, so an
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
-pub fn specialize_static_machine_calls(
+pub fn prepare_execution_applications(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     program.retain_compiler_primitive_supplies();
     selections::retain_static_argument_contexts(program);
-    specialize_machine_calls(program, false)?;
+    loop {
+        let signatures = program.closed_requirement_applications().count();
+        specialize_machine_calls(program, false)?;
+        let mut materialized =
+            crate::monomorphization::generate_dynamic_family_specializations(program)?;
+        crate::monomorphization::instantiate_requirement_applications(program)?;
+        materialized +=
+            crate::monomorphization::generate_requirement_provider_specializations(program)?;
+        if materialized == 0 && program.closed_requirement_applications().count() == signatures {
+            break;
+        }
+    }
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
@@ -486,7 +497,7 @@ pub fn prepare_constant_execution(
     selections::retain_static_argument_contexts(&mut program);
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
-    specialize_static_machine_calls(&mut program)?;
+    prepare_execution_applications(&mut program)?;
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);

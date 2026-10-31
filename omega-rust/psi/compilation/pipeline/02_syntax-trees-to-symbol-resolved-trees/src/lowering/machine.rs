@@ -199,10 +199,6 @@ fn lower_lexical_machine_parts(
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
     // portable head or rewriting other members' declarations.
-    let sibling_target = machine
-        .target
-        .as_ref()
-        .map(|name| crate::lowering::name::lower_name(syntax_trees, name));
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
@@ -226,16 +222,6 @@ fn lower_lexical_machine_parts(
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
     let machine_name = crate::lowering::name::lower_name(syntax_trees, &machine.name);
-    // A member keeps its authored family path and has a distinct
-    // `<path>::<target>` symbol. The independent head occupies the portable
-    // path; same-target calls bind exact member symbols during resolution.
-    let target_symbol_name = match &sibling_target {
-        Some(target) => symbol_resolved_trees::name::DiagnosticName::new(
-            format!("{}::{}", machine.name.as_str(syntax_trees), target.as_str()),
-            machine.name.source_span(),
-        ),
-        None => symbol_resolved_trees::name::DiagnosticName::default(),
-    };
     let attached_data = machine
         .attached_data
         .as_ref()
@@ -246,9 +232,7 @@ fn lower_lexical_machine_parts(
     // Callable supply is declared by the source form. Native binding selection
     // belongs to Build and never changes a requirement-satisfaction edge.
     let supply_mode = {
-        if machine.target_family_interface {
-            language_semantics::MachineSupplyMode::Requirement
-        } else if machine.is_top_level_boundary_requirement
+        if machine.is_top_level_boundary_requirement
             || crate::lowering::operator::is_token_bearing_boundary_signature(machine)
         {
             language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -321,15 +305,6 @@ fn lower_lexical_machine_parts(
         interface_exposure,
         supply_mode,
         body_is_present: !machine.bodyless,
-        target: sibling_target,
-        authored_target: machine
-            .authored_target
-            .as_ref()
-            .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
-        target_family: SymbolHandle::invalid(),
-        target_family_interface: machine.target_family_interface,
-        target_family_contracts_prepared: false,
-        target_symbol_name,
         has_structural_type_equations: requires_argument_recovery,
         structural_type_equations_pending: !machine.where_facts.is_empty()
             && (lowerer.structural_type_equations_pending || !requires_argument_recovery),

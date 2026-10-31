@@ -485,7 +485,6 @@ fn build_machine_catalog(program: &SymbolResolvedTrees) -> Vec<MachineCatalogEnt
         .iter()
         .enumerate()
         // A target sibling never realizes a conformance of this realization.
-        .filter(|(_, machine)| machine.target.is_none())
         .map(|(ordinal, machine)| MachineCatalogEntry {
             ordinal,
             symbol: machine.symbol,

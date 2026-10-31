@@ -103,8 +103,6 @@ impl TypedTrees {
             || machine.body_is_present
             || machine.suspends
             || machine.blocks
-            || machine.target.is_some()
-            || machine.authored_target.is_some()
             || !machine.conformance_bounds.is_empty()
             || !self.machine_invokes(machine).is_empty()
             || !self.machine_owned_data(machine).is_empty()

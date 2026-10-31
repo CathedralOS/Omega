@@ -615,15 +615,7 @@ impl TypedTrees {
             }
             // A target body invokes its resolved family head's declaration.
             // Names and selected realization alone do not establish this join.
-            if self.target_machine_families.iter().any(|family| {
-                family.canonical == declaration
-                    && family
-                        .members
-                        .iter()
-                        .any(|member| member.machine == callable)
-            }) {
-                return Ok(true);
-            }
+
             let template = match self.executable_application_template(callable)? {
                 Some(template) => template,
                 None => {

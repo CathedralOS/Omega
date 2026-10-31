@@ -67,9 +67,8 @@ pub use machine_calls::calls::{
     closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
-    selected_requirement_signature, target_family_members,
-    unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
-    unit_statement_call_is_admitted,
+    selected_requirement_signature, unit_result_initializer_call_is_admitted,
+    unit_return_call_is_admitted, unit_statement_call_is_admitted,
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
@@ -323,8 +322,9 @@ pub use declarations::operators::{
 };
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
-    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
-    dynamic_expression_call_demand, generic_bound_operator_requirement, qualified_trait_scope,
+    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, describe_dynamic_conformances,
+    dynamic_call_demand, dynamic_expression_call_demand, generic_bound_operator_requirement,
+    normalized_dynamic_row_identities, qualified_trait_scope,
     resolve_closed_requirement_application, resolve_dynamic_call_targets,
     resolve_selected_dynamic_call_targets, revalidate_machine_trait_conformances,
     revalidate_named_implementation, revalidate_top_level_requirement_realization,

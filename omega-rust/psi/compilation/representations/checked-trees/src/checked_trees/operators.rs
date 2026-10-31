@@ -269,7 +269,6 @@ pub struct CheckedBoundaryBodyCandidate {
     pub is_product: bool,
     pub selection: SymbolHandle,
     pub selection_identity: CallableIdentityId,
-    pub target: Option<String>,
     pub machine: SymbolHandle,
     pub entry: SymbolHandle,
     pub contract: [u8; 32],
@@ -781,7 +780,6 @@ impl CheckedOperatorFacts {
             candidates.push(language_semantics::CheckedBodyCandidate {
                 body: payload(body),
                 declaration: &declaration.selection,
-                target: body.target.as_deref(),
                 is_product: body.is_product,
             });
         }

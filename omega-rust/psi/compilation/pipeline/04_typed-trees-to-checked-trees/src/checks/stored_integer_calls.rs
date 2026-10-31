@@ -217,18 +217,7 @@ impl<'a> Admission<'a> {
         // The portable interface owns a contract, not an empty performed-write
         // body. Check every authenticated member against these same captured
         // operands; realization's selected host cannot discharge the others.
-        if target.target_family_interface {
-            let members = validation::target_family_members(self.program, target)
-                .ok_or("encoded invocation has no complete target-family roster")?;
-            for member in members {
-                let target = self
-                    .program
-                    .machine_by_symbol(member.machine)
-                    .ok_or("target-family write body is absent")?;
-                self.visit_target(state, call, target, origins.clone())?;
-            }
-            return Ok(());
-        }
+
         self.visit_target(state, call, target, origins)
     }
 

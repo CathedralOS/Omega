@@ -9,9 +9,8 @@ use validation::contract_structure::{
     callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
 };
 
-/// Normalization scratch retained until every generated contract's envelope
-/// settles. Publishing a head before its member graph closes would commit an
-/// empty crash permission set and then silently change that public contract.
+/// Normalized declaration inputs retained while checked operator crash sites
+/// join each machine plan. Final identities use the complete published contract.
 struct ContractPublication<'program> {
     type_identities: &'program arena::OwnedInterner<typed_trees::type_identity::TypeIdentityTable>,
     supply: language_semantics::MachineSupplyMode,
@@ -44,55 +43,6 @@ impl ContractPublication<'_> {
             )
         })
     }
-}
-
-/// Add only causes inferred from private members, leaving authored head routes
-/// guarded. The prepared graph excludes proof pruning: a stronger prover must
-/// not narrow the published interface. Invocation-specific refinement happens
-/// later against this finalized ceiling, never against a lexical body.
-fn publish_family_crash_envelopes(
-    contracts: &mut [checked_trees::MachineContractPlan],
-    publications: &mut [ContractPublication<'_>],
-    additions: &[(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    for (head, causes) in additions {
-        let position = contracts
-            .iter()
-            .position(|contract| contract.machine == *head)
-            .ok_or_else(|| {
-                vec![diagnostics::Diagnostic::error(
-                    "target-family crash envelope has no owning contract",
-                )]
-            })?;
-        let publication = publications.get_mut(position).ok_or_else(|| {
-            vec![diagnostics::Diagnostic::error(
-                "target-family crash envelope has no declaration publication",
-            )]
-        })?;
-        let contract = &mut contracts[position];
-        let mut published = contract.crash.published().to_vec();
-        for cause in causes {
-            // An inferred unconditional permission subsumes authored guards
-            // for this cause; both the runtime row and commitment normalize
-            // that same complete contract rather than hashing redundant facts.
-            published.retain(|bucket| bucket.cause() != *cause);
-            published.push(checked_trees::CrashRouteBucket::unconditional(*cause));
-            publication.declaration.clauses.retain(|clause| {
-                clause.kind != checked_trees::DeclaredContractKind::Crashes(*cause)
-            });
-            publication
-                .declaration
-                .clauses
-                .push(checked_trees::DeclaredContractClause {
-                    kind: checked_trees::DeclaredContractKind::Crashes(*cause),
-                    fact: None,
-                });
-        }
-        publication.declaration.clauses.sort();
-        publication.declaration.clauses.dedup();
-        contract.crash = contract.crash.clone().with_published_ceiling(published);
-    }
-    Ok(())
 }
 
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
@@ -133,7 +83,7 @@ pub(crate) fn build_contract_plans(
             operators,
         )
     });
-    let (mut machines, mut publications) =
+    let (mut machines, publications) =
         phase_profile::scope("05.d.3.c.5c.2.per_machine_plans", || {
             use rayon::prelude::*;
             let results: Result<
@@ -259,8 +209,8 @@ pub(crate) fn build_contract_plans(
                             machine: machine.symbol,
                             closed_scalar_values,
                             crash,
-                            // No consumer observes these construction coordinates. Family
-                            // envelopes settle before each final contract identity is minted.
+                            // Checked operator sites join before final contract identities
+                            // are published; these coordinates are construction scratch.
                             report_fingerprint: 0,
                             commitment: checked_trees::MachineContractCommitment::from_digest(
                                 [0; 32],
@@ -316,12 +266,7 @@ pub(crate) fn build_contract_plans(
             &crash_capsules,
             &machines,
         )
-    })?;
-    publish_family_crash_envelopes(
-        &mut machines,
-        &mut publications,
-        summary_graph.family_potential_crash_causes(),
-    )?;
+    });
     phase_profile::scope("05.d.3.c.5c.6.identities", || {
         use rayon::prelude::*;
         validation::checking_thread_pool().install(|| {

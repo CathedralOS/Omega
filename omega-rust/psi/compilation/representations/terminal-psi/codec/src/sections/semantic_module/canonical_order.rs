@@ -123,7 +123,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     )?;
     for candidate in &module.boundary_application_candidates {
         if candidate.selection_identity.is_absent()
-            || candidate.target.as_ref().is_some_and(String::is_empty)
             || candidate.body.contract == [0; 32]
             || candidate
                 .body

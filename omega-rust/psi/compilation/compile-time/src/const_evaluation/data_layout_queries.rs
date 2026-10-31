@@ -56,6 +56,9 @@ pub struct LayoutApplicationTargetInput {
     /// declaration. Forked program interners rehydrate it before handle joins.
     pub application_identity: String,
     pub target: layout_plans::LayoutTargetFacts,
+    /// Exact demanding occurrence in this typed invocation, not other uses of
+    /// the same policy declaration.
+    pub lexical_owner: symbols::SymbolHandle,
 }
 
 pub trait LayoutQueryProvider {

@@ -27,7 +27,7 @@ pub fn select_checked_body<'candidate, Body>(
             && declaration.requirement == plan.schema.identity_text(plan.schema.trait_name)
             && declaration.requirement_package == plan.schema.trait_package_identity
             && declaration.requirement == plan.identities.text(row.requirement_identity)
-            && selection.matches(&declaration.callable, declaration.package, candidate.target)
+            && selection.matches(&declaration.callable, declaration.package)
             && declaration.provider == plan.provider_type
             && declaration.provider_package == plan.provider_type_package_identity
             && declaration.provider_application.as_deref() == plan.application_identity()
@@ -49,7 +49,6 @@ pub fn select_checked_body<'candidate, Body>(
 struct CheckedBodySelection<'plan> {
     callable: &'plan str,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    target: &'plan str,
 }
 
 impl<'plan> CheckedBodySelection<'plan> {
@@ -75,7 +74,6 @@ impl<'plan> CheckedBodySelection<'plan> {
         Ok(Self {
             callable: plan.identity_text(*machine_identity),
             package: *machine_package_identity,
-            target: &plan.target,
         })
     }
 
@@ -83,11 +81,8 @@ impl<'plan> CheckedBodySelection<'plan> {
         &self,
         callable: &str,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
-        target: Option<&str>,
     ) -> bool {
-        callable == self.callable
-            && package == self.package
-            && target.is_none_or(|target| target == self.target)
+        callable == self.callable && package == self.package
     }
 }
 
@@ -108,11 +103,7 @@ pub(crate) fn select_terminal_checked_body<'module>(
                     .identities
                     .text(candidate.selection_identity)
                     .is_some_and(|callable| {
-                        selection.matches(
-                            callable,
-                            candidate.selection_package,
-                            candidate.target.as_deref(),
-                        )
+                        selection.matches(callable, candidate.selection_package)
                     })
         });
     match (candidates.next(), candidates.next()) {

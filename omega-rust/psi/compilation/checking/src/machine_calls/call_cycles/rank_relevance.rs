@@ -60,15 +60,7 @@ pub fn rank_relevance(
         // A generated interface carries no executable body. Its topology is
         // the union of all retained members, never the current host's member
         // or the interface's deliberately empty authored invocation roster.
-        let callees = if machine.target_family_interface {
-            match super::super::calls::target_family_members(program, machine) {
-                Some(members) => members.iter().map(|member| member.machine).collect(),
-                None => {
-                    has_opaque_call = true;
-                    Vec::new()
-                }
-            }
-        } else {
+        let callees = {
             program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -92,7 +84,7 @@ pub fn rank_relevance(
             };
             // A bodyless interface's implementation is not an empty body.
             // Generated family nodes expand their complete roster above.
-            if !owner.body_is_present && !owner.target_family_interface {
+            if !owner.body_is_present {
                 has_opaque_call = true;
                 continue;
             }

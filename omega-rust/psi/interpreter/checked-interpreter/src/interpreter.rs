@@ -4,6 +4,7 @@
 //! [`BuildMachineEntry`]. The remaining early jobs return pure values.
 //! Build activations and their mutable argument custody run through Terminal Psi.
 
+mod evaluation_error;
 mod evaluator;
 use crate::{
     BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
@@ -11,6 +12,7 @@ use crate::{
 };
 use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
+pub use evaluation_error::{BuildMachineEvaluationError, UnavailableStaticInput};
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -212,6 +214,7 @@ pub fn materialize_zero_initialized_build_time_value(
                 }
                 Halt::Exit(code) => format!("zero storage initialization exited with code {code}"),
                 Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
+                Halt::StaticInputUnavailable(input) => input.to_string(),
             })?;
     crate::build_time::observe_build_time_value(&value, &|reference| {
         evaluator.read_reference(reference)
@@ -220,6 +223,7 @@ pub fn materialize_zero_initialized_build_time_value(
         Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
         Halt::Exit(code) => format!("zero storage observation exited with code {code}"),
         Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
+        Halt::StaticInputUnavailable(input) => input.to_string(),
     })
 }
 
@@ -236,7 +240,7 @@ pub const fn pure_evaluation_step_ceiling() -> u64 {
 pub fn evaluate_build_time_machine(
     program: &TypedTrees,
     request: BuildMachineEvaluationRequest<'_>,
-) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
     evaluate_prepared_build_time_machine(BuildMachineProgram::Typed(program), request)
 }
 
@@ -247,7 +251,7 @@ pub fn evaluate_build_time_machine(
 pub fn evaluate_prepared_build_time_machine(
     program: BuildMachineProgram<'_>,
     request: BuildMachineEvaluationRequest<'_>,
-) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
     evaluate_structured_return(program, request.entry, request.arguments, request.operators)
 }
 
@@ -272,12 +276,23 @@ fn evaluate_const_on_current_thread(
 /// The value-returning evaluation's halt text: an explicit exit reports its
 /// code against the value expectation; every other halt carries its message.
 fn value_return_halt_error(halt: Halt) -> String {
+    structured_return_halt_error(halt).to_string()
+}
+
+fn structured_return_halt_error(halt: Halt) -> BuildMachineEvaluationError {
     match halt {
-        Halt::Exit(code) => format!(
+        Halt::Exit(code) => BuildMachineEvaluationError::Rejected(format!(
             "the machine attempted to exit the process (code {code}) instead of returning a value"
-        ),
-        Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
-        Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
+        )),
+        Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => {
+            BuildMachineEvaluationError::Rejected(message)
+        }
+        Halt::Crash(cause, site) => {
+            BuildMachineEvaluationError::Rejected(format!("explicit crash {cause:?} at {site}"))
+        }
+        Halt::StaticInputUnavailable(input) => {
+            BuildMachineEvaluationError::StaticInputUnavailable(input)
+        }
     }
 }
 
@@ -286,15 +301,18 @@ fn evaluate_structured_return(
     entry: BuildMachineEntry<'_>,
     arguments: Vec<build_time_values::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
-) -> Result<BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>, String> {
+) -> Result<
+    BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>,
+    BuildMachineEvaluationError,
+> {
     let typed = program.typed();
     if operators
         .iter()
         .any(|operator| operator.has_crash_contract(typed))
     {
-        return Err(
+        return Err(BuildMachineEvaluationError::Rejected(
             "selected operator crash invocations have no build-time execution support".into(),
-        );
+        ));
     }
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -326,12 +344,16 @@ fn evaluate_structured_return(
                             evaluator.private_layout_placements,
                         ))
                     }
-                    Err(halt) => Err(value_return_halt_error(halt)),
+                    Err(halt) => Err(structured_return_halt_error(halt)),
                 }
             })
             .expect("spawn build-time evaluation worker thread")
             .join()
-            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
+            .unwrap_or_else(|_| {
+                Err(BuildMachineEvaluationError::Rejected(
+                    "build-time evaluator thread panicked".to_owned(),
+                ))
+            })
     })
 }
 
@@ -443,6 +465,7 @@ fn interpret_on_current_thread(
         Err(Halt::Crash(cause, site)) => {
             InterpretOutcome::crashed(cause, site, evaluator.stdout, evaluator.stderr, usage)
         }
+        Err(Halt::StaticInputUnavailable(input)) => evaluator.error_outcome(input.to_string()),
         Err(Halt::Unsupported(message))
         | Err(Halt::Trap(message))
         | Err(Halt::Resource(message)) => {

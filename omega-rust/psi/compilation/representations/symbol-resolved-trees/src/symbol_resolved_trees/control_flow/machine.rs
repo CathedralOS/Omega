@@ -55,27 +55,6 @@ pub struct Machine {
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
-    /// Exact authored implementation target. Every product member retains
-    /// this identity; its independent portable interface and ordinary machines
-    /// have no target. Psi checks all members without choosing a deployment.
-    pub target: Option<DiagnosticName>,
-    /// Authored target head, independent of the transitional sibling marker.
-    pub authored_target: Option<DiagnosticName>,
-    /// Exact independent interface of this product-scope target family,
-    /// including closed generic attachments. Invalid for ordinary and Build
-    /// declarations. This handle supplies no executable implementation.
-    pub target_family: SymbolHandle,
-    /// Generated Requirement owning the portable callable identity. Target
-    /// implementations refine this head; none is its executable definition.
-    pub target_family_interface: bool,
-    /// Declaration preparation checkpoint. Completing authored bodies must
-    /// preserve these already resolved interface clauses and their handles.
-    pub target_family_contracts_prepared: bool,
-    /// A sibling's symbol spelling, `<path>::<target>`, so the symbol table
-    /// keeps one root machine per authored path for name lookups while the
-    /// record's `name` stays the authored family path. Empty for every other
-    /// machine.
-    pub target_symbol_name: DiagnosticName,
     /// Exact source-body presence retained independently from supply mode.
     /// Boundary supply admits both bodyless host declarations and checked
     /// adapters, so downstream review must not reconstruct this distinction
@@ -114,18 +93,6 @@ pub struct Machine {
     pub compiler_selection_partition:
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     pub storage: MachineStorage,
-}
-
-impl Machine {
-    /// The spelling of this machine's symbol in the symbol table: the
-    /// authored name, or `<name>::<target>` for a target sibling.
-    pub fn symbol_spelling(&self) -> &str {
-        if self.target.is_some() {
-            self.target_symbol_name.as_str()
-        } else {
-            self.name.as_str()
-        }
-    }
 }
 
 /// Compiler-owned derivation, separate from trait-default selection partitions.
@@ -275,13 +242,7 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         spelling: None,
         is_public: false,
         supply_mode: Default::default(),
-        target: None,
-        target_symbol_name: Default::default(),
-        authored_target: None,
-        target_family: SymbolHandle::invalid(),
-        target_family_interface: false,
         interface_exposure: Default::default(),
-        target_family_contracts_prepared: false,
         body_is_present: true,
         body_status: crate::machine::MachineBodyStatus::Complete,
         has_structural_type_equations: false,

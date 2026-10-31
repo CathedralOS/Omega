@@ -28,16 +28,6 @@ pub struct Machine {
     /// top-level requirement marker below; the item parser enforces which
     /// bodyless source forms are legal.
     pub bodyless: bool,
-    /// Compiler-generated callable head for a product target family. It owns
-    /// no implementation or admission claim; each authored target keeps its
-    /// separate body, and resolved member contracts determine this interface.
-    pub target_family_interface: bool,
-    /// Exact implementation target. Product family preparation retains this
-    /// on every member; the independent interface occupies the portable path.
-    /// No requested realization set changes which bodies Psi checks.
-    pub target: Option<Identifier>,
-    /// Authored target head, independent from Build's execution selection.
-    pub authored_target: Option<Identifier>,
     /// The EXPORTED-CALLABLE marking (`boundary machine ...`): this machine
     /// is a callable surface the platform (or a foreign caller) invokes; its
     /// parameters are the boundary-trusted shape over the arrival bytes.

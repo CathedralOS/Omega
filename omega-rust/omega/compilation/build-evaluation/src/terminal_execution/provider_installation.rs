@@ -51,10 +51,7 @@ pub(super) fn prepare<'host, 'code>(
     // Keep freshly produced code alive after helper preparation is released;
     // decoding is an external-byte ingress, not a same-session ownership transfer.
     let program = TerminalProgram::retain(artifact.retain_code());
-    let targets = terminal_installation::target_context(
-        artifact.view(),
-        profile.target_name(),
-    );
+    let targets = terminal_installation::target_context(artifact.view(), profile.target_name());
     let layout_target = profile
         .layout_target_facts()
         .ok_or("Build helper has no admitted target layout facts")?;
@@ -122,10 +119,7 @@ pub(super) fn prepare<'host, 'code>(
                     layout_target: scope_profile
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                    targets: terminal_installation::target_context(
-                        artifact.view(),
-                        scope,
-                    ),
+                    targets: terminal_installation::target_context(artifact.view(), scope),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
                         .map(|model| terminal_installation::ScalarAddressModel {

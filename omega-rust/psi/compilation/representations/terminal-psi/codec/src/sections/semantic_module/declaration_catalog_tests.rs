@@ -1,8 +1,11 @@
 //! Declaration catalog and assembly applicability wire checks.
 
-use crate::{decode_module, encode_module};
+use crate::{CodecError, decode_module, encode_module};
 use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId};
-use terminal_psi::{Block, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator};
+use terminal_psi::{
+    Block, TerminalIdentityIndex, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator,
+};
 
 #[test]
 fn declaration_catalog_round_trip_preserves_absent_default_entry() {

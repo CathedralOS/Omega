@@ -278,17 +278,7 @@ fn invocation_reference_effects(
         );
     }
     let parameters = body_parameters;
-    if callee.target_family_interface {
-        let alternatives = super::call_targets::checked_body_alternatives(program, callee, state)?;
-        let relative = checked_alternatives::relative_effects(
-            program,
-            &alternatives,
-            parameters,
-            symbols,
-            inference,
-        )?;
-        return transfer(parameters, relative);
-    }
+
     if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
         trace_refusal("checked-body-unavailable");
         return None;

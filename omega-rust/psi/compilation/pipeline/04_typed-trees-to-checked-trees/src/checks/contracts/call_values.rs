@@ -42,11 +42,7 @@ fn invocation_body_parameters<'program>(
 ) -> Option<&'program [StateParameter]> {
     let target = target_machine(program, call)?;
     if target != body {
-        let interface = program.machine_by_symbol(target)?;
-        validation::target_family_members(program, interface)?
-            .iter()
-            .any(|member| member.machine == body)
-            .then_some(())?;
+        return None;
     }
     let machine = program.machine_by_symbol(body)?;
     Some(program.state_parameters(program.machine_states(machine).first()?))

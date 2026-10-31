@@ -316,15 +316,7 @@ pub fn call_target_has_checked_body_contract(
     else {
         return false;
     };
-    if machine.target_family_interface {
-        return target_family_members(program, machine).is_some_and(|members| {
-            members.iter().all(|member| {
-                program
-                    .machine(member.machine)
-                    .is_some_and(|body| body.body_is_present)
-            })
-        });
-    }
+
     machine.body_is_present
 }
 
@@ -563,35 +555,6 @@ pub fn call_target_symbol(
 /// Consumers apply their own body/contract eligibility after this exact join;
 /// external members belong to the roster just as checked bodies do. This is
 /// dependency topology, not an executable dispatch or a host-target selection.
-pub fn target_family_members<'program>(
-    program: &'program dyn crate::CheckingInput,
-    interface: &typed_trees::machine::Machine,
-) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
-    if !interface.target_family_interface {
-        return None;
-    }
-    let mut families = program
-        .target_machine_families
-        .iter()
-        .filter(|family| family.canonical == interface.symbol);
-    let family = families.next()?;
-    if families.next().is_some() || family.members.is_empty() {
-        return None;
-    }
-    for (index, member) in family.members.iter().enumerate() {
-        let machine = program.machine(member.machine)?;
-        if machine.target_family_interface
-            || machine.authored_target.as_ref() != Some(&member.target)
-            || program.machine_states(machine).is_empty()
-            || family.members[..index]
-                .iter()
-                .any(|prior| prior.machine == member.machine || prior.target == member.target)
-        {
-            return None;
-        }
-    }
-    Some(&family.members)
-}
 
 /// A whole completing invocation or named arrival, retaining its argument
 /// arena and exact authored call identity. Position is supplied by the consumer;

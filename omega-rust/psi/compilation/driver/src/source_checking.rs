@@ -21,6 +21,9 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
+    pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
+    pub layout_selection_authority:
+        Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub catalogues: validation::source_catalogues::SourceCatalogueAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
@@ -118,23 +121,13 @@ impl CheckRequest<'_> {
                 &self.admission.catalogues,
             )
         })?;
-        let deferred_layout_applications =
-            typed_trees::references::collect_program_type_occurrences(&program)
-                .into_iter()
-                .filter_map(|occurrence| program.layout_storage_arguments(occurrence.reference))
-                .filter(|storage| {
-                    program
-                        .closed_data_field_definition(storage.semantic_type)
-                        .is_some()
-                        && program
-                            .plan_laid_layout_for_type(storage.application)
-                            .is_none()
-                })
-                .map(|storage| storage.application)
-                .collect::<Vec<_>>();
+        build_time_evaluation::evaluate_fixed_layout_applications(
+            &mut program,
+            self.admission.layout_scopes,
+            self.admission.layout_selection_authority.clone(),
+        )?;
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-            .with_deferred_layout_applications(&deferred_layout_applications)
             .with_opaque_property_receipts(&representations.copy_properties)
             .with_opaque_representation_selections(&representations.selections)
             .with_wire_compatibility_demands(self.admission.wire_demands);

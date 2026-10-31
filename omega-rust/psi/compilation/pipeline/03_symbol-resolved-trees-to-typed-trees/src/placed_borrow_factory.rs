@@ -52,8 +52,6 @@ pub fn placed_borrow_factory(
         || !machine.lifetime_parameters.is_empty()
         || machine.body_is_present
         || machine.spelling.is_some()
-        || machine.target.is_some()
-        || machine.authored_target.is_some()
         || machine.suspends
         || machine.blocks
         || machine.has_structural_type_equations

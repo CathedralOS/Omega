@@ -559,7 +559,6 @@ impl SyntaxCopy<'_> {
             nested_machines.push_contiguous(handle);
         }
         Machine {
-            target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
             default_body_trait: machine.default_body_trait.clone(),
@@ -567,8 +566,7 @@ impl SyntaxCopy<'_> {
             attached_data: machine.attached_data.clone(),
             spelling: machine.spelling,
             is_public: machine.is_public,
-            target: machine.target.clone(),
-            authored_target: machine.authored_target.clone(),
+
             boundary: machine.boundary,
             is_top_level_boundary_requirement: machine.is_top_level_boundary_requirement,
             bodyless: machine.bodyless,

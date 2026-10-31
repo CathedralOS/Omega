@@ -352,9 +352,9 @@ fn expression_places_resolve_attached_data_members() {
         assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::Any,
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
-        target: None,
+
         supply_mode: Default::default(),
-        target_family_interface: false,
+
         interface_exposure: Default::default(),
         purpose: Default::default(),
         termination_plan: Default::default(),
@@ -383,7 +383,7 @@ fn expression_places_resolve_attached_data_members() {
         blocks: false,
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),
-        authored_target: None,
+
         lexical_region_origin: None,
     };
     let mut state = typed_trees::state::State {

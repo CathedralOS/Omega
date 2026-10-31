@@ -509,14 +509,7 @@ fn push_checked_machine_call_targets(
     let Some(machine) = program.machine(current) else {
         return false;
     };
-    if machine.target_family_interface {
-        let Some(members) = complete_family_members(program, machine) else {
-            return false;
-        };
-        // A family dependency is not an executable call row. Its portable
-        // source judgments nevertheless owe every retained member's closure.
-        pending.extend(members.iter().map(|member| member.machine));
-    }
+
     let summaries = operational
         .machines()
         .iter()
@@ -595,38 +588,8 @@ pub(crate) fn has_no_crash_routes(
         if program.machine_declares_crash(machine) {
             return false;
         }
-        if !machine.target_family_interface {
-            return true;
-        }
-        // A private member's omitted clause is inference still owed by body
-        // checking, not a published negative guarantee. Source denotation has
-        // no checked body-crash fixed point to substitute for that obligation.
-        complete_family_members(program, machine).is_some_and(|members| {
-            members.iter().all(|member| {
-                program
-                    .machine(member.machine)
-                    .is_some_and(|machine| program.machine_publishes_crash_ceiling(machine))
-            })
-        })
+        true
     })
-}
-
-fn complete_family_members<'program>(
-    program: &'program dyn crate::CheckingInput,
-    interface: &typed_trees::machine::Machine,
-) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
-    let members = super::calls::target_family_members(program, interface)?;
-    for member in members {
-        let machine = program.machine(member.machine)?;
-        if !machine.supplies_checked_body()
-            || !machine.body_is_present
-            || machine.body_status != typed_trees::machine::MachineBodyStatus::Complete
-            || machine.structural_type_equations_pending
-        {
-            return None;
-        }
-    }
-    Some(members)
 }
 
 /// Rejoin a selected public operator with its exact authored implementation.

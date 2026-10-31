@@ -278,7 +278,9 @@ pub fn component_calling_applications(
         }
         let profile = target::TargetProfile::from_canonical_target_name(&plan.target)
             .map_err(|error| vec![error])?;
-        if profile.native_target() != native_target {
+        let layout_target = layout::LayoutTarget::for_profile(profile)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if layout_target.native_target() != native_target {
             return Err(vec![Diagnostic::error(
                 "component ABI request names another selected native target",
             )]);
@@ -304,7 +306,7 @@ pub fn component_calling_applications(
             let application = match application {
                 Some(application) => application,
                 None => super::plan_computation::evaluate_default_calling_application(
-                    typed, native_target, trait_name, plan.schema.trait_package_identity,
+                    typed, layout_target, trait_name, plan.schema.trait_package_identity,
                     &row.method, requirement,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
                     0, representations,

@@ -278,8 +278,6 @@ mod tests {
         for ordinal in [1, 2, 3, 4, 7, 8] {
             scope.plan.machines.insert(ProofApplicationMachine {
                 machine: ProofDeclarationId(ordinal),
-                authored_target: (ordinal == 1 || ordinal == 8).then(|| "macos_arm64".into()),
-                source_target: (ordinal == 1 || ordinal == 8).then(|| "macos_arm64".into()),
                 product_selected: ordinal != 8,
                 ..Default::default()
             });
@@ -376,8 +374,8 @@ mod tests {
         assert_eq!(decoded.declarations, scope.declarations);
         assert_eq!(decoded.callables, scope.callables);
         assert_eq!(reader.remaining(), 0);
-        let before = scope.applications().membership("macos_arm64", false, &[]);
-        let after = decoded.applications().membership("macos_arm64", false, &[]);
+        let before = scope.applications().membership(&[]);
+        let after = decoded.applications().membership(&[]);
         assert_eq!(before, after);
         let mut machines = after.0;
         machines.sort_unstable();

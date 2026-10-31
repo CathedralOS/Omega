@@ -225,12 +225,11 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         attached_data: None,
         spelling: None,
         is_public: false,
-        target: None,
-        authored_target: None,
+
         boundary: false,
         is_top_level_boundary_requirement: false,
         bodyless: false,
-        target_family_interface: false,
+
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
@@ -1083,12 +1082,11 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         attached_data: None,
         spelling: None,
         is_public: true,
-        target: None,
-        authored_target: None,
+
         boundary: false,
         is_top_level_boundary_requirement: true,
         bodyless: true,
-        target_family_interface: false,
+
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),

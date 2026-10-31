@@ -1126,7 +1126,6 @@ fn machine_from_signature(
         HandleSpan::from_parts(clause, 1)
     });
     Machine {
-        target_family_interface: false,
         name: machine_name,
         default_body_trait,
         // The member belongs to its implementation's map, not to any data
@@ -1138,8 +1137,7 @@ fn machine_from_signature(
         spelling: None,
         is_public: false,
         bodyless: false,
-        target: None,
-        authored_target: None,
+
         boundary: false,
         is_top_level_boundary_requirement: false,
         generic_data_template: Default::default(),

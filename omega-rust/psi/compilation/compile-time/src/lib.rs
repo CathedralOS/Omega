@@ -112,3 +112,5 @@ pub use validation::native_locators;
 pub use validation::product_entries;
 
 pub mod native_bindings;
+
+pub use layouts::plan_laid::{FixedLayoutTargetScope, evaluate_fixed_layout_applications};

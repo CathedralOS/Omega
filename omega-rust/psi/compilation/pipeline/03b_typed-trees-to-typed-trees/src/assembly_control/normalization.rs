@@ -512,15 +512,7 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
                 }
             }
         }
-        if machine
-            .authored_target
-            .as_ref()
-            .is_some_and(|target| !requirement.accepts_target_name(target.as_str()))
-        {
-            return Err(vec![Diagnostic::error(
-                "assembly catalog target requirement conflicts with the authored target body",
-            )]);
-        }
+
         program.machines_mut()[machine_index].assembly_target_requirement = requirement;
     }
 
@@ -816,15 +808,7 @@ fn normalize_graph(
             access: None,
         });
     }
-    let helper_name = format!(
-        "{}$assembly${}${body_start}${}",
-        owner.name,
-        owner
-            .authored_target
-            .as_ref()
-            .map_or("portable", Identifier::as_str),
-        state.name,
-    );
+    let helper_name = format!("{}$assembly${body_start}${}", owner.name, state.name);
     let helper_symbol =
         program
             .symbols
@@ -838,8 +822,6 @@ fn normalize_graph(
         // is idempotent, so retaining this contribution adds no net reach.
         service_reach_row: owner.service_reach_row,
         service_reach_is_installation_bound: owner.service_reach_is_installation_bound,
-        target: owner.target.clone(),
-        authored_target: owner.authored_target.clone(),
         termination_plan: language_semantics::MachineTerminationPlan {
             interface: owner.termination_plan.interface.clone(),
             ..Default::default()

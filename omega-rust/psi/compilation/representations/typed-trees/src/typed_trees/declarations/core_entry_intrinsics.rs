@@ -62,8 +62,6 @@ impl TypedTrees {
                 | language_semantics::MachineSupplyMode::CompilerPrimitive
         ) || machine.body_is_present
             || machine.attached_data.is_some()
-            || machine.target_family_interface
-            || self.machine_authored_target(machine).is_some()
             || !machine.lifetime_parameters.is_empty()
             || !self.machine_type_parameters(machine).is_empty()
             || machine.blocks

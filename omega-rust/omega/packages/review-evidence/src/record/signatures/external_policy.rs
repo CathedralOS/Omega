@@ -99,14 +99,13 @@ impl From<&PackageReviewExternalBinding> for PackagePolicyExternalBinding {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyExternalExecutableSupply {
     pub(crate) callable: PackageReviewNominalIdentity,
-    pub(crate) target_context: crate::record::PackagePolicyTargetContext,
+
     pub(crate) signature: PackagePolicyExternalCallableSignature,
     pub(crate) requirement: PackagePolicyExternalRequirement,
     pub(crate) binding: PackagePolicyExternalBinding,
 }
 
 impl PackagePolicyExternalExecutableSupply {
-    field_projection_accessors!(borrowed target_context: &crate::record::PackagePolicyTargetContext);
     field_projection_accessors!(borrowed callable: &PackageReviewNominalIdentity);
     field_projection_accessors!(borrowed signature: &PackagePolicyExternalCallableSignature);
     field_projection_accessors!(borrowed requirement: &PackagePolicyExternalRequirement);

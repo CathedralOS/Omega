@@ -1,7 +1,7 @@
 //! Normal preservation is path-scoped metadata, not a root-only promise.
 
 use super::module_wire::encode_raw;
-use super::target_family_tests::{identity_table, unit_machine};
+use super::declaration_catalog_tests::{identity_table, unit_machine};
 use crate::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use semantic_vocabulary::{
     BoundaryMachineId, DomainSemanticId, MachineId, PlaceId, StructuralDomainId, StructuralFieldId,

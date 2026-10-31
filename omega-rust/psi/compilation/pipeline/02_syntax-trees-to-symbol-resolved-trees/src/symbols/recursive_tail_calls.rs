@@ -67,19 +67,8 @@ fn unambiguous_canonical_entry(
     if !machine.attached_data_symbol.is_valid() {
         return true;
     }
-    // Target siblings are deliberately absent from ambient method lookup.
-    // Their settled family identifies the canonical callable once; never add
-    // one overload per target or collapse unrelated declarations by spelling.
-    let canonical_symbol = if machine.target_family.is_valid() {
-        machine.target_family
-    } else {
-        machine.symbol
-    };
-    let canonical = if canonical_symbol == machine.symbol {
-        Some(machine)
-    } else {
-        program.machine(canonical_symbol)
-    };
+    let canonical_symbol = machine.symbol;
+    let canonical = Some(machine);
     let Some(canonical) = canonical else {
         return false;
     };

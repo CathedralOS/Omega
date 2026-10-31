@@ -166,7 +166,6 @@ pub fn project_build_entry_syntax(
     };
     if build.bodyless
         || build.boundary
-        || build.target.is_some()
         || !build.lifetime_parameters.is_empty()
         || !build.type_parameters.is_empty()
     {

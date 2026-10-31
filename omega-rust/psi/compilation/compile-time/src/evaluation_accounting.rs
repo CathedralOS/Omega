@@ -8,8 +8,9 @@
 use std::sync::{Arc, Mutex};
 
 use checked_interpreter::{
-    BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram,
-    BuildTimeOperationEvaluation, EvaluationSemanticsIdentity, EvaluationUsage,
+    BuildMachineEntry, BuildMachineEvaluationError, BuildMachineEvaluationRequest,
+    BuildMachineProgram, BuildTimeOperationEvaluation, EvaluationSemanticsIdentity,
+    EvaluationUsage,
 };
 use typed_trees::TypedTrees;
 
@@ -99,7 +100,7 @@ pub enum PureEvaluationOutcome {
         usage: EvaluationUsage,
     },
     UnmeasuredFailure {
-        reason: String,
+        reason: BuildMachineEvaluationError,
     },
 }
 
@@ -458,7 +459,7 @@ impl EvaluationAccounting {
         &self,
         program: BuildMachineProgram<'_>,
         request: BuildMachineEvaluationRequest<'_>,
-    ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+    ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
         // Snapshot before execution. Neither the retained result nor a later
         // mutation of the caller's tree can redefine the measured input.
         let input = self

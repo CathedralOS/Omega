@@ -435,7 +435,7 @@ fn provider_application_declarations(
         }
     }
     checked_trees::typed_trees::references::DeclarationSelection::from_symbols(
-        checked_trees::applications::application_machines(checked, target, &roots, &edges),
+        checked_trees::applications::application_machines(checked, &roots, &edges),
     )
 }
 

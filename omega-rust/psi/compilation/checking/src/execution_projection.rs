@@ -520,12 +520,6 @@ fn project_declarations(
     program.expression_table.retain_expression_roots(|handle| {
         expressions.contains(&handle) || orphan_obligations.contains(&handle)
     });
-    program.target_machine_families.retain_mut(|family| {
-        family
-            .members
-            .retain(|member| retained.contains(&member.machine));
-        !family.members.is_empty()
-    });
     program
 }
 

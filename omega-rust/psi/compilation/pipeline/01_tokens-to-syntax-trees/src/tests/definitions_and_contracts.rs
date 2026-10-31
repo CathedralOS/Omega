@@ -739,25 +739,6 @@ fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
 }
 
 #[test]
-fn rejects_retired_target_prefixed_machine_declarations() {
-    for source in [
-        "linux_x86_64 machine answer() -> u64 { 7u64 }",
-        "public macos_arm64 machine answer() -> u64 { 7u64 }",
-        "windows_x86_64 boundary machine native(value: i32) -> i32;",
-        "linux_x86_64 /* target */ boundary /* supply */ machine native();",
-        "linux_arm64 machine answer() -> u64;",
-        "uefi_x86_64 boundary machine stop();",
-    ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize retired target prefix",
-            "target-prefixed declarations must refuse before supply classification",
-        );
-        super::expect_error(&error, "target-prefixed machine declarations are retired");
-    }
-}
-
-#[test]
 fn parses_structural_and_nominal_machine_parameter_contracts_together() {
     let source = r#"
         machine apply<machine Schema, machine Selected>()

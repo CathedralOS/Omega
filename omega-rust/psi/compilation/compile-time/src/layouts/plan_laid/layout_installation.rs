@@ -14,7 +14,14 @@ struct FixedRepresentationRequest {
 struct ScopedRepresentationRequest {
     storage: typed_trees::layout_storage::LayoutStorageArguments,
     targets: Vec<layout_plans::LayoutTargetFacts>,
-    dependencies: Vec<typed_trees::layout_storage::LayoutStorageArguments>,
+    dependencies: Vec<RepresentationDependency>,
+    invocation_owners: Vec<symbols::SymbolHandle>,
+}
+
+#[derive(Clone, Copy)]
+struct RepresentationDependency {
+    storage: typed_trees::layout_storage::LayoutStorageArguments,
+    lexical_owner: symbols::SymbolHandle,
 }
 
 fn applicable_targets(
@@ -26,11 +33,44 @@ fn applicable_targets(
         return domain.layout_targets.clone();
     };
     let identity = typed.normalized_type_identity(storage.application);
-    inputs
+    let mut targets = Vec::new();
+    for input in inputs
         .iter()
         .filter(|input| typed.type_identity_by_text(&input.application_identity) == identity)
-        .map(|input| input.target.clone())
-        .collect()
+    {
+        if !targets.contains(&input.target) {
+            targets.push(input.target.clone());
+        }
+    }
+    targets
+}
+
+fn invocation_owners(
+    typed: &TypedTrees,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+    storage: typed_trees::layout_storage::LayoutStorageArguments,
+    owner: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    // A universal recipe is demanded by this exact source occurrence, not a
+    // consumer's closed application. It must pass the same package/admission
+    // floor even when its open static operands do not affect the output.
+    if !typed_trees::domain::index_argument_is_closed(typed, storage.policy) {
+        return vec![owner];
+    }
+    let Some(inputs) = &domain.layout_applications else {
+        return vec![owner];
+    };
+    let identity = typed.normalized_type_identity(storage.application);
+    let mut owners = Vec::new();
+    for input in inputs
+        .iter()
+        .filter(|input| typed.type_identity_by_text(&input.application_identity) == identity)
+    {
+        if !owners.contains(&input.lexical_owner) {
+            owners.push(input.lexical_owner);
+        }
+    }
+    owners
 }
 
 pub(crate) fn compute_plan_laid_layouts_in(
@@ -51,23 +91,60 @@ pub(crate) fn compute_plan_laid_layouts_in(
             storage.application,
             occurrence.lexical_owner,
         )?;
-        if requests.iter().any(|known: &ScopedRepresentationRequest| {
-            typed.normalized_type_identity(known.storage.application)
-                == typed.normalized_type_identity(storage.application)
-        }) {
+        if let Some(known) = requests
+            .iter_mut()
+            .find(|known: &&mut ScopedRepresentationRequest| {
+                typed.normalized_type_identity(known.storage.application)
+                    == typed.normalized_type_identity(storage.application)
+            })
+        {
+            for owner in invocation_owners(typed, domain, storage, occurrence.lexical_owner) {
+                if !known.invocation_owners.contains(&owner) {
+                    known.invocation_owners.push(owner);
+                }
+            }
             continue;
         }
-        // Open constructor recipes remain source-checked templates; actual
-        // storage demands retain their closed semantic field views.
+        // A symbolic policy application owes the generic body's universal
+        // geometry, independently of its consumers' concrete arguments. The
+        // ordinary evaluator receives no value for those symbolic operands:
+        // only an output that does not read them can complete. Explicit target
+        // facts remain known inputs; no caller's policy instance supplies proof.
         if typed
             .closed_data_field_definition(storage.semantic_type)
             .is_some()
-            && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
         {
+            let policy_is_closed =
+                typed_trees::domain::index_argument_is_closed(typed, storage.policy);
+            let policy_declaration = typed.type_reference_table.type_symbol(storage.policy);
+            if !policy_is_closed
+                && policy_declaration.is_valid()
+                && typed.symbols.get(policy_declaration).kind
+                    == symbols::SymbolKind::ConformanceParameter
+            {
+                // An abstract implementation parameter names no selected body.
+                // Its field telescope remains usable, but physical consumers
+                // still owe geometry after an exact implementation is supplied.
+                continue;
+            }
+            let targets = applicable_targets(typed, domain, storage);
+            // An empty deployment roster cannot prove universal geometry.
+            // Leave the original physical obligation unavailable, so settled
+            // consumers still refuse rather than treating no alternatives as
+            // successful representation compatibility.
+            if !policy_is_closed && targets.is_empty() {
+                continue;
+            }
             requests.push(ScopedRepresentationRequest {
                 storage,
-                targets: applicable_targets(typed, domain, storage),
+                targets,
                 dependencies: representation_dependencies(typed, storage.semantic_type)?,
+                invocation_owners: invocation_owners(
+                    typed,
+                    domain,
+                    storage,
+                    occurrence.lexical_owner,
+                ),
             });
         }
     }
@@ -79,10 +156,15 @@ pub(crate) fn compute_plan_laid_layouts_in(
         for dependency in requests[index].dependencies.clone() {
             if let Some(position) = requests.iter().position(|known| {
                 typed.normalized_type_identity(known.storage.application)
-                    == typed.normalized_type_identity(dependency.application)
+                    == typed.normalized_type_identity(dependency.storage.application)
             }) {
                 let known = &mut requests[position];
                 let before = known.targets.len();
+                if !inherited.is_empty()
+                    && !known.invocation_owners.contains(&dependency.lexical_owner)
+                {
+                    known.invocation_owners.push(dependency.lexical_owner);
+                }
                 for target in &inherited {
                     if !known.targets.contains(target) {
                         known.targets.push(target.clone());
@@ -95,16 +177,19 @@ pub(crate) fn compute_plan_laid_layouts_in(
             }
             validation::conformance_applications::validate_data_evidence_application(
                 typed,
-                dependency.application,
-                typed
-                    .type_reference_table
-                    .operand_lifetime_owner(dependency.application),
+                dependency.storage.application,
+                dependency.lexical_owner,
             )?;
             pending.push(requests.len());
             requests.push(ScopedRepresentationRequest {
-                storage: dependency,
+                storage: dependency.storage,
                 targets: inherited.clone(),
-                dependencies: representation_dependencies(typed, dependency.semantic_type)?,
+                dependencies: representation_dependencies(typed, dependency.storage.semantic_type)?,
+                invocation_owners: if inherited.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![dependency.lexical_owner]
+                },
             });
         }
     }
@@ -115,7 +200,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             if request.dependencies.iter().all(|dependency| {
                 !requests.iter().any(|pending| {
                     typed.normalized_type_identity(pending.storage.application)
-                        == typed.normalized_type_identity(dependency.application)
+                        == typed.normalized_type_identity(dependency.storage.application)
                 })
             }) {
                 ready = Some(position);
@@ -134,9 +219,11 @@ pub(crate) fn compute_plan_laid_layouts_in(
         return Ok(());
     }
     if domain.layout_targets.is_empty() && domain.layout_applications.is_none() {
-        return Err(fail(
-            "fixed representation evaluation requires explicit target representation facts".into(),
-        ));
+        // Source completion may establish semantic constants before deployment
+        // inputs exist. Retain exact constructor applications as obligations;
+        // publish no provisional geometry. The settled Source facade requires
+        // their physical closure before checking or Terminal production.
+        return Ok(());
     }
     for (position, target) in domain.layout_targets.iter().enumerate() {
         target.validate().map_err(|reason| fail(reason.into()))?;
@@ -149,24 +236,32 @@ pub(crate) fn compute_plan_laid_layouts_in(
             ));
         }
     }
-    typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
+    typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
     // A continuation replaces only the applications it owns. Earlier source
     // continuations and their arena-backed field/target rows remain available
     // to later dependencies; clearing the whole catalog loses that custody.
-    let replaced = requests
+    let mut replaced = requests
         .iter()
         .map(|request| typed.normalized_type_identity(request.storage.application))
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<Vec<_>>();
+    replaced.sort_unstable();
+    replaced.dedup();
     let existing = std::mem::take(&mut typed.plan_laid_layouts);
     typed.plan_laid_layouts = existing
         .into_iter()
-        .filter(|plan| !replaced.contains(&typed.normalized_type_identity(plan.application)))
+        .filter(|plan| {
+            replaced
+                .binary_search(&typed.normalized_type_identity(plan.application))
+                .is_err()
+        })
         .collect();
     let mut execution = domain.execution_program(typed);
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-    for request in requests {
+    'application: for request in requests {
         let storage = request.storage;
+        let policy_is_closed = typed_trees::domain::index_argument_is_closed(typed, storage.policy);
         let mut targets = request.targets;
+        let invocation_owners = request.invocation_owners;
         targets.sort_by(|left, right| left.profile.cmp(&right.profile));
         // Schema reflection consumes the exact checked declaration, independently
         // of the narrower roster of bodies permitted to execute. Describing T
@@ -222,27 +317,31 @@ pub(crate) fn compute_plan_laid_layouts_in(
         let machine = execution
             .machine_by_symbol(realized)
             .ok_or_else(|| fail("fixed representation lost its checked policy body".into()))?;
-        let sources = execution
-            .authored_declaration_selections()
-            .iter()
-            .filter_map(|selection| {
-                use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-                matches!(selection.target(), AuthoredDeclarationSelectionTarget::Resolved(target)
-                if target.selected_symbol() == application.declaration)
-                .then_some(selection.source_span())
-            })
-            .collect::<Vec<_>>();
-        if sources.is_empty() {
+        if !targets.is_empty() && invocation_owners.is_empty() {
             return Err(fail(
-                "fixed representation policy lost its authored selection custody".into(),
+                "fixed representation invocation lost its exact demanding occurrence custody"
+                    .into(),
             ));
         }
-        for source in &sources {
+        for owner in invocation_owners.iter().filter(|_| !targets.is_empty()) {
+            // A generated invocation keeps its exact symbol and complete
+            // specialization custody. Only its authored package provenance is
+            // inherited through the mandatory symbol derivation chain.
+            if !owner.is_valid()
+                || execution
+                    .symbols
+                    .symbol_provenance_source_span(*owner)
+                    .is_none()
+            {
+                return Err(fail(
+                    "fixed representation invocation has an invalid source owner".into(),
+                ));
+            }
             admission
                 .require_common_floor_for_invocation(
                     &execution,
                     machine,
-                    crate::BuildTimeInvocationCustody::Source(*source),
+                    crate::BuildTimeInvocationCustody::Symbol(*owner),
                 )
                 .map_err(|reason| fail(reason.to_string()))?;
         }
@@ -311,21 +410,38 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 &mut arguments,
             )
             .map_err(fail)?;
-            let evaluation = domain
-                .accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(&execution),
-                    checked_interpreter::BuildMachineEvaluationRequest::symbol(
-                        machine.symbol,
-                        arguments,
-                    ),
-                )
-                .map_err(|reason| {
-                    fail(format!(
-                        "layout policy `{}` under `{}`: {reason}",
-                        machine.name, target.profile
-                    ))
-                })?;
+            let evaluation = match domain.accounting.evaluate(
+                checked_interpreter::BuildMachineProgram::Typed(&execution),
+                checked_interpreter::BuildMachineEvaluationRequest::symbol(
+                    machine.symbol,
+                    arguments,
+                ),
+            ) {
+                Ok(evaluation) => evaluation,
+                Err(checked_interpreter::BuildMachineEvaluationError::StaticInputUnavailable(
+                    _,
+                )) if !policy_is_closed => {
+                    // No input value or branch was invented. A semantic-only
+                    // generic body can retain this unavailable recipe, but a
+                    // physical judgment still needs established geometry.
+                    // Publish no row, including any earlier target results:
+                    // one incomplete family is not a partial realization.
+                    continue 'application;
+                }
+                Err(reason) => {
+                    return Err(fail(if policy_is_closed {
+                        format!(
+                            "layout policy `{}` under `{}`: {reason}",
+                            machine.name, target.profile
+                        )
+                    } else {
+                        format!(
+                            "universal fixed representation `{}` under `{}` cannot establish its geometry without a bound static operand: {reason}",
+                            record.application_name, target.profile
+                        )
+                    }));
+                }
+            };
             let layout = super::super::layout_plans::validate_plan(
                 evaluation.value(),
                 &fields,
@@ -421,8 +537,20 @@ pub(crate) fn validate_layout_application_coverage(
     inputs: Option<&[crate::LayoutApplicationTargetInput]>,
 ) -> Result<(), Vec<Diagnostic>> {
     if let Some(inputs) = inputs {
+        // Open recipes can retain semantic meaning after the evaluator's
+        // exact StaticInputUnavailable outcome. Their physical consumers must
+        // still obtain a complete alternative from the strict query owner.
+        let open = typed_trees::references::collect_program_type_occurrences(typed)
+            .into_iter()
+            .filter_map(|occurrence| typed.layout_storage_arguments(occurrence.reference))
+            .filter(|storage| !typed_trees::domain::index_argument_is_closed(typed, storage.policy))
+            .map(|storage| typed.normalized_type_identity(storage.application))
+            .collect::<Vec<_>>();
         for input in inputs {
             let identity = typed.type_identity_by_text(&input.application_identity);
+            if identity.is_valid() && open.contains(&identity) {
+                continue;
+            }
             if !identity.is_valid()
                 || !typed.plan_laid_layouts.iter().any(|plan| {
                     typed.normalized_type_identity(plan.application) == identity
@@ -443,31 +571,46 @@ pub(crate) fn validate_layout_application_coverage(
 fn representation_dependencies(
     typed: &TypedTrees,
     semantic_type: typed_trees::types::TypeReferenceHandle,
-) -> Result<Vec<typed_trees::layout_storage::LayoutStorageArguments>, Vec<Diagnostic>> {
+) -> Result<Vec<RepresentationDependency>, Vec<Diagnostic>> {
     use typed_trees::types::TypeReferenceNode;
-    let mut work = vec![semantic_type];
-    let mut seen = std::collections::BTreeSet::new();
+    let owner = typed
+        .closed_data_field_definition(semantic_type)
+        .map(|data| data.symbol)
+        .unwrap_or_default();
+    let mut work = vec![(semantic_type, owner)];
+    let mut seen = Vec::new();
     let mut dependencies = Vec::new();
-    while let Some(reference) = work.pop() {
+    while let Some((reference, lexical_owner)) = work.pop() {
         let identity = typed.normalized_type_identity(reference);
-        if !seen.insert(identity) {
+        let Some(index) = identity.storage_index() else {
+            continue;
+        };
+        if seen.len() <= index {
+            seen.resize(index + 1, false);
+        }
+        if std::mem::replace(&mut seen[index], true) {
             continue;
         }
         if let Some(storage) = typed.layout_storage_arguments(reference) {
-            dependencies.push(storage);
+            dependencies.push(RepresentationDependency {
+                storage,
+                lexical_owner,
+            });
             continue;
         }
         let reference = typed
             .type_reference_table
             .unconstrained_type_reference(reference);
         match typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::FixedArray { element_type, .. } => work.push(*element_type),
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                work.push((*element_type, lexical_owner))
+            }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
                 if let Some(data) = typed.closed_data_definition(reference) {
                     work.extend(
                         typed
                             .live_data_fields(typed.data_members(data))
-                            .map(|field| field.type_reference),
+                            .map(|field| (field.type_reference, data.symbol)),
                     );
                 }
             }

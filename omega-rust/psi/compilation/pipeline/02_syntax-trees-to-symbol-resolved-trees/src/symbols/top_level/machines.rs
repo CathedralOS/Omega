@@ -467,10 +467,9 @@ pub(super) fn assign_machine_symbols(
                     .template_source
                     .is_source_backed()
                     && template.name.source_span() == origin.template_source.source_span()
-                    // The generated contract and its authored prototype share
-                    // provenance, not declaration identity. A closed clone
-                    // retains the exact role of the declaration it instantiates.
-                    && template.target_family_interface == machine.target_family_interface
+                // The generated contract and its authored prototype share
+                // provenance, not declaration identity. A closed clone
+                // retains the exact role of the declaration it instantiates.
             });
             match (candidates.next(), candidates.next()) {
                 (Some(template), None) => Some((template.symbol, machine.attached_data_symbol)),

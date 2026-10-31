@@ -200,16 +200,7 @@ fn lower_machine_contents(
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         purpose: typed::machine::MachinePurpose::Runtime,
-        target: machine
-            .target
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
-        authored_target: machine
-            .authored_target
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
         body_is_present: machine.body_is_present,
-        target_family_interface: machine.target_family_interface,
         body_status: typed::machine::MachineBodyStatus::Deferred,
         structural_type_equations_pending: machine.structural_type_equations_pending,
         // The authored bit and private witness copy here; the final typed

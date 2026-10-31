@@ -285,9 +285,7 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
     scope.plan.machines.insert(
         semantic_vocabulary::proof_applications::ProofApplicationMachine {
             machine: terminal_psi::ProofDeclarationId(1),
-            authored_target: Some("windows_x86_64".into()),
-            source_target: Some("windows_x86_64".into()),
-            product_selected: true,
+            product_selected: false,
             ..Default::default()
         },
     );

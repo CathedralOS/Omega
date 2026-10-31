@@ -52,7 +52,7 @@ pub(in crate::encoding::recovery) fn callable(
             4 => PackagePolicyCallableRole::PrivateExternal,
         }),
         identity: nominal(reader)?,
-        target_context: super::identity::target_context(reader)?,
+
         supply: supply(reader)?,
         spelling: reader.option(operator_spelling)?,
         lifetime_parameter_count: reader.usize()?,

@@ -30,7 +30,6 @@ use calling_conventions::{
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
-use target::NativeTarget;
 
 macro_rules! row {
     ($a:expr => $b:expr) => {
@@ -40,7 +39,7 @@ macro_rules! row {
 
 pub(crate) fn evaluate_default_calling_application(
     typed: &TypedTrees,
-    native_target: NativeTarget,
+    layout_target: layout::LayoutTarget,
     trait_name: &str,
     trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     method_name: &str,
@@ -127,7 +126,7 @@ pub(crate) fn evaluate_default_calling_application(
             signature,
             &[],
             requirement_identity,
-            native_target,
+            layout_target,
             opaque_representation_selections,
         )?
     } else {
@@ -142,7 +141,7 @@ pub(crate) fn evaluate_default_calling_application(
             requirement,
             entry,
             requirement_identity,
-            native_target,
+            layout_target,
             opaque_representation_selections,
         )?
     };
@@ -167,7 +166,6 @@ pub fn compute_boundary_calling_plans(
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     // Provider selection consumes the source judgment. Retain it through
     // policy admission rather than rechecking its internal call premises.
-    let native_target = target_profile.native_target();
     let typed = &checked.typed;
     let vocabularies =
         checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
@@ -242,7 +240,6 @@ pub fn compute_boundary_calling_plans(
                 argument_owner,
                 calling_trait,
                 calling_policy_trait,
-                target_profile,
             )
             .map_err(|reason| {
                 vec![
@@ -268,7 +265,8 @@ pub fn compute_boundary_calling_plans(
                     signature,
                     &signature_instance.bindings,
                     &signature_instance.requirement_identity,
-                    native_target,
+                    layout::LayoutTarget::for_profile(target_profile)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     opaque_representation_selections,
                 )
                 .map_err(|reason| {

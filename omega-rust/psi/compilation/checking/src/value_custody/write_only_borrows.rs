@@ -51,10 +51,8 @@ fn declared_reference_shell(
     )
 }
 
-/// A generated target-family interface supplies no body itself. Non-observation
-/// comes from its complete checked member roster, never from one host's selected
-/// body. Opaque members still require boundary evidence, and checked adapters
-/// retain the same body-based obligation as ordinary machines.
+/// Checked bodies establish non-observation directly. Opaque requirements need
+/// exact placement evidence or a complete roster of checked implementations.
 fn has_checked_write_only_implementation(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -65,15 +63,6 @@ fn has_checked_write_only_implementation(
         // custody still rejects at placement planning and realization.
         || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, machine.symbol)
             .is_ok_and(|contract| contract.is_some())
-        || crate::machine_calls::calls::target_family_members(program, machine).is_some_and(
-            |members| {
-                members.iter().all(|member| {
-                    program
-                        .machine(member.machine)
-                        .is_some_and(Machine::supplies_checked_body)
-                })
-            },
-        )
         || satisfied_by_checked_implementations(program, machine.symbol)
 }
 

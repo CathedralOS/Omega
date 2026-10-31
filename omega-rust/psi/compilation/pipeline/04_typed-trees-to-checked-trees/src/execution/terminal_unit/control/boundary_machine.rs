@@ -52,17 +52,7 @@ pub(crate) fn build_boundary_machine(
     // made `Opaque::operation(value)` demand a representation of Opaque even
     // when no argument or result contained it. All boundary storage and
     // custody come from the explicit signature, exactly as for checked bodies.
-    let signature = if machine.target_family_interface {
-        super::super::calls::free_structural_scalar_entry_signature_traced(
-            program,
-            shapes,
-            state,
-            &binders,
-            &LocalConstructionTrace::default(),
-        )
-    } else {
-        free_structural_scalar_signature(program, shapes, state, &binders)
-    };
+    let signature = { free_structural_scalar_signature(program, shapes, state, &binders) };
     let (structural_parameters, scalar_parameters) =
         signature.ok_or("boundary explicit parameters have no runtime signature")?;
     let domain_requirements = boundary_domain_requirements(
@@ -119,20 +109,7 @@ pub(crate) fn build_boundary_machine(
     // contract, not a foreign completion. Its selected member returns actual
     // checked custody through the ordinary call. Mixed/opaque families still
     // need the full host-output contract, independently of the selected target.
-    let checked_family = program.target_machine_families.iter().any(|family| {
-        family.canonical == machine.symbol
-            && !family.members.is_empty()
-            && family.members.iter().all(|member| {
-                program
-                    .machine_by_symbol(member.machine)
-                    .is_some_and(|member| member.supplies_checked_body())
-            })
-    });
-    let reference_outputs = if checked_family {
-        Vec::new()
-    } else {
-        reference_outputs(program, program.state_parameters(state), &[])?
-    };
+    let reference_outputs = reference_outputs(program, program.state_parameters(state), &[])?;
     Ok(CheckedBoundaryMachinePlan {
         reference_outputs,
         machine: machine.symbol,

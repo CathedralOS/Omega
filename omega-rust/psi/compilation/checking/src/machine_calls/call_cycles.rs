@@ -192,16 +192,7 @@ pub(crate) fn declaration_call_dependencies(
                 machine.symbol,
             )?,
         );
-        if machine.target_family_interface {
-            // A portable guarantee depends on every retained member, even
-            // though the interface itself has no body. This prevents a
-            // member from proving its caller through the empty family head.
-            dependencies.extend(
-                super::calls::target_family_members(program, machine)?
-                    .iter()
-                    .map(|member| member.machine),
-            );
-        }
+
         return Some((machine.symbol, dependencies));
     }
     let mut dependencies = Vec::new();

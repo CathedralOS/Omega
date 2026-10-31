@@ -39,8 +39,6 @@ impl TypedTrees {
         if machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
             || machine.body_is_present
             || machine.attached_data.is_some()
-            || machine.target_family_interface
-            || self.machine_authored_target(machine).is_some()
             || !self.machine_type_parameters(machine).is_empty()
             || !machine.lifetime_parameters.is_empty()
             || machine.blocks

@@ -135,10 +135,9 @@ pub(super) fn derive_summaries(
             if matches!(
                 &summary.guarantee,
                 TerminationGuarantee::Terminates { premises } if premises.is_empty()
-            ) || (!machine.target_family_interface
-                && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                    || !super::super::retained_machine_local_summary(machine, rank_arrivals)
-                        .promises_termination()))
+            ) || (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !super::super::retained_machine_local_summary(machine, rank_arrivals)
+                    .promises_termination())
             {
                 non_component_constant[index] = true;
             }

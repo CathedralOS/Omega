@@ -89,26 +89,7 @@ pub(super) fn normal_return_interval(
     if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         return None;
     }
-    if let Some(machine) = program.machine_by_symbol(callee.callable)
-        && machine.target_family_interface
-    {
-        // A portable caller receives only bounds shared by every checked
-        // target body. Picking the host or one representative would expose a
-        // private target's stronger guarantee as the family's public contract.
-        let mut possible: Option<FloatInterval> = None;
-        for member in crate::machine_calls::calls::target_family_members(program, machine)? {
-            let body = program.machine(member.machine)?;
-            let entry = program.machine_states(body).first()?;
-            let target = crate::machine_calls::calls::callee_entry_contract(program, entry.symbol)?;
-            if program.primitive_type_reference(target.return_type) != Some(primitive) {
-                return None;
-            }
-            let interval = declared_result_interval(program, &target, primitive);
-            possible = Some(possible.map_or(interval, |previous| previous.union(interval)));
-        }
-        let interval = possible?;
-        return (interval != FloatInterval::UNBOUNDED).then_some(interval);
-    }
+
     let interval = declared_result_interval(program, &callee, primitive);
     (interval != FloatInterval::UNBOUNDED).then_some(interval)
 }

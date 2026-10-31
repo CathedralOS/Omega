@@ -138,12 +138,12 @@ reaches FilesystemMetadataQuery;
     machine c_set_len(fd: i32, length: i64) -> i32
 reaches FilesystemContentWrite + FilesystemMetadataMutation;
 
-    machine c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+    machine c_set_file_times(fd: i32, times: &LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>) -> i32
 reaches FilesystemMetadataMutation;
 
-    machine c_sync(fd: i32) -> i32;
+    machine c_sync(fd: i32) -> i32 reaches;
 
-    machine c_sync_data(fd: i32) -> i32;
+    machine c_sync_data(fd: i32) -> i32 reaches;
 
     machine c_duplicate(fd: i32) -> i32 reaches;
 
@@ -161,6 +161,7 @@ reaches FilesystemMetadataMutation;
     machine c_error_location() -> u64 reaches;
 
     machine c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
+reaches
 requires count <= 4;
 }
 
@@ -734,7 +735,7 @@ reaches FilesystemMetadataMutation
 {
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
     machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
-        let mut native: DarwinTimestampAlignment<DarwinTimestampRecord>;
+        let mut native: LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>;
         native.accessed_seconds = darwin_timestamp_word(times[0..8]);
         native.accessed_nanoseconds = darwin_timestamp_word(times[8..16]);
         native.modified_seconds = darwin_timestamp_word(times[16..24]);
@@ -827,17 +828,6 @@ reaches FilesystemMetadataMutation
         _ -> (outcome)
     }
 }
-}
-
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine DarwinTimestampAlignment::plan(schema: Schema) -> Plan
-{
-    let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
-    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
-    Plan { entries: entries, entry_count: 4, size_fixed: 32, size_is_dynamic: false, align: 8 }
 }
 
 // Exact ordinary helper retained from main Darwin ABI repair.

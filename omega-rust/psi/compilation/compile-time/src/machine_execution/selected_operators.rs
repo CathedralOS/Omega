@@ -427,12 +427,8 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider state is not the provider's executable entry".into(),
             );
         }
-        if row.target_scope.is_empty()
-            || program
-                .source_target_context(provider)
-                .is_some_and(|target| target != row.target_scope)
-        {
-            return Err("selected build-time provider belongs to another target capsule".into());
+        if row.target_scope.is_empty() {
+            return Err("selected build-time provider has no target capsule".into());
         }
         if program
             .machine_contracts(provider)
@@ -971,7 +967,7 @@ fn specialization_copies_template(
     if application.template != source {
         return Ok(false);
     }
-    let (Some(template), Some(copy)) = (program.machine(source), program.machine(instance)) else {
+    let (Some(template), Some(_copy)) = (program.machine(source), program.machine(instance)) else {
         return Ok(false);
     };
     let binding = program
@@ -993,5 +989,5 @@ fn specialization_copies_template(
     // tuples. The copied operation keeps the same provider/requirement meaning;
     // ordinary checking and invocation admission still judge its actual tuple,
     // lexical lifetime arguments, requires, and executable body independently.
-    Ok(program.source_target_context(template) == program.source_target_context(copy))
+    Ok(true)
 }

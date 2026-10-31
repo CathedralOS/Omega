@@ -141,7 +141,7 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
 }
 
 #[test]
-fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
+fn scalar_closure_checks_shared_condition_owner_in_the_selected_product() {
     let mut module = scoped_graph(41).view().module().clone();
     module.scalar_applications.conditions = Default::default();
     let scope = &mut module.scalar_applications.proof_scope;
@@ -207,20 +207,11 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
     let conditions = observations.conditions("macos_arm64", &[]).unwrap();
     assert_eq!(conditions.ranges(), &[0]);
     let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
-    assert_eq!(
-        closure.scopes().collect::<Vec<_>>(),
-        vec!["macos_arm64", "windows_x86_64"]
-    );
+    assert_eq!(closure.scopes().collect::<Vec<_>>(), vec!["macos_arm64"]);
     closure
         .close_scope(observations, conditions, Ok(None))
         .unwrap();
-    assert!(
-        closure
-            .finish()
-            .err()
-            .unwrap()
-            .contains("unfinished authored scope")
-    );
+    assert!(closure.finish().is_ok());
 }
 
 #[test]
@@ -466,8 +457,6 @@ fn scoped_graph(windows_value: u64) -> CanonicalTerminalArtifact {
         scope.plan.machines.insert(
             semantic_vocabulary::proof_applications::ProofApplicationMachine {
                 machine: terminal_psi::ProofDeclarationId(ordinal),
-                authored_target: Some(target.into()),
-                source_target: Some(target.into()),
                 product_selected: true,
                 ..Default::default()
             },
@@ -497,23 +486,19 @@ fn scoped_graph(windows_value: u64) -> CanonicalTerminalArtifact {
 }
 
 #[test]
-fn scalar_closure_requires_supplemental_scopes_without_replacing_primary_values() {
-    let artifact = scoped_graph(41);
-    let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-    let macos = target_context(artifact.view(), "macos_arm64");
-    let windows = target_context(artifact.view(), "windows_x86_64");
-    for complete_supplement in [false, true] {
+fn scalar_closure_checks_all_selected_ordinary_owners_without_source_target_scopes() {
+    for value in [41, 42] {
+        let artifact = scoped_graph(value);
+        let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        let targets = target_context(artifact.view(), "macos_arm64");
         let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
-        assert_eq!(
-            closure.scopes().collect::<Vec<_>>(),
-            vec!["macos_arm64", "windows_x86_64"]
-        );
+        assert_eq!(closure.scopes().collect::<Vec<_>>(), ["macos_arm64"]);
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
-            &macos,
+            &targets,
             &providers,
             &terminal_installation::LayoutTargetFacts {
-                profile: macos.target().to_owned(),
+                profile: targets.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
                 little_endian: true,
@@ -527,46 +512,19 @@ fn scalar_closure_requires_supplemental_scopes_without_replacing_primary_values(
             &mut TerminalFuelMeter::unbounded(),
         )
         .unwrap();
-        closure
-            .close_scope(observations, conditions, Ok(None))
-            .unwrap();
-        if !complete_supplement {
+        let closed = closure.close_scope(observations, conditions, Ok(None));
+        if value == 42 {
             assert!(
-                closure
-                    .finish()
-                    .err()
-                    .unwrap()
-                    .contains("unfinished authored scope")
+                closed.is_err(),
+                "every retained product owner's range remains an obligation"
             );
-            continue;
+        } else {
+            closed.unwrap();
+            let admission = closure.finish().unwrap();
+            assert_eq!(admission.values().value(application(5)), Some(integer(24)));
+            assert_eq!(admission.primary().targets(), &targets);
+            assert!(admission.supplemental().is_empty());
         }
-        let mut observations = ScalarApplicationObservations::new(
-            artifact.view(),
-            &windows,
-            &providers,
-            &terminal_installation::LayoutTargetFacts {
-                profile: windows.target().to_owned(),
-                pointer_size: 8,
-                pointer_alignment: 8,
-                little_endian: true,
-            },
-        )
-        .unwrap();
-        let conditions = evaluate_scalar_applications(
-            &mut observations,
-            "macos_arm64",
-            &[application(2)],
-            &mut TerminalFuelMeter::unbounded(),
-        )
-        .unwrap();
-        assert_eq!(observations.value(application(5)).unwrap(), None);
-        closure
-            .close_scope(observations, conditions, Ok(None))
-            .unwrap();
-        let admission = closure.finish().unwrap();
-        assert_eq!(admission.values().value(application(5)), Some(integer(24)));
-        assert_eq!(admission.primary().targets(), &macos);
-        assert_eq!(admission.supplemental()[0].targets(), &windows);
     }
 }
 

@@ -186,8 +186,7 @@ mod tests {
     use super::*;
     use arena::HandleSpan;
     use semantic_vocabulary::proof_applications::{
-        ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember,
-        ProofStaticBinding,
+        ProofApplicationCall, ProofApplicationMachine, ProofStaticBinding,
     };
     use terminal_psi::TerminalIdentityTableBuilder;
 
@@ -200,59 +199,42 @@ mod tests {
                 .declarations
                 .insert(ProofScopeDeclaration::Nominal(identity));
         }
-        let members = scope
-            .plan
-            .target_members
-            .insert_many([ProofApplicationTargetMember {
-                target: "macos_arm64".into(),
-                machine: ProofDeclarationId(2),
-            }]);
-        scope.plan.machines.insert(ProofApplicationMachine {
-            machine: ProofDeclarationId(1),
-            family_interface: true,
-            family_members: members,
-            product_selected: true,
-            ..Default::default()
-        });
-        scope.plan.machines.insert(ProofApplicationMachine {
-            machine: ProofDeclarationId(2),
-            authored_target: Some("macos_arm64".into()),
-            product_selected: true,
-            ..Default::default()
-        });
+        for ordinal in [1, 2] {
+            scope.plan.machines.insert(ProofApplicationMachine {
+                machine: ProofDeclarationId(ordinal),
+                product_selected: ordinal == 1,
+                ..Default::default()
+            });
+        }
         (scope, identities.build())
     }
 
     #[test]
-    fn proof_scope_rejects_missing_wrong_target_and_mismatched_family_members() {
+    fn proof_scope_rejects_absent_machine_declarations_and_repeated_binders() {
         let (scope, identities) = scope();
         validate(&scope, &identities).unwrap();
         let mut missing = scope.clone();
         missing
             .plan
-            .target_members
-            .for_each_mut(|_, member| member.machine = ProofDeclarationId(3));
-        assert!(matches!(
-            validate(&missing, &identities),
-            Err(CodecError::MalformedStructuralFoundation(
-                "proof scope family member has no machine"
-            ))
-        ));
-        let mut wrong = scope.clone();
-        wrong.plan.machines.for_each_mut(|_, row| {
-            if row.machine == ProofDeclarationId(2) {
-                row.authored_target = Some("windows_x86_64".into());
-            }
-        });
-        assert!(validate(&wrong, &identities).is_err());
+            .machines
+            .for_each_mut(|_, row| row.machine = ProofDeclarationId(99));
+        assert!(validate(&missing, &identities).is_err());
         let mut binders = scope;
-        let binder = binders.plan.symbols.insert_many([ProofDeclarationId(3)]);
+        let binder = binders
+            .plan
+            .symbols
+            .insert_many([ProofDeclarationId(3), ProofDeclarationId(3)]);
         binders.plan.machines.for_each_mut(|_, row| {
             if row.machine == ProofDeclarationId(2) {
                 row.binders = binder;
             }
         });
-        assert!(validate(&binders, &identities).is_err());
+        assert!(matches!(
+            validate(&binders, &identities),
+            Err(CodecError::MalformedStructuralFoundation(
+                "proof scope repeats a static binder"
+            ))
+        ));
     }
 
     #[test]

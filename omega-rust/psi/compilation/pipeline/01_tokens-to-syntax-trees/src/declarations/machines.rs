@@ -108,15 +108,13 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     // choose a different callable before binding has established its target.
     Ok((
         Machine {
-            target_family_interface: false,
             name,
             generic_data_template: Default::default(),
             default_body_trait: Default::default(),
             attached_data,
             spelling,
             is_public: false,
-            target: None,
-            authored_target: None,
+
             boundary: false,
             is_top_level_boundary_requirement: false,
             bodyless,

@@ -135,7 +135,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // this combined layout is distinct from either independent wire format.
 // Target-family-free Terminal with mandatory numeric schema and current
 // callback/condition semantics; reject both predecessor grammar interpretations.
-pub(crate) const FORMAT_MARKER: u16 = 222;
+pub(crate) const FORMAT_MARKER: u16 = 223;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

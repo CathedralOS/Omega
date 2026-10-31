@@ -106,7 +106,6 @@ macro_rules! span_columns {
 }
 pub(crate) use span_columns;
 
-mod authored_targets;
 mod build_selections;
 mod callable_applications;
 mod canonical_values;
@@ -278,17 +277,6 @@ pub struct TypedTrees {
     /// that select or call them. Checking appends one record per
     /// (selector application, requirement) after specialization converges.
     pub dynamic_slots: Vec<crate::dynamic_traits::DynamicSlotSignature>,
-    /// Product-scope target-machine families: one record per authored
-    /// contract name implemented under target heads, keying each target's
-    /// body. Typing produces it from resolved family handles before the
-    /// per-target swap and check run. Product pruning preserves every member;
-    /// runtime families lower into Terminal and declaration programs retain
-    /// Build effects separately. Early portable-call retargeting remains a
-    /// transitional consumer. Empty for programs without admitted
-    /// product-scope target-scoped declarations.
-    /// Seeded typing preserves the base prefix and appends new families in
-    /// name order within the extension cohort.
-    pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
     /// Exact source semantic-role inputs supplied by package admission or an
     /// explicitly proposed review role. These describe callable completion;
     /// they grant no selected provider or execution authority.
@@ -621,7 +609,6 @@ impl TypedTrees {
             trait_implementation_applications: Arena::new(),
             data_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
-            target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),
             boundary_catalogue_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),

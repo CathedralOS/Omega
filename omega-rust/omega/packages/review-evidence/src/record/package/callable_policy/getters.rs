@@ -26,7 +26,7 @@ impl PackagePolicyCallable {
     field_projection_accessors!(sliced conformance_bounds: &[PackageReviewConformanceBound]);
     field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
     field_projection_accessors!(optional return_type: Option<&PackageReviewTypeIdentity>);
-    field_projection_accessors!(borrowed target_context: &crate::record::PackagePolicyTargetContext);
+
     field_projection_accessors!(copied role: PackagePolicyCallableRole);
 
     field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
