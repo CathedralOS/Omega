@@ -109,17 +109,10 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            ..
-        } = effect
-        else {
-            return Err(TerminalEffectRejection::new(
-                "stdin import received a non-boundary effect",
-            ));
-        };
-        if !arguments.is_empty() || !structural_arguments.is_empty() {
+        let call = super::call_operands(effect, || {
+            TerminalEffectRejection::new("stdin import received a non-boundary effect")
+        })?;
+        if !call.arguments.is_empty() || !call.structural_arguments.is_empty() {
             return Err(TerminalEffectRejection::new(
                 "stdin operands differ from the bound contract",
             ));

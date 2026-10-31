@@ -77,23 +77,15 @@ impl TerminalEffectHandler for AffineTransformImport {
                 "affine construction differs from its admitted six-double contract",
             )
         };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
-        if arguments.len() != 6
-            || !structural_arguments.is_empty()
-            || *result != self.signature.result
+        let call = super::call_operands(effect, &invalid)?;
+        if call.arguments.len() != 6
+            || !call.structural_arguments.is_empty()
+            || *call.result != self.signature.result
         {
             return Err(invalid());
         }
         let mut components = [0.0; 6];
-        for (component, argument) in components.iter_mut().zip(arguments) {
+        for (component, argument) in components.iter_mut().zip(call.arguments) {
             let TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits)) = argument else {
                 return Err(invalid());
             };

@@ -121,9 +121,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
                 "descriptor-mode operands differ from the installed contract",
             )
         };
-        let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
-            return Err(invalid());
-        };
+        let call = super::call_operands(effect, &invalid)?;
         if !byte_buffers.is_empty() || !storage_buffers.is_empty() {
             return Err(invalid());
         }
@@ -136,7 +134,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
                 scalar_type: mode_type,
                 value: IntegerValue::Signed(mode),
             },
-        ] = arguments.as_slice()
+        ] = call.arguments
         else {
             return Err(invalid());
         };

@@ -214,27 +214,19 @@ impl TerminalEffectHandler for IntegerParsingImport {
                 "strtol invocation differs from its admitted storage/ABI contract",
             )
         };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
+        let call = super::call_operands(effect, &invalid)?;
         let [
             TerminalScalarValue::Integer {
                 scalar_type,
                 value: IntegerValue::Signed(base),
             },
-        ] = arguments.as_slice()
+        ] = call.arguments
         else {
             return Err(invalid());
         };
         if *scalar_type != self.base_type
-            || *result != self.signature.result
-            || structural_arguments.len() != 2
+            || *call.result != self.signature.result
+            || call.structural_arguments.len() != 2
             || !byte_buffers.is_empty()
             || buffers.len() != 2
         {

@@ -147,23 +147,15 @@ impl TerminalEffectHandler for IntegerAbsoluteImport {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid =
             || TerminalEffectRejection::new("abs operands differ from its admitted signature");
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
-        if !byte_buffers.is_empty() || *result != self.signature.result {
+        let call = super::call_operands(effect, &invalid)?;
+        if !byte_buffers.is_empty() || *call.result != self.signature.result {
             return Err(TerminalEffectRejection::new(
                 "abs has unexpected byte buffers or result contract",
             ));
         }
         let integer = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
         let value = if let Some((ty, path)) = &self.payload {
-            let [argument] = structural_arguments.as_slice() else {
+            let [argument] = call.structural_arguments else {
                 return Err(invalid());
             };
             let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
@@ -177,7 +169,7 @@ impl TerminalEffectHandler for IntegerAbsoluteImport {
                     buffer.values().len()
                 )));
             };
-            if !arguments.is_empty()
+            if !call.arguments.is_empty()
                 || buffer.argument_index() != 0
                 || buffer.access() != StructuralAccess::Owned
                 || buffer.structural_type() != *ty
@@ -186,7 +178,7 @@ impl TerminalEffectHandler for IntegerAbsoluteImport {
             {
                 return Err(TerminalEffectRejection::new(format!(
                     "abs owned storage differs: scalar-arguments={} index={} access={:?} buffer-type={:?} argument-type={:?} expected-type={:?} path={:?} expected-path={:?}",
-                    arguments.len(),
+                    call.arguments.len(),
                     buffer.argument_index(),
                     buffer.access(),
                     buffer.structural_type(),
@@ -208,10 +200,10 @@ impl TerminalEffectHandler for IntegerAbsoluteImport {
             }
             value
         } else {
-            let [value] = arguments.as_slice() else {
+            let [value] = call.arguments else {
                 return Err(invalid());
             };
-            if !structural_arguments.is_empty() || !storage.is_empty() {
+            if !call.structural_arguments.is_empty() || !storage.is_empty() {
                 return Err(invalid());
             }
             *value

@@ -467,33 +467,24 @@ impl TerminalEffectHandler for NativeImport<'_> {
         bytes: &mut [TerminalBoundaryByteBuffer],
         buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        if let TerminalEffect::BoundaryCall { arguments, .. } = effect {
-            if self
-                .filesystem
-                .as_ref()
-                .is_some_and(|filesystem| filesystem.modeled_stream(arguments))
-            {
-                return self
-                    .modeled_descriptor
-                    .as_mut()
-                    .ok_or_else(|| rejection("filesystem stream lost its modeled binding"))?
-                    .handle_effect_with_buffers(effect, bytes, buffers);
-            }
+        let call = super::call_operands(effect, || {
+            rejection("native adapter received a non-call effect")
+        })?;
+        if self
+            .filesystem
+            .as_ref()
+            .is_some_and(|filesystem| filesystem.modeled_stream(call.arguments))
+        {
+            return self
+                .modeled_descriptor
+                .as_mut()
+                .ok_or_else(|| rejection("filesystem stream lost its modeled binding"))?
+                .handle_effect_with_buffers(effect, bytes, buffers);
         }
-        let TerminalEffect::BoundaryCall {
-            boundary,
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(rejection("native adapter received a non-call effect"));
-        };
-        if *boundary != self.boundary
-            || *result != self.signature.result
-            || arguments.len() != self.signature.scalar_parameters.len()
-            || structural_arguments.len() != self.signature.structural_parameters.len()
+        if *call.boundary != self.boundary
+            || *call.result != self.signature.result
+            || call.arguments.len() != self.signature.scalar_parameters.len()
+            || call.structural_arguments.len() != self.signature.structural_parameters.len()
             || !bytes.is_empty()
             || buffers.len() != self.storage_arguments.len()
         {
@@ -507,15 +498,15 @@ impl TerminalEffectHandler for NativeImport<'_> {
             ByteView(native_provider_runtime::NativeHomeId, usize, usize),
         }
         if let Some(descriptor) = &self.modeled_descriptor {
-            descriptor.validate_native_transfer(arguments, buffers)?;
+            descriptor.validate_native_transfer(call.arguments, buffers)?;
         }
         let mut inputs = Vec::with_capacity(self.parameters.len());
         let supplied_arguments = self
             .filesystem
             .as_ref()
-            .map(|filesystem| filesystem.arguments(arguments))
+            .map(|filesystem| filesystem.arguments(call.arguments))
             .transpose()?;
-        let native_scalars = supplied_arguments.as_deref().unwrap_or(arguments);
+        let native_scalars = supplied_arguments.as_deref().unwrap_or(call.arguments);
         for parameter in &self.parameters {
             inputs.push(match parameter {
                 Parameter::ByteView { index, access } => {
@@ -671,7 +662,7 @@ impl TerminalEffectHandler for NativeImport<'_> {
             ResultCodec::Scalar(scalar) => {
                 let value = decode(&returned, *scalar, *scalar)?;
                 let value = match &self.filesystem {
-                    Some(filesystem) => filesystem.result(arguments, value)?,
+                    Some(filesystem) => filesystem.result(call.arguments, value)?,
                     None => value,
                 };
                 Ok(TerminalEffectResult::Scalar(value))

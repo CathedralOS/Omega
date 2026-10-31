@@ -135,15 +135,7 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 "inet operands or owned occurrence differ from the admitted contract",
             )
         };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
+        let call = super::call_operands(effect, &invalid)?;
         let word = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
         let mut values = self.values.lock().map_err(|_| {
             TerminalEffectRejection::new("inet owned occurrence store was poisoned")
@@ -159,16 +151,16 @@ impl TerminalEffectHandler for NetworkAddressImport {
                         scalar_type: host_type,
                         value: IntegerValue::Unsigned(host),
                     },
-                ] = arguments.as_slice()
+                ] = call.arguments
                 else {
                     return Err(invalid());
                 };
-                let BoundaryMachineResult::Structural(result) = result else {
+                let BoundaryMachineResult::Structural(result) = call.result else {
                     return Err(invalid());
                 };
                 if *network_type != word
                     || *host_type != word
-                    || !structural_arguments.is_empty()
+                    || !call.structural_arguments.is_empty()
                     || result.structural_type != self.contract.structural_type
                     || result.multiplicity != self.contract.multiplicity
                     || !result.qualifications.is_empty()
@@ -205,11 +197,11 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 ))
             }
             AddressOperation::Host => {
-                let [address] = structural_arguments.as_slice() else {
+                let [address] = call.structural_arguments else {
                     return Err(invalid());
                 };
-                if !arguments.is_empty()
-                    || result != &self.signature.result
+                if !call.arguments.is_empty()
+                    || call.result != &self.signature.result
                     || address.structural_type != self.contract.structural_type
                     || !address.path.is_empty()
                     || !address.projected_qualifications.is_empty()

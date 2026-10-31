@@ -158,29 +158,21 @@ impl TerminalEffectHandler for AbsoluteValueImport {
                 "abs operands differ from the admitted integer-word contract",
             )
         };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
-        if *result != self.signature.result || !byte_buffers.is_empty() {
+        let call = super::call_operands(effect, &invalid)?;
+        if *call.result != self.signature.result || !byte_buffers.is_empty() {
             return Err(invalid());
         }
         let value = if let Some(path) = &self.payload {
             let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
                 return Err(invalid());
             };
-            let [argument] = structural_arguments.as_slice() else {
+            let [argument] = call.structural_arguments else {
                 return Err(invalid());
             };
             let [cell] = buffer.values() else {
                 return Err(invalid());
             };
-            if !arguments.is_empty()
+            if !call.arguments.is_empty()
                 || buffer.argument_index() != 0
                 || buffer.access() != StructuralAccess::Owned
                 || buffer.structural_type()
@@ -202,10 +194,10 @@ impl TerminalEffectHandler for AbsoluteValueImport {
             }
             value
         } else {
-            let [value] = arguments.as_slice() else {
+            let [value] = call.arguments else {
                 return Err(invalid());
             };
-            if !structural_arguments.is_empty() || !storage.is_empty() {
+            if !call.structural_arguments.is_empty() || !storage.is_empty() {
                 return Err(invalid());
             }
             *value

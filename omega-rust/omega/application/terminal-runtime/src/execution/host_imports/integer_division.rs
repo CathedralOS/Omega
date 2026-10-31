@@ -63,15 +63,7 @@ impl TerminalEffectHandler for IntegerDivisionImport {
                 "lldiv operands or result differ from the admitted signature",
             )
         };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
+        let call = super::call_operands(effect, &invalid)?;
         let integer = IntegerType::new(IntegerSign::Signed, 64).map_err(|_| invalid())?;
         let [
             TerminalScalarValue::Integer {
@@ -82,14 +74,14 @@ impl TerminalEffectHandler for IntegerDivisionImport {
                 scalar_type: right_type,
                 value: IntegerValue::Signed(right),
             },
-        ] = arguments.as_slice()
+        ] = call.arguments
         else {
             return Err(invalid());
         };
         if *left_type != integer
             || *right_type != integer
-            || !structural_arguments.is_empty()
-            || *result != self.signature.result
+            || !call.structural_arguments.is_empty()
+            || *call.result != self.signature.result
         {
             return Err(invalid());
         }

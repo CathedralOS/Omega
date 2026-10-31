@@ -207,19 +207,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            byte_sequence_arguments,
-            ..
-        } = effect
-        else {
-            return Err(invalid_operands());
-        };
+        let call = super::call_operands(effect, invalid_operands)?;
         let Some(TerminalScalarValue::Integer {
             scalar_type,
             value: IntegerValue::Signed(descriptor),
-        }) = arguments.first()
+        }) = call.arguments.first()
         else {
             return Err(invalid_operands());
         };
@@ -231,18 +223,18 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 .contract
                 .descriptor_type
                 .admits(IntegerValue::Signed(*descriptor))
-            || structural_arguments.len() != 1
-            || structural_arguments[0].structural_type != formal.structural_type
+            || call.structural_arguments.len() != 1
+            || call.structural_arguments[0].structural_type != formal.structural_type
         {
             return Err(invalid_operands());
         }
         let mut captured = None;
         let (bytes, count) = match &self.contract.buffer {
             DescriptorBuffer::Bytes => {
-                let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
+                let [Some(bytes)] = call.byte_sequence_arguments else {
                     return Err(invalid_operands());
                 };
-                if arguments.len() != 1 || !storage_buffers.is_empty() {
+                if call.arguments.len() != 1 || !storage_buffers.is_empty() {
                     return Err(invalid_operands());
                 }
                 match formal.access {
@@ -270,7 +262,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                         scalar_type,
                         value: IntegerValue::Unsigned(count),
                     },
-                ] = arguments.as_slice()
+                ] = call.arguments
                 else {
                     return Err(invalid_operands());
                 };
@@ -280,7 +272,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                         .contract
                         .count_type
                         .admits(IntegerValue::Unsigned(*count))
-                    || !matches!(byte_sequence_arguments.as_slice(), [None])
+                    || !matches!(call.byte_sequence_arguments, [None])
                 {
                     return Err(invalid_operands());
                 }
