@@ -2,15 +2,15 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "unreached_foreign_body_caller_exit");
-    Build::select_provider<Value::read, PlainValue>(builder, linux_arm64);
-    Build::select_provider<Value::read, PlainValue>(builder, linux_x86_64);
-    Build::select_provider<Value::read, PlainValue>(builder, macos_arm64);
-    Build::select_provider<Value::read, PlainValue>(builder, macos_x86_64);
-    Build::select_provider<Value::read, PlainValue>(builder, windows_x86_64);
-    Build::select_provider<Value::read, PlainValue>(builder, uefi_x86_64);
-    Build::select_provider<Value::read, PlainValue>(builder, cross_platform_cli);
-    Build::select_provider<Value::read, PlainValue>(builder, local_unchecked);
-    Build::select_provider<Value::read, PlainValue>(builder, alpha_bootstrap);
+    Build::select_provider<ValueRead, PlainValue>(builder, linux_arm64);
+    Build::select_provider<ValueRead, PlainValue>(builder, linux_x86_64);
+    Build::select_provider<ValueRead, PlainValue>(builder, macos_arm64);
+    Build::select_provider<ValueRead, PlainValue>(builder, macos_x86_64);
+    Build::select_provider<ValueRead, PlainValue>(builder, windows_x86_64);
+    Build::select_provider<ValueRead, PlainValue>(builder, uefi_x86_64);
+    Build::select_provider<ValueRead, PlainValue>(builder, cross_platform_cli);
+    Build::select_provider<ValueRead, PlainValue>(builder, local_unchecked);
+    Build::select_provider<ValueRead, PlainValue>(builder, alpha_bootstrap);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
