@@ -21,10 +21,10 @@ use crate::execution::terminal_unit::calls::projected_observed_path;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::element_view_shell;
 use checked_trees::{
-    CheckedByteSequenceCarrier, CheckedElementViewRegion, CheckedReferenceStorage,
+    CheckedByteSequenceCarrier, CheckedElementViewRegion as ViewRegion, CheckedReferenceStorage,
     CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedStructuralValueKind as ValueKind, CheckedSubsliceSite,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
 use facts::PlaceSegment;
 use typed_trees::signature::state_parameter_position;
@@ -56,7 +56,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         // Range formation has one owner, including literal endpoints. Do not
         // reinterpret a declined range as a whole-collection loan here.
         if subslice_expression(self.program, expression).is_some() {
@@ -142,7 +142,7 @@ impl Builder<'_, '_> {
             let (mut source, _, selectors) = self.borrowed_leaf_argument(expression, declared)?;
             source.access = access;
             let selectors = self.retain_reference_selectors(expression, selectors)?;
-            return Some(CheckedStructuralValueKind::Reference {
+            return Some(ValueKind::Reference {
                 source,
                 selectors,
                 storage: CheckedReferenceStorage::Declared,
@@ -226,12 +226,12 @@ impl Builder<'_, '_> {
                 CheckedScalarExpressionRole::RepresentationViewOffset { expression },
                 start,
             )?;
-            CheckedElementViewRegion::RepresentationBytes {
+            ViewRegion::RepresentationBytes {
                 start,
                 end: region.extent,
             }
         } else {
-            CheckedElementViewRegion::WholeCollection
+            ViewRegion::WholeCollection
         };
         let source = CheckedUnitStructuralArgumentPlan {
             projection_evaluations: Default::default(),
@@ -241,9 +241,9 @@ impl Builder<'_, '_> {
             access,
         };
         Some(if access == CheckedStructuralAccess::SharedBorrow {
-            CheckedStructuralValueKind::BorrowedSliceView { source, region }
+            ValueKind::BorrowedSliceView { source, region }
         } else {
-            CheckedStructuralValueKind::MutableSliceView { source, region }
+            ValueKind::MutableSliceView { source, region }
         })
     }
 
@@ -254,7 +254,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         use crate::execution::terminal_unit::calls::view_subslice;
         let operation =
             view_subslice::builtin_range_operation(self.program, self.operators, expression)?;
@@ -316,7 +316,7 @@ impl Builder<'_, '_> {
             site,
         )?;
         let source = self.structural_value(indexed.collection, source_type)?;
-        Some(CheckedStructuralValueKind::ViewSubslice {
+        Some(ValueKind::ViewSubslice {
             source,
             start,
             end,
@@ -332,7 +332,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         use crate::execution::terminal_unit::{calls, types::ShapeCollector};
         // Only a range operand lends a subslice, and `admit_resolved` repeats
         // this test. Testing it first keeps every other structural operand from
@@ -377,18 +377,14 @@ impl Builder<'_, '_> {
         )?
         .argument();
         Some(match source.access {
-            CheckedStructuralAccess::SharedBorrow => {
-                CheckedStructuralValueKind::BorrowedSliceView {
-                    source,
-                    region: CheckedElementViewRegion::WholeCollection,
-                }
-            }
-            CheckedStructuralAccess::MutableBorrow => {
-                CheckedStructuralValueKind::MutableSliceView {
-                    source,
-                    region: CheckedElementViewRegion::WholeCollection,
-                }
-            }
+            CheckedStructuralAccess::SharedBorrow => ValueKind::BorrowedSliceView {
+                source,
+                region: ViewRegion::WholeCollection,
+            },
+            CheckedStructuralAccess::MutableBorrow => ValueKind::MutableSliceView {
+                source,
+                region: ViewRegion::WholeCollection,
+            },
             _ => return None,
         })
     }

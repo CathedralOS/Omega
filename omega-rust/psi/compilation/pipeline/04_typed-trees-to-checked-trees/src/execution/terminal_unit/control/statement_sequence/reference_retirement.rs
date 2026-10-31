@@ -12,7 +12,8 @@ use arena::Handle;
 use arena::HandleSpan;
 use checked_trees::{
     BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, CheckedCleanupCaseCondition,
-    CheckedStructuralReturnCompletion, CheckedUnitCleanupBoundary, CheckedUnitLocalBindingPlan,
+    CheckedStructuralReturnCompletion as ReturnCompletion,
+    CheckedUnitCleanupBoundary as CleanupBoundary, CheckedUnitLocalBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralReturnPlan, FlowBorrowWeakeningReason, FlowInvalidationSource,
     FlowPermissionEvaluation, StateBorrowFact,
@@ -220,10 +221,10 @@ pub(super) fn returned_reference_binding(
         && returned.type_identity == result.type_identity
         && returned.multiplicity == result.multiplicity
         && match returned.completion {
-            CheckedStructuralReturnCompletion::Value {
+            ReturnCompletion::Value {
                 statement_index, ..
             } => order.at_or_before(result.statement_index as usize, statement_index as usize),
-            CheckedStructuralReturnCompletion::Call { coordinate } => {
+            ReturnCompletion::Call { coordinate } => {
                 result.statement_index == coordinate.statement_index
             }
         }
@@ -1159,7 +1160,7 @@ impl Retirement<'_> {
             return false;
         };
         let (statement_index, expression, transition_target) = match returned.completion {
-            CheckedStructuralReturnCompletion::Value {
+            ReturnCompletion::Value {
                 statement_index,
                 expression,
                 evaluation,
@@ -1171,7 +1172,7 @@ impl Retirement<'_> {
                 };
                 (statement_index as usize, Some(expression), target)
             }
-            CheckedStructuralReturnCompletion::Call { coordinate } => {
+            ReturnCompletion::Call { coordinate } => {
                 let Some(machine) = self.program.machine_by_symbol(self.machine) else {
                     return false;
                 };
@@ -1312,7 +1313,7 @@ impl Retirement<'_> {
                         if call_statement == statement_index
                             && (self.at_exit || self.operations[..self.completed_operations].iter().any(|operation| {
                                 matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                                    boundary: CheckedUnitCleanupBoundary::Call(coordinate), ..
+                                    boundary: CleanupBoundary::Call(coordinate), ..
                                 } if coordinate.statement_index as usize == call_statement
                                     && coordinate.call_ordinal as usize == call_ordinal)
                             })))
@@ -1369,12 +1370,10 @@ impl Retirement<'_> {
                     ..
                 } => {
                     let statement = match boundary {
-                        CheckedUnitCleanupBoundary::Replacement {
+                        CleanupBoundary::Replacement {
                             statement_index, ..
                         }
-                        | CheckedUnitCleanupBoundary::StatementEntry { statement_index } => {
-                            *statement_index
-                        }
+                        | CleanupBoundary::StatementEntry { statement_index } => *statement_index,
                         _ => return false,
                     };
                     if self

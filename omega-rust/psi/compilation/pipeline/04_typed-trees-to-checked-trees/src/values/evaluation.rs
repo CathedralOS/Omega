@@ -2,8 +2,8 @@
 //! This adapter supplies no source binding, initializer, call, or range premise.
 
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression,
+    CheckedBooleanExpression, CheckedIntegerBinaryKind as BinaryKind,
+    CheckedIntegerComparisonKind as ComparisonKind, CheckedScalarExpression,
 };
 use numerics::{bignum::BigInt, literals::LandedIntegerType};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -133,14 +133,14 @@ fn integer(
             }
             let shift = matches!(
                 kind,
-                CheckedIntegerBinaryKind::WrappingShiftLeft
-                    | CheckedIntegerBinaryKind::WrappingShiftRight
-                    | CheckedIntegerBinaryKind::ExactShiftLeft
-                    | CheckedIntegerBinaryKind::ExactShiftRight
-                    | CheckedIntegerBinaryKind::SaturatingShiftLeft
-                    | CheckedIntegerBinaryKind::SaturatingShiftRight
-                    | CheckedIntegerBinaryKind::TrappingShiftLeft
-                    | CheckedIntegerBinaryKind::TrappingShiftRight
+                BinaryKind::WrappingShiftLeft
+                    | BinaryKind::WrappingShiftRight
+                    | BinaryKind::ExactShiftLeft
+                    | BinaryKind::ExactShiftRight
+                    | BinaryKind::SaturatingShiftLeft
+                    | BinaryKind::SaturatingShiftRight
+                    | BinaryKind::TrappingShiftLeft
+                    | BinaryKind::TrappingShiftRight
             );
             if !shift && right_type != scalar_type {
                 return None;
@@ -201,47 +201,37 @@ fn integer(
 }
 
 fn binary(
-    kind: CheckedIntegerBinaryKind,
+    kind: BinaryKind,
     scalar_type: IntegerType,
     count_type: IntegerType,
     left: IntegerValue,
     right: IntegerValue,
 ) -> Option<IntegerValue> {
     match kind {
-        CheckedIntegerBinaryKind::ExactAdd => scalar_type.exact_add(left, right),
-        CheckedIntegerBinaryKind::ExactSubtract => scalar_type.exact_sub(left, right),
-        CheckedIntegerBinaryKind::ExactMultiply => scalar_type.exact_mul(left, right),
-        CheckedIntegerBinaryKind::ExactDivide => scalar_type.exact_div(left, right),
-        CheckedIntegerBinaryKind::ExactRemainder => scalar_type.exact_rem(left, right),
-        CheckedIntegerBinaryKind::WrappingAdd => scalar_type.wrapping_add(left, right),
-        CheckedIntegerBinaryKind::WrappingSubtract => scalar_type.wrapping_sub(left, right),
-        CheckedIntegerBinaryKind::WrappingMultiply => scalar_type.wrapping_mul(left, right),
-        CheckedIntegerBinaryKind::WrappingDivide => scalar_type.wrapping_div(left, right),
-        CheckedIntegerBinaryKind::WrappingRemainder => scalar_type.wrapping_rem(left, right),
-        CheckedIntegerBinaryKind::SaturatingAdd => scalar_type.saturating_add(left, right),
-        CheckedIntegerBinaryKind::SaturatingSubtract => scalar_type.saturating_sub(left, right),
-        CheckedIntegerBinaryKind::SaturatingMultiply => scalar_type.saturating_mul(left, right),
-        CheckedIntegerBinaryKind::SaturatingDivide => scalar_type.saturating_div(left, right),
-        CheckedIntegerBinaryKind::SaturatingRemainder => scalar_type.saturating_rem(left, right),
-        CheckedIntegerBinaryKind::BitwiseAnd => scalar_type.bitwise_and(left, right),
-        CheckedIntegerBinaryKind::BitwiseOr => scalar_type.bitwise_or(left, right),
-        CheckedIntegerBinaryKind::BitwiseXor => scalar_type.bitwise_xor(left, right),
-        CheckedIntegerBinaryKind::WrappingShiftLeft => {
-            scalar_type.wrapping_shift_left(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::WrappingShiftRight => {
-            scalar_type.wrapping_shift_right(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::ExactShiftLeft => {
-            scalar_type.exact_shift_left(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::ExactShiftRight => {
-            scalar_type.exact_shift_right(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::SaturatingShiftRight => {
-            scalar_type.exact_shift_right(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::SaturatingShiftLeft => {
+        BinaryKind::ExactAdd => scalar_type.exact_add(left, right),
+        BinaryKind::ExactSubtract => scalar_type.exact_sub(left, right),
+        BinaryKind::ExactMultiply => scalar_type.exact_mul(left, right),
+        BinaryKind::ExactDivide => scalar_type.exact_div(left, right),
+        BinaryKind::ExactRemainder => scalar_type.exact_rem(left, right),
+        BinaryKind::WrappingAdd => scalar_type.wrapping_add(left, right),
+        BinaryKind::WrappingSubtract => scalar_type.wrapping_sub(left, right),
+        BinaryKind::WrappingMultiply => scalar_type.wrapping_mul(left, right),
+        BinaryKind::WrappingDivide => scalar_type.wrapping_div(left, right),
+        BinaryKind::WrappingRemainder => scalar_type.wrapping_rem(left, right),
+        BinaryKind::SaturatingAdd => scalar_type.saturating_add(left, right),
+        BinaryKind::SaturatingSubtract => scalar_type.saturating_sub(left, right),
+        BinaryKind::SaturatingMultiply => scalar_type.saturating_mul(left, right),
+        BinaryKind::SaturatingDivide => scalar_type.saturating_div(left, right),
+        BinaryKind::SaturatingRemainder => scalar_type.saturating_rem(left, right),
+        BinaryKind::BitwiseAnd => scalar_type.bitwise_and(left, right),
+        BinaryKind::BitwiseOr => scalar_type.bitwise_or(left, right),
+        BinaryKind::BitwiseXor => scalar_type.bitwise_xor(left, right),
+        BinaryKind::WrappingShiftLeft => scalar_type.wrapping_shift_left(left, count_type, right),
+        BinaryKind::WrappingShiftRight => scalar_type.wrapping_shift_right(left, count_type, right),
+        BinaryKind::ExactShiftLeft => scalar_type.exact_shift_left(left, count_type, right),
+        BinaryKind::ExactShiftRight => scalar_type.exact_shift_right(left, count_type, right),
+        BinaryKind::SaturatingShiftRight => scalar_type.exact_shift_right(left, count_type, right),
+        BinaryKind::SaturatingShiftLeft => {
             // Right shift validates both carriers and the count without a
             // value-overflow condition. Only after that check may left-shift
             // overflow clamp; an invalid count must never become a value.
@@ -261,17 +251,13 @@ fn binary(
         // A Trapping operation returns the primitive's exact result on a
         // normal return; where the exact operation is undefined the checked
         // program traps instead, so no normal-return fact exists there.
-        CheckedIntegerBinaryKind::TrappingShiftLeft => {
-            scalar_type.exact_shift_left(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::TrappingShiftRight => {
-            scalar_type.exact_shift_right(left, count_type, right)
-        }
-        CheckedIntegerBinaryKind::TrappingAdd => scalar_type.exact_add(left, right),
-        CheckedIntegerBinaryKind::TrappingSubtract => scalar_type.exact_sub(left, right),
-        CheckedIntegerBinaryKind::TrappingMultiply => scalar_type.exact_mul(left, right),
-        CheckedIntegerBinaryKind::TrappingDivide => scalar_type.exact_div(left, right),
-        CheckedIntegerBinaryKind::TrappingRemainder => scalar_type.exact_rem(left, right),
+        BinaryKind::TrappingShiftLeft => scalar_type.exact_shift_left(left, count_type, right),
+        BinaryKind::TrappingShiftRight => scalar_type.exact_shift_right(left, count_type, right),
+        BinaryKind::TrappingAdd => scalar_type.exact_add(left, right),
+        BinaryKind::TrappingSubtract => scalar_type.exact_sub(left, right),
+        BinaryKind::TrappingMultiply => scalar_type.exact_mul(left, right),
+        BinaryKind::TrappingDivide => scalar_type.exact_div(left, right),
+        BinaryKind::TrappingRemainder => scalar_type.exact_rem(left, right),
     }
 }
 
@@ -339,9 +325,9 @@ pub(crate) fn boolean(
             }
             let ordering = left_type.compare(left, right)?;
             Some(match kind {
-                CheckedIntegerComparisonKind::Equal => ordering.is_eq(),
-                CheckedIntegerComparisonKind::LessThan => ordering.is_lt(),
-                CheckedIntegerComparisonKind::LessOrEqual => !ordering.is_gt(),
+                ComparisonKind::Equal => ordering.is_eq(),
+                ComparisonKind::LessThan => ordering.is_lt(),
+                ComparisonKind::LessOrEqual => !ordering.is_gt(),
             })
         }
         CheckedBooleanExpression::IntegerMathComparison { .. }

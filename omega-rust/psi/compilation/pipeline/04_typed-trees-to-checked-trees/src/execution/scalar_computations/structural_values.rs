@@ -29,7 +29,7 @@ use crate::values::reference_sources::formed_reference_type;
 use crate::values::reference_sources::transported_value_type;
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
-    CheckedStructuralValueHandle, CheckedStructuralValueKind,
+    CheckedStructuralValueHandle as ValueHandle, CheckedStructuralValueKind as ValueKind,
 };
 use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
@@ -219,7 +219,7 @@ impl Builder<'_, '_> {
     /// retain their own checking judgments and evaluation identity.
     pub(super) fn retained_argument_owner(
         &mut self,
-        value: CheckedStructuralValueHandle,
+        value: ValueHandle,
         reference: TypeReferenceHandle,
     ) -> Option<(
         ExpressionHandle,
@@ -233,7 +233,7 @@ impl Builder<'_, '_> {
             // copy owns an independent completed value, just as a whole-value
             // cast owns its checked memberships; using its source occurrence
             // would lose that new value and its exact root identity.
-            CheckedStructuralValueKind::Projection {
+            ValueKind::Projection {
                 source,
                 path,
                 projection_evaluations,
@@ -282,7 +282,7 @@ impl Builder<'_, '_> {
     /// or ambiguous ordinary coordinate cannot accept a different value.
     pub(super) fn retain_structural_value_root(
         &mut self,
-        value: CheckedStructuralValueHandle,
+        value: ValueHandle,
         reference: TypeReferenceHandle,
     ) -> Option<()> {
         let node = self.structural_values.nodes.get(value);
@@ -328,7 +328,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         reference: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueHandle> {
+    ) -> Option<ValueHandle> {
         let kind = self.copied_place(expression, reference)?;
         let value = self.publish_structural_value(expression, reference, kind)?;
         self.retained_argument_owner(value, reference)?;
@@ -343,7 +343,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueHandle> {
+    ) -> Option<ValueHandle> {
         let (expression, expected) =
             match self.program.type_reference_table.type_reference(expected) {
                 _ if self.uses_captured_dispatch_value(expression) => {
@@ -465,7 +465,7 @@ impl Builder<'_, '_> {
         // copy already establishes its own independent value home; registering
         // its source instead would also duplicate this value's ordinary root.
         // Scalar and statement calls consume the same owner/path relationship.
-        if let CheckedStructuralValueKind::Projection {
+        if let ValueKind::Projection {
             source,
             ref path,
             copies_selected_value: false,
@@ -552,7 +552,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueHandle> {
+    ) -> Option<ValueHandle> {
         // Normalization can share an evaluated operand with a later projection.
         // Preserve that occurrence's value identity, not another producer for
         // the same source. Different authored handles never share this root.
@@ -593,7 +593,7 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
-            CheckedStructuralValueKind::NativeCodeLayout { selected_state }
+            ValueKind::NativeCodeLayout { selected_state }
         } else if self.uses_captured_dispatch_value(expression) {
             // An authenticated completed receiver supplies the value before
             // scalar or reference planning can choose a live-storage read.
@@ -608,7 +608,7 @@ impl Builder<'_, '_> {
                 CheckedScalarExpressionRole::StructuralScalarValue { expression },
                 value,
             )?;
-            CheckedStructuralValueKind::Scalar { value }
+            ValueKind::Scalar { value }
         } else if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression)
             && let Some(selected) = validation::select_anonymous_numeric_match_arm(
@@ -622,7 +622,7 @@ impl Builder<'_, '_> {
             // constructor schedule and custody; a whole-value projection keeps
             // this Match occurrence without inventing another owner or replay.
             let source = self.structural_value(selected, expected)?;
-            CheckedStructuralValueKind::Projection {
+            ValueKind::Projection {
                 source,
                 logical_root_type_identity: Default::default(),
                 path: Vec::new(),
@@ -665,7 +665,7 @@ impl Builder<'_, '_> {
                 return None;
             }
             let source = self.structural_value(cast.value, quotient.carrier)?;
-            CheckedStructuralValueKind::QuotientAdaptation {
+            ValueKind::QuotientAdaptation {
                 source,
                 quotient: cast.target_type,
                 license: checked_trees::CheckedQuotientAdaptationLicense::Mint,
@@ -676,9 +676,7 @@ impl Builder<'_, '_> {
         ) {
             let argument = byte_sequence_literal_argument(self.program, expected, expression)?;
             match argument.access {
-                checked_trees::CheckedStructuralAccess::Owned => {
-                    CheckedStructuralValueKind::Place(argument)
-                }
+                checked_trees::CheckedStructuralAccess::Owned => ValueKind::Place(argument),
                 checked_trees::CheckedStructuralAccess::SharedBorrow => {
                     // A shared literal produces an immutable image-backed
                     // descriptor in every value position. Its destination's
@@ -695,7 +693,7 @@ impl Builder<'_, '_> {
                     } = argument.source else {
                         return None;
                     };
-                    CheckedStructuralValueKind::ByteLiteralView { bytes }
+                    ValueKind::ByteLiteralView { bytes }
                 }
                 _ => return None,
             }
@@ -712,7 +710,7 @@ impl Builder<'_, '_> {
                 .machine_by_symbol(self.machine)
                 .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
             let mut selectors = Vec::new();
-            let mut source_value = CheckedStructuralValueHandle::invalid();
+            let mut source_value = ValueHandle::invalid();
             if let Some(formation) = reference_capture.as_ref() {
                 let place = self.canonical_place(formation.source)?;
                 // Retain the complete anonymous producer before its selectors.
@@ -789,7 +787,7 @@ impl Builder<'_, '_> {
             };
             source.retain_projection_evaluations(projection_evaluations, &self.plans.operands)?;
             let selectors = self.retain_reference_selectors(expression, selectors)?;
-            CheckedStructuralValueKind::Reference {
+            ValueKind::Reference {
                 source,
                 selectors,
                 storage,
@@ -853,7 +851,7 @@ impl Builder<'_, '_> {
                 call_target,
                 expressions(self.program).expression_handles(call.arguments),
             );
-            CheckedStructuralValueKind::Call { source_call }
+            ValueKind::Call { source_call }
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_)
@@ -864,7 +862,7 @@ impl Builder<'_, '_> {
             // this evaluation point. Try the copy routes before whole-place
             // custody: a mutable copyable local also has an owned shape, but
             // its original producer is not the value of a later read.
-            CheckedStructuralValueKind::Place(argument)
+            ValueKind::Place(argument)
         } else if let Some(projection) = self.projected_owned_place(expression, expected) {
             projection
         } else if let Some(constructor) = self.case_construction(expression) {
@@ -891,7 +889,7 @@ impl Builder<'_, '_> {
                     *value,
                 )?;
             }
-            CheckedStructuralValueKind::Case(constructor)
+            ValueKind::Case(constructor)
         } else if let ExpressionNode::StructLiteral(literal) =
             self.program.expression_table.expression(expression)
             && literal.case_symbol.is_some()
@@ -919,7 +917,7 @@ impl Builder<'_, '_> {
         } else if let Some(symbol) =
             validation::scalar_case_value_source(self.program, expression, expected)
         {
-            CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+            ValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
                 projection_evaluations: Default::default(),
                 source: self.structural_source(symbol),
                 path: Vec::new(),
@@ -1016,7 +1014,7 @@ impl Builder<'_, '_> {
             if (!covered && subject_type.is_some()) || arms.is_empty() {
                 return None;
             }
-            CheckedStructuralValueKind::Dispatch {
+            ValueKind::Dispatch {
                 subject,
                 arms: self.structural_values.dispatch_arms.insert_many(arms),
             }
@@ -1028,8 +1026,8 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         type_reference: TypeReferenceHandle,
-        kind: CheckedStructuralValueKind,
-    ) -> Option<CheckedStructuralValueHandle> {
+        kind: ValueKind,
+    ) -> Option<ValueHandle> {
         Some(self.structural_values.nodes.append(CheckedStructuralValue {
             machine: self.machine,
             state: self.state,
