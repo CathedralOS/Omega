@@ -104,8 +104,8 @@ impl<'input> BoundaryValuePreparation<'input> {
 
     fn type_recipe(&mut self, type_reference: TypeReferenceHandle) -> BoundaryValueRecipe {
         let typed = self.typed;
-        let type_reference =
-            substitute_boundary_type_reference(typed, type_reference, self.bindings);
+        // value_type applied this simultaneous frame already. Reapplying it
+        // here would reinterpret a nominal actual as another formal by name.
         if let Some(primitive) = typed.primitive_type_reference(type_reference) {
             return match primitive
                 .scalar_byte_size()
@@ -122,7 +122,9 @@ impl<'input> BoundaryValuePreparation<'input> {
             };
         }
         match typed.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => self.type_recipe(*base_type),
+            TypeReferenceNode::Constrained { base_type, .. } => self.type_recipe(
+                substitute_boundary_type_reference(typed, *base_type, self.bindings),
+            ),
             TypeReferenceNode::Reference { referee, .. } => {
                 let mut referee =
                     substitute_boundary_type_reference(typed, *referee, self.bindings);
