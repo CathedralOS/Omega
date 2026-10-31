@@ -2,6 +2,7 @@
 //! closed type names. Complete source-visible paths retain semantic namespace
 //! ancestry, including declarations physically stored at root, so authored
 //! selection custody survives generic equation discharge.
+use crate::tables::body_expressions;
 use language_semantics::byte_predicates::ByteSequencePredicate;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
@@ -443,12 +444,7 @@ fn resolved_domain_byte_predicate(
         return None;
     }
     let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
-    let [argument] = program
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(call.arguments)
-    else {
+    let [argument] = body_expressions(&program).expression_handles(call.arguments) else {
         return None;
     };
     let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
@@ -456,11 +452,7 @@ fn resolved_domain_byte_predicate(
     else {
         return None;
     };
-    let members = program
-        .tables
-        .bodies
-        .expressions
-        .name_path_members(path.members);
+    let members = body_expressions(&program).name_path_members(path.members);
     matches!(members, [member] if member.is_self_receiver()).then_some(predicate)
 }
 

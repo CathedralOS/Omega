@@ -10,6 +10,7 @@
 //! compatibility, formation, property and invocation-contract checks.
 
 use super::{ConstantSelection, SourceLinks};
+use crate::tables::body_expressions;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
@@ -337,11 +338,7 @@ fn constraints(
     else {
         return observations;
     };
-    let arguments = trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(arguments);
+    let arguments = body_expressions(&trees).expression_handles(arguments);
     if arguments.len() != state.parameters.count() as usize {
         return observations;
     }

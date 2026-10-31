@@ -6,6 +6,7 @@
 //! declaration-source resolution; initializer implementation exposure never
 //! becomes public index exposure just because its constant is public.
 
+use crate::tables::body_expressions;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure,
@@ -492,20 +493,15 @@ fn append_retained_custody(
     purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<(), Diagnostic> {
     let owner_source = program.symbols.symbol_source_span(owner.symbol);
-    for occurrence in program
-        .tables
-        .bodies
-        .expressions
-        .authored_selection_occurrences(
-            if purpose == super::initializer_dependencies::DependencyPurpose::Authored
-                && owner.authored_initializer.is_valid()
-            {
-                owner.authored_initializer
-            } else {
-                owner.initializer
-            },
-        )
-    {
+    for occurrence in body_expressions(&program).authored_selection_occurrences(
+        if purpose == super::initializer_dependencies::DependencyPurpose::Authored
+            && owner.authored_initializer.is_valid()
+        {
+            owner.authored_initializer
+        } else {
+            owner.initializer
+        },
+    ) {
         let selection = program
             .authored_declaration_selections()
             .get(occurrence)
@@ -796,11 +792,7 @@ fn replace_initializer_lanes(
     program: &mut SymbolResolvedTrees,
     owner: &InitializerRootCustody,
 ) -> Result<(), Diagnostic> {
-    if !program
-        .tables
-        .bodies
-        .expressions
-        .expression_is_valid(owner.root)
+    if !body_expressions(&program).expression_is_valid(owner.root)
         || program.tables.bodies.expressions.source_span(owner.root) != owner.reference
     {
         return Err(error(
@@ -813,12 +805,7 @@ fn replace_initializer_lanes(
     // complete inventory for this boundary; retain unrelated type/case custody,
     // then replace only the initializer's call, constant and operator lanes.
     let mut retained = Vec::new();
-    for occurrence in program
-        .tables
-        .bodies
-        .expressions
-        .authored_selection_occurrences(owner.root)
-    {
+    for occurrence in body_expressions(&program).authored_selection_occurrences(owner.root) {
         let selection = program
             .authored_declaration_selections()
             .get(occurrence)

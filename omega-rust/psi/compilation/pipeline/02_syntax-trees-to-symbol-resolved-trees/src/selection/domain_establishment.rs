@@ -6,6 +6,7 @@
 //! interface exposure but have their own authorization occurrence kind: they
 //! do not publish a private issuer for ordinary consumer selection.
 
+use crate::tables::body_expressions;
 use diagnostics::Diagnostic;
 use language_semantics::DomainEstablishmentRoute;
 use language_semantics::declaration_selection::{
@@ -603,20 +604,12 @@ fn ensured_mutable_parameter_domain_symbols(
             let ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            let ExpressionNode::Name(path) = program
-                .tables
-                .bodies
-                .expressions
-                .expression(membership.value)
+            let ExpressionNode::Name(path) =
+                body_expressions(&program).expression(membership.value)
             else {
                 continue;
             };
-            let [name] = program
-                .tables
-                .bodies
-                .expressions
-                .name_path_members(path.members)
-            else {
+            let [name] = body_expressions(&program).name_path_members(path.members) else {
                 continue;
             };
             let names_out_parameter =
@@ -710,12 +703,7 @@ fn expression_is_bare_result(
     else {
         return false;
     };
-    let [name] = program
-        .tables
-        .bodies
-        .expressions
-        .name_path_members(path.members)
-    else {
+    let [name] = body_expressions(&program).name_path_members(path.members) else {
         return false;
     };
     language_core::is_reserved_result(name.as_str())

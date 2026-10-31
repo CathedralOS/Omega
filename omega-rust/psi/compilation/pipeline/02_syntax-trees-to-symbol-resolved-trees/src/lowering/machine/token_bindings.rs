@@ -42,6 +42,7 @@
 //! denotation role exactly as a domain-homed `operator` declaration did, so
 //! implicit weakening and result-dispatch keep treating it as semantic.
 
+use crate::tables::body_expressions;
 use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
@@ -924,11 +925,7 @@ impl<'program> ShapeNormalizer<'program> {
             }
             TypeReference::ConstExpression(expression) => format!(
                 "const({})",
-                self.program
-                    .tables
-                    .bodies
-                    .expressions
-                    .display_name(expression.expression)
+                body_expressions(&self.program).display_name(expression.expression)
             ),
             TypeReference::DynamicTrait {
                 symbol,

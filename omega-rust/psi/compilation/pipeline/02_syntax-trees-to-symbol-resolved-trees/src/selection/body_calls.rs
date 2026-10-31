@@ -4,6 +4,7 @@
 //! routing and target-sibling binding. Each pass supplies only its decision;
 //! the reach over the body is defined once here.
 
+use crate::tables::body_expressions;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbols::JoinedPath;
@@ -295,24 +296,13 @@ fn retarget_expression(
         return;
     }
     visited.push(expression);
-    let node = program
-        .tables
-        .bodies
-        .expressions
-        .expression(expression)
-        .clone();
+    let node = body_expressions(&program).expression(expression).clone();
     let mut children = Vec::new();
     match node {
         symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
-                children.extend(
-                    program
-                        .tables
-                        .bodies
-                        .expressions
-                        .match_pattern_dependencies(arm.pattern),
-                );
+                children.extend(body_expressions(&program).match_pattern_dependencies(arm.pattern));
                 children.push(arm.value);
             }
         }
@@ -334,13 +324,8 @@ fn retarget_expression(
             if call.receiver.is_valid() {
                 children.push(call.receiver);
             }
-            children.extend_from_slice(
-                program
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression_handles(call.arguments),
-            );
+            children
+                .extend_from_slice(body_expressions(&program).expression_handles(call.arguments));
             let receiver_symbol = match program.tables.bodies.expressions.expression(call.receiver)
             {
                 symbol_resolved_trees::expression::ExpressionNode::Name(path)
@@ -357,10 +342,7 @@ fn retarget_expression(
                 receiver_symbol,
                 requirement_application: call.requirement_application,
                 local_receiver: !call.receiver.is_valid(),
-                argument_count: program
-                    .tables
-                    .bodies
-                    .expressions
+                argument_count: body_expressions(&program)
                     .expression_handles(call.arguments)
                     .len(),
             };
@@ -388,10 +370,7 @@ fn retarget_expression(
         }
         symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
             children.extend(
-                program
-                    .tables
-                    .bodies
-                    .expressions
+                body_expressions(&program)
                     .struct_fields(literal.fields)
                     .iter()
                     .map(|field| field.value),
