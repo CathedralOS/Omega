@@ -1,7 +1,10 @@
+use crate::TypedTrees;
+use crate::data::DataMember::Field;
 use crate::name::Identifier;
-use crate::types::{DomainConstraint, TypeReferenceHandle};
+use crate::types;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
+use types::{DomainConstraint, TypeReferenceHandle};
 
 /// One wire field's DERIVED placement -- the plan the tagged codec walks
 /// (mint arc rung 2a). The Rust-side mirror of the FieldPlan wire cases
@@ -162,18 +165,15 @@ pub struct WireScalarEncoding {
 
 /// Whether a declared type carries an inclusive integer range, looking
 /// through reference and nested constraint shells.
-pub fn type_reference_carries_range(
-    program: &crate::TypedTrees,
-    handle: TypeReferenceHandle,
-) -> bool {
+pub fn type_reference_carries_range(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
     if !handle.is_valid() {
         return false;
     }
     match program.type_reference_table.type_reference(handle) {
-        crate::types::TypeReferenceNode::Reference { referee, .. } => {
+        types::TypeReferenceNode::Reference { referee, .. } => {
             type_reference_carries_range(program, *referee)
         }
-        crate::types::TypeReferenceNode::Constrained {
+        types::TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
@@ -181,9 +181,7 @@ pub fn type_reference_carries_range(
                 .type_reference_table
                 .constraints(*constraints)
                 .iter()
-                .any(|constraint| {
-                    matches!(constraint, crate::types::TypeConstraintNode::Range { .. })
-                })
+                .any(|constraint| matches!(constraint, types::TypeConstraintNode::Range { .. }))
                 || type_reference_carries_range(program, *base_type)
         }
         _ => false,
@@ -194,13 +192,13 @@ pub fn type_reference_carries_range(
 /// shells. Wire encode/decode consumers use the destination/source data
 /// declaration rather than assuming the schema field's less-refined type.
 pub fn data_field_type(
-    program: &crate::TypedTrees,
+    program: &TypedTrees,
     receiver: TypeReferenceHandle,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
     let receiver = program.type_reference_table.peeled_type_reference(receiver);
     match program.type_reference_table.type_reference(receiver) {
-        crate::types::TypeReferenceNode::Named { symbol, name } => {
+        types::TypeReferenceNode::Named { symbol, name } => {
             let data = program
                 .data_definitions()
                 .iter()
@@ -209,9 +207,7 @@ pub fn data_field_type(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    crate::data::DataMember::Field(field) if field.name.as_str() == field_name => {
-                        Some(field.type_reference)
-                    }
+                    Field(field) if field.name.as_str() == field_name => Some(field.type_reference),
                     _ => None,
                 });
         }
@@ -223,19 +219,19 @@ pub fn data_field_type(
 /// constraint shells. Decode uses the destination declaration's element
 /// rather than the schema carrier so element-level facts cannot disappear.
 pub fn fixed_array_element_type(
-    program: &crate::TypedTrees,
+    program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let handle = program.type_reference_table.peeled_type_reference(handle);
     match program.type_reference_table.type_reference(handle) {
-        crate::types::TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
+        types::TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
         _ => None,
     }
 }
 
 /// Resolve the destination element type for a bounded repeated carrier.
 pub fn repeated_element_type(
-    program: &crate::TypedTrees,
+    program: &TypedTrees,
     handle: TypeReferenceHandle,
     carrier: WireRepeatedCarrier,
 ) -> Option<TypeReferenceHandle> {
@@ -244,7 +240,7 @@ pub fn repeated_element_type(
         WireRepeatedCarrier::FixedVec => {
             let handle = program.type_reference_table.peeled_type_reference(handle);
             let symbol = match program.type_reference_table.type_reference(handle) {
-                crate::types::TypeReferenceNode::Generic {
+                types::TypeReferenceNode::Generic {
                     base_symbol,
                     arguments,
                     ..
@@ -254,7 +250,7 @@ pub fn repeated_element_type(
                     };
                     return Some(*element);
                 }
-                crate::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                types::TypeReferenceNode::Named { symbol, .. } => *symbol,
                 _ => return None,
             };
             if !program.is_core_fixed_vec(symbol) {
@@ -265,9 +261,7 @@ pub fn repeated_element_type(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    crate::data::DataMember::Field(field) if field.name.as_str() == "items" => {
-                        Some(field.type_reference)
-                    }
+                    Field(field) if field.name.as_str() == "items" => Some(field.type_reference),
                     _ => None,
                 })?;
             fixed_array_element_type(program, items)
@@ -278,8 +272,8 @@ pub fn repeated_element_type(
 impl WireScalarEncoding {
     /// The stage 2a scalar set: i32/i64/u32/u64/bool. Everything else is
     /// rejected by validation with a clear diagnostic.
-    pub fn for_primitive(primitive: crate::types::PrimitiveType) -> Option<Self> {
-        use crate::types::PrimitiveType;
+    pub fn for_primitive(primitive: types::PrimitiveType) -> Option<Self> {
+        use types::PrimitiveType;
         match primitive {
             PrimitiveType::Bool => Some(Self {
                 byte_size: 1,
@@ -334,7 +328,7 @@ pub enum WireFieldEncoding {
 impl WireFieldEncoding {
     /// The primitive encode-side field set. Runtime-sized text is recognized
     /// from its borrowed byte-slice carrier before this primitive path.
-    pub fn for_primitive(primitive: crate::types::PrimitiveType) -> Option<Self> {
+    pub fn for_primitive(primitive: types::PrimitiveType) -> Option<Self> {
         WireScalarEncoding::for_primitive(primitive).map(Self::Scalar)
     }
 }
@@ -421,7 +415,7 @@ pub fn is_layout_domain_constraint(domain: &DomainConstraint) -> bool {
 /// Recover the authored schema and optional grammar labels from either the
 /// normalized argument vector or a legacy flattened family name.
 pub fn layout_domain_constraint_arguments(
-    program: &crate::TypedTrees,
+    program: &TypedTrees,
     domain: &DomainConstraint,
 ) -> Option<(String, Option<String>)> {
     if let Some((schema, grammar)) = layout_domain_arguments(domain.name.as_str()) {

@@ -8,9 +8,12 @@
 //! is selected by that exact parameter kind before checking sealed custody.
 
 use crate::frozen_program::expression_table;
+use numerics::float_semantics_catalog::FloatSemanticOperation;
+use numerics::float_semantics_catalog::IntegerCarrier;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeReferenceHandle;
 
 /// Return the carriers of a one-argument callable whose normal-return
 /// contract states a sealed format conversion. Admission of the call and
@@ -39,7 +42,7 @@ fn selected_numeric_float_conversion_contract(
 ) -> Option<(
     PrimitiveType,
     PrimitiveType,
-    &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+    &'static FloatSemanticOperation,
 )> {
     use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticValueKind};
     let [parameter] = program.operator_parameters(operator) else {
@@ -48,8 +51,7 @@ fn selected_numeric_float_conversion_contract(
     let source = program.primitive_type_reference(parameter.type_reference)?;
     let target = program.primitive_type_reference(operator.return_type)?;
     if !(matches!(source, PrimitiveType::F32 | PrimitiveType::F64)
-        || numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())
-            .is_some())
+        || IntegerCarrier::from_spelling(source.name()).is_some())
         || !matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
     {
         return None;
@@ -59,9 +61,7 @@ fn selected_numeric_float_conversion_contract(
         let source_kind = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
             FloatSemanticValueKind::Meaning
         } else {
-            FloatSemanticValueKind::Integer(
-                numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())?,
-            )
+            FloatSemanticValueKind::Integer(IntegerCarrier::from_spelling(source.name())?)
         };
         super::semantic_operations::exact_toolchain_float_semantic_application(
             program,
@@ -148,7 +148,7 @@ pub fn integer_float_conversion_bounds(
     numerics::float_semantics::FloatMeaning,
 )> {
     let (source, target, semantic) = selected_numeric_float_conversion_contract(program, operator)?;
-    let carrier = numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())?;
+    let carrier = IntegerCarrier::from_spelling(source.name())?;
     let format = match target {
         PrimitiveType::F32 => numerics::float_semantics::FloatFormat::BINARY32,
         PrimitiveType::F64 => numerics::float_semantics::FloatFormat::BINARY64,
@@ -168,7 +168,7 @@ struct ConversionEqualityCandidate<'program> {
     result: ExpressionHandle,
     conversion: &'program typed_trees::expression::TableCallExpression,
     selected: Option<&'program OperatorDefinition>,
-    semantic: &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+    semantic: &'static FloatSemanticOperation,
 }
 
 /// Scan the operator's ensures equalities for result-vs-conversion pairs in
@@ -182,7 +182,7 @@ fn scan_conversion_equalities<'program, R>(
         &'program typed_trees::expression::TableCallExpression,
     ) -> Option<(
         Option<&'program OperatorDefinition>,
-        &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+        &'static FloatSemanticOperation,
     )>,
     mut judge: impl FnMut(&ConversionEqualityCandidate<'_>) -> Option<R>,
 ) -> Option<R> {
@@ -223,11 +223,7 @@ fn scan_conversion_equalities<'program, R>(
 fn projection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-) -> Option<(
-    ExpressionHandle,
-    PrimitiveType,
-    typed_trees::types::TypeReferenceHandle,
-)> {
+) -> Option<(ExpressionHandle, PrimitiveType, TypeReferenceHandle)> {
     let call = expression_table(program).call_node(expression)?;
     let (selected, primitive, _, _) =
         crate::proof_contracts::float_projection_invocations::exact_projection_operation(
@@ -246,10 +242,7 @@ fn projection(
 pub fn float_integer_conversion_contract(
     program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
-) -> Option<(
-    PrimitiveType,
-    &'static numerics::float_semantics_catalog::FloatSemanticOperation,
-)> {
+) -> Option<(PrimitiveType, &'static FloatSemanticOperation)> {
     use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticValueKind};
     let [parameter] = program.operator_parameters(operator) else {
         return None;
@@ -264,7 +257,7 @@ pub fn float_integer_conversion_contract(
         conversion: &'program typed_trees::expression::TableCallExpression,
     ) -> Option<(
         Option<&'program OperatorDefinition>,
-        &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+        &'static FloatSemanticOperation,
     )> {
         let selected = typed_trees::operator::resolve_named_expression_call(program, conversion)?;
         super::semantic_operations::exact_toolchain_float_semantic_contract(program, selected)

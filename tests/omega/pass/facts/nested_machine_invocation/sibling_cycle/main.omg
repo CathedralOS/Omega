@@ -1,0 +1,33 @@
+// Sibling nested machines in a terminal cycle retain a caller-owned mutable borrow without growing the stack.
+// Expected exit: 0.
+machine run(value: &mut u64, remaining: u64) {
+    transition remaining == 0 {
+        true -> done()
+        false -> ping(value, remaining)
+    }
+    machine ping(value: &mut u64, remaining: u64)
+    requires remaining > 0
+    terminates by remaining
+    {
+        value = (value as u64 in Wrapping + 1) as u64;
+        transition { _ -> pong(value, remaining - 1) }
+    }
+    machine pong(value: &mut u64, remaining: u64) {
+        value = (value as u64 in Wrapping + 2) as u64;
+        transition remaining == 0 {
+            true -> done()
+            false -> ping(value, remaining)
+        }
+    }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let mut value: u64 = 0;
+    run(&mut value, 100001);
+    transition value == 300003 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

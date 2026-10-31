@@ -8,8 +8,10 @@
 
 use crate::frozen_program::expression_table;
 use numerics::bignum::BigInt;
+use numerics::literals::FloatLiteral;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::expression::{ExpressionHandle, TableStructLiteral, TableStructLiteralField};
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -70,7 +72,7 @@ pub(in super::super) fn is_case_observation(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    matches!(expression_table(program).expression(expression), typed_trees::expression::ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership)
+    matches!(expression_table(program).expression(expression), ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership)
         || expression_table(program)
             .authored_selection_occurrences(expression)
             .any(|occurrence| {
@@ -116,9 +118,7 @@ pub(in super::super) fn case_classifier(
     let definition = crate::proof_contracts::bound_expression_meaning::exact_case_reference_owner(
         program, expression,
     )?;
-    let typed_trees::expression::ExpressionNode::Name(path) =
-        expression_table(program).expression(expression)
-    else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
         return None;
     };
     let variant = program
@@ -371,13 +371,11 @@ fn zero_term(
                 fields: Vec::new(),
             }),
             PrimitiveType::F32 | PrimitiveType::F64 => Some(StructuralTerm::Float(
-                numerics::literals::FloatLiteral::from_f64(0.0).with_landing(
-                    if primitive == PrimitiveType::F32 {
-                        numerics::literals::FloatFormat::F32
-                    } else {
-                        numerics::literals::FloatFormat::F64
-                    },
-                ),
+                FloatLiteral::from_f64(0.0).with_landing(if primitive == PrimitiveType::F32 {
+                    numerics::literals::FloatFormat::F32
+                } else {
+                    numerics::literals::FloatFormat::F64
+                }),
             )),
             primitive if primitive.accepts_integer_literal() => {
                 Some(StructuralTerm::Integer(BigInt::zero()))

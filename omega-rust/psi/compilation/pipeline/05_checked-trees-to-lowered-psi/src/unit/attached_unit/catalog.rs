@@ -19,6 +19,18 @@ use super::{
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
 use crate::checked_facts::{flow_facts, value_facts};
+use crate::declarations::state_declaration;
+use crate::emission::call_qualifications::declaration_represents;
+use crate::emission::call_qualifications::for_call;
+use crate::emission::structural_byte_sequence_store::literal_view_type;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
+use crate::expression_preparation::computation_graph::reachable_structural_values;
+use crate::expression_preparation::computation_graph::value_call_operations;
+use crate::expression_preparation::structural_value_requirements::collect_operation_requirements;
+use crate::expression_preparation::structural_value_requirements::collect_value_requirements;
+use crate::machine_lowering::declarations::semantic_identity;
+use crate::scalar_lowering::computations::operand_types::type_requirements;
+use crate::structural_types::lower_field_type;
 use crate::terminal_identities::stored_structural_identity;
 use crate::terminal_identities::{
     BYTE_VIEW_ELEMENT_TYPE_IDENTITY, StructuralDomainBinding, lookup_domain_id_for_carrier,
@@ -348,9 +360,7 @@ pub(super) fn lower_unit_structural_types(
     // Fused dispatch identities do not replace the declaration owners of
     // retained computations. Publish every producer's complete requirements.
     for symbol in &sources {
-        let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
-            checked, *symbol,
-        )?;
+        let operands = type_requirements(checked, *symbol)?;
         roots.extend(operands.identities);
         literal_view |= operands.literal_view;
     }
@@ -386,7 +396,7 @@ pub(super) fn lower_unit_structural_types(
         {
             // Result plans may retain only shape/multiplicity. Use the exact
             // authored/default-domain roster that result emission publishes.
-            let (_, state) = crate::declarations::state_declaration(checked, body.entry()?.state)?;
+            let (_, state) = state_declaration(checked, body.entry()?.state)?;
             let qualifications = super::parameters::result_projected_qualifications(
                 checked,
                 *symbol,
@@ -417,11 +427,7 @@ pub(super) fn lower_unit_structural_types(
         // as statement-owned operations, not just their call signatures.
         let mut value_operations = Vec::new();
         for source in plans.source_machines(checked, &[*symbol])? {
-            value_operations.extend(
-                crate::expression_preparation::computation_graph::value_call_operations(
-                    checked, source, None,
-                )?,
-            );
+            value_operations.extend(value_call_operations(checked, source, None)?);
         }
         for operation in body.operations().chain(value_operations) {
             collect_operation_type_roots(checked, plans, operation, &mut roots)?;
@@ -525,10 +531,7 @@ pub(super) fn lower_unit_structural_types(
     let (mut declarations, mut identity_ids, referents) =
         lower_unit_structural_type_roots(identities, checked, scalar_applications, plans, &roots)?;
     if literal_view {
-        crate::emission::structural_byte_sequence_store::literal_view_type(
-            identities,
-            &mut declarations,
-        )?;
+        literal_view_type(identities, &mut declarations)?;
     }
     // A captured coordinate is compiler-owned primitive storage, even when
     // its source is an inline field and no authored signature roots u64.
@@ -550,9 +553,7 @@ pub(super) fn lower_unit_structural_types(
                     crate::scalar_lowering::computations::fields::prepare_place_observations(
                         identities,
                         checked,
-                        crate::declarations::state_declaration(checked, state)?
-                            .0
-                            .symbol,
+                        state_declaration(checked, state)?.0.symbol,
                         state,
                         &declarations,
                     );
@@ -836,9 +837,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 access,
             } => StructuralTypeShape::ElementView {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
-                access: access.map(
-                    crate::expression_preparation::bindings::structural_paths::terminal_access,
-                ),
+                access: access.map(terminal_access),
             },
             CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                 let mut field_identities = BTreeSet::new();
@@ -873,7 +872,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                             lookup_type_id(&type_ids, provider_type_identity)?,
                         ))
                     }
-                    field_type => (field.relevance, crate::structural_types::lower_field_type(identities, checked, field_type, &type_ids)?),
+                    field_type => (field.relevance, lower_field_type(identities, checked, field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
                     storage: field.storage.clone(),
@@ -946,7 +945,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                                 "Unit structural sum case contains an empty or duplicate payload field identity",
                                             ));
                                         }
-                                        let field_type = crate::structural_types::lower_field_type(identities, checked, &field.field_type, &type_ids)?;
+                                        let field_type = lower_field_type(identities, checked, &field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
                                             storage: field.storage.clone(),
                                             id: structural_field_id(allocate_dense(
@@ -991,14 +990,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             scalar_restriction: plan
                 .scalar_restriction
                 .as_ref()
-                .map(|restriction| {
-                    crate::structural_types::lower_field_type(
-                        identities,
-                        checked,
-                        restriction,
-                        &type_ids,
-                    )
-                })
+                .map(|restriction| lower_field_type(identities, checked, restriction, &type_ids))
                 .transpose()?,
             id: lookup_type_id(&type_ids, &identity)?,
             identity: identities.intern(&identity_text(identity)),
@@ -1030,9 +1022,7 @@ pub(super) fn lower_unit_structural_domains(
             continue;
         }
         for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
-            if crate::emission::call_qualifications::declaration_represents(
-                identities, checked, fact,
-            )? {
+            if declaration_represents(identities, checked, fact)? {
                 continue;
             }
             if let Some((_, _, _, domain)) = fact.payload.domain_membership()
@@ -1051,22 +1041,17 @@ pub(super) fn lower_unit_structural_domains(
             let Some(call) = operation.call() else {
                 continue;
             };
-            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            let (machine, _) = state_declaration(checked, state)?;
             let coordinate = crate::emission::operation_emission::buffer::SourceCallCoordinate {
                 state,
                 statement_index: call.coordinate.statement_index as usize,
                 call_ordinal: call.coordinate.call_ordinal as usize,
             };
             let homes = body.structural_home_roots(checked, state)?;
-            for fact in crate::emission::call_qualifications::for_call(
-                checked,
-                machine.symbol,
-                coordinate,
-                |root| homes.contains(&root),
-            ) {
-                if crate::emission::call_qualifications::declaration_represents(
-                    identities, checked, fact,
-                )? {
+            for fact in for_call(checked, machine.symbol, coordinate, |root| {
+                homes.contains(&root)
+            }) {
+                if declaration_represents(identities, checked, fact)? {
                     continue;
                 }
                 if let Some((_, _, _, domain)) = fact.payload.domain_membership()
@@ -1080,7 +1065,7 @@ pub(super) fn lower_unit_structural_domains(
         // observes a field immediately. Register that signature's domains here,
         // not incidentally through a receiving local or another parameter.
         if !body.entry()?.returns_unit && body.scalar_result_type().is_none() {
-            let (_, state) = crate::declarations::state_declaration(checked, body.entry()?.state)?;
+            let (_, state) = state_declaration(checked, body.entry()?.state)?;
             let mut result_domains =
                 validation::view_result_carrier_qualifications(&checked.typed, state.return_type)
                     .map_err(LoweringError::Unsupported)?;
@@ -1100,13 +1085,8 @@ pub(super) fn lower_unit_structural_domains(
             }
         }
         for (state, operation) in body.operations_with_states() {
-            let (owner, _) = crate::declarations::state_declaration(checked, state)?;
-            crate::expression_preparation::structural_value_requirements::collect_operation_requirements(
-                checked,
-                owner.symbol,
-                operation,
-                &mut selected,
-            )?;
+            let (owner, _) = state_declaration(checked, state)?;
+            collect_operation_requirements(checked, owner.symbol, operation, &mut selected)?;
         }
         for domain in body
             .structural_parameters()
@@ -1168,15 +1148,8 @@ pub(super) fn lower_unit_structural_domains(
     // Computed producers keep their original machine namespace after fusion,
     // including the complete membership roster checked on each produced value.
     for source in sources {
-        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
-            checked, source,
-        )? {
-            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
-                checked,
-                source,
-                value,
-                &mut selected,
-            )?;
+        for value in reachable_structural_values(checked, source)? {
+            collect_value_requirements(checked, source, value, &mut selected)?;
         }
     }
     for (boundary, _) in boundaries {
@@ -1716,14 +1689,10 @@ pub(super) fn call_result_qualification_establishments(
         };
         let requirement =
             identities.intern(&checked.trait_requirement_callable_identity_text(owner, signature));
-        let declaration = crate::machine_lowering::declarations::semantic_identity(
-            identities,
-            checked,
-            boundary_callee,
-        )
-        .map_err(|_| {
-            LoweringError::Unsupported("boundary issuer lost its exact declaration owner")
-        })?;
+        let declaration =
+            semantic_identity(identities, checked, boundary_callee).map_err(|_| {
+                LoweringError::Unsupported("boundary issuer lost its exact declaration owner")
+            })?;
         if let Some(index) = catalog.iter().position(|route| {
             matches!(route, terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
                 requirement_identity: candidate,

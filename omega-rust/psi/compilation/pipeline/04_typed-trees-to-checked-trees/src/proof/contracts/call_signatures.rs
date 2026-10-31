@@ -3,6 +3,7 @@
 //! enough to own a named evidence lane. Retention copies the whole checked
 //! signature and grants neither provider selection nor normal completion.
 
+use crate::proof::proposition_vocabulary::fact_handles;
 use arena::{Arena, Handle};
 use checked_trees::{
     CallContractSignature, CheckedEvidenceTerm, ContractProofFact, ContractProofFactOwner,
@@ -184,9 +185,7 @@ pub(crate) fn owns_contract(
                         checked_trees::ContractProofFactKind::Ensures
                     )
                 );
-                same_kind
-                    && crate::proof::proposition_vocabulary::fact_handles(clause.facts)
-                        .any(|fact| fact == contract.fact)
+                same_kind && fact_handles(clause.facts).any(|fact| fact == contract.fact)
             })
 }
 

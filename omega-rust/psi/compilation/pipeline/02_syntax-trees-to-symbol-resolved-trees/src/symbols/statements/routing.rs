@@ -11,6 +11,7 @@ use crate::symbols::targets::{
     resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
+use symbol_resolved_trees::statement::TransitionGuard;
 
 pub(super) fn assign_local_type_symbols(
     machine: &MachineScope<'_>,
@@ -220,9 +221,7 @@ pub(super) fn assign_statement_symbols(
             }
         }
         symbol_resolved_trees::statement::Statement::Transition(transition) => {
-            if let symbol_resolved_trees::statement::TransitionGuard::When(expression) =
-                &mut transition.guard
-            {
+            if let TransitionGuard::When(expression) = &mut transition.guard {
                 assign_expr!(*expression);
             }
             assign_transition_target_symbols(

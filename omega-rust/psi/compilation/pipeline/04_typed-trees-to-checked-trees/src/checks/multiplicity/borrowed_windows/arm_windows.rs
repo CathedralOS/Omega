@@ -1,5 +1,9 @@
 //! arm windows slice of borrowed_windows.
 
+use super::super::owned_selection::reachable_arms;
+use crate::flow::DiscoveredMoveEvent;
+use crate::flow::FlowOwnershipEventSource;
+use crate::values::evaluate_closed_boolean_expression;
 use validation::CanonicalPlace;
 
 use super::{FrameWalk, StorageWalk, place_spelling};
@@ -47,7 +51,7 @@ pub(super) struct MatchWindowFrame {
 }
 
 /// What the event loop should do with one arm-attributed borrowed move.
-pub(in crate::checks::multiplicity) enum ArmWindowVerdict {
+pub(in super::super) enum ArmWindowVerdict {
     /// Every reachable arm of the enclosing match agrees on this absent
     /// place. The hole is recorded as pending and commits at the frame's own
     /// `Invoke` step — the join — so sibling arms' uses of the place still
@@ -72,7 +76,7 @@ pub(in crate::checks::multiplicity) enum ArmWindowVerdict {
 /// same absent storage places, including debts an agreeing nested match lifts
 /// into the arm that evaluates it. Disagreement keeps the plain rejection
 /// from the unconditional gate it replaces.
-pub(in crate::checks::multiplicity) struct ArmWindowPlan<'facts> {
+pub(in super::super) struct ArmWindowPlan<'facts> {
     captures: StorageSelectorFacts<'facts>,
     /// Every `match` in the statement, pre-order: an enclosing match's frame
     /// precedes the frames nested inside its arms.
@@ -125,7 +129,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// The walk mirrors `statement_steps`: subjects and patterns evaluate in
     /// the enclosing context, arm values in their arm, and short-circuit
     /// right operands stay conditional on both their edge and the statement.
-    pub(in crate::checks::multiplicity) fn new(
+    pub(in super::super) fn new(
         program: &dyn ::validation::CheckingInput,
         statement: &StatementNode,
         operators: &checked_trees::CheckedOperatorFacts,
@@ -174,11 +178,11 @@ impl<'facts> ArmWindowPlan<'facts> {
     }
 
     /// Whether the statement contains any `match` worth planning over.
-    pub(in crate::checks::multiplicity) fn has_frames(&self) -> bool {
+    pub(in super::super) fn has_frames(&self) -> bool {
         !self.frames.is_empty()
     }
 
-    pub(in crate::checks::multiplicity) fn has_edge_absent(&self) -> bool {
+    pub(in super::super) fn has_edge_absent(&self) -> bool {
         !self.edge_absent.is_empty()
     }
 
@@ -186,11 +190,11 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// place path that is neither the statement's production target nor a
     /// nominal-drop crossing. Unattributed events resolve through the
     /// expression→arm map (call-flow argument moves).
-    pub(in crate::checks::multiplicity) fn add_borrowed_move(
+    pub(in super::super) fn add_borrowed_move(
         &mut self,
         walk: &StorageWalk<'_>,
         statement_index: usize,
-        event: &crate::flow::DiscoveredMoveEvent,
+        event: &DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) {
         let arm = self.effective_arm(walk, event);
@@ -210,7 +214,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// chain (pre-order visits parents first); agreement runs innermost-first
     /// so each nested match contributes its agreed debt to the arm that
     /// evaluates it, and a nested disagreement poisons that arm.
-    pub(in crate::checks::multiplicity) fn seal(&mut self, walk: &StorageWalk<'_>) {
+    pub(in super::super) fn seal(&mut self, walk: &StorageWalk<'_>) {
         let count = self.frames.len();
         self.live = vec![false; count];
         for index in 0..count {
@@ -329,12 +333,12 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// arm's own edge immediately and stages the join-level window under its
     /// root frame's pending list; `commit_pending` drains it when the match's
     /// `Invoke` crosses, so a sibling arm's reads still see the place present.
-    pub(in crate::checks::multiplicity) fn verdict(
+    pub(in super::super) fn verdict(
         &mut self,
         walk: &StorageWalk<'_>,
         statement_index: usize,
         event_index: usize,
-        event: &crate::flow::DiscoveredMoveEvent,
+        event: &DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) -> Option<ArmWindowVerdict> {
         let arm = self.effective_arm(walk, event);
@@ -402,10 +406,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// `expression` is, returning their move event indices so the caller can
     /// run them through `open`. Nested frames' debts already live in the
     /// root's pending list, so one join commits the whole lifted set.
-    pub(in crate::checks::multiplicity) fn commit_pending(
-        &mut self,
-        expression: ExpressionHandle,
-    ) -> Vec<usize> {
+    pub(in super::super) fn commit_pending(&mut self, expression: ExpressionHandle) -> Vec<usize> {
         let key = expression_key(expression);
         let Some(root) = self.frames.iter().position(|frame| {
             !frame.enclosing_arm.is_valid() && expression_key(frame.expression) == key
@@ -446,7 +447,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// read inside an arm's edge while that edge's own extraction is absent.
     /// Sibling edges' holes never apply, and the join-level ledger entry
     /// exists only after the match commits.
-    pub(in crate::checks::multiplicity) fn check_edge_use(
+    pub(in super::super) fn check_edge_use(
         &self,
         walk: &StorageWalk<'_>,
         statement_index: usize,
@@ -487,7 +488,7 @@ impl<'facts> ArmWindowPlan<'facts> {
 
     /// Preserve each selected arm's open frontier at its own invocation.
     /// Sibling arms do not lend their holes to this evaluated occurrence.
-    pub(in crate::checks::multiplicity) fn record_edge_invocation(
+    pub(in super::super) fn record_edge_invocation(
         &self,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -524,18 +525,14 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// The arm this move evaluates on: the recorded `source_arm`, or — for
     /// call-flow events, which the discovery sink emits unattributed — the
     /// arm whose subtree contains the resolved call site.
-    fn effective_arm(
-        &self,
-        walk: &StorageWalk<'_>,
-        event: &crate::flow::DiscoveredMoveEvent,
-    ) -> ArmHandle {
+    fn effective_arm(&self, walk: &StorageWalk<'_>, event: &DiscoveredMoveEvent) -> ArmHandle {
         let program = walk.program;
         let machine = walk.machine;
         let state = walk.state;
         if event.source_arm.is_valid() {
             return event.source_arm;
         }
-        let crate::flow::FlowOwnershipEventSource::Call {
+        let FlowOwnershipEventSource::Call {
             statement_index,
             call_ordinal,
             ..
@@ -564,7 +561,7 @@ impl<'facts> ArmWindowPlan<'facts> {
     fn event_site_expression(
         &self,
         walk: &StorageWalk<'_>,
-        event: &crate::flow::DiscoveredMoveEvent,
+        event: &DiscoveredMoveEvent,
     ) -> ExpressionHandle {
         let program = walk.program;
         let machine = walk.machine;
@@ -572,7 +569,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         if event.expression.is_valid() {
             return event.expression;
         }
-        let crate::flow::FlowOwnershipEventSource::Call {
+        let FlowOwnershipEventSource::Call {
             statement_index,
             call_ordinal,
             ..
@@ -627,13 +624,10 @@ impl<'facts> ArmWindowPlan<'facts> {
                 self.frames.push(MatchWindowFrame {
                     expression,
                     arms: dispatch.arms,
-                    reachable: super::super::owned_selection::reachable_arms(
-                        program,
-                        dispatch.arms,
-                    )
-                    .into_iter()
-                    .map(|(handle, _)| handle)
-                    .collect(),
+                    reachable: reachable_arms(program, dispatch.arms)
+                        .into_iter()
+                        .map(|(handle, _)| handle)
+                        .collect(),
                     enclosing_arm,
                     conditional: statement_conditional,
                 });
@@ -678,12 +672,8 @@ impl<'facts> ArmWindowPlan<'facts> {
                 ) {
                     let evaluate_when =
                         binary.operator == typed_trees::expression::BinaryOperator::And;
-                    let left = crate::values::evaluate_closed_boolean_expression(
-                        program,
-                        operators,
-                        binary.left,
-                        &[],
-                    );
+                    let left =
+                        evaluate_closed_boolean_expression(program, operators, binary.left, &[]);
                     if left != Some(!evaluate_when) {
                         self.collect_frames(
                             frames,

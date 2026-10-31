@@ -51,9 +51,9 @@ use typed_trees::state::State;
 use typed_trees::statement::TransitionTargetHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use validation::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication,
+    ScopedArithmeticBinder as ArithmeticBinder, ScopedArithmeticBinding,
+    ScopedArithmeticExpression, ScopedArithmeticHypothesis as ArithmeticHypothesis,
+    ScopedArithmeticValue, StrictArithmeticImplicationJudgment, scoped_arithmetic_implication,
 };
 
 mod completions;
@@ -279,10 +279,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         symbol == header.symbol || (header.symbol == entry.symbol && symbol == machine.symbol)
     }
 
-    fn requirements(
-        &self,
-        bindings: Vec<ScopedArithmeticBinding>,
-    ) -> Vec<ScopedArithmeticHypothesis> {
+    fn requirements(&self, bindings: Vec<ScopedArithmeticBinding>) -> Vec<ArithmeticHypothesis> {
         self.requires
             .iter()
             .flat_map(|expression| self.hypothesis_parts(*expression, true))
@@ -292,7 +289,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
 
     fn proves(
         &self,
-        hypotheses: &[ScopedArithmeticHypothesis],
+        hypotheses: &[ArithmeticHypothesis],
         goal: &ScopedArithmeticExpression,
     ) -> bool {
         scoped_arithmetic_implication(self.program, self.machine, hypotheses, goal)
@@ -508,7 +505,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         parameters
             .iter()
             .map(|parameter| ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
+                binder: ArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Atom {
                     identity: format!("\0{scope}:{:?}", parameter.symbol),
                     unsigned: parameter.unsigned,
@@ -605,7 +602,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 }
                 if let Some(invocation) = formals
                     .iter()
-                    .find(|entry| entry.binder == ScopedArithmeticBinder::Symbol(*origin))
+                    .find(|entry| entry.binder == ArithmeticBinder::Symbol(*origin))
                 {
                     binding.value = invocation.value.clone();
                 }
@@ -631,7 +628,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                     .any(|bound| bound.symbol == parameter.symbol)
             })
             .map(|(parameter, argument)| ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
+                binder: ArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
                     owner: self.machine.symbol,
                     expression: *argument,
@@ -650,7 +647,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
     ) -> ScopedArithmeticExpression {
         let mut bindings = self.formal_roster();
         bindings.push(ScopedArithmeticBinding {
-            binder: ScopedArithmeticBinder::Result,
+            binder: ArithmeticBinder::Result,
             value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
                 owner: self.machine.symbol,
                 expression: candidate.returned,
@@ -669,8 +666,8 @@ impl<'program, 'facts> Header<'program, 'facts> {
         expression: ExpressionHandle,
         bindings: Vec<ScopedArithmeticBinding>,
         holds: bool,
-    ) -> ScopedArithmeticHypothesis {
-        ScopedArithmeticHypothesis {
+    ) -> ArithmeticHypothesis {
+        ArithmeticHypothesis {
             proposition: ScopedArithmeticExpression {
                 owner: self.machine.symbol,
                 expression,

@@ -3,6 +3,7 @@
 //! fields remain separate subjects. Ordinary tuple binding supplies substitution,
 //! and executable specialization never replaces the authored application.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
@@ -12,7 +13,7 @@ use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindin
 use typed_trees::type_identity::{IndexIdentityArgument, normalized_index_identity};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-fn declarations(program: &dyn crate::CheckingInput) -> impl Iterator<Item = &CleanupSelection> {
+fn declarations(program: &dyn CheckingInput) -> impl Iterator<Item = &CleanupSelection> {
     program
         .data_definitions()
         .iter()
@@ -32,22 +33,19 @@ fn declarations(program: &dyn crate::CheckingInput) -> impl Iterator<Item = &Cle
         )
 }
 
-fn target(program: &dyn crate::CheckingInput, selection: &CleanupSelection) -> SymbolHandle {
+fn target(program: &dyn CheckingInput, selection: &CleanupSelection) -> SymbolHandle {
     expression_table(program)
         .static_machine_application(selection.application)
         .registration_operation
 }
 
-pub(super) fn is_selected_machine(
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-) -> bool {
+pub(super) fn is_selected_machine(program: &dyn CheckingInput, machine: SymbolHandle) -> bool {
     declarations(program)
         .any(|selection| target(program, selection) == machine || selection.executable == machine)
 }
 
 pub(super) fn machine_for_selection<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     selection: &CleanupSelection,
 ) -> Option<&'program typed_trees::machine::Machine> {
     program.machine(if selection.executable.is_valid() {
@@ -58,7 +56,7 @@ pub(super) fn machine_for_selection<'program>(
 }
 
 pub(super) fn selected_application<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Result<Option<&'program CleanupSelection>, Diagnostic> {
     let mut selected = None;
@@ -67,7 +65,7 @@ pub(super) fn selected_application<'program>(
 }
 
 fn merge<'program>(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     selection: &'program CleanupSelection,
     selected: &mut Option<&'program CleanupSelection>,
 ) -> Result<(), Diagnostic> {
@@ -90,10 +88,7 @@ fn merge<'program>(
     Ok(())
 }
 
-fn binding_identity(
-    program: &dyn crate::CheckingInput,
-    binding: &StaticMachineBinding,
-) -> Option<String> {
+fn binding_identity(program: &dyn CheckingInput, binding: &StaticMachineBinding) -> Option<String> {
     let argument = match &binding.value {
         StaticMachineBindingValue::Type(reference)
         | StaticMachineBindingValue::Const(reference) => {
@@ -109,7 +104,7 @@ fn binding_identity(
 }
 
 pub(super) fn same_application(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     left: &CleanupSelection,
     right: &CleanupSelection,
 ) -> bool {
@@ -173,7 +168,7 @@ pub(super) fn same_application(
 }
 
 fn visit_type<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     reference: TypeReferenceHandle,
     domains: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     selected: &mut Option<&'program CleanupSelection>,
@@ -218,7 +213,7 @@ fn visit_type<'program>(
 }
 
 fn visit_domain<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     symbol: SymbolHandle,
     identity: Option<language_semantics::SemanticDomainId>,
     visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
@@ -274,7 +269,7 @@ fn visit_domain<'program>(
 /// Executable instances have exact subjects. An open generic template may
 /// serve several carriers; it has no distinguished first owner.
 pub(super) fn owner_for_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let mut owner = None;
@@ -291,7 +286,7 @@ pub(super) fn owner_for_machine(
 }
 
 pub(super) fn validate_declaration_owners(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for domain in program.domain_definitions() {

@@ -6,6 +6,7 @@
 //! byte owners retain their own capacity and live length. Exact fixed arrays,
 //! qualified or plain, use fixed-array establishment and never gain a hidden
 //! length from a domain.
+use crate::content_classes::plain_owned_with_represented_constraints;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
@@ -32,10 +33,7 @@ pub(crate) fn validate(
         if !shared_view
             && (crate::content_classes::bounded_byte_capacity(checked, authored.return_type)
                 .is_none()
-                || !crate::content_classes::plain_owned_with_represented_constraints(
-                    checked,
-                    authored.return_type,
-                ))
+                || !plain_owned_with_represented_constraints(checked, authored.return_type))
         {
             return unsupported("literal completion is not an owned bounded byte result");
         }

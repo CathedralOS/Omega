@@ -17,6 +17,7 @@ use super::{
 };
 use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
+use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -27,6 +28,7 @@ use crate::expression_preparation::computation_graph::fields;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
@@ -482,11 +484,7 @@ impl Expansion<'_> {
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 cleanup_actions: if slot.multiplicity == StructuralMultiplicity::Affine {
-                    vec![
-                        crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root(
-                            slot.place,
-                        ),
-                    ]
+                    vec![PreparedNormalCleanupAction::discard_root(slot.place)]
                 } else {
                     Vec::new()
                 },
@@ -571,10 +569,7 @@ pub(crate) fn emit(
             multiplicity: effect.multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-            claims: crate::emission::claim_bindings::emit_establishment_claims(
-                &effect.claims,
-                &mut calls.claims,
-            )?,
+            claims: emit_establishment_claims(&effect.claims, &mut calls.claims)?,
         }),
         if fields.is_empty() {
             // Payloadless cases remain pure tag establishments. Guarded exit

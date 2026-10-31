@@ -70,11 +70,8 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
         .collect::<Vec<_>>();
     // Substitution may copy an initializer after the pre-selection bind.
     // Rebind those copies before this ledger records a late call for the token.
-    crate::constant::initializer_dependencies::bind_named_implementation_const_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &const_roots,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])?;
+    bind_named_implementation_const_calls(&mut lowerer.symbol_resolved_trees, &const_roots)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     authored_selections::normalize_case_membership_facts(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_authored_proof_memberships,
@@ -118,19 +115,13 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
 /// work and routes conformance member requirement calls over those tables.
 pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let compatibility =
-        signature_free_requirements::validate_signature_free_requirement_compatibility(
-            &lowerer.symbol_resolved_trees,
-        );
+        validate_signature_free_requirement_compatibility(&lowerer.symbol_resolved_trees);
     if !compatibility.is_empty() {
         return Err(compatibility);
     }
-    machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
-        &mut lowerer.symbol_resolved_trees,
-    )?;
-    machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    normalize_nominal_machine_parameter_requirements(&mut lowerer.symbol_resolved_trees)?;
+    normalize_trait_machine_requirement_arguments(&mut lowerer.symbol_resolved_trees)
+        .map_err(|diagnostic| vec![diagnostic])?;
     evidence_forwardings::bind_evidence_forwarding_owners(&mut lowerer.symbol_resolved_trees);
     let (pending_machine_service_reaches, pending_signature_service_reaches) =
         lowerer.pending_service_reaches()?;
@@ -150,10 +141,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
             None => false,
         }
     });
-    authored_selections::finalize_conformance_reference_selections(
-        &mut lowerer.symbol_resolved_trees,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    finalize_conformance_reference_selections(&mut lowerer.symbol_resolved_trees)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let seed = lowerer.seed.take();
     domain_establishment::normalize_domain_establishment_routes(
         &mut lowerer.symbol_resolved_trees,
@@ -214,4 +203,9 @@ macro_rules! leaf_carrier_type_reference_pattern {
             | symbol_resolved_trees::types::TypeReference::Unit
     };
 }
+use crate::constant::initializer_dependencies::bind_named_implementation_const_calls;
+use authored_selections::finalize_conformance_reference_selections;
 pub(super) use leaf_carrier_type_reference_pattern;
+use machine_parameter_requirements::normalize_nominal_machine_parameter_requirements;
+use machine_parameter_requirements::normalize_trait_machine_requirement_arguments;
+use signature_free_requirements::validate_signature_free_requirement_compatibility;

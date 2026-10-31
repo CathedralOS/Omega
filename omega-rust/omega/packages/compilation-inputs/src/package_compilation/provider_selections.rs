@@ -21,6 +21,13 @@ impl PackageCompilationInputs {
                 continue;
             }
             self.admit_provider_activation(bundle)?;
+            for declaration in bundle.native_declarations() {
+                let anchor =
+                    self.admit_retained_product_declaration(bundle, &declaration.requirement)?;
+                if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
+                    paths.push(anchor.source().path.clone());
+                }
+            }
             for selection in bundle.provider_selections() {
                 for anchor in [&selection.subject, &selection.provider] {
                     let anchor = self.admit_retained_product_declaration(bundle, anchor)?;

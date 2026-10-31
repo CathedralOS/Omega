@@ -6,7 +6,8 @@ use crate::selected_form_encoding::saturating_forms::SaturatingForm;
 use crate::selected_form_encoding::trapping_forms::TrappingShape;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, SaturatingOperation, SelectedInstructionKind,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, SaturatingOperation,
+    SelectedInstructionKind as Kind,
 };
 
 /// Every encoder entrypoint first rejects a foreign register model — the
@@ -29,7 +30,7 @@ pub(crate) fn guard_canonical(
 pub(super) fn byte_loop_registers<const N: usize>(
     physical: &ValidatedPhysicalRegisterModel,
     requested: MachineAlternativeKey,
-    family: MachineAlternativeFamily,
+    family: Family,
     operands: &[RegisterViewId],
     preserved: usize,
 ) -> Result<[u8; N], X86_64SelectedFormEncodingError> {
@@ -50,7 +51,7 @@ pub(super) fn byte_loop_registers<const N: usize>(
 
 pub(crate) fn validate_request(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
@@ -66,225 +67,128 @@ pub(crate) fn validate_request(
 }
 
 fn family_and_operand_count(
-    kind: SelectedInstructionKind,
-) -> Result<
-    (
-        MachineAlternativeFamily,
-        usize,
-        std::ops::RangeInclusive<u32>,
-    ),
-    X86_64SelectedFormEncodingError,
-> {
+    kind: Kind,
+) -> Result<(Family, usize, std::ops::RangeInclusive<u32>), X86_64SelectedFormEncodingError> {
     Ok(match kind {
-        SelectedInstructionKind::RegisterAccess { operation } => (
+        Kind::RegisterAccess { operation } => (
             super::register_access::family(operation)?,
             operation.input_carriers().len() + usize::from(operation.produces_value()),
             0..=0,
         ),
-        SelectedInstructionKind::AccessorScalarAccess { form, .. } => (
-            MachineAlternativeFamily::AccessorScalarAccess(form),
-            2,
-            0..=0,
-        ),
-        SelectedInstructionKind::FloatResultPolicy { form } => (
-            MachineAlternativeFamily::FloatResultPolicy(form),
+        Kind::AccessorScalarAccess { form, .. } => (Family::AccessorScalarAccess(form), 2, 0..=0),
+        Kind::FloatResultPolicy { form } => (
+            Family::FloatResultPolicy(form),
             form.operand_count() + 1,
             0..=0,
         ),
-        SelectedInstructionKind::AtomicAccess { form } => (
-            MachineAlternativeFamily::AtomicAccess(form),
+        Kind::AtomicAccess { form } => (
+            Family::AtomicAccess(form),
             usize::from(form.operand_count()),
             0..=0,
         ),
         // Float arithmetic owns its request, encoding and decoding.
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => (
-            MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+        Kind::NearestIeeeFloatArithmetic { form } => (
+            Family::NearestIeeeFloatArithmetic(form),
             form.operand_count() + 1,
             0..=0,
         ),
-        SelectedInstructionKind::PortWrite { .. } => {
-            (MachineAlternativeFamily::PortWrite, 0, 0..=0)
-        }
-        SelectedInstructionKind::AtomicFence => (MachineAlternativeFamily::AtomicFence, 0, 0..=0),
-        SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0, 0..=0),
-        SelectedInstructionKind::CompareI64Zero => {
-            (MachineAlternativeFamily::CompareI64Zero, 1, 0..=0)
-        }
-        SelectedInstructionKind::CompareI64 => (MachineAlternativeFamily::CompareI64, 2, 0..=0),
-        SelectedInstructionKind::CompareI64Immediate { .. } => {
-            (MachineAlternativeFamily::CompareI64Immediate, 1, 0..=0)
-        }
+        Kind::PortWrite { .. } => (Family::PortWrite, 0, 0..=0),
+        Kind::AtomicFence => (Family::AtomicFence, 0, 0..=0),
+        Kind::Crash => (Family::Crash, 0, 0..=0),
+        Kind::CompareI64Zero => (Family::CompareI64Zero, 1, 0..=0),
+        Kind::CompareI64 => (Family::CompareI64, 2, 0..=0),
+        Kind::CompareI64Immediate { .. } => (Family::CompareI64Immediate, 1, 0..=0),
         // Variant 1 is the optimizer-selected `xor r64, r64` zero idiom.
-        SelectedInstructionKind::MaterializeI64 { .. } => {
-            (MachineAlternativeFamily::MaterializeI64, 1, 0..=1)
+        Kind::MaterializeI64 { .. } => (Family::MaterializeI64, 1, 0..=1),
+        Kind::ImageAddress { .. } => (Family::ImageAddress, 1, 0..=0),
+        Kind::CopyI64 => (Family::CopyI64, 2, 0..=0),
+        Kind::MaterializeBooleanEqual => (Family::MaterializeBooleanEqual, 1, 0..=0),
+        Kind::MaterializeBooleanU64LessThan => (Family::MaterializeBooleanU64LessThan, 1, 0..=0),
+        Kind::MaterializeBooleanI64LessThan => (Family::MaterializeBooleanI64LessThan, 1, 0..=0),
+        Kind::MaterializeBooleanU64LessOrEqual => {
+            (Family::MaterializeBooleanU64LessOrEqual, 1, 0..=0)
         }
-        SelectedInstructionKind::ImageAddress { .. } => {
-            (MachineAlternativeFamily::ImageAddress, 1, 0..=0)
+        Kind::MaterializeBooleanI64LessOrEqual => {
+            (Family::MaterializeBooleanI64LessOrEqual, 1, 0..=0)
         }
-        SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2, 0..=0),
-        SelectedInstructionKind::MaterializeBooleanEqual => {
-            (MachineAlternativeFamily::MaterializeBooleanEqual, 1, 0..=0)
-        }
-        SelectedInstructionKind::MaterializeBooleanU64LessThan => (
-            MachineAlternativeFamily::MaterializeBooleanU64LessThan,
-            1,
-            0..=0,
-        ),
-        SelectedInstructionKind::MaterializeBooleanI64LessThan => (
-            MachineAlternativeFamily::MaterializeBooleanI64LessThan,
-            1,
-            0..=0,
-        ),
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => (
-            MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
-            1,
-            0..=0,
-        ),
-        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (
-            MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
-            1,
-            0..=0,
-        ),
-        SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2, 0..=0),
-        SelectedInstructionKind::ZeroExtendU16 => {
-            (MachineAlternativeFamily::ZeroExtendU16, 2, 0..=0)
-        }
-        SelectedInstructionKind::SignExtendI8 => (MachineAlternativeFamily::SignExtendI8, 2, 0..=0),
-        SelectedInstructionKind::SignExtendI16 => {
-            (MachineAlternativeFamily::SignExtendI16, 2, 0..=0)
-        }
-        SelectedInstructionKind::SignExtendI32 => {
-            (MachineAlternativeFamily::SignExtendI32, 2, 0..=0)
-        }
-        SelectedInstructionKind::ZeroExtendU32 => {
-            (MachineAlternativeFamily::ZeroExtendU32, 2, 0..=0)
-        }
-        SelectedInstructionKind::ByteViewAddress => {
-            (MachineAlternativeFamily::ByteViewAddress, 3, 0..=0)
-        }
-        SelectedInstructionKind::ExactAddI64 { .. } => {
-            (MachineAlternativeFamily::ExactAddI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::WrappingAddI64 => {
-            (MachineAlternativeFamily::WrappingAddI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::BitwiseAndI64 => {
-            (MachineAlternativeFamily::BitwiseAndI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::BitwiseOrI64 => (MachineAlternativeFamily::BitwiseOrI64, 3, 0..=0),
-        SelectedInstructionKind::BitwiseNotI64 => {
-            (MachineAlternativeFamily::BitwiseNotI64, 2, 0..=0)
-        }
-        SelectedInstructionKind::ExactDivideU64 { .. } => {
-            (MachineAlternativeFamily::ExactDivideU64, 4, 0..=0)
-        }
-        SelectedInstructionKind::ExactRemainderU64 { .. } => {
-            (MachineAlternativeFamily::ExactRemainderU64, 4, 0..=0)
-        }
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
-            (MachineAlternativeFamily::WrappingRemainderI64, 4, 0..=0)
-        }
-        SelectedInstructionKind::WrappingDivideI64 { .. } => {
-            (MachineAlternativeFamily::WrappingDivideI64, 4, 0..=0)
-        }
-        SelectedInstructionKind::ExactDivideI64 { .. } => {
-            (MachineAlternativeFamily::ExactDivideI64, 4, 0..=0)
-        }
-        SelectedInstructionKind::ExactRemainderI64 { .. } => {
-            (MachineAlternativeFamily::ExactRemainderI64, 4, 0..=0)
-        }
+        Kind::ZeroExtendU8 => (Family::ZeroExtendU8, 2, 0..=0),
+        Kind::ZeroExtendU16 => (Family::ZeroExtendU16, 2, 0..=0),
+        Kind::SignExtendI8 => (Family::SignExtendI8, 2, 0..=0),
+        Kind::SignExtendI16 => (Family::SignExtendI16, 2, 0..=0),
+        Kind::SignExtendI32 => (Family::SignExtendI32, 2, 0..=0),
+        Kind::ZeroExtendU32 => (Family::ZeroExtendU32, 2, 0..=0),
+        Kind::ByteViewAddress => (Family::ByteViewAddress, 3, 0..=0),
+        Kind::ExactAddI64 { .. } => (Family::ExactAddI64, 3, 0..=0),
+        Kind::WrappingAddI64 => (Family::WrappingAddI64, 3, 0..=0),
+        Kind::BitwiseAndI64 => (Family::BitwiseAndI64, 3, 0..=0),
+        Kind::BitwiseOrI64 => (Family::BitwiseOrI64, 3, 0..=0),
+        Kind::BitwiseNotI64 => (Family::BitwiseNotI64, 2, 0..=0),
+        Kind::ExactDivideU64 { .. } => (Family::ExactDivideU64, 4, 0..=0),
+        Kind::ExactRemainderU64 { .. } => (Family::ExactRemainderU64, 4, 0..=0),
+        Kind::WrappingRemainderI64 { .. } => (Family::WrappingRemainderI64, 4, 0..=0),
+        Kind::WrappingDivideI64 { .. } => (Family::WrappingDivideI64, 4, 0..=0),
+        Kind::ExactDivideI64 { .. } => (Family::ExactDivideI64, 4, 0..=0),
+        Kind::ExactRemainderI64 { .. } => (Family::ExactRemainderI64, 4, 0..=0),
         // The carrier's realization shape fixes the operand count: the u64
         // add and every unsigned subtract are three-operand forms, everything
         // else carries the early-clobber scratch or the fixed RDX input.
-        SelectedInstructionKind::SaturatingAdd { carrier } => (
-            MachineAlternativeFamily::SaturatingAdd(carrier),
+        Kind::SaturatingAdd { carrier } => (
+            Family::SaturatingAdd(carrier),
             SaturatingForm::of(SaturatingOperation::Add, carrier).operand_count(),
             0..=0,
         ),
-        SelectedInstructionKind::SaturatingSubtract { carrier } => (
-            MachineAlternativeFamily::SaturatingSubtract(carrier),
+        Kind::SaturatingSubtract { carrier } => (
+            Family::SaturatingSubtract(carrier),
             SaturatingForm::of(SaturatingOperation::Subtract, carrier).operand_count(),
             0..=0,
         ),
-        SelectedInstructionKind::SaturatingDivide { carrier, .. } => (
-            MachineAlternativeFamily::SaturatingDivide(carrier),
+        Kind::SaturatingDivide { carrier, .. } => (
+            Family::SaturatingDivide(carrier),
             SaturatingForm::of(SaturatingOperation::Divide, carrier).operand_count(),
             0..=0,
         ),
-        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => (
-            MachineAlternativeFamily::SaturatingRemainder(carrier),
+        Kind::SaturatingRemainder { carrier, .. } => (
+            Family::SaturatingRemainder(carrier),
             SaturatingForm::of(SaturatingOperation::Remainder, carrier).operand_count(),
             0..=0,
         ),
-        SelectedInstructionKind::SaturatingMultiply { carrier } => (
-            MachineAlternativeFamily::SaturatingMultiply(carrier),
+        Kind::SaturatingMultiply { carrier } => (
+            Family::SaturatingMultiply(carrier),
             SaturatingForm::of(SaturatingOperation::Multiply, carrier).operand_count(),
             0..=0,
         ),
         // A Trapping form's row fixes its operand count: the conversions read
         // one input, every other form two, and each defines a result and a
         // scratch (RDX on the fixed divide row).
-        SelectedInstructionKind::TrappingInteger { form } => (
-            MachineAlternativeFamily::TrappingInteger(form),
+        Kind::TrappingInteger { form } => (
+            Family::TrappingInteger(form),
             TrappingShape::of(form).operand_count(),
             0..=0,
         ),
-        SelectedInstructionKind::BitwiseXorI64 => {
-            (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => {
-            (MachineAlternativeFamily::ExactSubtractI64, 3, 0..=3)
-        }
-        SelectedInstructionKind::WrappingSubtractI64 => {
-            (MachineAlternativeFamily::WrappingSubtractI64, 3, 0..=3)
-        }
-        SelectedInstructionKind::ExactMultiplyI64 { .. } => {
-            (MachineAlternativeFamily::ExactMultiplyI64, 3, 0..=3)
-        }
-        SelectedInstructionKind::WrappingMultiplyI64 => {
-            (MachineAlternativeFamily::WrappingMultiplyI64, 3, 0..=3)
-        }
+        Kind::BitwiseXorI64 => (Family::BitwiseXorI64, 3, 0..=0),
+        Kind::ExactSubtractI64 { .. } => (Family::ExactSubtractI64, 3, 0..=3),
+        Kind::WrappingSubtractI64 => (Family::WrappingSubtractI64, 3, 0..=3),
+        Kind::ExactMultiplyI64 { .. } => (Family::ExactMultiplyI64, 3, 0..=3),
+        Kind::WrappingMultiplyI64 => (Family::WrappingMultiplyI64, 3, 0..=3),
         // The pinned-CL realization has a single register form: the
         // early-clobber result is always copied from the value before the
         // variable-count shift executes.
-        SelectedInstructionKind::WrappingShiftLeftI64 => {
-            (MachineAlternativeFamily::WrappingShiftLeftI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::WrappingShiftRightI64 => {
-            (MachineAlternativeFamily::WrappingShiftRightI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::WrappingShiftRightU64 => {
-            (MachineAlternativeFamily::WrappingShiftRightU64, 3, 0..=0)
-        }
-        SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
-            (MachineAlternativeFamily::ExactShiftLeftI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::ExactShiftRightI64 { .. } => {
-            (MachineAlternativeFamily::ExactShiftRightI64, 3, 0..=0)
-        }
-        SelectedInstructionKind::ExactShiftRightU64 { .. } => {
-            (MachineAlternativeFamily::ExactShiftRightU64, 3, 0..=0)
-        }
-        SelectedInstructionKind::ExactAddI64Immediate { .. } => {
-            (MachineAlternativeFamily::ExactAddI64Immediate, 2, 0..=0)
-        }
-        SelectedInstructionKind::ExactSubtractI64Immediate { .. } => (
-            MachineAlternativeFamily::ExactSubtractI64Immediate,
-            2,
-            0..=0,
-        ),
-        SelectedInstructionKind::ReturnScalar => (MachineAlternativeFamily::ReturnScalar, 1, 0..=0),
-        SelectedInstructionKind::ReturnAggregate { fragment_count } => {
+        Kind::WrappingShiftLeftI64 => (Family::WrappingShiftLeftI64, 3, 0..=0),
+        Kind::WrappingShiftRightI64 => (Family::WrappingShiftRightI64, 3, 0..=0),
+        Kind::WrappingShiftRightU64 => (Family::WrappingShiftRightU64, 3, 0..=0),
+        Kind::ExactShiftLeftI64 { .. } => (Family::ExactShiftLeftI64, 3, 0..=0),
+        Kind::ExactShiftRightI64 { .. } => (Family::ExactShiftRightI64, 3, 0..=0),
+        Kind::ExactShiftRightU64 { .. } => (Family::ExactShiftRightU64, 3, 0..=0),
+        Kind::ExactAddI64Immediate { .. } => (Family::ExactAddI64Immediate, 2, 0..=0),
+        Kind::ExactSubtractI64Immediate { .. } => (Family::ExactSubtractI64Immediate, 2, 0..=0),
+        Kind::ReturnScalar => (Family::ReturnScalar, 1, 0..=0),
+        Kind::ReturnAggregate { fragment_count } => {
             if !(1..=2).contains(&fragment_count) {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            (
-                MachineAlternativeFamily::ReturnAggregate,
-                usize::from(fragment_count),
-                0..=0,
-            )
+            (Family::ReturnAggregate, usize::from(fragment_count), 0..=0)
         }
-        SelectedInstructionKind::ReturnUnit => (MachineAlternativeFamily::ReturnUnit, 0, 0..=0),
+        Kind::ReturnUnit => (Family::ReturnUnit, 0, 0..=0),
         selected_instructions::layout_dependent_selected_transfers!()
         | selected_instructions::dedicated_selected_forms!() => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
@@ -293,13 +197,13 @@ fn family_and_operand_count(
 }
 
 pub(crate) fn validate_return_home(
-    kind: SelectedInstructionKind,
+    kind: Kind,
     registers: &[u8],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if matches!(kind, SelectedInstructionKind::ReturnScalar) && registers != [0] {
+    if matches!(kind, Kind::ReturnScalar) && registers != [0] {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    if let SelectedInstructionKind::ReturnAggregate { fragment_count } = kind
+    if let Kind::ReturnAggregate { fragment_count } = kind
         && (!(1..=2).contains(&fragment_count)
             || registers != &[0, 2][..usize::from(fragment_count)])
     {
@@ -310,12 +214,12 @@ pub(crate) fn validate_return_home(
 
 pub(crate) fn resolve_scalar_registers(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     operands: &[RegisterViewId],
 ) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
     // RET does not encode the returned register. The exact constraint row
     // retains its ABI class; accept only the canonical floating result home.
-    if kind == SelectedInstructionKind::ReturnScalar
+    if kind == Kind::ReturnScalar
         && physical
             .model()
             .view_named("xmm0")
@@ -357,16 +261,16 @@ pub(crate) fn resolve_registers(
 }
 
 pub(crate) fn validate_alias_partition(
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     registers: &[u8],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     if !matches!(
         kind,
-        SelectedInstructionKind::ExactSubtractI64 { .. }
-            | SelectedInstructionKind::WrappingSubtractI64
-            | SelectedInstructionKind::ExactMultiplyI64 { .. }
-            | SelectedInstructionKind::WrappingMultiplyI64
+        Kind::ExactSubtractI64 { .. }
+            | Kind::WrappingSubtractI64
+            | Kind::ExactMultiplyI64 { .. }
+            | Kind::WrappingMultiplyI64
     ) {
         return Ok(());
     }

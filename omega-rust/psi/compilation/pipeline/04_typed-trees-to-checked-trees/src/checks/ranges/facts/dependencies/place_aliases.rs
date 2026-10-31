@@ -8,18 +8,27 @@
 //! Once reanchored, the reference depends on its own captured descriptor and
 //! descendant selectors, not the variables that selected its original root.
 
+use super::captures::integer_value_identity;
 use super::{ExpressionDependencies, reads};
 use crate::checks::ranges::RangeFacts;
 use crate::flow::expressions;
 use crate::places::place_at;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::{machine::Machine, state::State};
+use validation::CheckingInput;
+use validation::collection_length_receiver;
+use validation::place_has_builtin_coordinates;
+use validation::place_root_may_be_symbol;
+use validation::single_segment_name_symbol;
+use validation::whole_collection_view_source;
 
 impl RangeFacts<'_> {
     pub(in crate::checks::ranges) fn alias_place_facts(
         &mut self,
-        program: &dyn validation::CheckingInput,
+        program: &dyn CheckingInput,
         machine: &Machine,
         state: &State,
         captured: ExpressionHandle,
@@ -27,16 +36,15 @@ impl RangeFacts<'_> {
     ) {
         if !symbol.is_valid()
             || self.expression_dependencies.is_empty()
-            || !validation::place_has_builtin_coordinates(program, machine, Some(state), captured)
+            || !place_has_builtin_coordinates(program, machine, Some(state), captured)
         {
             return;
         }
         // A builtin whole view preserves the source coordinates. Resolve that
         // geometry at capture, before adjoining future destination projections;
         // a range selector is not an additional element dimension.
-        let captured =
-            validation::whole_collection_view_source(program, machine, Some(state), captured)
-                .unwrap_or(captured);
+        let captured = whole_collection_view_source(program, machine, Some(state), captured)
+            .unwrap_or(captured);
         let Some(source) = place_at(program, state.symbol, self.statement_index, captured)
             .and_then(|place| {
                 crate::flow::rebase_exact_local_place(
@@ -50,7 +58,7 @@ impl RangeFacts<'_> {
         else {
             return;
         };
-        if !matches!(source.root, facts::PlaceRoot::Symbol(root) if root.is_valid()) {
+        if !matches!(source.root, PlaceRoot::Symbol(root) if root.is_valid()) {
             return;
         }
         let transferable = self.preserved_expression_labels(program, machine, state, Some(&[]));
@@ -61,13 +69,9 @@ impl RangeFacts<'_> {
             .filter(|original| transferable.contains(&original.label))
             .filter_map(|original| {
                 // Extent facts name the descriptor, not its `.len` projection.
-                let subject = validation::collection_length_receiver(
-                    program,
-                    machine,
-                    Some(state),
-                    original.expression,
-                )
-                .unwrap_or(original.expression);
+                let subject =
+                    collection_length_receiver(program, machine, Some(state), original.expression)
+                        .unwrap_or(original.expression);
                 let original_place = place_at(program, state.symbol, self.statement_index, subject)
                     .and_then(|place| {
                         crate::flow::rebase_exact_local_place(
@@ -91,19 +95,14 @@ impl RangeFacts<'_> {
             // Stray hoisting nodes outside any statement still publish
             // label-keyed facts, so the walk stays whole-table; only places
             // that cannot root at `symbol` skip contextual resolution.
-            if !validation::place_root_may_be_symbol(program, expression, symbol) {
+            if !place_root_may_be_symbol(program, expression, symbol) {
                 continue;
             }
             let Some(candidate) = place_at(program, state.symbol, prefix, expression) else {
                 continue;
             };
-            if candidate.root != facts::PlaceRoot::Symbol(symbol)
-                || !validation::place_has_builtin_coordinates(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
+            if candidate.root != PlaceRoot::Symbol(symbol)
+                || !place_has_builtin_coordinates(program, machine, Some(state), expression)
             {
                 continue;
             }
@@ -119,8 +118,8 @@ impl RangeFacts<'_> {
                     && original_place.segments.iter().zip(&rebased.segments).all(
                         |(left, right)| {
                             if let (
-                                facts::PlaceSegment::Index { expression: left },
-                                facts::PlaceSegment::Index { expression: right },
+                                PlaceSegment::Index { expression: left },
+                                PlaceSegment::Index { expression: right },
                             ) = (left, right)
                             {
                                 let left =
@@ -131,20 +130,16 @@ impl RangeFacts<'_> {
                                 {
                                     return true;
                                 }
-                                let same_value = super::captures::integer_value_identity(
-                                    program,
-                                    bound_lookup,
-                                    state,
-                                    left,
-                                )
-                                .is_some_and(|value| {
-                                    super::captures::integer_value_identity(
-                                        program,
-                                        bound_lookup,
-                                        state,
-                                        right,
-                                    ) == Some(value)
-                                });
+                                let same_value =
+                                    integer_value_identity(program, bound_lookup, state, left)
+                                        .is_some_and(|value| {
+                                            integer_value_identity(
+                                                program,
+                                                bound_lookup,
+                                                state,
+                                                right,
+                                            ) == Some(value)
+                                        });
                                 uses_frozen_selector |= same_value;
                                 same_value
                             } else {
@@ -207,19 +202,19 @@ impl RangeFacts<'_> {
     /// initializer after writes or guesses a selector from its rendered name.
     fn current_scalar_observation(
         &self,
-        program: &dyn validation::CheckingInput,
+        program: &dyn CheckingInput,
         machine: &Machine,
         state: &State,
         mut expression: ExpressionHandle,
     ) -> ExpressionHandle {
         for _ in 0..super::EXPRESSION_WALK_DEPTH_BOUND {
-            let Some(symbol) = validation::single_segment_name_symbol(program, expression) else {
+            let Some(symbol) = single_segment_name_symbol(program, expression) else {
                 break;
             };
             let Some(value) = self.scalar_binding_dependencies.iter().find_map(|row| {
                 (row.machine == machine.symbol
                     && row.state == state.symbol
-                    && row.place.root == facts::PlaceRoot::Symbol(symbol)
+                    && row.place.root == PlaceRoot::Symbol(symbol)
                     && row.place.segments.is_empty())
                 .then_some(row.value.as_ref())
                 .flatten()

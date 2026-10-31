@@ -1,0 +1,5 @@
+module clock;
+public boundary trait Clock { machine sleep(milliseconds: u32) -> i32 reaches; }
+public DependencyClock satisfies Clock {
+    machine sleep(milliseconds: u32) -> i32 reaches { 17 }
+}

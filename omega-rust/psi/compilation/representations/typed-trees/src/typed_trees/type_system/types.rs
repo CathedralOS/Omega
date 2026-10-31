@@ -8,6 +8,7 @@ use crate::name::Identifier;
 use crate::typed_trees::remapped;
 
 mod copies;
+use crate::expression::ExpressionHandle;
 pub use copies::TypeExpressionCopy;
 mod display;
 mod substitution;
@@ -625,9 +626,7 @@ impl TypeReferenceTable {
     /// Every proof-static open index expression retained in type position.
     /// Callers use the node handle to scope specialization rewrites to newly
     /// cloned type-reference regions without scanning diagnostic renderings.
-    pub fn const_expression_sites(
-        &self,
-    ) -> Vec<(TypeReferenceHandle, crate::expression::ExpressionHandle)> {
+    pub fn const_expression_sites(&self) -> Vec<(TypeReferenceHandle, ExpressionHandle)> {
         self.type_references
             .iter()
             .filter_map(|(handle, node)| match node {
@@ -1026,7 +1025,7 @@ pub enum TypeReferenceNode {
     /// A PDI3 proof-static expression over const binders. The expression is
     /// erased with its enclosing domain constraint but retains resolved names
     /// and selected-operation evidence for semantic identity and checking.
-    ConstExpression(crate::expression::ExpressionHandle),
+    ConstExpression(ExpressionHandle),
     /// `dyn Trait<Args>`: a runtime selector of one named implementation of
     /// this exact trait application. It packages no data instance; calls
     /// supply every data value as an ordinary argument.
@@ -1186,8 +1185,8 @@ impl TypeReferenceNode {
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
-        minimum: crate::expression::ExpressionHandle,
-        maximum: crate::expression::ExpressionHandle,
+        minimum: ExpressionHandle,
+        maximum: ExpressionHandle,
         /// Describes the authored endpoint, not an already-subtracted value.
         /// Normalize exclusive ends in proof integers after checking them.
         end_inclusive: bool,

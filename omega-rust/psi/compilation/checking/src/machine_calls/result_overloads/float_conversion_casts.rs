@@ -45,7 +45,9 @@
 //! realization then see the same exact selection an explicitly spelled
 //! `I32::from_f64(value)` in that position would carry.
 
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
+use language_semantics::CallOperationalAcknowledgement;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
 };
@@ -117,12 +119,10 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
                     evidence_arguments: Box::default(),
                     // The authored cast selects this conversion; its span carries
                     // the Call selection recorded above, exactly one per call.
-                    operational_acknowledgement:
-                        language_semantics::CallOperationalAcknowledgement {
-                            origin:
-                                language_semantics::CallOperationalAcknowledgementOrigin::Source,
-                            ..Default::default()
-                        },
+                    operational_acknowledgement: CallOperationalAcknowledgement {
+                        origin: language_semantics::CallOperationalAcknowledgementOrigin::Source,
+                        ..Default::default()
+                    },
                 }));
         program
             .expression_table
@@ -147,9 +147,7 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
     }
 }
 
-fn collect_conversion_cast_bindings(
-    program: &dyn crate::CheckingInput,
-) -> Vec<ConversionCastBinding> {
+fn collect_conversion_cast_bindings(program: &dyn CheckingInput) -> Vec<ConversionCastBinding> {
     let mut bindings = Vec::new();
     let mut visited = Vec::new();
     for machine in program.machines() {
@@ -174,7 +172,7 @@ fn collect_conversion_cast_bindings(
 }
 
 fn collect_expression_bindings(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -214,7 +212,7 @@ fn collect_expression_bindings(
 /// The one visible conversion overload a supported numeric cast
 /// selects, with the requirement's final path member for the call spelling.
 fn selected_conversion(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

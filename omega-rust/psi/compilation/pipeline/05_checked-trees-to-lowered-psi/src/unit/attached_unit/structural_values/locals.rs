@@ -1,5 +1,7 @@
 //! Publish a source local only after its exact initializer result exists.
 use super::super::CheckedUnitEffectOperationPlan;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use checked_trees::CheckedArrayConstructionSource;
 
 /// Bind only the local whose initializer owns this exact published result.
@@ -12,7 +14,7 @@ pub(crate) fn local_binding(
     declaration: terminal_psi::StructuralPlaceDeclaration,
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<crate::expression_preparation::bindings::StructuralLocalBinding> {
+) -> Option<StructuralLocalBinding> {
     let result = match operation {
         CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
@@ -37,35 +39,31 @@ pub(crate) fn local_binding(
     // Every readable returned reference publishes the same exact local-to-place
     // join. Its binding custody distinguishes shared from mutable permission;
     // omitting shared carriers makes later computations lose their live source.
-    let borrowed_access =
-        (local.access != checked_trees::CheckedStructuralAccess::Owned).then(|| {
-            crate::expression_preparation::bindings::structural_paths::terminal_access(local.access)
-        });
+    let borrowed_access = (local.access != checked_trees::CheckedStructuralAccess::Owned)
+        .then(|| terminal_access(local.access));
     // Source checking and call emission already established this exact result.
     // Its local binding is independent of cleanup multiplicity or the kinds of
     // fields it contains. Reclassifying the type here omits otherwise valid
     // owners (for example a record carrying shared descriptors), leaving later
     // observations without the home the call actually produced.
-    Some(
-        crate::expression_preparation::bindings::StructuralLocalBinding {
-            result_binding_ordinal: Some(result.binding_ordinal),
-            root: facts::PlaceRoot::Symbol(local.symbol),
-            structural_type,
-            argument: terminal_psi::StructuralArgument {
-                place: declaration.id,
-                access: if structural_types.iter().any(|declaration| {
-                    declaration.id == structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::Reference { .. }
-                        )
-                }) {
-                    terminal_psi::StructuralAccess::Owned
-                } else {
-                    borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned)
-                },
-                path: Vec::new(),
+    Some(StructuralLocalBinding {
+        result_binding_ordinal: Some(result.binding_ordinal),
+        root: facts::PlaceRoot::Symbol(local.symbol),
+        structural_type,
+        argument: terminal_psi::StructuralArgument {
+            place: declaration.id,
+            access: if structural_types.iter().any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference { .. }
+                    )
+            }) {
+                terminal_psi::StructuralAccess::Owned
+            } else {
+                borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned)
             },
+            path: Vec::new(),
         },
-    )
+    })
 }

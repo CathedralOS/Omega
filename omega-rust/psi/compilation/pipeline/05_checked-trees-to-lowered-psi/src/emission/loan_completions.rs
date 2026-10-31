@@ -10,6 +10,7 @@ use crate::emission::operation_emission::buffer::{
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedTrees;
 use language_semantics::{PermissionClaimIdentity, PermissionEventKind, PermissionEventSource};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -312,11 +313,8 @@ pub(crate) fn emit(
         let mut qualifications = Vec::new();
         let mut projected_qualifications = Vec::new();
         for (semantic_domain, path, carrier) in &completion.qualifications {
-            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
-                calls.domain_ids,
-                *semantic_domain,
-                *carrier,
-            )?;
+            let domain =
+                lookup_domain_id_for_carrier(calls.domain_ids, *semantic_domain, *carrier)?;
             if path.is_empty() {
                 qualifications.push(domain);
             } else {

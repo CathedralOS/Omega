@@ -9,6 +9,11 @@ use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
+use numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE;
+use numerics::float_projection::FloatProjectionOperation;
+use std::path::Path;
+use syntax::types::TypeReferenceNode;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_operator_definition(
@@ -95,9 +100,7 @@ pub(crate) fn lower_bare_bodyless_signature(
                         .path
                         .strip_prefix(&file.package_root)
                         .ok()
-                        .is_some_and(|relative| {
-                            relative == std::path::Path::new(family.sealed_source())
-                        })
+                        .is_some_and(|relative| relative == Path::new(family.sealed_source()))
             })
     });
     let Some(family) = family.filter(|_| sealed_source) else {
@@ -198,16 +201,10 @@ enum CatalogFamily {
 
 impl CatalogFamily {
     fn naming(namespace: &str, leaf: &str) -> Option<Self> {
-        if namespace == language_core::atomic::ATOMIC_FENCE_NAMESPACE
-            && leaf == language_core::atomic::ATOMIC_FENCE_NAME
-        {
+        if namespace == ATOMIC_FENCE_NAMESPACE && leaf == language_core::atomic::ATOMIC_FENCE_NAME {
             return Some(Self::AtomicFence);
         }
-        if numerics::float_projection::FloatProjectionOperation::from_source_identity(
-            namespace, leaf,
-        )
-        .is_some()
-        {
+        if FloatProjectionOperation::from_source_identity(namespace, leaf).is_some() {
             return Some(Self::FloatProjection);
         }
         if numerics::float_semantics_catalog::FloatSemanticOperation::names_a_row(namespace, leaf) {
@@ -220,9 +217,7 @@ impl CatalogFamily {
     fn sealed_source(self) -> &'static str {
         match self {
             Self::AtomicFence => language_core::atomic::ATOMIC_CORE_SOURCE,
-            Self::FloatProjection | Self::FloatSemantics => {
-                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE
-            }
+            Self::FloatProjection | Self::FloatSemantics => FLOAT_PROJECTION_CORE_SOURCE,
             Self::RankingView(declaration) => declaration.source,
         }
     }
@@ -259,9 +254,7 @@ fn require_exact_ranking_view_row(
         .type_references
         .type_reference(handle)
     {
-        syntax::types::TypeReferenceNode::Named(identifier) => {
-            Some(identifier.as_str(syntax_trees))
-        }
+        TypeReferenceNode::Named(identifier) => Some(identifier.as_str(syntax_trees)),
         _ => None,
     };
     let [parameter] = syntax_trees.items.state_parameters(entry.parameters) else {
@@ -321,16 +314,15 @@ fn require_exact_semantic_row(
         .type_references
         .type_reference(handle)
     {
-        syntax::types::TypeReferenceNode::Named(identifier) => {
-            FloatSemanticValueKind::from_spelling(identifier.as_str(syntax_trees)).ok_or_else(
-                || {
-                    drift(format!(
-                        "{position} type `{}` is not a catalog value kind",
-                        identifier.as_str(syntax_trees)
-                    ))
-                },
-            )
-        }
+        TypeReferenceNode::Named(identifier) => FloatSemanticValueKind::from_spelling(
+            identifier.as_str(syntax_trees),
+        )
+        .ok_or_else(|| {
+            drift(format!(
+                "{position} type `{}` is not a catalog value kind",
+                identifier.as_str(syntax_trees)
+            ))
+        }),
         _ => Err(drift(format!(
             "{position} type is not a named catalog value kind"
         ))),
@@ -380,7 +372,7 @@ fn require_exact_atomic_fence_row(
                 && !parameter.is_mutable
                 && !parameter.relevance.is_erased()
                 && matches!(syntax_trees.tables.type_references.type_reference(parameter.type_reference),
-                    syntax::types::TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == "FenceOrdering")
+                    TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == "FenceOrdering")
         }
         _ => false,
     };

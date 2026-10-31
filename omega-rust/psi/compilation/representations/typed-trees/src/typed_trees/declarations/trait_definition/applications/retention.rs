@@ -9,6 +9,7 @@ use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
 use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::static_applications::StaticMachineLifetimeBinding;
+use crate::type_identity;
 use crate::typed_trees::CallableSubstitution;
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
@@ -61,7 +62,7 @@ impl TraitApplicationEnvironment {
         preceding_frames: usize,
         name: &str,
         lexical_owner: SymbolHandle,
-    ) -> Option<(crate::type_identity::LifetimeParameterIdentity, bool)> {
+    ) -> Option<(type_identity::LifetimeParameterIdentity, bool)> {
         let scope = self.scope(program)?;
         scope.with_identity_scopes(program, |frames| {
             let mut visible = frames.get(..preceding_frames)?;
@@ -77,12 +78,9 @@ impl TraitApplicationEnvironment {
                 // A reference in an owned row can name its map's region.
                 // Match the actual declaring telescope, respecting any local
                 // shadow, before choosing the visible application prefix.
-                let region_owner = crate::type_identity::lifetime_parameter_identity(
-                    program,
-                    retained_owner,
-                    name,
-                )?
-                .declaration;
+                let region_owner =
+                    type_identity::lifetime_parameter_identity(program, retained_owner, name)?
+                        .declaration;
                 let frame = visible.iter().rposition(|frame| {
                     program.lifetime_declaration_owner(frame.declaration)
                         == program.lifetime_declaration_owner(region_owner)
@@ -92,7 +90,7 @@ impl TraitApplicationEnvironment {
                     // The retained owner selects the receiving telescope.
                     // Its actual region operands still belong to the original
                     // supplier, rather than to the map being instantiated.
-                    return crate::type_identity::applied_lifetime_parameter_identity_with_supplier(
+                    return type_identity::applied_lifetime_parameter_identity_with_supplier(
                         program,
                         retained_owner,
                         self.argument_owner,
@@ -106,7 +104,7 @@ impl TraitApplicationEnvironment {
             } else {
                 self.argument_owner
             };
-            crate::type_identity::applied_lifetime_parameter_identity_with_supplier(
+            type_identity::applied_lifetime_parameter_identity_with_supplier(
                 program,
                 owner,
                 self.argument_owner,
@@ -122,12 +120,12 @@ impl TraitApplicationEnvironment {
     pub(crate) fn resolved_lifetime_identity(
         &self,
         program: &TypedTrees,
-        region: crate::type_identity::LifetimeParameterIdentity,
+        region: type_identity::LifetimeParameterIdentity,
         preceding_frames: usize,
-    ) -> Option<(crate::type_identity::LifetimeParameterIdentity, bool)> {
+    ) -> Option<(type_identity::LifetimeParameterIdentity, bool)> {
         let scope = self.scope(program)?;
         scope.with_identity_scopes(program, |frames| {
-            crate::type_identity::apply_resolved_lifetime_parameter_identity(
+            type_identity::apply_resolved_lifetime_parameter_identity(
                 program,
                 region,
                 self.argument_owner,

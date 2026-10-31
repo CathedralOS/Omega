@@ -4,6 +4,7 @@ use super::super::semantics::declarations::{
 use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewProgressPremise, PackageReviewTermination};
 use diagnostics::Diagnostic;
+use language_semantics::TerminationGuarantee;
 use typed_trees::signature::StateSignature;
 
 pub(crate) fn project_trait_requirement_termination(
@@ -38,9 +39,7 @@ fn project_public_signature_termination(
     signature: &StateSignature,
     subject: &str,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
-    let language_semantics::TerminationGuarantee::Terminates { premises } =
-        &signature.termination_guarantee
-    else {
+    let TerminationGuarantee::Terminates { premises } = &signature.termination_guarantee else {
         return Ok(PackageReviewTermination::NoGuarantee);
     };
     let parameters = compilation.state_signature_parameters(signature);

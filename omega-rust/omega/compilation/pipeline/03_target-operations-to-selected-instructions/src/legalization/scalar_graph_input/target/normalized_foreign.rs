@@ -16,6 +16,7 @@
 //! The boundary declaration's parameter order is the authority for interleaving
 //! scalar values and referent pointers; callback slots offset that order only
 //! at the native boundary. Reconstruct both shapes and placements in that order.
+use super::super::normalized_foreign::{native_callbacks_at, result_at, structural_argument_at};
 use super::super::scalar_shape;
 use super::{
     AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetUnitOperation,
@@ -88,11 +89,7 @@ pub(super) fn validate(
     // Structural transport uses the evaluated plan's ordered parameter rows.
     // The signature for plan revalidation is the computed destination shapes,
     // matching the producer's own derivation.
-    let callbacks = super::super::normalized_foreign::native_callbacks_at(
-        native,
-        *psi_operation,
-        &binding.boundary_entry_plan,
-    )?;
+    let callbacks = native_callbacks_at(native, *psi_operation, &binding.boundary_entry_plan)?;
     // Only parameter-destination callbacks occupy a private plan slot and
     // shift authored positions; field destinations live inside the record a
     // real argument already names, so they mint no plan operand.
@@ -121,7 +118,7 @@ pub(super) fn validate(
                         .iter()
                         .filter(|ordinal| **ordinal <= semantic_position)
                         .count();
-                super::super::normalized_foreign::structural_argument_at(
+                structural_argument_at(
                     semantic,
                     index,
                     declaration_parameter,
@@ -142,7 +139,7 @@ pub(super) fn validate(
             },
         )
         .collect::<Result<Vec<_>, LegalizationError>>()?;
-    let (expected_result, result_shape) = super::super::normalized_foreign::result_at(
+    let (expected_result, result_shape) = result_at(
         result,
         &declaration.result,
         *psi_operation,

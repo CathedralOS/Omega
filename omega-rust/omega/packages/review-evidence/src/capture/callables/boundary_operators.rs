@@ -2,6 +2,9 @@ use super::external_supply::external_binding_matches_provider_binding;
 use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
 use diagnostics::Diagnostic;
+use provider_planning::ProviderRowRealization;
+use provider_planning::ProviderSchemaDeclaration;
+use typed_trees::operator::boundary_operator_requirement_identity;
 
 /// The singleton members a boundary-operator plan must carry: exactly one
 /// schema method, one realization row, and one requirement and one
@@ -42,9 +45,7 @@ fn boundary_operator_plan_singletons<'plan>(
             plan.name,
         ))]);
     };
-    let provider_planning::ProviderRowRealization::Authored(realization_symbol) =
-        realization_symbol
-    else {
+    let ProviderRowRealization::Authored(realization_symbol) = realization_symbol else {
         return Err(vec![Diagnostic::error(
             "boundary operator callable requires its exact authored realization",
         )]);
@@ -71,10 +72,7 @@ fn selected_boundary_operator_plans<'a>(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",
         )]);
     }
-    let slot = typed_trees::operator::boundary_operator_requirement_identity(
-        compilation.checking_input,
-        operator,
-    );
+    let slot = boundary_operator_requirement_identity(compilation.checking_input, operator);
     let matches = plans
         .iter()
         .zip(provenance)
@@ -83,9 +81,7 @@ fn selected_boundary_operator_plans<'a>(
                 .identity_text(plan.schema.declaration.trait_name)
                 == slot
                 && retained.provider.schema
-                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
-                        operator.symbol,
-                    )
+                    == ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
         })
         .collect();
     Ok((slot, matches))
@@ -120,10 +116,7 @@ pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
         return Err(vec![Diagnostic::error(format!(
             "reviewed checked adapter `{}` realizes fixed-token boundary operator `{}` with unsupported dispatch shape `{}` and {operand_count} normalized operands",
             machine.name,
-            typed_trees::operator::boundary_operator_requirement_identity(
-                compilation.checking_input,
-                operator,
-            ),
+            boundary_operator_requirement_identity(compilation.checking_input, operator,),
             spelling.symbol(),
         ))]);
     }

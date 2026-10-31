@@ -8,6 +8,14 @@
 //! still needs the same readable-exclusive formal and exact entry membership:
 //! an annotation, issuer name or prepared subject cannot introduce authority.
 
+use crate::checks::contracts::exclusive_referent_type;
+use crate::checks::contracts::is_readable_mutable_reference;
+use crate::checks::places::place_in;
+use crate::flow::RetainedMembership;
+use crate::flow::call_parameter_qualification_identities;
+use crate::flow::operand_binds_live_view;
+use crate::flow::project_captured_view_place;
+use crate::flow::replay_retained_memberships;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact};
 use facts::{FactPlace, PlaceRoot, PlaceSegment, ProgramPoint, QualificationEvidence};
@@ -31,7 +39,7 @@ pub(super) struct ParameterQualificationJoin<'program> {
     call_flow: &'program FlowCallFact,
     checked_body: bool,
     subjects: Vec<ParameterSubject>,
-    retained: Vec<crate::flow::RetainedMembership>,
+    retained: Vec<RetainedMembership>,
 }
 
 impl<'program> ParameterQualificationJoin<'program> {
@@ -91,8 +99,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             return None;
         }
         let checked_body = validation::call_target_has_checked_body_contract(program, target);
-        let identities =
-            crate::flow::call_parameter_qualification_identities(program, target, selected);
+        let identities = call_parameter_qualification_identities(program, target, selected);
         let mut subjects = Vec::new();
         for (position, parameter) in parameters.iter().enumerate() {
             let mut promised = identities
@@ -100,10 +107,7 @@ impl<'program> ParameterQualificationJoin<'program> {
                 .filter(|(argument_position, _, _)| *argument_position == position)
                 .map(|(_, domain, instance)| (Vec::new(), *domain, *instance))
                 .collect::<Vec<_>>();
-            let referent = crate::checks::contracts::exclusive_referent_type(
-                program,
-                parameter.type_reference,
-            );
+            let referent = exclusive_referent_type(program, parameter.type_reference);
             if referent.is_valid() {
                 promised.extend(
                     validation::field_domains::declared_result_field_domain_paths(
@@ -114,8 +118,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             if promised.is_empty() {
                 continue;
             }
-            let storage = if crate::flow::operand_binds_live_view(program, parameter.type_reference)
-            {
+            let storage = if operand_binds_live_view(program, parameter.type_reference) {
                 // These are the captured, completed operands used by promise
                 // publication, not descriptor syntax replayed after later effects.
                 let Some(operand) = operands.get(position + usize::from(receiver.is_some())) else {
@@ -128,7 +131,7 @@ impl<'program> ParameterQualificationJoin<'program> {
                 referents
                     .iter()
                     .filter_map(|referent| {
-                        crate::checks::places::place_in(
+                        place_in(
                             &facts.flow.control.operand_referent_segments,
                             referent.root,
                             referent.segments,
@@ -142,9 +145,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             };
             for storage in storage {
                 for (path, domain, instance) in &promised {
-                    if let Some(place) =
-                        crate::flow::project_captured_view_place(storage.clone(), path)
-                    {
+                    if let Some(place) = project_captured_view_place(storage.clone(), path) {
                         subjects.push(ParameterSubject {
                             place,
                             domain: *domain,
@@ -160,7 +161,7 @@ impl<'program> ParameterQualificationJoin<'program> {
                 .compare_identity(&right.place)
                 .then_with(|| left.position.cmp(&right.position))
         });
-        let retained = crate::flow::replay_retained_memberships(program, facts, point);
+        let retained = replay_retained_memberships(program, facts, point);
         Some(Self {
             program,
             facts,
@@ -216,10 +217,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             return Some(());
         }
         let parameter = self.parameters.get(position)?;
-        if !crate::checks::contracts::is_readable_mutable_reference(
-            self.program,
-            parameter.type_reference,
-        ) {
+        if !is_readable_mutable_reference(self.program, parameter.type_reference) {
             return None;
         }
         // A public ensures preserves this exact entry subject. Issuer

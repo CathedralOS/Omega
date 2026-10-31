@@ -239,7 +239,18 @@ impl Captures<'_> {
             .operand_referents
             .span(selected.referents)?;
         if referents.is_empty() {
-            return None;
+            // An opaque incoming descriptor can retain a complete value/store
+            // source without concrete raw referents. Consume that same checked
+            // descriptor relation as aggregate leaves, at this operand's cut;
+            // the exact returned-loan join below still owns its authority.
+            return self.completed_descriptor_sources(
+                state,
+                operand_handle,
+                &[],
+                reference,
+                &relative,
+                &mut Vec::new(),
+            );
         }
         let mut output = Vec::new();
         for referent in referents {

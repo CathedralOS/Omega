@@ -1,15 +1,18 @@
 //! Mathematical declarations own their body and dependent-type applications;
 //! their generic arguments are not executable machine selections.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use std::collections::HashSet;
+use std::sync::Arc;
+use symbols::SymbolHandle;
 
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 
 use crate::expression_traversal::collect_expression_nodes;
 
-pub fn expression_nodes(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
+pub fn expression_nodes(program: &dyn CheckingInput) -> Vec<ExpressionHandle> {
     crate::frozen_program::frozen_memo(
         program,
         |memos| &memos.mathematical_expression_nodes,
@@ -29,8 +32,8 @@ pub fn expression_nodes(program: &dyn crate::CheckingInput) -> Vec<ExpressionHan
 /// shared. Executable membership still excludes the same nodes as the unscoped
 /// view; a mathematical use does not exempt a runtime use from formation.
 pub fn scoped_expression_nodes(
-    program: &dyn crate::CheckingInput,
-) -> Vec<(symbols::SymbolHandle, ExpressionHandle)> {
+    program: &dyn CheckingInput,
+) -> Vec<(SymbolHandle, ExpressionHandle)> {
     let mut expressions = Vec::new();
     for definition in program.mathematical_definitions() {
         let mut owned = Vec::new();
@@ -78,7 +81,7 @@ pub fn scoped_expression_nodes(
 /// dependent type applications, including bodyless assumptions. Consumers
 /// retain the declaration's exact telescope while walking each root.
 pub fn definition_roots(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     definition: &typed_trees::mathematical::MathematicalDefinition,
 ) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
@@ -118,9 +121,7 @@ pub fn definition_roots(
 /// Binding placement is separate from mathematical admission. Every erased
 /// field, local, formal actual and transition actual supplies a proof term;
 /// a handle that also occurs in executable storage retains its runtime demand.
-pub fn erased_initializer_nodes(
-    program: &dyn crate::CheckingInput,
-) -> std::sync::Arc<Vec<ExpressionHandle>> {
+pub fn erased_initializer_nodes(program: &dyn CheckingInput) -> Arc<Vec<ExpressionHandle>> {
     crate::frozen_program::frozen_memo(
         program,
         |memos| &memos.erased_initializers,
@@ -210,11 +211,7 @@ pub fn erased_initializer_nodes(
     )
 }
 
-fn erased_parameter(
-    program: &dyn crate::CheckingInput,
-    target: symbols::SymbolHandle,
-    position: usize,
-) -> bool {
+fn erased_parameter(program: &dyn CheckingInput, target: SymbolHandle, position: usize) -> bool {
     program
         .state_by_symbol(target)
         .or_else(|| {
@@ -234,12 +231,7 @@ struct InitializerAccesss {
 }
 
 impl InitializerAccesss {
-    fn visit(
-        &mut self,
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        erased: bool,
-    ) {
+    fn visit(&mut self, program: &dyn CheckingInput, expression: ExpressionHandle, erased: bool) {
         if !expression_table(program).expression_is_valid(expression) {
             return;
         }

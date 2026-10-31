@@ -4,6 +4,7 @@
 //! Production and replay use the same routes, but replay consumes recorded
 //! identities rather than minting replacement claims.
 
+use crate::checks::ownership_occurrences::StatementOccurrence;
 use crate::checks::ownership_occurrences::{
     EvaluationBranch, StatementStep, statement_steps_at_evaluation,
 };
@@ -21,9 +22,7 @@ pub(super) struct ExpressionRoutes {
 }
 
 impl ExpressionRoutes {
-    pub(super) fn from_steps(
-        occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
-    ) -> Self {
+    pub(super) fn from_steps(occurrences: &[StatementOccurrence]) -> Self {
         let completed = occurrences
             .iter()
             .filter_map(|occurrence| match occurrence.step {

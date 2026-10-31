@@ -504,6 +504,8 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    // Raw application association; reset with all context-sensitive inputs.
+    pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
     /// Exact satisfaction associations depend only on this immutable typed
     /// program, not changing progress summaries, effects or selected layouts.

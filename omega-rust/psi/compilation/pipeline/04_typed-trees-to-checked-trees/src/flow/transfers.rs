@@ -16,13 +16,18 @@
 //! evidence requires that coordinate correspondence, not just scalar values.
 //! Refusing it leaves the runtime store capture and invalidation unchanged.
 
+use crate::semantic::places::append_place;
+use crate::semantic::places::canonical_place_to_fact_place_in_state;
+use crate::values::is_assignment_literal;
 use validation::CanonicalPlace;
 
-use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
+use crate::flow::{
+    FlowBuildContext, active_context_handles, place_cases_are_selected, state_statements,
+};
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
@@ -71,7 +76,7 @@ pub(super) fn propagate_statement_transfers(
     let source_place = write.source_place;
 
     let mut refs = HandleSpan::empty();
-    let context_handles = crate::flow::active_context_handles(&build.contexts, *active_contexts);
+    let context_handles = active_context_handles(&build.contexts, *active_contexts);
     let target_place = write.target_place;
     let point = ProgramPoint::Statement {
         machine_symbol,
@@ -89,7 +94,7 @@ pub(super) fn propagate_statement_transfers(
                 .span_or_empty(source.segments)
                 .to_vec(),
         };
-        if !crate::flow::place_cases_are_selected(
+        if !place_cases_are_selected(
             program,
             semantic,
             &context_handles,
@@ -138,13 +143,7 @@ pub(super) fn propagate_statement_transfers(
             write
                 .candidate_targets
                 .iter()
-                .map(|candidate| {
-                    crate::semantic::places::append_place(
-                        semantic,
-                        candidate.root,
-                        &candidate.segments,
-                    )
-                })
+                .map(|candidate| append_place(semantic, candidate.root, &candidate.segments))
                 .collect()
         };
         for candidate in candidates {
@@ -343,7 +342,7 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if stable_value_target
-        && (crate::values::is_assignment_literal(program, source_expression)
+        && (is_assignment_literal(program, source_expression)
             || (matches!(
                 program.expression_table.expression(source_expression),
                 ExpressionNode::Call(_)
@@ -769,7 +768,7 @@ fn correspondence_root_type_reference(
         symbols::SymbolKind::Local
             if program.symbols.get(root).parent == state_symbol
                 && formation_statement_index
-                    < crate::flow::state_statements(program, state.statement_nodes).len() =>
+                    < state_statements(program, state.statement_nodes).len() =>
         {
             program
                 .state_local_declaration(state, root)
@@ -801,7 +800,7 @@ fn contextual_expression_place(
     expression: ExpressionHandle,
 ) -> Option<PlaceHandle> {
     let _ = machine_symbol;
-    crate::semantic::places::canonical_place_to_fact_place_in_state(
+    canonical_place_to_fact_place_in_state(
         program,
         semantic,
         state_symbol,

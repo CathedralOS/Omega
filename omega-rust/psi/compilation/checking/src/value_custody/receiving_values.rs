@@ -9,6 +9,7 @@
 
 use crate::frozen_program::expression_table;
 use checked_trees::FlowPermissionEventFact;
+use facts::PlaceRoot;
 use facts::PlaceSegment;
 use language_semantics::PermissionEventSource;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -38,9 +39,7 @@ pub fn receiving_value<'a>(
             .statement_table
             .statement_at(state, statement_index)?
         {
-            StatementNode::LocalData(local)
-                if event.root == facts::PlaceRoot::Symbol(local.symbol) =>
-            {
+            StatementNode::LocalData(local) if event.root == PlaceRoot::Symbol(local.symbol) => {
                 (local.initial_value, event_path)
             }
             StatementNode::Assignment(assignment) => {

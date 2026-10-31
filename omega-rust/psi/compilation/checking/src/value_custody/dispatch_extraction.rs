@@ -20,6 +20,7 @@ use crate::frozen_program::expression_table;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 
 /// The saved subject expressions and cases a transition arm's guard selected.
 #[derive(Default, Clone)]
@@ -182,11 +183,7 @@ impl DispatchExtraction {
                     .data_members(owner)
                     .iter()
                     .find_map(|row| match row {
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == *case =>
-                        {
-                            Some(variant)
-                        }
+                        DataMember::Variant(variant) if variant.symbol == *case => Some(variant),
                         _ => None,
                     })
                 else {

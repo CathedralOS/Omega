@@ -13,6 +13,7 @@
 //! conclusions do not become execution facts: executable operations still need
 //! their ordinary Terminal justification rows.
 
+use crate::collections::push_unique;
 use crate::flow::indexed_statements;
 use checked_trees::CheckFacts;
 
@@ -64,10 +65,7 @@ pub(crate) fn retire_fact_only_citations(
                                 caller: machine.symbol,
                                 theorem: theorem.symbol,
                             };
-                            crate::collections::push_unique(
-                                &mut facts.proof.indexed_citations,
-                                citation,
-                            );
+                            push_unique(&mut facts.proof.indexed_citations, citation);
                         }
                     }
                     facts.flow.control.retire_calls(

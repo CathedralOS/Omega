@@ -14,6 +14,9 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::aggregate_results::{node_site, precedes};
 use crate::legalization::scalar_graph_input::structural_case;
+use crate::structural_inputs::structural_reference_input::{
+    fixed_byte_array_view, fixed_element_array_view, parameter_shape,
+};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
@@ -70,9 +73,7 @@ pub(super) fn argument(
                     .find(|source| source.place == parameter.place)
             })
             .ok_or(LegalizationError::custody())?;
-        let shape =
-            crate::structural_inputs::structural_reference_input::parameter_shape(parameter, types)
-                .ok_or(LegalizationError::custody())?;
+        let shape = parameter_shape(parameter, types).ok_or(LegalizationError::custody())?;
         if parameter.multiplicity == StructuralMultiplicity::Linear
             || source.structural_type != parameter.structural_type
             || source.access != parameter.access
@@ -124,19 +125,10 @@ pub(super) fn argument(
     {
         return Ok(None);
     }
-    let byte_window = crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
-        &presented,
-        semantic,
-        destination.structural_type,
-        types,
-    );
+    let byte_window =
+        fixed_byte_array_view(&presented, semantic, destination.structural_type, types);
     let element_view =
-        crate::structural_inputs::structural_reference_input::fixed_element_array_view(
-            &presented,
-            semantic,
-            destination.structural_type,
-            types,
-        );
+        fixed_element_array_view(&presented, semantic, destination.structural_type, types);
     // A `&[u8]` view over a `[u8; N]` home satisfies both lookups; the
     // windows coincide and the byte window wins.
     let (source_byte_offset, length, stride) = match (byte_window, element_view) {
@@ -157,9 +149,7 @@ pub(super) fn argument(
             return Err(LegalizationError::custody());
         }
     }
-    let shape =
-        crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
-            .ok_or(LegalizationError::custody())?;
+    let shape = parameter_shape(destination, types).ok_or(LegalizationError::custody())?;
     let placement = call
         .parameters
         .get(parameter_ordinal)

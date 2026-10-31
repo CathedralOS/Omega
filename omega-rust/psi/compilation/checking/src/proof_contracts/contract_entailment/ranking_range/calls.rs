@@ -14,6 +14,7 @@ use super::{
 };
 use crate::frozen_program::expression_table;
 use crate::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
+use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 /// The exact transition site inside the caller's machine. `state` is the state
 /// whose statements carry the call; `entry_parameters` is the source-admitted
@@ -1214,7 +1215,7 @@ fn scalar_entry<'program>(
         ));
     }
     let measure = match witness.ranking_view {
-        language_semantics::RankingViewId::NAT_DESCENDING
+        RankingViewId::NAT_DESCENDING
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
             let [subject] = custody.subjects.as_slice() else {
@@ -1225,9 +1226,7 @@ fn scalar_entry<'program>(
             }
             RankingRangeMeasure::Single(member.subject)
         }
-        language_semantics::RankingViewId::NAT_INCREASING_TO
-            if witness.view_arguments.len() == 1 =>
-        {
+        RankingViewId::NAT_INCREASING_TO if witness.view_arguments.len() == 1 => {
             let [subject] = custody.subjects.as_slice() else {
                 return None;
             };
@@ -1245,7 +1244,7 @@ fn scalar_entry<'program>(
                 limit: *limit,
             }
         }
-        language_semantics::RankingViewId::NAT_BOUNDED_DISTANCE
+        RankingViewId::NAT_BOUNDED_DISTANCE
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
             let [lower, upper] = custody.subjects.as_slice() else {
@@ -1259,7 +1258,7 @@ fn scalar_entry<'program>(
                 upper: member.paired_subject,
             }
         }
-        language_semantics::RankingViewId::SLICE_LENGTH
+        RankingViewId::SLICE_LENGTH
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
             let [subject] = custody.subjects.as_slice() else {

@@ -3,14 +3,13 @@ use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_packa
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewConstructorField, PackageReviewContractExpression};
 use diagnostics::Diagnostic;
+use typed_trees::expression::ExpressionHandle;
 
 pub(crate) fn project_contract_constructor_expression(
     compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     literal: &typed_trees::expression::TableStructLiteral,
-    child: &impl Fn(
-        typed_trees::expression::ExpressionHandle,
-    ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
+    child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     use typed_trees::data::DataMember;
 

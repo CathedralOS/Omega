@@ -1,6 +1,7 @@
 //! The identity context: package qualification and the normalization of
 //! type references, index expressions and const or nominal names.
 
+use super::LifetimeParameterIdentity;
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::type_identity::substitution;
@@ -195,11 +196,7 @@ impl TypeIdentityContext<'_> {
         }
     }
 
-    fn resolved_lifetime(
-        &self,
-        program: &TypedTrees,
-        region: super::LifetimeParameterIdentity,
-    ) -> String {
+    fn resolved_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
         let Some((region, _)) = super::apply_resolved_lifetime_parameter_identity(
             program,
             region,
@@ -218,11 +215,7 @@ impl TypeIdentityContext<'_> {
         self.encode_lifetime(program, region)
     }
 
-    fn encode_lifetime(
-        &self,
-        program: &TypedTrees,
-        region: super::LifetimeParameterIdentity,
-    ) -> String {
+    fn encode_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
         if self.qualification == TypeIdentityQualification::PackageQualified {
             if let Some(identity) =
                 super::lifetime_parameters::portable_lifetime_parameter_identity(program, region)
@@ -254,7 +247,7 @@ impl TypeIdentityContext<'_> {
         &self,
         program: &TypedTrees,
         name: &crate::name::Identifier,
-        region: Option<super::LifetimeParameterIdentity>,
+        region: Option<LifetimeParameterIdentity>,
     ) -> String {
         if let Some(region) = region.filter(|region| region.declaration.is_valid()) {
             self.resolved_lifetime(program, region)
@@ -374,7 +367,7 @@ fn generic_type_identity(
     symbol: SymbolHandle,
     name: &str,
     lifetimes: &[crate::name::Identifier],
-    regions: &[super::LifetimeParameterIdentity],
+    regions: &[LifetimeParameterIdentity],
     arguments: impl Iterator<Item = String>,
     context: &TypeIdentityContext<'_>,
 ) -> String {
@@ -416,7 +409,7 @@ fn generic_reference_identity<'program>(
     mut symbol: SymbolHandle,
     mut name: &'program crate::name::Identifier,
     lifetimes: &[crate::name::Identifier],
-    regions: &[super::LifetimeParameterIdentity],
+    regions: &[LifetimeParameterIdentity],
     mut arguments: arena::HandleSpan<TypeReferenceHandle>,
     context: &TypeIdentityContext<'_>,
 ) -> String {

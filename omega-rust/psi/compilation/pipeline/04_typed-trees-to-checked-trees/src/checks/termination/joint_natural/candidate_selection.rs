@@ -5,6 +5,7 @@ use super::{
     ranges,
     views::Order,
 };
+use crate::checks::current_scalar_values::parameter_projection_paths;
 use typed_trees::expression::BinaryOperator;
 use validation::ScopedArithmeticValue;
 
@@ -35,9 +36,7 @@ pub(super) fn prepare(
     let mut field_paths = Vec::new();
     for machine in machines {
         for state in program.machine_states(machine) {
-            for path in crate::checks::current_scalar_values::parameter_projection_paths(
-                program, machine, state,
-            ) {
+            for path in parameter_projection_paths(program, machine, state) {
                 if !field_paths.contains(&path) {
                     field_paths.push(path);
                 }

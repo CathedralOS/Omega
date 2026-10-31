@@ -2,11 +2,13 @@
 //! Every inner coordinate must rejoin concrete typed storage, while intermediate
 //! descriptor dependencies remain separate from the final borrowed origins.
 
+use super::borrowed_arrivals::{captured_storage, granting_ancestor};
 use super::{
     Custody, LegalizationError, PsiOptimizationFunction, Root, StructuralAccess,
     StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
     invalid, leaf_type, shared_source_compatible, source_contract,
 };
+use crate::structural_inputs::structural_reference_input::reference_formation_geometry;
 
 /// A nonescaping call follows live descriptor custody at every crossing.
 /// Intermediate origins become concrete cursors only after their current
@@ -73,7 +75,7 @@ pub(super) fn observe_reference_custody(
     // then walk the unchanged relative path in every actual source namespace.
     // Looking up a descriptor at the parameter itself would lose that roster;
     // flattening the full path would demand the same missing descriptor first.
-    let roots = super::borrowed_arrivals::captured_storage(
+    let roots = captured_storage(
         function,
         custody,
         types,
@@ -238,13 +240,9 @@ fn observe_direct_reference_custody(
                                 &leaf.identity,
                                 argument.access,
                             ) || custody.descends_from(child, &leaf.identity)
-                                && !grants.iter().any(|grant| {
-                                    super::borrowed_arrivals::granting_ancestor(
-                                        custody,
-                                        grant,
-                                        &child.identity,
-                                    )
-                                })
+                                && !grants
+                                    .iter()
+                                    .any(|grant| granting_ancestor(custody, grant, &child.identity))
                                 && !shared_source_compatible(
                                     function,
                                     custody,
@@ -327,12 +325,8 @@ fn observe_direct_reference_custody(
             // not the call's endpoint type. Inline fields retain their own
             // storage contract; the consuming call checks its presentation.
             if origins.is_empty() && !absent_case_descriptors
-                || crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-                    referent,
-                    &argument.path[position + 1..],
-                    types,
-                )
-                .is_none()
+                || reference_formation_geometry(referent, &argument.path[position + 1..], types)
+                    .is_none()
             {
                 return Err(invalid());
             }

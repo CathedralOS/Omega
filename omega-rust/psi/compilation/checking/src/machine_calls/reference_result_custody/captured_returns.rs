@@ -23,6 +23,7 @@ use super::{
     record_carrier_sources, reference_access_can_supply, stored_carrier_sources, stored_loan_parts,
 };
 use crate::frozen_program::expression_table;
+use checked_trees::IncomingReferenceOrigin;
 use checked_trees::{
     CheckFacts, CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
     CheckedReferenceResultSourcePlan, CheckedReturnedReferencePlan, CheckedStructuralValueKind,
@@ -31,6 +32,7 @@ use checked_trees::{
 use semantic_vocabulary::ReferenceOriginExtent;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -38,7 +40,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub fn returned_sources(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
     Captures { program, facts }.returned(state, &mut Vec::new())
 }
@@ -57,7 +59,7 @@ pub fn call_sources(
 pub(super) fn terminal_call_sources(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     call: &checked_trees::FlowCallFact,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
     let captures = Captures { program, facts };
@@ -129,7 +131,7 @@ impl Captures<'_> {
 
     fn returned(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
@@ -143,7 +145,7 @@ impl Captures<'_> {
 
     fn normal_returns(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         active: &mut Vec<SymbolHandle>,
         selected_site: Option<(usize, typed_trees::statement::TransitionTargetHandle)>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
@@ -320,7 +322,7 @@ impl Captures<'_> {
     /// requirements retain the existing captured-expression contract owner.
     fn ordinary_return_call(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         statement_index: usize,
         target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
@@ -343,7 +345,7 @@ impl Captures<'_> {
 
     fn return_call(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         statement_index: usize,
         target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
@@ -394,7 +396,7 @@ impl Captures<'_> {
     /// Both records must describe this exact return occurrence and result leaf.
     fn return_origins(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         loan: &checked_trees::BorrowReturnedLoanFact,
         leaf: &CheckedReferenceResultSourcePlan,
         expression: Option<ExpressionHandle>,
@@ -503,7 +505,7 @@ impl Captures<'_> {
 
     fn completed_return_operand(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         statement_index: usize,
         transition_target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
@@ -519,7 +521,7 @@ impl Captures<'_> {
     /// cannot establish absence after those same-statement calls.
     fn completed_return_value(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         statement_index: usize,
         transition_target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
@@ -552,7 +554,7 @@ impl Captures<'_> {
 
     fn return_origin(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         loan: &checked_trees::BorrowReturnedLoanFact,
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
@@ -563,7 +565,7 @@ impl Captures<'_> {
 
     fn return_origin_with_frame(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         loan: &checked_trees::BorrowReturnedLoanFact,
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
@@ -587,9 +589,7 @@ impl Captures<'_> {
                 .borrow
                 .incoming_references
                 .get(loan.incoming_reference);
-            if let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } =
-                incoming.origin
-            {
+            if let IncomingReferenceOrigin::Invocation { expression, target } = incoming.origin {
                 if incoming.state_symbol != state.symbol
                     || loan.root != facts::PlaceRoot::Expression(expression)
                     || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol == target)
@@ -1105,10 +1105,7 @@ impl Captures<'_> {
         states.next().is_none().then_some(flow)
     }
 
-    fn reference_leaves(
-        &self,
-        state: &typed_trees::state::State,
-    ) -> Option<Vec<CheckedReferenceResultSourcePlan>> {
+    fn reference_leaves(&self, state: &State) -> Option<Vec<CheckedReferenceResultSourcePlan>> {
         record_carrier_sources(
             self.program,
             state.return_type,

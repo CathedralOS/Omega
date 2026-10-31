@@ -3,6 +3,7 @@
 //! clones the whole program, so an empty telescope must remain a read-only
 //! projection, just as it does for ordinary callable policy.
 
+use super::super::policy_parameters::prepare;
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::{
@@ -30,12 +31,7 @@ pub(super) fn project(
         binders,
         lifetime_parameters,
         policy_type_parameters: static_parameters,
-    } = super::super::policy_parameters::prepare(
-        compilation,
-        machine,
-        machine.name.as_str(),
-        false,
-    )?;
+    } = prepare(compilation, machine, machine.name.as_str(), false)?;
     let conformance_bounds = project_conformance_bounds(
         compilation,
         &machine.conformance_bounds,

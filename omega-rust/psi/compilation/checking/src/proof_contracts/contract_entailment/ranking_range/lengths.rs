@@ -12,6 +12,7 @@ use super::{
 use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
+use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) use crate::value_custody::places::binding_observations::{
@@ -373,12 +374,10 @@ fn transparent_call_result_length(
     let mut results = Vec::new();
     for (index, statement) in statements.iter().enumerate() {
         match statement {
-            typed_trees::statement::StatementNode::Expression(result)
-                if index + 1 == statements.len() =>
-            {
+            StatementNode::Expression(result) if index + 1 == statements.len() => {
                 results.push(*result)
             }
-            typed_trees::statement::StatementNode::Transition(transition)
+            StatementNode::Transition(transition)
                 if transition.exit == typed_trees::statement::TransitionExit::Ordinary =>
             {
                 for edge in transition.targets() {

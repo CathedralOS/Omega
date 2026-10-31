@@ -5,6 +5,7 @@ use super::{
     VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::value_provenance;
 use crate::selection::edge_transfers::instruction_count;
 use crate::selection::edge_transfers::invalid;
 use register_model::ValidatedRegisterConstraintCatalog;
@@ -252,9 +253,7 @@ pub(in crate::selection) fn prepare(
                         SelectedInstructionKind::CopyI64,
                         constraints.keys.copy_i64,
                         &[input, output],
-                        crate::selection::construction::scalar_graph::value_provenance(
-                            semantic.argument,
-                        ),
+                        value_provenance(semantic.argument),
                         catalog,
                     )?);
                     if phase == 0 {

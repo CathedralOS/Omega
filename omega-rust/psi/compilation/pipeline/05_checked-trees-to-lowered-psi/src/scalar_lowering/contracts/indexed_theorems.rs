@@ -1,6 +1,7 @@
 //! Retain only induction theorems reached through retired logical citations.
 
 use super::*;
+use crate::machine_lowering::declarations::identity;
 
 pub(crate) fn indexed_theorems(
     checked: &CheckedTrees,
@@ -60,13 +61,8 @@ pub(crate) fn indexed_theorems(
         {
             return unsupported("cited induction theorem changed its admitted assumption closure");
         }
-        let source_contract = crate::machine_lowering::declarations::identity(
-            identities,
-            checked,
-            sources,
-            theorem.machine,
-        )
-        .map_err(LoweringError::InvalidDeclarationIdentity)?;
+        let source_contract = identity(identities, checked, sources, theorem.machine)
+            .map_err(LoweringError::InvalidDeclarationIdentity)?;
         let type_identity =
             identities.intern(&checked.type_identity_text(theorem.type_identity).ok_or(
                 LoweringError::Unsupported("cited theorem lost its source carrier identity"),

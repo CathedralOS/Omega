@@ -24,6 +24,7 @@ use crate::scalar_lowering::branch_states::lower_scalar_call;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
@@ -188,11 +189,7 @@ impl<'a> Expansion<'a> {
         roster: &[checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
-            crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                identities,
-                self.checked,
-                roster,
-            );
+            erased_proof_formal_declarations(identities, self.checked, roster);
         self
     }
 

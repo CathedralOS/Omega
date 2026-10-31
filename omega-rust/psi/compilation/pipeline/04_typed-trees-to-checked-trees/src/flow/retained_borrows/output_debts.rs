@@ -4,6 +4,7 @@
 //! supply membership only after replay of their original applied declaration.
 
 use super::captured_inputs::RetainedSources;
+use crate::borrow::owner_place_segments;
 use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{
@@ -46,7 +47,7 @@ pub(in crate::flow) fn sources(
     let mut result = RetainedSources::default();
     let mut found = false;
     for path in paths {
-        let mut path = crate::borrow::owner_place_segments(&path);
+        let mut path = owner_place_segments(&path);
         let declared = validation::project_type_reference_from_segments(program, contract, &path)?;
         if !crate::checks::contracts::exclusive_referent_type(program, declared).is_valid() {
             // This query cannot replace the separate nominal-lifetime carrier
@@ -63,7 +64,7 @@ pub(in crate::flow) fn sources(
                 loan.storage_owner == holder.root
                     && same_path(
                         program,
-                        &crate::borrow::owner_place_segments(borrow.loan_owner_path(loan)),
+                        &owner_place_segments(borrow.loan_owner_path(loan)),
                         &owner,
                     )
             })
@@ -108,9 +109,7 @@ pub(in crate::flow) fn sources(
             else {
                 return None;
             };
-            let owner_path = crate::borrow::owner_place_segments(
-                borrow.owner_segments.span(incoming.owner_path)?,
-            );
+            let owner_path = owner_place_segments(borrow.owner_segments.span(incoming.owner_path)?);
             let mut receipts = control
                 .output_lifetime_sources
                 .iter()

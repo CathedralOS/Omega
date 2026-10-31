@@ -1,5 +1,6 @@
 //! Join accepted project bytes, staged edits, and complete target decisions.
 
+use package_source::local::operations::resolve_local_source;
 mod error;
 use PublishReviewedPackageChangeError as Error;
 pub(crate) use error::PublishReviewedPackageChangeError;
@@ -132,9 +133,7 @@ fn verify_live_dependencies(review: &PackageChangeReview) -> Result<(), Error> {
             continue;
         };
         let path = lineage.canonical_absolute_path();
-        let current =
-            package_source::local::operations::resolve_local_source(path, custody.source_limits())
-                .map_err(Error::Source)?;
+        let current = resolve_local_source(path, custody.source_limits()).map_err(Error::Source)?;
         if custody.materialization().content()
             != &SourceContentDigest::derive(current.content_identity.as_bytes())
         {

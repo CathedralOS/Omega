@@ -127,6 +127,11 @@ enum SourceReuseMiss {
 pub(super) struct ActivatedSource {
     pub typing: SeededTypingBase,
     pub pre_checks: Vec<PreCheckEvaluation>,
+    /// The retained source's own parsed declarations. Toolchain units such as
+    /// `core::layout` that the new cohort imports but no longer parses (their
+    /// checked owners are retained) stay available here as lookup and
+    /// template context; this grants no authority and adds no declarations.
+    pub declaration_syntax: Arc<SyntaxTrees>,
     sources: Arc<SourceMap>,
 }
 
@@ -215,6 +220,7 @@ pub(super) fn select_retained_source(
     }
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
     for (count, source, sources) in candidates {
+        let declaration_syntax = Arc::clone(&source.context.declaration_syntax);
         let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
             source,
             Arc::clone(&sources),
@@ -295,6 +301,7 @@ pub(super) fn select_retained_source(
         return Ok(Some(ActivatedSource {
             typing,
             pre_checks,
+            declaration_syntax,
             sources,
         }));
     }

@@ -1,4 +1,5 @@
 use super::DeclaredStoragePlans;
+use crate::borrow::owner_path_from_place_segments;
 use checked_trees::BorrowLoanOwnerSegment;
 use language_core::ReferenceAccess;
 use std::sync::Arc;
@@ -20,9 +21,7 @@ fn original_paths(
                 carrier,
                 source.path,
             )?;
-            Some(crate::borrow::owner_path_from_place_segments(
-                program, &segments,
-            ))
+            Some(owner_path_from_place_segments(program, &segments))
         })
         .collect()
 }

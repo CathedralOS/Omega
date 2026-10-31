@@ -15,9 +15,11 @@
 //! Relevance neither proves descent nor admits an operation; source and
 //! executable rank consumers retain their existing formation and edge proofs.
 
+use crate::CheckingInput;
 use crate::machine_calls::calls::{call_target_state, collect_call_sites_in_statement, find_state};
 use crate::machine_calls::graph_components::strongly_connected_components;
 use symbols::SymbolHandle;
+use typed_trees::machine::SatisfiedDeclaration;
 
 /// Transient source topology shared by range arrivals and runtime projection.
 pub struct RankRelevance {
@@ -36,7 +38,7 @@ impl RankRelevance {
 /// Unknown destinations conservatively prevent their entire preceding suffix
 /// from discarding its rank obligations.
 pub fn rank_relevance(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     ranked_machines: &[SymbolHandle],
 ) -> Option<RankRelevance> {
     let mut states = Vec::<(&typed_trees::machine::Machine, &typed_trees::state::State)>::new();
@@ -162,10 +164,7 @@ pub fn rank_relevance(
 /// exact authored ceiling, not a filtered inference result: an unresolved
 /// `invokes` target must not become evidence of an empty ceiling. Ordinary
 /// requirements lack this boundary guarantee and retain opaque topology.
-fn boundary_excludes_synchronous_entry(
-    program: &dyn crate::CheckingInput,
-    target: SymbolHandle,
-) -> bool {
+fn boundary_excludes_synchronous_entry(program: &dyn CheckingInput, target: SymbolHandle) -> bool {
     if let Some((owner, signature)) = program.trait_machine_signature(target) {
         return owner.is_boundary && signature.invokes.is_empty();
     }
@@ -200,16 +199,14 @@ fn boundary_excludes_synchronous_entry(
                 machine,
                 conformance,
             ) {
-                Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                Some(SatisfiedDeclaration::Trait {
                     definition,
                     requirement,
                 }) => definition.is_boundary && requirement.invokes.is_empty(),
-                Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                    requirement,
-                )) => requirement.invokes.is_empty(),
-                Some(typed_trees::machine::SatisfiedDeclaration::Operator(operator)) => {
-                    operator.is_boundary
+                Some(SatisfiedDeclaration::TopLevelRequirement(requirement)) => {
+                    requirement.invokes.is_empty()
                 }
+                Some(SatisfiedDeclaration::Operator(operator)) => operator.is_boundary,
                 _ => false,
             }
         })

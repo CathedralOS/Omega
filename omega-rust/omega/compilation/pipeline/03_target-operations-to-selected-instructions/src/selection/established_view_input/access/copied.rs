@@ -2,6 +2,8 @@
 //! Layout validates the complete ordinary/case path; the declared slot, not
 //! the unrestricted result annotation, supplies shared backing authority.
 use super::*;
+use crate::selection::aggregate_result_input::home;
+use crate::selection::primitive_local_input::read_parameter;
 use crate::structural_inputs::structural_reference_input as geometry;
 
 pub(super) fn shared_projection(
@@ -21,9 +23,7 @@ pub(super) fn shared_projection(
     };
     let signature = function.structural.as_ref()?;
     let types = &signature.structural_types;
-    let root = if let Some(parameter) =
-        crate::selection::primitive_local_input::read_parameter(function, *source)
-    {
+    let root = if let Some(parameter) = read_parameter(function, *source) {
         if parameter.access == A::WriteOnlyBorrow
             || parameter.multiplicity == M::Linear
             || !parameter.qualifications.is_empty()
@@ -33,9 +33,7 @@ pub(super) fn shared_projection(
         }
         parameter.structural_type
     } else {
-        crate::selection::aggregate_result_input::home(function, *source)?
-            .1
-            .structural_type
+        home(function, *source)?.1.structural_type
     };
     let (selected, offset, elements, shared_field) = match path {
         abstract_operations::StructuralCopyPath::Ordinary(path) => {

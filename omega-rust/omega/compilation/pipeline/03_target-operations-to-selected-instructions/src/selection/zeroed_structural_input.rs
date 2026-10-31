@@ -1,5 +1,8 @@
 //! Reconstruct a zeroed establishment's admitted home and, for a home that
 //! construction stores leaf by leaf, every scalar or live-length cell.
+use crate::structural_inputs::structural_reference_input::{
+    byte_field_length, case_layout, primitive_geometry, runtime_projection, scalar_shape,
+};
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -82,14 +85,13 @@ pub(super) fn storage(
             } => {
                 // Empty storage exposes no payload bytes. Initialize only its
                 // exact length cell; capacity is not an initial live extent.
-                let (offset, width) =
-                    crate::structural_inputs::structural_reference_input::byte_field_length(
-                        result.structural_type,
-                        path,
-                        *field,
-                        *scalar_type,
-                        declarations,
-                    )?;
+                let (offset, width) = byte_field_length(
+                    result.structural_type,
+                    path,
+                    *field,
+                    *scalar_type,
+                    declarations,
+                )?;
                 (offset, width, Vec::new())
             }
             terminal_semantics::ZeroedStructuralLeaf::CaseField {
@@ -99,11 +101,7 @@ pub(super) fn storage(
                 scalar_type,
             } => {
                 let (carrier, base, elements) =
-                    crate::structural_inputs::structural_reference_input::runtime_projection(
-                        result.structural_type,
-                        path,
-                        declarations,
-                    )?;
+                    runtime_projection(result.structural_type, path, declarations)?;
                 let carrier_declaration = find_structural_type(declarations, carrier)?;
                 let (field_offset, field_width) = case_payload_geometry(
                     carrier_declaration,
@@ -119,12 +117,7 @@ pub(super) fn storage(
                 )
             }
             terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
-                crate::structural_inputs::structural_reference_input::primitive_geometry(
-                    result.structural_type,
-                    path,
-                    *scalar_type,
-                    declarations,
-                )?
+                primitive_geometry(result.structural_type, path, *scalar_type, declarations)?
             }
             terminal_semantics::ZeroedStructuralLeaf::EmptyScalarArray { .. } => {
                 // The typed establishment has no physical lane to initialize.
@@ -139,12 +132,7 @@ pub(super) fn storage(
                     let mut element = path.clone();
                     element.push(StructuralPathSegment::FixedIndex(index));
                     let (offset, width, elements) =
-                        crate::structural_inputs::structural_reference_input::primitive_geometry(
-                            result.structural_type,
-                            &element,
-                            byte,
-                            declarations,
-                        )?;
+                        primitive_geometry(result.structural_type, &element, byte, declarations)?;
                     if !elements.is_empty() {
                         return None;
                     }
@@ -161,11 +149,7 @@ pub(super) fn storage(
                 // The selected tag cell: the sum's own base plus the layout's
                 // tag offset (always byte 0, a signed i32).
                 let (carrier, base, elements) =
-                    crate::structural_inputs::structural_reference_input::runtime_projection(
-                        result.structural_type,
-                        path,
-                        declarations,
-                    )?;
+                    runtime_projection(result.structural_type, path, declarations)?;
                 if carrier != *structural_type {
                     return None;
                 }
@@ -178,13 +162,8 @@ pub(super) fn storage(
                 if cases.first().map(|first| first.id) != Some(*case) {
                     return None;
                 }
-                let layout = crate::structural_inputs::structural_reference_input::case_layout(
-                    carrier,
-                    declarations,
-                )?;
-                if crate::structural_inputs::structural_reference_input::scalar_shape(*scalar_type)?
-                    != layout.tag_shape
-                {
+                let layout = case_layout(carrier, declarations)?;
+                if scalar_shape(*scalar_type)? != layout.tag_shape {
                     return None;
                 }
                 (
@@ -231,15 +210,12 @@ fn case_payload_geometry(
     if declaration.field_type.scalar_type() != Some(scalar_type) {
         return None;
     }
-    let packed = *crate::structural_inputs::structural_reference_input::case_layout(
-        carrier.id,
-        declarations,
-    )?
-    .cases
-    .first()?
-    .fields
-    .get(position)?;
-    let shape = crate::structural_inputs::structural_reference_input::scalar_shape(scalar_type)?;
+    let packed = *case_layout(carrier.id, declarations)?
+        .cases
+        .first()?
+        .fields
+        .get(position)?;
+    let shape = scalar_shape(scalar_type)?;
     if packed.shape != shape {
         return None;
     }

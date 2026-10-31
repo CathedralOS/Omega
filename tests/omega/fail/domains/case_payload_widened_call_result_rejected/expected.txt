@@ -1,0 +1,1 @@
+case `Byte` literal cannot prove the case constraint

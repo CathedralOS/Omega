@@ -3,7 +3,14 @@ use super::{
     CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
     StructuralAccess, ValueShape, evaluate_call_plan, scalar_shape,
 };
+use crate::selection::established_view_input::{
+    accepts_at, accepts_view_loan, completed_descriptor, element_view_type, view_access,
+};
 use crate::selection::scalar_call_abi::scalar_value_type;
+use crate::structural_inputs::structural_reference_input::{
+    bounded_byte_field_owner, fixed_byte_array_view, fixed_element_array_view,
+    internal_borrow_shape, owned_storage_shape, runtime_borrowed_projection,
+};
 
 /// Rejoin the original parameter or earlier literal before pointer transport.
 /// Callee declarations and source-call correspondence remain legalization inputs.
@@ -102,27 +109,16 @@ pub(super) fn validate_borrowed_argument(
     // a bounded byte owner needs no second whole-place, readable-only route.
     // Access and source custody stay independent of that physical distinction.
     let aggregate = aggregate_root
-        .filter(|root| {
-            crate::structural_inputs::structural_reference_input::owned_storage_shape(
-                *root,
-                &signature.structural_types,
-            )
-            .is_some()
-        })
+        .filter(|root| owned_storage_shape(*root, &signature.structural_types).is_some())
         .and_then(|root| {
-            let (selected, offset, elements) =
-                crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-                    root,
-                    &semantic.path,
-                    semantic.access,
-                    Some(target.structural_type),
-                    &signature.structural_types,
-                )?;
-            let shape =
-                crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-                    selected,
-                    &signature.structural_types,
-                )?;
+            let (selected, offset, elements) = runtime_borrowed_projection(
+                root,
+                &semantic.path,
+                semantic.access,
+                Some(target.structural_type),
+                &signature.structural_types,
+            )?;
+            let shape = internal_borrow_shape(selected, &signature.structural_types)?;
             (target.root_structural_type == root
                 && matches!(
                     terminal_semantics::borrowed_referent_presentation(
@@ -186,7 +182,7 @@ pub(super) fn validate_borrowed_argument(
             })
         });
     let byte_view = view_root.and_then(|root| {
-        crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
+        fixed_byte_array_view(
             root,
             semantic,
             target.structural_type,
@@ -205,7 +201,7 @@ pub(super) fn validate_borrowed_argument(
         .iter()
         .find(|parameter| parameter.semantic.place == semantic.place)
         .and_then(|parameter| {
-            crate::structural_inputs::structural_reference_input::bounded_byte_field_owner(
+            bounded_byte_field_owner(
                 &parameter.semantic,
                 semantic,
                 target.structural_type,
@@ -213,7 +209,7 @@ pub(super) fn validate_borrowed_argument(
             )
         });
     let element_view = view_root.and_then(|root| {
-        crate::structural_inputs::structural_reference_input::fixed_element_array_view(
+        fixed_element_array_view(
             root,
             semantic,
             target.structural_type,
@@ -223,54 +219,45 @@ pub(super) fn validate_borrowed_argument(
     // Whole descriptors retain their exact carrier geometry; element loans
     // additionally carry a referent-relative projection. Their source is the
     // authenticated view chain, not an ordinary exclusive storage parameter.
-    let established_view_loan =
-        crate::selection::established_view_input::element_view_type(source, semantic.place)
-            .or_else(|| {
-                if !semantic.path.is_empty() {
-                    return None;
-                }
-                crate::selection::established_view_input::view_access(source, semantic.place)?;
-                crate::selection::established_view_input::view_type(source, semantic.place)
-            })
-            .and_then(|view_type| {
-                let (selected, offset, elements) =
-            crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+    let established_view_loan = element_view_type(source, semantic.place)
+        .or_else(|| {
+            if !semantic.path.is_empty() {
+                return None;
+            }
+            view_access(source, semantic.place)?;
+            crate::selection::established_view_input::view_type(source, semantic.place)
+        })
+        .and_then(|view_type| {
+            let (selected, offset, elements) = runtime_borrowed_projection(
                 view_type,
                 &semantic.path,
                 semantic.access,
                 Some(target.structural_type),
                 &signature.structural_types,
             )?;
-                if target.root_structural_type != view_type
-                    || !terminal_semantics::borrowed_referent_matches(
-                        signature.structural_types.iter(),
-                        selected,
-                        target.structural_type,
-                    )
-                    || target.source_byte_offset != offset
-                    || target.fixed_array_length.is_some()
-                    || target.element_stride.is_some()
-                    || !crate::structural_inputs::runtime_indices_match(indices, &elements)
-                {
-                    return None;
-                }
-                let shape =
-                    crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-                        selected,
-                        &signature.structural_types,
-                    )?;
-                Some(shape)
-            });
+            if target.root_structural_type != view_type
+                || !terminal_semantics::borrowed_referent_matches(
+                    signature.structural_types.iter(),
+                    selected,
+                    target.structural_type,
+                )
+                || target.source_byte_offset != offset
+                || target.fixed_array_length.is_some()
+                || target.element_stride.is_some()
+                || !crate::structural_inputs::runtime_indices_match(indices, &elements)
+            {
+                return None;
+            }
+            let shape = internal_borrow_shape(selected, &signature.structural_types)?;
+            Some(shape)
+        });
     let window = byte_view
         .map(|(offset, _)| offset)
         .or(element_view.map(|(offset, _, _)| offset));
     // Descriptor geometry follows the exact destination declaration, not
     // whether its backing arrived as a parameter, local, or control-flow join.
     let destination_shape =
-        crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-            target.structural_type,
-            &signature.structural_types,
-        )?;
+        internal_borrow_shape(target.structural_type, &signature.structural_types)?;
     // One place projected inside a borrowed root the caller holds (an
     // incoming parameter or a state-block arrival), shared or exclusive.
     let projected_loan = projected_loan_shape(source, semantic, target, indices);
@@ -306,14 +293,13 @@ pub(super) fn validate_borrowed_argument(
             }
             destination_shape
         } else {
-            let (selected, offset, elements) =
-                crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-                    joined.structural_type,
-                    &semantic.path,
-                    semantic.access,
-                    Some(target.structural_type),
-                    &signature.structural_types,
-                )?;
+            let (selected, offset, elements) = runtime_borrowed_projection(
+                joined.structural_type,
+                &semantic.path,
+                semantic.access,
+                Some(target.structural_type),
+                &signature.structural_types,
+            )?;
             if target.root_structural_type != joined.structural_type
                 || !terminal_semantics::borrowed_referent_matches(
                     signature.structural_types.iter(),
@@ -325,10 +311,7 @@ pub(super) fn validate_borrowed_argument(
             {
                 return None;
             }
-            crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-                selected,
-                &signature.structural_types,
-            )?
+            internal_borrow_shape(selected, &signature.structural_types)?
         }
     } else if let Some(shape) = aggregate {
         shape
@@ -364,10 +347,7 @@ pub(super) fn validate_borrowed_argument(
         {
             return None;
         }
-        crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-            result.structural_type,
-            &signature.structural_types,
-        )?
+        internal_borrow_shape(result.structural_type, &signature.structural_types)?
     } else if let Some(shape) = projected_loan {
         shape
     } else if exclusive
@@ -434,17 +414,13 @@ pub(super) fn validate_borrowed_argument(
             let (producer, _) = aggregate_home?;
             let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());
             let descriptor_home = established_view_loan.is_some()
-                && crate::selection::established_view_input::view_access(source, semantic.place)
-                    .is_some_and(|access| {
-                        access == semantic.access
-                            || access == StructuralAccess::MutableBorrow
-                                && semantic.access == StructuralAccess::SharedBorrow
-                    })
-                && crate::selection::established_view_input::completed_descriptor(
-                    source,
-                    semantic.place,
-                )
-                .is_some_and(|(actual, _)| actual == producer);
+                && view_access(source, semantic.place).is_some_and(|access| {
+                    access == semantic.access
+                        || access == StructuralAccess::MutableBorrow
+                            && semantic.access == StructuralAccess::SharedBorrow
+                })
+                && completed_descriptor(source, semantic.place)
+                    .is_some_and(|(actual, _)| actual == producer);
             if (aggregate.is_none() && !home_view && !descriptor_home)
                 || *psi_operation != producer
                 || super::input_site::producer_before_use(source, producer, site).is_none()
@@ -499,15 +475,15 @@ pub(super) fn validate_borrowed_argument(
             // A descriptor-rooted element loan loans mutable or shared —
             // exclusive is exactly the mutable view's own authority.
             if semantic.path.is_empty() {
-                crate::selection::established_view_input::accepts_at(source, site, target)?;
+                accepts_at(source, site, target)?;
             } else {
-                crate::selection::established_view_input::accepts_view_loan(source, site, target)?;
+                accepts_view_loan(source, site, target)?;
             }
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
         | target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
         | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
-            crate::selection::established_view_input::accepts_at(source, site, target)?;
+            accepts_at(source, site, target)?;
         }
     }
     Some(())
@@ -567,18 +543,14 @@ fn projected_loan_shape(
     if !borrow_access_permitted(root.access, semantic.access) {
         return None;
     }
-    let (referent, offset, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-            root.structural_type,
-            &semantic.path,
-            semantic.access,
-            Some(target.structural_type),
-            &signature.structural_types,
-        )?;
-    let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
-        referent,
+    let (referent, offset, elements) = runtime_borrowed_projection(
+        root.structural_type,
+        &semantic.path,
+        semantic.access,
+        Some(target.structural_type),
         &signature.structural_types,
     )?;
+    let shape = internal_borrow_shape(referent, &signature.structural_types)?;
     (target.root_structural_type == root.structural_type
         && target.structural_type == referent
         && target.source_byte_offset == offset

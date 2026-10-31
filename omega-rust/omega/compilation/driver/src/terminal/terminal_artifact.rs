@@ -483,6 +483,7 @@ fn produce_terminal(
         publication: terminal_codec::TerminalPublication::Portable,
         checked: view.program,
         external_declarations: Some(view.external_declarations),
+        provider_inventory: Some(view.provider_inventory),
         exact_toolchain_sources: view.sources.exact_toolchain_sources(),
         machine,
         roots,

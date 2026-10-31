@@ -1,0 +1,13 @@
+// Expected exit: 0.
+machine step<const Count: u64>(again: bool) -> u64
+requires Count > 0
+{
+    transition again { true -> step<0>(false) _ -> (Count) }
+}
+machine main() crashes Trap {
+    let first: u64 = step<1>(true);
+    let second: u64 = step<2>(true);
+    transition first == 1 && second == 2 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

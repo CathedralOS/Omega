@@ -9,6 +9,7 @@
 //! parameter. Non-static sources remain fenced until the flow plan propagates
 //! a persistent owner's loan through every outgoing transition.
 
+use crate::borrow::view_link::borrow_carrying_owner_paths;
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
 use crate::flow::expressions;
 use crate::flow::indexed_statements;
@@ -584,9 +585,7 @@ fn source_is_known_static_persistent_place(
         return true;
     }
 
-    let Some(borrow_paths) =
-        crate::borrow::view_link::borrow_carrying_owner_paths(program, source_type)
-    else {
+    let Some(borrow_paths) = borrow_carrying_owner_paths(program, source_type) else {
         return false;
     };
     !borrow_paths.is_empty()
@@ -784,9 +783,7 @@ fn add_static_borrow_frontier(
     target_type: TypeReferenceHandle,
     paths: &mut Vec<StaticPersistentPath>,
 ) {
-    let Some(frontier) =
-        crate::borrow::view_link::borrow_carrying_owner_paths(program, target_type)
-    else {
+    let Some(frontier) = borrow_carrying_owner_paths(program, target_type) else {
         return;
     };
     for owner_path in frontier {

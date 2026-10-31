@@ -19,6 +19,10 @@ use super::{
     unique_unit_boundary, unsupported,
 };
 use crate::emission::borrowed_window::terminal_multiplicity;
+use crate::expression_preparation::qualifications::signature_value_type;
+use crate::retention::conformance_applications::checked_method_arguments;
+use crate::scalar_lowering::contracts::proposition;
+use crate::terminal_identities::lookup_service_id;
 use crate::terminal_identities::value_id;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
@@ -198,12 +202,7 @@ pub(crate) fn lower_declarations(
                                 }
                             },
                         },
-                    method_arguments:
-                        crate::retention::conformance_applications::checked_method_arguments(
-                            identities,
-                            checked,
-                            plan.machine,
-                        )?,
+                    method_arguments: checked_method_arguments(identities, checked, plan.machine)?,
                 })
             })
             .transpose()?,
@@ -262,10 +261,7 @@ pub(crate) fn lower_declarations(
                     .ok_or(LoweringError::Unsupported(
                         "boundary trait has no service identity",
                     ))?;
-                Some(crate::terminal_identities::lookup_service_id(
-                    service_ids,
-                    owner,
-                )?)
+                Some(lookup_service_id(service_ids, owner)?)
             } else {
                 None
             },
@@ -353,9 +349,7 @@ fn lower_scalar_ensures(
         namespace.push(terminal_scalar_type(result)?);
     }
     let formals = scalar_contract_formals(&namespace)?;
-    let mut predicate = |value| {
-        crate::scalar_lowering::contracts::proposition(identities, value, &formals, &[], views)
-    };
+    let mut predicate = |value| proposition(identities, value, &formals, &[], views);
     let mut rows = Vec::new();
     for guarantee in &plan.scalar_ensures {
         use checked_trees::CheckedBoundaryScalarGuarantee;
@@ -529,13 +523,11 @@ pub(crate) fn lower_boundary_result(
         CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
         CheckedBoundaryMachineResultPlan::Scalar(_) => {
             let signature = crate::declarations::target_signature(checked, source, source)?;
-            BoundaryMachineResult::Scalar(
-                crate::expression_preparation::qualifications::signature_value_type(
-                    checked,
-                    scalar_qualifications,
-                    signature.return_type,
-                )?,
-            )
+            BoundaryMachineResult::Scalar(signature_value_type(
+                checked,
+                scalar_qualifications,
+                signature.return_type,
+            )?)
         }
         CheckedBoundaryMachineResultPlan::Structural {
             type_identity,

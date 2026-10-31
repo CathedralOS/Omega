@@ -9,6 +9,10 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::structural_inputs::structural_reference_input::runtime_indices_match;
+use crate::structural_inputs::structural_reference_input::{
+    field_store_geometry, primitive_store, projected_scalar_codec, scalar_field_codec,
+    scalar_field_fragments,
+};
 
 pub(super) fn emit(
     source: &LegalizedScalarFunction,
@@ -33,15 +37,14 @@ pub(super) fn emit(
                     path,
                     terminal_psi::StructuralAccess::WriteOnlyBorrow,
                 );
-                let geometry =
-                    crate::structural_inputs::structural_reference_input::field_store_geometry(
-                        destination.structural_type(),
-                        path,
-                        *field,
-                        value.scalar_type,
-                        &signature.structural_types,
-                    )
-                    .ok_or_else(|| invalid())?;
+                let geometry = field_store_geometry(
+                    destination.structural_type(),
+                    path,
+                    *field,
+                    value.scalar_type,
+                    &signature.structural_types,
+                )
+                .ok_or_else(|| invalid())?;
                 if (geometry.byte_offset, geometry.byte_size) != (*byte_offset, *byte_size)
                     || !runtime_indices_match(indices, &geometry.elements)
                     // View indexing owns its descriptor access separately; only
@@ -70,14 +73,13 @@ pub(super) fn emit(
                 indices,
             } => {
                 let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-                let geometry =
-                    crate::structural_inputs::structural_reference_input::primitive_store(
-                        destination,
-                        path,
-                        value.scalar_type,
-                        &signature.structural_types,
-                    )
-                    .ok_or_else(|| invalid())?;
+                let geometry = primitive_store(
+                    destination,
+                    path,
+                    value.scalar_type,
+                    &signature.structural_types,
+                )
+                .ok_or_else(|| invalid())?;
                 // Custody belongs to exact places, not the function-wide
                 // entry roster. A primitive write preserves unrelated claims;
                 // the declared destination and projection checks retain
@@ -180,12 +182,7 @@ pub(super) fn emit(
         &row.kind
     {
         if let Some(fragments) =
-            crate::structural_inputs::structural_reference_input::scalar_field_fragments(
-                destination.structural_type(),
-                path,
-                *field,
-                declarations,
-            )
+            scalar_field_fragments(destination.structural_type(), path, *field, declarations)
         {
             // A fragmented update reads complete containers before preserving
             // sibling bits. Write-only authority cannot license that RMW.
@@ -217,19 +214,10 @@ pub(super) fn emit(
     }
     let codec = match &row.kind {
         LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } => {
-            crate::structural_inputs::structural_reference_input::scalar_field_codec(
-                destination.structural_type(),
-                path,
-                *field,
-                declarations,
-            )
+            scalar_field_codec(destination.structural_type(), path, *field, declarations)
         }
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { path, .. } => {
-            crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-                destination.structural_type(),
-                path,
-                declarations,
-            )
+            projected_scalar_codec(destination.structural_type(), path, declarations)
         }
         _ => None,
     }

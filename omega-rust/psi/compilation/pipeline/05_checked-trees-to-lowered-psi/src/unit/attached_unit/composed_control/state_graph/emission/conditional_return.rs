@@ -17,6 +17,8 @@ use super::StateGraphEmission;
 use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::value_successor;
+use crate::expression_preparation::bindings::structural_fields::establish_case_payloads;
+use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Result preparation cannot emit cleanup: another temporary may have to die
@@ -57,10 +59,7 @@ impl StateGraphEmission<'_, '_> {
         let target = block_id(allocate_dense(next_block)?);
         let retained_bindings = operations.structural_values.len();
         let mut arm_evaluation = evaluation.branch(target, operations.len());
-        crate::expression_preparation::bindings::structural_fields::establish_case_payloads(
-            &mut arm_evaluation.structural_fields,
-            established,
-        );
+        establish_case_payloads(&mut arm_evaluation.structural_fields, established);
         arm_evaluation.parameters = payload_parameters.to_vec();
         let mut arm_values = arm_namespace;
         let copied_values = if let Some(statement) = return_arm.statement_ordinal() {
@@ -329,12 +328,10 @@ impl StateGraphEmission<'_, '_> {
                     false,
                 )?;
                 if let PreparedArmCompletion::Edge(Terminator::Return { edge, .. }) = &completion {
-                    operations.source_returns.push(
-                        crate::expression_preparation::qualifications::SourceScalarReturn {
-                            edge: *edge,
-                            exits: vec![exit],
-                        },
-                    );
+                    operations.source_returns.push(SourceScalarReturn {
+                        edge: *edge,
+                        exits: vec![exit],
+                    });
                 }
                 let mut regions = super::super::cleanup::for_exit_regions(
                     identities,

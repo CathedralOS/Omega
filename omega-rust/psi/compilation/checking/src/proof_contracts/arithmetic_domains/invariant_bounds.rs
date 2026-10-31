@@ -23,6 +23,7 @@ use super::{
     PrimitiveType, SignatureContractKind, State, TableCallExpression, TypeReferenceHandle,
     enforced_declared_range, literal_i64,
 };
+use crate::CheckingInput;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
 use numerics::bignum::BigInt;
@@ -34,7 +35,7 @@ mod fields;
 /// References and atomic/policy carriers supply no invariant here. A caller
 /// using a field type must separately establish its exact declaration identity.
 pub fn enforced_integer_type_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
     let primitive = exact_integer_primitive(program, type_reference)?;
@@ -46,7 +47,7 @@ pub fn enforced_integer_type_bounds(
 }
 
 fn exact_integer_primitive(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let carrier_type = program
@@ -70,7 +71,7 @@ fn exact_integer_primitive(
 /// value. A parameter's own `requires` bounds are arrival facts, not snapshot
 /// facts, and mutable parameter arrival facts are excluded.
 pub fn immutable_integer_expression_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -90,7 +91,7 @@ pub fn immutable_integer_expression_bounds(
 /// a mutable place what every store enforces -- its declared range and its
 /// data's `where` facts.
 pub(crate) fn standing_integer_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -121,7 +122,7 @@ pub(crate) fn standing_integer_interval(
 /// the outermost shell would see none for exactly the places a reference
 /// spells.
 fn place_carrier_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     place_type: Option<TypeReferenceHandle>,
 ) -> Option<Interval> {
     place_type
@@ -137,7 +138,7 @@ fn place_carrier_interval(
 /// [`standing_integer_interval`] already treats a whole interval that
 /// restates the carrier.
 pub(crate) fn upper_bound_beyond_place_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -159,7 +160,7 @@ pub(crate) fn upper_bound_beyond_place_carrier(
 /// `where` facts. Reads no arrival fact, so it is safe inside `requires`
 /// resolution.
 fn stored_place_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -186,7 +187,7 @@ fn stored_place_interval(
 /// [`standing_integer_interval`] as open-ended endpoints, for checkers
 /// outside validation.
 pub fn standing_integer_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -201,7 +202,7 @@ pub fn standing_integer_bounds(
 /// decide its callee's requirement. For checkers outside validation. `None`
 /// for a non-integer place.
 pub fn stored_integer_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -223,7 +224,7 @@ pub fn stored_integer_bounds(
 /// carrier and declared range, narrowed for an immutable parameter by its
 /// state's `requires` comparisons. Either endpoint may be open.
 pub fn state_parameter_integer_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     parameter: SymbolHandle,
@@ -251,7 +252,7 @@ pub fn state_parameter_integer_interval(
 /// The same bounds with either endpoint allowed to be open: an unrestricted
 /// u64 keeps its zero floor although its ceiling does not fit an i64.
 pub(crate) fn immutable_integer_expression_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -282,7 +283,7 @@ pub(crate) fn immutable_integer_expression_interval(
 /// lose exactly the verdict at full-width carriers -- `x + 0` over an
 /// unbounded u64 lands, but its interval's high end does not fit i64.
 pub fn declared_integer_expression_lands(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -301,7 +302,7 @@ pub fn declared_integer_expression_lands(
 /// An unrestricted u64 has a useful zero floor even though its ceiling does
 /// not fit the interval engine's i64 endpoint representation.
 pub(super) fn builtin_comparison_intervals(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -368,10 +369,7 @@ impl Bounds {
     }
 }
 
-fn type_bounds(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<Bounds> {
+fn type_bounds(program: &dyn CheckingInput, type_reference: TypeReferenceHandle) -> Option<Bounds> {
     let primitive = exact_integer_primitive(program, type_reference)?;
     let carrier = primitive_range(primitive)?;
     Some(Bounds {
@@ -384,7 +382,7 @@ fn type_bounds(
 }
 
 fn bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -631,7 +629,7 @@ fn bounds(
 
 /// Both operands' bounds, `?`-threaded — the binary arms share this pair.
 fn binary_operand_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     binary: &typed_trees::expression::TableBinaryExpression,
@@ -660,7 +658,7 @@ fn binary_operand_bounds(
 /// hull retain information the compatibility interval alone cannot express;
 /// they supply result bounds, never evidence that the operands can form.
 fn unsigned_bitwise_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     operator: BinaryOperator,
     left: Bounds,
     right: Bounds,
@@ -730,7 +728,7 @@ fn unsigned_bitwise_bounds(
 /// holds wherever the call value is read. `None` for a call whose callee or
 /// return type is not an exact fixed integer.
 pub(crate) fn call_result_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     caller: symbols::SymbolHandle,
     expression: ExpressionHandle,
     call: &TableCallExpression,
@@ -739,7 +737,7 @@ pub(crate) fn call_result_interval(
 }
 
 fn call_result_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     caller: symbols::SymbolHandle,
     expression: ExpressionHandle,
     call: &TableCallExpression,
@@ -769,7 +767,7 @@ fn call_result_bounds(
 /// literal operands bound `result` here: a conjunct naming callee state
 /// compares against a post-return snapshot the caller cannot see.
 fn ensures_result_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     entry: &State,
 ) -> Interval {
@@ -799,7 +797,7 @@ fn ensures_result_interval(
 }
 
 fn declared_ensures_result_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     entry: &State,
 ) -> Interval {
@@ -842,7 +840,7 @@ fn declared_ensures_result_interval(
 /// Machine `requires` on an integer const or value binder. The binder is not
 /// storage, so those comparisons remain premises after entry.
 fn integer_binder_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -869,7 +867,7 @@ fn integer_binder_bounds(
 /// Each round reads the previous round, so `Inner <= Mid <= Outer <= 4`
 /// reaches `Inner` without re-entering binder resolution.
 fn solved_integer_binder_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -911,7 +909,7 @@ fn solved_integer_binder_interval(
 }
 
 fn integer_binders(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
 ) -> Vec<(SymbolHandle, Interval)> {
     let mut binders = Vec::new();
@@ -930,7 +928,7 @@ fn integer_binders(
 }
 
 fn binder_requirement_facts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
 ) -> Vec<ExpressionHandle> {
@@ -948,7 +946,7 @@ fn binder_requirement_facts(
 /// `kind` into the interval each proves for the subject `names_subject` names.
 /// A fact that does not constrain the subject supplies nothing.
 fn contract_subject_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     machine_contracts: &[typed_trees::signature::SignatureContract],
@@ -992,7 +990,7 @@ fn contract_subject_interval(
 /// one-sided alternative would invent a bound the other alternative never
 /// proved.
 fn subject_fact_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1038,7 +1036,7 @@ fn subject_fact_interval(
 /// and an operand bound is a literal, a place whose stores enforce it, or the
 /// binder's interval from the previous round.
 fn binder_fact_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1060,7 +1058,7 @@ fn binder_fact_interval(
 /// and equalities contribute, and only on an operand the caller names as the
 /// subject.
 fn comparison_subject_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1103,7 +1101,7 @@ fn comparison_subject_interval(
 }
 
 fn binder_operand_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     operand: ExpressionHandle,
@@ -1123,10 +1121,7 @@ fn binder_operand_interval(
         .map(|index| previous[index])
 }
 
-fn named_symbol(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<SymbolHandle> {
+fn named_symbol(program: &dyn CheckingInput, expression: ExpressionHandle) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             Some(path.symbol)
@@ -1146,7 +1141,7 @@ fn named_symbol(
 /// leaves the parameter unbounded, because that alternative can discharge the
 /// clause alone.
 fn requires_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     parameter: SymbolHandle,
@@ -1198,7 +1193,7 @@ fn requires_interval(
 }
 
 fn names_parameter(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     subject: ExpressionHandle,
     parameter: SymbolHandle,
 ) -> bool {
@@ -1212,7 +1207,7 @@ fn names_parameter(
 /// formula does not constrain that subject; `subject_fact_interval` owns the
 /// conjunction/disjunction hull every fact walk shares.
 fn boolean_subject_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1234,7 +1229,7 @@ fn boolean_subject_interval(
 /// conjunct naming callee state compares against a post-return snapshot the
 /// caller cannot see, so it supplies no bound.
 fn subject_operand_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     operand: ExpressionHandle,

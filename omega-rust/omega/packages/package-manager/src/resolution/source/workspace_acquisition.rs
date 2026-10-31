@@ -3,6 +3,7 @@
 //! from its compiler. Unselected members supply catalog observations only.
 
 use super::acquisition::{AcquiredSourceSelection, SourceAcquisitionOrigin};
+use super::workspace_path::source_relative_path;
 use super::{
     AcquiredBuildSource, BuildSourceAcquisitions, GitPackageSourceRequest, PackageSourceNavigation,
     PackageSourceSelectionEvidence,
@@ -123,7 +124,7 @@ impl AcquiredWorkspaceBuild {
         let paths = workspace
             .members
             .iter()
-            .map(super::workspace_path::source_relative_path)
+            .map(source_relative_path)
             .collect::<Vec<_>>();
         let catalog = Arc::new(
             self.source
@@ -176,7 +177,7 @@ impl AcquiredWorkspaceBuild {
             let expected =
                 source::CapturedSourceTree::new(projected).map_err(|error| error.to_string())?;
             let materialized = catalog
-                .materialize(storage, &super::workspace_path::source_relative_path(path))
+                .materialize(storage, &source_relative_path(path))
                 .map_err(|error| error.to_string())?;
             let acquired = AcquiredBuildSource::capture_git(&materialized, self.request.clone())?;
             let capture = acquired.capture;
@@ -193,9 +194,7 @@ impl AcquiredWorkspaceBuild {
                     limits: self.root.limits,
                     resolution: self.root.resolution.clone(),
                     root_request: PackageRootSourceRequest::Git(self.request.clone()),
-                    navigation: PackageSourceNavigation::Member(
-                        super::workspace_path::source_relative_path(path),
-                    ),
+                    navigation: PackageSourceNavigation::Member(source_relative_path(path)),
                     selection: PackageSourceSelectionEvidence::Root,
                     cache_directories: self.root.cache_directories.clone(),
                 },

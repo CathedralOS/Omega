@@ -6,6 +6,7 @@
 
 use crate::value_custody::expression_types::expression_type_name_handle;
 use diagnostics::Diagnostic;
+use language_core::inline_assembly::AsmInstructionContract;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -25,9 +26,7 @@ pub(super) fn register_read_mnemonic(function: symbols::BuiltinFunction) -> Opti
         })
 }
 
-pub(super) fn user_asm_contract(
-    mnemonic: &str,
-) -> language_core::inline_assembly::AsmInstructionContract {
+pub(super) fn user_asm_contract(mnemonic: &str) -> AsmInstructionContract {
     let Some(language_core::inline_assembly::AsmCatalogEntry::Contract(contract)) =
         language_core::inline_assembly::asm_catalog_entry(mnemonic)
     else {

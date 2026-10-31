@@ -3,11 +3,20 @@
 //! requirement nor a proposition acquires a manufactured executable body.
 
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::proposition::PropositionDefinition;
 use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
+use validation::expression_result_type_reference;
+use validation::find_machine_head;
+use validation::has_builtin_bound_expression_meaning;
+use validation::has_builtin_decomposed_guard_meaning;
+use validation::has_builtin_parameter_bound_expression_meaning;
+use validation::parameter_expression_result_type_reference;
+use validation::reserved_result_place;
+use validation::selected_requirement_signature;
 
 #[derive(Clone, Copy)]
 pub(in crate::checks) enum Callable<'program> {
@@ -19,7 +28,7 @@ pub(in crate::checks) enum Callable<'program> {
         signature: &'program StateSignature,
     },
     Proposition {
-        declaration: &'program typed_trees::proposition::PropositionDefinition,
+        declaration: &'program PropositionDefinition,
     },
 }
 
@@ -31,9 +40,9 @@ impl<'program> Callable<'program> {
         if !target.is_valid() {
             return None;
         }
-        let machines = validation::find_machine_head(program, target)
+        let machines = find_machine_head(program, target)
             .map(|(machine, state)| Self::Machine { machine, state });
-        let requirements = validation::selected_requirement_signature(program, target)
+        let requirements = selected_requirement_signature(program, target)
             .map(|(_, signature)| Self::Requirement { signature })
             .or_else(|| {
                 program
@@ -122,29 +131,25 @@ impl<'program> Callable<'program> {
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
-        if let Some(result) = validation::reserved_result_place(program, expression) {
+        if let Some(result) = reserved_result_place(program, expression) {
             return (result.machine_symbol == self.owner_symbol()).then_some(result.type_reference);
         }
         match self {
             Self::Machine { machine, state } => {
-                validation::expression_result_type_reference(program, machine, state, expression)
+                expression_result_type_reference(program, machine, state, expression)
             }
-            Self::Proposition { declaration } => {
-                validation::parameter_expression_result_type_reference(
-                    program,
-                    declaration.symbol,
-                    program.proposition_parameters(declaration),
-                    expression,
-                )
-            }
-            Self::Requirement { signature } => {
-                validation::parameter_expression_result_type_reference(
-                    program,
-                    signature.symbol,
-                    program.state_signature_parameters(signature),
-                    expression,
-                )
-            }
+            Self::Proposition { declaration } => parameter_expression_result_type_reference(
+                program,
+                declaration.symbol,
+                program.proposition_parameters(declaration),
+                expression,
+            ),
+            Self::Requirement { signature } => parameter_expression_result_type_reference(
+                program,
+                signature.symbol,
+                program.state_signature_parameters(signature),
+                expression,
+            ),
         }
     }
 
@@ -154,28 +159,21 @@ impl<'program> Callable<'program> {
         expression: ExpressionHandle,
     ) -> bool {
         match self {
-            Self::Machine { machine, state } => validation::has_builtin_bound_expression_meaning(
+            Self::Machine { machine, state } => {
+                has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
+            }
+            Self::Proposition { declaration } => has_builtin_parameter_bound_expression_meaning(
                 program,
-                machine,
-                Some(state),
+                declaration.symbol,
+                program.proposition_parameters(declaration),
                 expression,
             ),
-            Self::Proposition { declaration } => {
-                validation::has_builtin_parameter_bound_expression_meaning(
-                    program,
-                    declaration.symbol,
-                    program.proposition_parameters(declaration),
-                    expression,
-                )
-            }
-            Self::Requirement { signature } => {
-                validation::has_builtin_parameter_bound_expression_meaning(
-                    program,
-                    signature.symbol,
-                    program.state_signature_parameters(signature),
-                    expression,
-                )
-            }
+            Self::Requirement { signature } => has_builtin_parameter_bound_expression_meaning(
+                program,
+                signature.symbol,
+                program.state_signature_parameters(signature),
+                expression,
+            ),
         }
     }
 
@@ -185,17 +183,14 @@ impl<'program> Callable<'program> {
         expression: ExpressionHandle,
     ) -> bool {
         match self {
-            Self::Machine { machine, state } => validation::has_builtin_decomposed_guard_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ),
+            Self::Machine { machine, state } => {
+                has_builtin_decomposed_guard_meaning(program, machine, Some(state), expression)
+            }
             Self::Requirement { .. } | Self::Proposition { .. } => {
                 if matches!(program.expression_table.expression(expression),
-                    typed_trees::expression::ExpressionNode::Binary(binary)
-                        if matches!(binary.operator, typed_trees::expression::BinaryOperator::And
-                            | typed_trees::expression::BinaryOperator::Or))
+                    ExpressionNode::Binary(binary)
+                        if matches!(binary.operator, BinaryOperator::And
+                            | BinaryOperator::Or))
                 {
                     return true;
                 }

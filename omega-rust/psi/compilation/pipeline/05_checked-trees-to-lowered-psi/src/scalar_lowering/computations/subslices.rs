@@ -2,6 +2,9 @@
 //! position. Reservation does not evaluate bounds or allocate element backing.
 //! The existing subslice effect proves bounds against the original live view.
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::view_subslice::ViewFamily;
+use crate::emission::operation_emission::view_subslice::coordinate;
 use crate::unit::attached_unit::view_ranges;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
@@ -58,8 +61,7 @@ pub(crate) fn prepare(
                     continue;
                 };
                 let expression = range.expression;
-                let bytes = range.family
-                    == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
+                let bytes = range.family == ViewFamily::Bytes;
                 let declaration = crate::terminal_identities::structural_declaration_by_identity(
                     types,
                     identities,
@@ -101,8 +103,7 @@ pub(crate) fn reserve(
 ) -> Result<Slot, LoweringError> {
     let range =
         range(argument).ok_or(LoweringError::Unsupported("computed range lost its source"))?;
-    let bytes =
-        range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
+    let bytes = range.family == ViewFamily::Bytes;
     // The consumer supplies the exact result carrier: a stored field can retain
     // its reference shell where a call presents the underlying view. Both use
     // this range evaluator; backing geometry cannot replace the receiving type.
@@ -137,8 +138,7 @@ impl super::Expansion<'_> {
         let range = range(argument).ok_or(LoweringError::Unsupported(
             "computed range lost its retained source",
         ))?;
-        let bytes =
-            range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
+        let bytes = range.family == ViewFamily::Bytes;
         if slot.expression != range.expression || slot.bytes != bytes {
             return unsupported("computed range disagrees with its descriptor reservation");
         }
@@ -197,22 +197,18 @@ impl super::Expansion<'_> {
                 return unsupported("computed range endpoint lost its integer type");
             }
             endpoints.push(argument);
-            completed[index] = Some(
-                crate::emission::operation_emission::view_subslice::coordinate(super::parameter(
-                    endpoint_types.len(),
-                    value_type,
-                ))?,
-            );
+            completed[index] = Some(coordinate(super::parameter(
+                endpoint_types.len(),
+                value_type,
+            ))?);
             endpoint_types.push(value_type);
         }
         let [start, end] = completed;
         let end = view_ranges::exclusive_end(range.end_inclusive, end)?;
-        let start = start.unwrap_or(
-            crate::emission::operation_emission::expressions::LoweredDirectExpression::IntegerLiteral {
-                value: semantic_vocabulary::IntegerValue::Unsigned(0),
-                scalar_type,
-            },
-        );
+        let start = start.unwrap_or(LoweredDirectExpression::IntegerLiteral {
+            value: semantic_vocabulary::IntegerValue::Unsigned(0),
+            scalar_type,
+        });
         use crate::scalar_lowering::branch_states::prepared::{
             LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
         };

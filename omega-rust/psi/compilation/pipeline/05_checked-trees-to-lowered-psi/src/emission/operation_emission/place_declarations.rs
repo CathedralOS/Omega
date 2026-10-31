@@ -16,6 +16,8 @@
 
 use std::collections::BTreeSet;
 
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
 
@@ -105,7 +107,7 @@ pub(crate) fn operation_results<'a>(
 pub(crate) fn retain_operation_results<'a>(
     operations: impl Iterator<Item = &'a terminal_psi::Operation>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
-) -> Result<(), crate::lowering_error::LoweringError> {
+) -> Result<(), LoweringError> {
     let mut index_by_id: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
         declarations
             .iter()
@@ -115,9 +117,7 @@ pub(crate) fn retain_operation_results<'a>(
     for declaration in operation_results(operations) {
         if let Some(&index) = index_by_id.get(&declaration.id) {
             if declarations[index] != declaration {
-                return crate::lowering_error::unsupported(
-                    "computed result conflicts with an existing place declaration",
-                );
+                return unsupported("computed result conflicts with an existing place declaration");
             }
         } else {
             let index = declarations.len();
@@ -134,7 +134,7 @@ pub(crate) fn retain_operation_results<'a>(
 pub(crate) fn retain_block_parameters<'a>(
     blocks: impl Iterator<Item = &'a terminal_psi::Block>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
-) -> Result<(), crate::lowering_error::LoweringError> {
+) -> Result<(), LoweringError> {
     let mut index_by_id: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
         declarations
             .iter()
@@ -144,14 +144,10 @@ pub(crate) fn retain_block_parameters<'a>(
     for block in blocks {
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             let position = u32::try_from(position).map_err(|_| {
-                crate::lowering_error::LoweringError::Unsupported(
-                    "computed structural parameter position overflows",
-                )
+                LoweringError::Unsupported("computed structural parameter position overflows")
             })?;
             if parameter.position != position {
-                return crate::lowering_error::unsupported(
-                    "computed structural parameter positions are not dense",
-                );
+                return unsupported("computed structural parameter positions are not dense");
             }
             let declaration = StructuralPlaceDeclaration {
                 id: parameter.place,
@@ -162,7 +158,7 @@ pub(crate) fn retain_block_parameters<'a>(
             };
             if let Some(&index) = index_by_id.get(&declaration.id) {
                 if declarations[index] != declaration {
-                    return crate::lowering_error::unsupported(
+                    return unsupported(
                         "computed parameter conflicts with an existing place declaration",
                     );
                 }

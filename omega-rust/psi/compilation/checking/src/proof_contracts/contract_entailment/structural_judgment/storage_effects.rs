@@ -20,8 +20,12 @@ pub(super) struct StorageExposureRecord {
 }
 
 use super::StructuralJudge;
+use crate::CanonicalPlace;
+use facts::PlaceSegment;
+use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
@@ -107,7 +111,7 @@ impl CapturedStorageCoordinate {
 
 #[derive(Clone, PartialEq, Eq)]
 enum CapturedStorageSegment {
-    Place(facts::PlaceSegment),
+    Place(PlaceSegment),
     Index(super::StructuralTerm),
 }
 
@@ -204,7 +208,7 @@ fn disjoint_storage_fields(
         let typed_trees::data::DataMember::Field(field) = member else {
             continue;
         };
-        let segment = CapturedStorageSegment::Place(facts::PlaceSegment::Field {
+        let segment = CapturedStorageSegment::Place(PlaceSegment::Field {
             symbol: field.symbol,
         });
         let mut child = coordinate.clone();
@@ -256,17 +260,15 @@ fn content_storage_segments(
     path.iter()
         .map(|segment| match segment {
             ContentPlaceSegment::Field(field) => {
-                CapturedStorageSegment::Place(facts::PlaceSegment::Field {
+                CapturedStorageSegment::Place(PlaceSegment::Field {
                     symbol: field.symbol,
                 })
             }
-            ContentPlaceSegment::Case(case) => {
-                CapturedStorageSegment::Place(facts::PlaceSegment::Case {
-                    variant: case.symbol,
-                })
-            }
+            ContentPlaceSegment::Case(case) => CapturedStorageSegment::Place(PlaceSegment::Case {
+                variant: case.symbol,
+            }),
             ContentPlaceSegment::FixedIndex(index) => CapturedStorageSegment::Index(
-                super::StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(*index)),
+                super::StructuralTerm::Integer(BigInt::from_u64(*index)),
             ),
         })
         .collect()
@@ -707,11 +709,9 @@ impl StructuralJudge<'_> {
 
     fn ordinary_storage_path(&self, scope: StorageScope<'_>, expression: ExpressionHandle) -> bool {
         match self.program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Name(_) => true,
-            typed_trees::expression::ExpressionNode::Member(member) => {
-                self.ordinary_storage_path(scope, member.receiver)
-            }
-            typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Name(_) => true,
+            ExpressionNode::Member(member) => self.ordinary_storage_path(scope, member.receiver),
+            ExpressionNode::Indexed(indexed) => {
                 let builtin = scope.is_some_and(|(machine, state)| {
                     crate::value_custody::places::place_has_builtin_coordinates(
                         self.program,
@@ -754,16 +754,13 @@ impl StructuralJudge<'_> {
         let [source] = subject.sources.as_slice() else {
             return None;
         };
-        self.capture_storage_place(crate::CanonicalPlace {
+        self.capture_storage_place(CanonicalPlace {
             root: facts::PlaceRoot::Symbol(source.root),
             segments: source.segments.clone(),
         })
     }
 
-    fn capture_storage_place(
-        &self,
-        place: crate::CanonicalPlace,
-    ) -> Option<CapturedStorageCoordinate> {
+    fn capture_storage_place(&self, place: CanonicalPlace) -> Option<CapturedStorageCoordinate> {
         self.capture_storage_place_with_selectors(place, |expression| {
             let (_, value) = self
                 .normal_results
@@ -775,19 +772,17 @@ impl StructuralJudge<'_> {
 
     fn capture_storage_place_with_selectors(
         &self,
-        place: crate::CanonicalPlace,
+        place: CanonicalPlace,
         mut selector: impl FnMut(ExpressionHandle) -> Option<super::StructuralTerm>,
     ) -> Option<CapturedStorageCoordinate> {
         let segments = place
             .segments
             .into_iter()
             .map(|segment| match segment {
-                facts::PlaceSegment::FixedIndex { index } => Some(CapturedStorageSegment::Index(
-                    super::StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-                        u64::try_from(index).ok()?,
-                    )),
+                PlaceSegment::FixedIndex { index } => Some(CapturedStorageSegment::Index(
+                    super::StructuralTerm::Integer(BigInt::from_u64(u64::try_from(index).ok()?)),
                 )),
-                facts::PlaceSegment::Index { expression } => {
+                PlaceSegment::Index { expression } => {
                     let value = selector(expression);
                     if super::super::struct_trace() {
                         eprintln!(
@@ -800,19 +795,19 @@ impl StructuralJudge<'_> {
                     value.observation_identity_key()?;
                     Some(CapturedStorageSegment::Index(value))
                 }
-                facts::PlaceSegment::Field { symbol }
+                PlaceSegment::Field { symbol }
                     if symbol.is_valid()
                         && self.program.symbols.get(symbol).kind == symbols::SymbolKind::Field =>
                 {
                     Some(CapturedStorageSegment::Place(segment))
                 }
-                facts::PlaceSegment::Case { variant } if variant.is_valid() => {
+                PlaceSegment::Case { variant } if variant.is_valid() => {
                     Some(CapturedStorageSegment::Place(segment))
                 }
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::Case { .. } => None,
+                PlaceSegment::Field { .. } | PlaceSegment::Case { .. } => None,
                 // A window is not one storage coordinate. Unknown selection cannot
                 // borrow the identity of its source expression or an arbitrary slot.
-                facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => None,
+                PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => None,
             })
             .collect::<Option<Vec<_>>>()?;
         Some(CapturedStorageCoordinate {
@@ -899,7 +894,7 @@ impl StructuralJudge<'_> {
             for segment in &place.segments[stored.coordinate.segments.len()..] {
                 let projected_type = segment.projected_type(self.program, reference)?;
                 value = match segment {
-                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol }) => {
+                    CapturedStorageSegment::Place(PlaceSegment::Field { symbol }) => {
                         self.observed_field_term(value, self.program.symbols.name(*symbol), 0)?
                     }
                     CapturedStorageSegment::Index(_) => {
@@ -1148,7 +1143,7 @@ impl StructuralJudge<'_> {
     /// revision ledger; claim forwarding alone never establishes byte equality.
     pub(in crate::proof_contracts::contract_entailment) fn captured_place_projection(
         &self,
-        place: &crate::CanonicalPlace,
+        place: &CanonicalPlace,
         version: language_semantics::content::ContentPlaceVersion,
     ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
@@ -1249,7 +1244,7 @@ impl StructuralJudge<'_> {
                     && origin.recasts.is_empty()
                     && origin.representation.is_none() =>
             {
-                crate::CanonicalPlace {
+                CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(origin.root),
                     segments: origin.segments.clone(),
                 }

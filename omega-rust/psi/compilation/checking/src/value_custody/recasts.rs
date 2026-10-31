@@ -65,6 +65,7 @@ mod recast_judgments;
 mod record_eligibility;
 mod record_representation;
 mod slice_views;
+use language_core::ReferenceAccess;
 pub(crate) use record_representation::recast_representations_equivalent;
 pub use record_representation::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
@@ -72,6 +73,8 @@ pub use record_representation::{
     recast_scalar_path_geometry, recast_scalar_path_projection, recast_scalar_projection,
     recast_scalar_source_leaf,
 };
+use typed_trees::expression::AccessBorrowBacking;
+use typed_trees::typed_trees::AccessExecutionDeclaration;
 mod representation_types;
 mod scalar_representation;
 mod storage_interpretation;
@@ -93,7 +96,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// already-reference-typed source. These forms do not grant different custody.
 pub struct ReferenceFormationSource {
     pub source: ExpressionHandle,
-    pub access: language_core::ReferenceAccess,
+    pub access: ReferenceAccess,
     pub view_type: TypeReferenceHandle,
     pub interpretation: ReferenceFormationInterpretation,
 }
@@ -123,16 +126,14 @@ pub fn access_borrow_has_empty_write_frame(
     });
     machine.is_some_and(|machine| {
         program.access_borrow_factory(machine.symbol).is_some()
-            || typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
-                program,
-                machine.symbol,
+            || AccessExecutionDeclaration::authenticate(program, machine.symbol).is_ok_and(
+                |declaration| {
+                    declaration.is_some_and(|declaration| {
+                        declaration.operation()
+                            == typed_trees::typed_trees::AccessLifecycleOperation::View
+                    })
+                },
             )
-            .is_ok_and(|declaration| {
-                declaration.is_some_and(|declaration| {
-                    declaration.operation()
-                        == typed_trees::typed_trees::AccessLifecycleOperation::View
-                })
-            })
     })
 }
 
@@ -241,11 +242,8 @@ pub fn reference_formation_source(
             ExpressionNode::Borrow(borrow) => {
                 if !matches!(
                     (borrow.access, request.access),
-                    (language_core::ReferenceAccess::Mutable, _)
-                        | (
-                            language_core::ReferenceAccess::Shared,
-                            language_core::ReferenceAccess::Shared
-                        )
+                    (ReferenceAccess::Mutable, _)
+                        | (ReferenceAccess::Shared, ReferenceAccess::Shared)
                 ) {
                     return None;
                 }
@@ -258,10 +256,8 @@ pub fn reference_formation_source(
             access: request.access,
             view_type: shell.referee,
             interpretation: match request.backing {
-                typed_trees::expression::AccessBorrowBacking::Ordinary => {
-                    ReferenceFormationInterpretation::Access
-                }
-                typed_trees::expression::AccessBorrowBacking::Resident {
+                AccessBorrowBacking::Ordinary => ReferenceFormationInterpretation::Access,
+                AccessBorrowBacking::Resident {
                     extent,
                     granted,
                     resident,
@@ -386,7 +382,7 @@ pub(crate) fn validate_recasts(
                 // Borrow: the authored `&`/`&mut` source spelling of a recast
                 // operand must agree with the view polarity the `as` form
                 // claims (`&x as &mut T` is escalation, not a shared view).
-                let mut pending: Vec<(ExpressionHandle, Option<language_core::ReferenceAccess>)> =
+                let mut pending: Vec<(ExpressionHandle, Option<ReferenceAccess>)> =
                     roots.iter().map(|root| (*root, None)).collect();
                 while let Some((handle, enclosing_borrow)) = pending.pop() {
                     let node = program.expression_table.expression(handle);

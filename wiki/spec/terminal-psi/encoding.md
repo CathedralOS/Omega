@@ -1102,11 +1102,18 @@ ranked-SCC row follows:
 <!-- ranked-scc-tags -->
 | Tag | Ranked SCC | Fields after the tag |
 | --- | --- | --- |
-| 2 | Natural | counted natural cycle components |
+| 3 | Natural | counted integer-tuple cycle components |
 
-A natural cycle component is its rank integer type, counted block ranks (block
-id + rank value id), and counted rank edges. A rank edge is its edge id,
-source and target block ids, successor rank value id, and rank comparison:
+A cycle component has counted block ranks (block id + rank tuple) and counted
+rank edges (edge id + source and target block ids + successor rank tuple + rank
+comparison). A rank tuple is a positive count followed by ordered pairs of
+integer type and value id. Every row has the same arity and the same integer
+carrier, sign and width at each position. Singletons use this same record.
+Tuples compare lexicographically; a strict earlier component permits an arbitrary
+formed suffix. Storage-arena coordinates are not encoded. The former singleton
+layout at tag 2 is retired and rejects.
+
+Rank comparison tags follow:
 
 <!-- rank-comparison-tags -->
 | Tag | Rank comparison | Fields after the tag |

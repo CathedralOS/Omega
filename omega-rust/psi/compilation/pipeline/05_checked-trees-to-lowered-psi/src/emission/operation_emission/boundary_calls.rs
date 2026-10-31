@@ -8,6 +8,7 @@
 //! does, so stage 07 rejoins it to one checked operator application and
 //! provider selection stays one-to-one with Terminal operations.
 
+use crate::unit::attached_unit::argument_evaluation::validated_values;
 mod overflow_eligibility;
 pub(crate) mod result_policy;
 
@@ -42,13 +43,10 @@ pub(crate) fn complete_operands(
     if structural_arguments.len() != target.structural.len() {
         return unsupported("boundary arguments disagree with their declared structural roster");
     }
-    let arguments = crate::unit::attached_unit::argument_evaluation::validated_values(
-        Some(arguments),
-        &target.scalar,
-    )?
-    .iter()
-    .map(|value| value.id)
-    .collect();
+    let arguments = validated_values(Some(arguments), &target.scalar)?
+        .iter()
+        .map(|value| value.id)
+        .collect();
     let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
         receipts,
         calls.claims.bindings(),

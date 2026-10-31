@@ -43,6 +43,8 @@
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 use typed_trees::boundary_completions::exact_direct_intrinsic_signature;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 /// The exact boundary requirement a direct call to a bodyless external leaf
@@ -146,14 +148,8 @@ fn satisfied_trait_parts<'program>(
 /// signature does not qualify.
 fn same_runtime_signature(
     program: &dyn crate::CheckingInput,
-    (leaf_parameters, leaf_result): (
-        &[typed_trees::signature::StateParameter],
-        typed_trees::types::TypeReferenceHandle,
-    ),
-    (requirement_parameters, requirement_result): (
-        &[typed_trees::signature::StateParameter],
-        typed_trees::types::TypeReferenceHandle,
-    ),
+    (leaf_parameters, leaf_result): (&[StateParameter], TypeReferenceHandle),
+    (requirement_parameters, requirement_result): (&[StateParameter], TypeReferenceHandle),
 ) -> bool {
     leaf_parameters.len() == requirement_parameters.len()
         && leaf_parameters
@@ -323,7 +319,7 @@ fn intrinsic_realization_candidate(
 /// symbol is the type reference's head, which the declaration resolved to.
 pub fn checked_shape_data_declaration<'program>(
     program: &'program dyn crate::CheckingInput,
-    result_type: typed_trees::types::TypeReferenceHandle,
+    result_type: TypeReferenceHandle,
     name: &str,
 ) -> Option<(&'program typed_trees::data::DataDefinition, SymbolHandle)> {
     let symbol = &program
@@ -352,7 +348,7 @@ pub fn checked_shape_data_declaration<'program>(
 /// typed shape validation, not selected-package or native execution admission.
 pub fn exact_byte_read_result_type(
     program: &dyn crate::CheckingInput,
-    result_type: typed_trees::types::TypeReferenceHandle,
+    result_type: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     use typed_trees::data::DataMember;
 

@@ -5,6 +5,7 @@
 //! here lets call admission ask about every value written, including a value
 //! overwritten before return. This is body evidence, not a published precondition
 //! or a claim that a transitive call's writes have already been admitted.
+use super::boolean_predicates::entry_path_condition;
 use crate::flow::indexed_statements;
 use checked_trees::{
     CheckedOperatorFacts, CheckedValueFacts, CheckedValueOrigin, CheckedValueStatementRole,
@@ -103,13 +104,9 @@ pub(super) fn retain(
                         flow.semantic_constraint_contexts(statement.pre_store_constraints)
                             .collect::<Vec<_>>()
                     });
-                let entry_condition = contexts.as_ref().and_then(|contexts| {
-                    super::boolean_predicates::entry_path_condition(
-                        semantic,
-                        contexts,
-                        machine.symbol,
-                    )
-                });
+                let entry_condition = contexts
+                    .as_ref()
+                    .and_then(|contexts| entry_path_condition(semantic, contexts, machine.symbol));
                 let operand_writes =
                     frames.map(|frames| frames.statement_value_write_frame(machine, statement));
                 let entry_value = crate::values::lower_entry_scalar(

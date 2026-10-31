@@ -32,6 +32,7 @@ use super::{
     ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
     unique_unit_boundary, unsupported,
 };
+use crate::expression_preparation::computation_graph::boundary_targets;
 use checked_trees::machine::Machine;
 
 mod named;
@@ -143,9 +144,7 @@ pub(super) fn checked_unit_provider_candidates(
         .chain(retained_requirements.iter().copied())
         .collect::<Vec<_>>();
     for machine in closure {
-        boundary_symbols.extend(
-            crate::expression_preparation::computation_graph::boundary_targets(checked, *machine)?,
-        );
+        boundary_symbols.extend(boundary_targets(checked, *machine)?);
     }
     // A runtime call demands its complete boundary-trait interface. Retain
     // unused coordinates before candidate/body discovery so automatic unique

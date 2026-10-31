@@ -5,6 +5,7 @@
 use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
 pub fn statement_uses_symbol(
@@ -68,27 +69,27 @@ fn expression_uses_symbol_except(
         return false;
     }
     match expression_table(program).expression(expression) {
-        typed_trees::expression::ExpressionNode::SavedSubject(saved) => {
+        ExpressionNode::SavedSubject(saved) => {
             program.saved_value_source(saved).is_some_and(|subject| {
                 expression_uses_symbol_except(program, subject, symbol, completed_value)
             })
         }
-        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+        ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
                 .any(|child| expression_uses_symbol_except(program, child, symbol, completed_value))
         }
-        typed_trees::expression::ExpressionNode::Atomic(atomic) => {
+        ExpressionNode::Atomic(atomic) => {
             expression_uses_symbol_except(program, atomic.value, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => expression_table(program)
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .any(|value| expression_uses_symbol_except(program, *value, symbol, completed_value)),
-        typed_trees::expression::ExpressionNode::Binary(binary) => {
+        ExpressionNode::Binary(binary) => {
             expression_uses_symbol_except(program, binary.left, symbol, completed_value)
                 || expression_uses_symbol_except(program, binary.right, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::Call(call) => {
+        ExpressionNode::Call(call) => {
             (call.receiver.is_valid()
                 && expression_uses_symbol_except(program, call.receiver, symbol, completed_value))
                 || expression_table(program)
@@ -98,30 +99,30 @@ fn expression_uses_symbol_except(
                         expression_uses_symbol_except(program, *argument, symbol, completed_value)
                     })
         }
-        typed_trees::expression::ExpressionNode::Cast(cast) => {
+        ExpressionNode::Cast(cast) => {
             expression_uses_symbol_except(program, cast.value, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+        ExpressionNode::Indexed(indexed) => {
             expression_uses_symbol_except(program, indexed.collection, symbol, completed_value)
                 || expression_uses_symbol_except(program, indexed.index, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::Range(range) => {
+        ExpressionNode::Range(range) => {
             (range.start.is_valid()
                 && expression_uses_symbol_except(program, range.start, symbol, completed_value))
                 || (range.end.is_valid()
                     && expression_uses_symbol_except(program, range.end, symbol, completed_value))
         }
-        typed_trees::expression::ExpressionNode::Member(member) => {
+        ExpressionNode::Member(member) => {
             member.member_symbol == symbol
                 || expression_uses_symbol_except(program, member.receiver, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::Borrow(inner_expression) => {
+        ExpressionNode::Borrow(inner_expression) => {
             expression_uses_symbol_except(program, inner_expression.target, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::Unary(unary) => {
+        ExpressionNode::Unary(unary) => {
             expression_uses_symbol_except(program, unary.operand, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::Name(path) => {
+        ExpressionNode::Name(path) => {
             expression_table(program)
                 .name_path_member_symbols(path.member_symbols)
                 .first()
@@ -135,21 +136,19 @@ fn expression_uses_symbol_except(
                     .contains(&symbol)
                 || path.symbol == symbol
         }
-        typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
-            expression_table(program)
-                .struct_fields(struct_literal.fields)
-                .iter()
-                .any(|field| {
-                    expression_uses_symbol_except(program, field.value, symbol, completed_value)
-                })
-        }
-        typed_trees::expression::ExpressionNode::Boolean(_)
-        | typed_trees::expression::ExpressionNode::Float(_)
-        | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)
-        | typed_trees::expression::ExpressionNode::Integer(_)
-        | typed_trees::expression::ExpressionNode::String(_)
-        | typed_trees::expression::ExpressionNode::TypeExpression(_)
-        | typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
+        ExpressionNode::StructLiteral(struct_literal) => expression_table(program)
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| {
+                expression_uses_symbol_except(program, field.value, symbol, completed_value)
+            }),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

@@ -1,3 +1,4 @@
+use super::super::children::recurse_shared_children;
 use crate::borrow::accesses::BorrowAccessCollection;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -28,7 +29,7 @@ pub(super) fn collect_place_evaluation_reads(
             collect_place_evaluation_reads(collection, cast.value);
         }
         _ => {
-            if !super::super::children::recurse_shared_children(program, expression, &mut |child| {
+            if !recurse_shared_children(program, expression, &mut |child| {
                 collect_read_accesses(collection, child)
             }) {
                 collect_read_accesses(collection, expression);
@@ -41,13 +42,9 @@ pub(super) fn collect_read_accesses(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,
 ) {
-    if super::super::children::recurse_shared_children(
-        collection.program,
-        expression,
-        &mut |child| {
-            collect_read_accesses(collection, child);
-        },
-    ) {
+    if recurse_shared_children(collection.program, expression, &mut |child| {
+        collect_read_accesses(collection, child);
+    }) {
         return;
     }
     match collection.program.expression_table.expression(expression) {

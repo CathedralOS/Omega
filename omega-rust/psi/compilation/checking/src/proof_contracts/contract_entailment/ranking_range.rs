@@ -7,6 +7,13 @@ use super::{
 };
 use crate::frozen_program::expression_table;
 use crate::{StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
+use checked_trees::CheckedMemberIdentity;
+use coordinate::Coordinate;
+use coordinate::CoordinateKind;
+use fields::FieldCoordinate;
+use symbols::BuiltinTypeAtom;
+use symbols::SymbolHandle;
+use typed_trees::expression::UnaryOperator;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
@@ -49,7 +56,7 @@ pub use requirements::{
     prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
 };
 mod captured_calls;
-pub(crate) use captured_calls::{CapturedScalarRank, prove_captured_scalar_rank_call};
+pub(crate) use captured_calls::{CapturedRankComponent, prove_captured_rank_call};
 mod captured_entry;
 mod identity_views;
 mod rank_value;
@@ -212,7 +219,7 @@ fn slice_rank_coordinate<'program>(
                             program,
                             state,
                             &destination,
-                            coordinate::CoordinateKind::Length,
+                            CoordinateKind::Length,
                         )
                     }),
                 _ => None,
@@ -231,32 +238,20 @@ pub fn ranking_slice_length_observation(
     program: &dyn crate::CheckingInput,
     state: &State,
     coordinate: &RankSubjectCoordinate,
-) -> Option<(
-    symbols::SymbolHandle,
-    u32,
-    checked_trees::CheckedScalarExpression,
-)> {
+) -> Option<(SymbolHandle, u32, checked_trees::CheckedScalarExpression)> {
     let (parameter, path) = if coordinate.path.is_empty() {
         let parameter = program.state_parameter_by_symbol(state, coordinate.parameter)?;
         lengths::is_slice(program, parameter.type_reference).then_some(())?;
         (parameter, Vec::new())
     } else {
-        let field = coordinate::Coordinate::at_coordinate(
-            program,
-            state,
-            coordinate,
-            coordinate::CoordinateKind::Length,
-        )?;
+        let field = Coordinate::at_coordinate(program, state, coordinate, CoordinateKind::Length)?;
         let path = field
             .steps
             .iter()
             .chain([&field.field])
             .map(|field| {
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 )
             })
             .collect();
@@ -286,7 +281,7 @@ pub fn ranking_slice_length_observation(
 /// length evaluator and its stable-binding gate; unknown geometry stays unknown.
 pub fn closed_collection_length_at_place(
     program: &dyn crate::CheckingInput,
-    state_symbol: symbols::SymbolHandle,
+    state_symbol: SymbolHandle,
     collection: &crate::CanonicalPlace,
 ) -> Option<u64> {
     let (machine, state) = crate::find_state(program, state_symbol)?;
@@ -320,9 +315,9 @@ pub enum RankingRangeMeasure {
     /// membership, so an unbounded subject cannot claim `{ value * 2 }`.
     Computed {
         subject: ExpressionHandle,
-        parameter: symbols::SymbolHandle,
+        parameter: SymbolHandle,
         body: ExpressionHandle,
-        carrier: symbols::BuiltinTypeAtom,
+        carrier: BuiltinTypeAtom,
     },
     SliceLength(ExpressionHandle),
     /// A declared field view's rank: the `u64` field the measure `measure`
@@ -332,7 +327,7 @@ pub enum RankingRangeMeasure {
     /// checked owner's selection is not trusted as the coordinate.
     Field {
         subject: ExpressionHandle,
-        measure: symbols::SymbolHandle,
+        measure: SymbolHandle,
     },
     /// Natural distance to a fixed upper coordinate. Without an authored
     /// range, entry formation also permits lower > upper; the raw difference
@@ -410,7 +405,7 @@ pub struct RankingRangeState<'program> {
 /// `symbol >= 0`, the premise every ranking-range site extends into its
 /// comparison set.
 pub(super) fn length_bound_comparisons<'a>(
-    length_bindings: &'a [(symbols::SymbolHandle, String)],
+    length_bindings: &'a [(SymbolHandle, String)],
 ) -> impl Iterator<Item = (BinaryOperator, Polynomial, Polynomial)> + 'a {
     length_bindings.iter().map(|(_, identity)| {
         (
@@ -534,7 +529,7 @@ pub use checked_trees::CheckedRankObservation as RankPremiseObservation;
 /// formal, or the extent of the collection at `path` beneath it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RankPremiseInput {
-    pub parameter: symbols::SymbolHandle,
+    pub parameter: SymbolHandle,
     pub path: Vec<facts::PlaceSegment>,
     pub observation: RankPremiseObservation,
 }
@@ -558,7 +553,7 @@ pub struct RankProtectedPath {
 /// `<path>.len`, the same spelling an authored `.len` store or read carries.
 pub fn rank_protected_path(
     program: &dyn crate::CheckingInput,
-    parameter: symbols::SymbolHandle,
+    parameter: SymbolHandle,
     path: &[facts::PlaceSegment],
     observation: RankPremiseObservation,
 ) -> Option<RankProtectedPath> {
@@ -791,7 +786,7 @@ pub(super) fn constrained_parameter_bound_expressions(
     program: &dyn crate::CheckingInput,
     root: &State,
     expressions: &mut Vec<ExpressionHandle>,
-    mut recorded: Option<&mut Vec<symbols::SymbolHandle>>,
+    mut recorded: Option<&mut Vec<SymbolHandle>>,
 ) {
     for parameter in program
         .state_parameters(root)
@@ -838,11 +833,11 @@ fn subject_field_coordinates<'program>(
                     .is_some()
                 && !selected.destination.path.is_empty()
             {
-                coordinates.include(fields::FieldCoordinate::at_coordinate(
+                coordinates.include(FieldCoordinate::at_coordinate(
                     program,
                     state,
                     &selected.destination,
-                    coordinate::CoordinateKind::Integer,
+                    CoordinateKind::Integer,
                 )?);
             }
         }
@@ -866,7 +861,7 @@ fn carried_subject_coordinate<'program>(
     state: &'program State,
     entry_parameters: &RankStateBindings,
     subject: ExpressionHandle,
-) -> Option<fields::FieldCoordinate<'program>> {
+) -> Option<FieldCoordinate<'program>> {
     let formal = fields::parameter(program, root, subject)?;
     let destination = entry_parameters.destination(&RankSubjectCoordinate {
         parameter: formal.symbol,
@@ -875,12 +870,7 @@ fn carried_subject_coordinate<'program>(
     if destination.path.is_empty() {
         return None;
     }
-    fields::FieldCoordinate::at_coordinate(
-        program,
-        state,
-        &destination,
-        coordinate::CoordinateKind::Integer,
-    )
+    FieldCoordinate::at_coordinate(program, state, &destination, CoordinateKind::Integer)
 }
 
 /// The declared type of an exact retained coordinate, using ordinary place
@@ -913,12 +903,8 @@ fn scalar_coordinate_value(
             .find(|binding| binding.symbol == coordinate.parameter)
             .map(|binding| binding.value.clone());
     }
-    let field = fields::FieldCoordinate::at_coordinate(
-        program,
-        state,
-        coordinate,
-        coordinate::CoordinateKind::Integer,
-    )?;
+    let field =
+        FieldCoordinate::at_coordinate(program, state, coordinate, CoordinateKind::Integer)?;
     Some(StrictArithmeticBindingValue::Atom {
         identity: field.identity,
         unsigned: !integer_parameter(program, field.field.type_reference)?.is_signed_integer(),
@@ -943,11 +929,11 @@ fn arrival_scalar_actual(
         meanings::install_nonpolynomial_terms(program, machine, state, engine, actual, 0)?;
         return engine.normalize(actual);
     }
-    let coordinate = fields::FieldCoordinate::at_coordinate(
+    let coordinate = FieldCoordinate::at_coordinate(
         program,
         destination_state,
         destination,
-        coordinate::CoordinateKind::Integer,
+        CoordinateKind::Integer,
     )?;
     coordinate.field_actual(program, machine, state, engine, actual)
 }
@@ -960,7 +946,7 @@ fn arrival_length_actual(
     destination: &RankSubjectCoordinate,
     engine: &mut Engine<'_>,
     actual: ExpressionHandle,
-    bindings: &[(symbols::SymbolHandle, String)],
+    bindings: &[(SymbolHandle, String)],
 ) -> Option<Polynomial> {
     if destination.path.is_empty() {
         return lengths::actual(program, machine, state, actual, bindings, engine);
@@ -969,7 +955,7 @@ fn arrival_length_actual(
         program,
         destination_state,
         destination,
-        coordinate::CoordinateKind::Length,
+        CoordinateKind::Length,
     )?;
     coordinate.arrived_length(
         program,
@@ -1030,8 +1016,7 @@ fn prove_edge(
             // Scalar telescope compatibility says nothing about records.
             // Rebind the selected field only after proving its unique
             // nominal arrival; template spellings cannot supply that proof.
-            let coordinate =
-                fields::FieldCoordinate::resolve_field(program, root, subject, measure)?;
+            let coordinate = FieldCoordinate::resolve_field(program, root, subject, measure)?;
             let coordinate = coordinate.at_entry_arrival(program, state, entry_parameters)?;
             Some(field_coordinates::FieldCoordinates::new(coordinate))
         }
@@ -1725,15 +1710,13 @@ pub(super) fn hypothesis_landed_endpoints(
 
 /// The produced fixed integer domain, independent of an authored rank range.
 /// Signed words have a finite lower endpoint too; zero is not their floor.
-pub(super) fn carrier_bounds(
-    carrier: symbols::BuiltinTypeAtom,
-) -> Option<(Polynomial, Polynomial)> {
+pub(super) fn carrier_bounds(carrier: BuiltinTypeAtom) -> Option<(Polynomial, Polynomial)> {
     let primitive = PrimitiveType::from_builtin_atom(carrier)?;
     let (minimum, maximum) = integer_carrier_bounds(primitive)?;
     Some((Polynomial::constant(minimum), Polynomial::constant(maximum)))
 }
 
-pub(super) fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polynomial> {
+pub(super) fn carrier_maximum(carrier: BuiltinTypeAtom) -> Option<Polynomial> {
     Some(carrier_bounds(carrier)?.1)
 }
 
@@ -1944,12 +1927,7 @@ fn invocation_value_parameters<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
-) -> impl Iterator<
-    Item = (
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    ),
-> + 'program {
+) -> impl Iterator<Item = (SymbolHandle, typed_trees::types::TypeReferenceHandle)> + 'program {
     program
         .machine_type_parameters(machine)
         .iter()
@@ -2086,9 +2064,7 @@ pub(super) fn collect_guard(
             }
             Some(false)
         }
-        ExpressionNode::Unary(unary)
-            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
-        {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             collect_guard(engine, unary.operand, !holds, comparisons, depth + 1)
         }
         ExpressionNode::Atomic(atomic) => {

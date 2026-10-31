@@ -16,6 +16,21 @@ use super::super::scoped_paths::{
     resolve_state_scoped_table_path_member_symbols,
 };
 use super::super::targets::assign_call_machine_argument_symbols;
+use std::collections::BTreeSet;
+use std::collections::HashSet;
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::expression::ExpressionTable;
+use symbol_resolved_trees::expression::TableCallExpression;
+use symbol_resolved_trees::expression::TableNamePath;
+use symbol_resolved_trees::expression::TableStructLiteral;
+use symbol_resolved_trees::expression::TableStructLiteralField;
+use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::signature::StateParameter;
+use symbol_resolved_trees::statement::Statement;
+use symbol_resolved_trees::types::TypeReference;
 
 /// A case is a member of its carrier, never an expected-type-dependent bare
 /// value. Reject the exact unresolved spelling here so no later consumer can
@@ -28,31 +43,29 @@ pub(crate) fn reject_unqualified_case_values(
         .iter()
         .flat_map(|definition| program.data_members(definition.members))
         .filter_map(|member| match member {
-            symbol_resolved_trees::data::DataMember::Variant(case) => Some(case.name.as_str()),
-            symbol_resolved_trees::data::DataMember::Field(_) => None,
+            DataMember::Variant(case) => Some(case.name.as_str()),
+            DataMember::Field(_) => None,
         })
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     // A name used as a call or member receiver is a qualified-path head, not a
     // value: `Float::meaning32(...)` reads `Float` as a namespace segment that
     // never carries a symbol, so it must not be judged a bare case spelling.
     let path_heads = body_expressions(&program)
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            symbol_resolved_trees::expression::ExpressionNode::Call(call) => Some(call.receiver),
-            symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
-                Some(member.receiver)
-            }
+            ExpressionNode::Call(call) => Some(call.receiver),
+            ExpressionNode::Member(member) => Some(member.receiver),
             _ => None,
         })
         .filter(|handle| handle.is_valid())
-        .collect::<std::collections::HashSet<_>>();
+        .collect::<HashSet<_>>();
     let diagnostics = body_expressions(&program)
         .iter_expressions()
         .filter_map(|(expression_handle, expression)| {
             if path_heads.contains(&expression_handle) {
                 return None;
             }
-            let symbol_resolved_trees::expression::ExpressionNode::Name(path) = expression else {
+            let ExpressionNode::Name(path) = expression else {
                 return None;
             };
             let [name] = body_expressions(&program).name_path_members(path.members) else {
@@ -86,14 +99,14 @@ pub(crate) fn reject_unqualified_case_values(
 /// (calls, literals, indexed). Mirrors the state-call plan's receiver walk and
 /// validation's `receiver_member_chain` at this layer.
 fn spelled_receiver_chain(
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    receiver: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &ExpressionTable,
+    receiver: ExpressionHandle,
 ) -> Option<Vec<String>> {
     if !receiver.is_valid() {
         return None;
     }
     match expression_table.expression(receiver) {
-        symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+        ExpressionNode::Name(path) => {
             let members = expression_table.name_path_members(path.members);
             (!members.is_empty()).then(|| {
                 members
@@ -102,14 +115,12 @@ fn spelled_receiver_chain(
                     .collect()
             })
         }
-        symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+        ExpressionNode::Member(member) => {
             let mut chain = spelled_receiver_chain(expression_table, member.receiver)?;
             chain.push(member.member.as_str().to_string());
             Some(chain)
         }
-        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
-            spelled_receiver_chain(expression_table, inner.target)
-        }
+        ExpressionNode::Borrow(inner) => spelled_receiver_chain(expression_table, inner.target),
         _ => None,
     }
 }
@@ -153,7 +164,7 @@ fn nested_receiver_call_target_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     receiver_chain: &[String],
-    target: &symbol_resolved_trees::name::DiagnosticName,
+    target: &DiagnosticName,
 ) -> SymbolHandle {
     if receiver_chain.len() < 3 {
         return SymbolHandle::invalid();
@@ -168,13 +179,13 @@ fn nested_receiver_call_target_symbol(
 pub(super) fn assign_call_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    receiver: symbol_resolved_trees::expression::ExpressionHandle,
-    call: &symbol_resolved_trees::expression::TableCallExpression,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    child_type_references: &arena::Arena<TypeReference>,
+    receiver: ExpressionHandle,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
 ) {
     let (head_symbol, symbol) = resolve_expression_table_receiver_path_symbols(
         symbols,
@@ -209,9 +220,7 @@ pub(super) fn assign_call_symbol(
         target_symbol =
             nested_receiver_call_target_symbol(symbols, machine, &receiver_chain, &call.target);
     }
-    if let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
-        expression_table.expression_mut(expression)
-    {
+    if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
         call.target_symbol = target_symbol;
         // `exclude_service<Trait>()` names one exact declaration the same way
         // a provider slot does; build harvesting requires a boundary trait.
@@ -230,13 +239,13 @@ pub(in crate::symbols) fn assign_member_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    receiver: symbol_resolved_trees::expression::ExpressionHandle,
-    member_name: &symbol_resolved_trees::name::DiagnosticName,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    receiver: ExpressionHandle,
+    member_name: &DiagnosticName,
+    expression: ExpressionHandle,
 ) {
     if matches!(expression_table.expression(expression),
-        symbol_resolved_trees::expression::ExpressionNode::Member(member) if member.case_variant.is_some())
+        ExpressionNode::Member(member) if member.case_variant.is_some())
     {
         // A destructured payload belongs to its exact case, not to a
         // same-named state or ordinary field under the receiver's scope.
@@ -261,7 +270,7 @@ pub(in crate::symbols) fn assign_member_symbol(
         chain.push(member_name.as_str().to_string());
         member_symbol = nested_receiver_leaf_field_symbol(symbols, machine, &chain);
     }
-    if let (symbol, symbol_resolved_trees::expression::ExpressionNode::Member(member)) =
+    if let (symbol, ExpressionNode::Member(member)) =
         (member_symbol, expression_table.expression_mut(expression))
         && symbol.is_valid()
     {
@@ -271,9 +280,9 @@ pub(in crate::symbols) fn assign_member_symbol(
 
 pub(in crate::symbols) fn assign_membership_symbol(
     symbols: &SymbolTable,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    domain: arena::HandleSpan<symbol_resolved_trees::name::DiagnosticName>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    domain: arena::HandleSpan<DiagnosticName>,
+    expression: ExpressionHandle,
 ) {
     let name = expression_table.name_path_members(domain).joined_path();
     let members = expression_table.name_path_members(domain);
@@ -294,9 +303,7 @@ pub(in crate::symbols) fn assign_membership_symbol(
             SymbolHandle::invalid(),
         ),
     };
-    if let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
-        expression_table.expression_mut(expression)
-    {
+    if let ExpressionNode::Membership(membership) = expression_table.expression_mut(expression) {
         membership.domain_symbol = domain_symbol;
         membership.case_type_symbol = case_type_symbol;
         membership.case_symbol = case_symbol;
@@ -307,7 +314,7 @@ pub(in crate::symbols) fn assign_membership_symbol(
 /// in the state arena must not capture an earlier reference.
 pub(in crate::symbols) fn lexical_value_head(
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[StateParameter],
     member: &str,
     has_suffix: bool,
 ) -> SymbolHandle {
@@ -316,11 +323,7 @@ pub(in crate::symbols) fn lexical_value_head(
         .iter()
         .rev()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::Statement::LocalData(local)
-                if local.name.as_str() == member =>
-            {
-                Some(local.symbol)
-            }
+            Statement::LocalData(local) if local.name.as_str() == member => Some(local.symbol),
             _ => None,
         })
         .or_else(|| {
@@ -337,9 +340,9 @@ pub(in crate::symbols) fn lexical_value_head(
                     parameter.name.as_str() == member
                         && (matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Type
-                                | symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-                                | symbol_resolved_trees::data::TypeParameterKind::Value { .. }
+                            TypeParameterKind::Type
+                                | TypeParameterKind::Const { .. }
+                                | TypeParameterKind::Value { .. }
                         ) || has_suffix)
                 })
                 .map(|parameter| parameter.symbol)
@@ -350,11 +353,11 @@ pub(in crate::symbols) fn lexical_value_head(
 pub(in crate::symbols) fn assign_name_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    parameters: &[StateParameter],
     state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    path: &symbol_resolved_trees::expression::TableNamePath,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    path: &TableNamePath,
+    expression: ExpressionHandle,
 ) {
     let mut lookup_state = state_symbol;
     if let [member, suffix @ ..] = expression_table.name_path_members(path.members) {
@@ -372,9 +375,7 @@ pub(in crate::symbols) fn assign_name_symbol(
                     member_symbol,
                 );
             }
-            if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-                expression_table.expression_mut(expression)
-            {
+            if let ExpressionNode::Name(path) = expression_table.expression_mut(expression) {
                 path.head_symbol = symbol;
                 path.symbol = leaf;
             }
@@ -444,8 +445,7 @@ pub(in crate::symbols) fn assign_name_symbol(
         }
     }
     if head_symbol.is_valid()
-        && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-            expression_table.expression_mut(expression)
+        && let ExpressionNode::Name(path) = expression_table.expression_mut(expression)
     {
         path.head_symbol = head_symbol;
         path.symbol = symbol;
@@ -458,9 +458,9 @@ pub(in crate::symbols) fn assign_name_symbol(
 // Membership has a separate domain-path node and never enters this value route.
 pub(in crate::symbols) fn normalize_qualified_case_value(
     symbols: &SymbolTable,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    path: &symbol_resolved_trees::expression::TableNamePath,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    path: &TableNamePath,
+    expression: ExpressionHandle,
 ) -> bool {
     let members = expression_table.name_path_members(path.members);
     if members.len() < 2 {
@@ -482,28 +482,22 @@ pub(in crate::symbols) fn normalize_qualified_case_value(
         .clone();
     let owner_name = &name[..name.len() - case.len() - 2];
     *expression_table.expression_mut(expression) =
-        symbol_resolved_trees::expression::ExpressionNode::StructLiteral(
-            symbol_resolved_trees::expression::TableStructLiteral {
-                type_name: symbol_resolved_trees::name::DiagnosticName::new(
-                    owner_name,
-                    source_span,
-                ),
-                type_symbol: owner,
-                case_name: Some(case_name),
-                case_symbol: Some(case_symbol),
-                fields: Default::default(),
-            },
-        );
+        ExpressionNode::StructLiteral(TableStructLiteral {
+            type_name: DiagnosticName::new(owner_name, source_span),
+            type_symbol: owner,
+            case_name: Some(case_name),
+            case_symbol: Some(case_symbol),
+            fields: Default::default(),
+        });
     true
 }
 
 pub(in crate::symbols) fn assign_struct_literal_symbols(
     symbols: &SymbolTable,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
+    expression_table: &mut ExpressionTable,
+    expression: ExpressionHandle,
 ) {
-    let symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
-        expression_table.expression(expression).clone()
+    let ExpressionNode::StructLiteral(literal) = expression_table.expression(expression).clone()
     else {
         return;
     };
@@ -528,10 +522,8 @@ pub(in crate::symbols) fn assign_struct_literal_symbols(
                     case_span.span.start = case_span.span.end - case.len();
                 }
                 (
-                    symbol_resolved_trees::name::DiagnosticName::new(owner, source_span),
-                    Some(symbol_resolved_trees::name::DiagnosticName::new(
-                        case, case_span,
-                    )),
+                    DiagnosticName::new(owner, source_span),
+                    Some(DiagnosticName::new(case, case_span)),
                     symbol,
                 )
             }
@@ -589,15 +581,13 @@ pub(in crate::symbols) fn assign_struct_literal_symbols(
             offset
                 .try_into()
                 .expect("struct literal field count overflow"),
-            symbol_resolved_trees::expression::TableStructLiteralField {
+            TableStructLiteralField {
                 field_symbol,
                 ..field
             },
         );
     }
-    if let symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
-        expression_table.expression_mut(expression)
-    {
+    if let ExpressionNode::StructLiteral(literal) = expression_table.expression_mut(expression) {
         literal.type_name = type_name;
         literal.case_name = case_name;
         literal.type_symbol = type_symbol;

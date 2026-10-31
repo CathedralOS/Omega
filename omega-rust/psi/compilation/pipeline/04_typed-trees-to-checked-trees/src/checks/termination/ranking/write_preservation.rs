@@ -3,23 +3,22 @@
 use facts::NormalizedWriteFrame;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
-use validation::CallFrameResolver;
+use validation::{
+    CallFrameResolver, RankPremiseObservation, RankProtectedPath, frame_preserves_rank_premises,
+};
 
 /// A write frame is preservation evidence only when it is complete -- an
 /// opaque frame admits nothing -- and every caller-relative path it may
 /// write leaves the carrier as it was.
-fn frame_preserves_premise(
-    frame: NormalizedWriteFrame,
-    carrier: &validation::RankProtectedPath,
-) -> bool {
-    validation::frame_preserves_rank_premises(frame, std::slice::from_ref(carrier))
+fn frame_preserves_premise(frame: NormalizedWriteFrame, carrier: &RankProtectedPath) -> bool {
+    frame_preserves_rank_premises(frame, std::slice::from_ref(carrier))
 }
 
 pub(super) fn prefix_preserves_premise<'program>(
     frames: &CallFrameResolver<'program>,
     machine: &'program Machine,
     statements: &[StatementNode],
-    carrier: &validation::RankProtectedPath,
+    carrier: &RankProtectedPath,
 ) -> bool {
     statements.iter().all(|statement| {
         let direct_writes_preserve = match statement {
@@ -50,9 +49,9 @@ pub(super) fn prefix_preserves_path<'program>(
         frames,
         machine,
         statements,
-        &validation::RankProtectedPath {
+        &RankProtectedPath {
             path: path.to_owned(),
-            observation: validation::RankPremiseObservation::Value,
+            observation: RankPremiseObservation::Value,
         },
     )
 }

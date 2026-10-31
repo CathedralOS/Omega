@@ -5,6 +5,7 @@ use super::{
 };
 use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
+use language_semantics::value_domain::ValueDomain;
 use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{
@@ -87,15 +88,11 @@ pub(super) fn validate_type_constraints_node(
             // `domain` declaration.  Their carrier restrictions remain
             // checked here, at the same declaration fence as the retired
             // bracketed proof spelling.
-            TypeConstraintNode::Domain(name)
-                if language_semantics::value_domain::ValueDomain::from_name(name.as_str())
-                    .is_some() =>
-            {
-                let value_domain =
-                    language_semantics::value_domain::ValueDomain::from_name(name.as_str())
-                        .expect("match guard recognized the core value domain");
+            TypeConstraintNode::Domain(name) if ValueDomain::from_name(name.as_str()).is_some() => {
+                let value_domain = ValueDomain::from_name(name.as_str())
+                    .expect("match guard recognized the core value domain");
                 match value_domain {
-                    language_semantics::value_domain::ValueDomain::Finite
+                    ValueDomain::Finite
                         if !primitive_type
                             .is_some_and(|primitive| primitive.accepts_finite_constraint()) =>
                     {
@@ -105,7 +102,7 @@ pub(super) fn validate_type_constraints_node(
                             carrier = type_reference_label(program, base_type),
                         )));
                     }
-                    language_semantics::value_domain::ValueDomain::Finite => {}
+                    ValueDomain::Finite => {}
                 }
             }
             // The OmegaLayout FAMILY (`[u8; N] in OmegaLayout<Save>`; ch20
