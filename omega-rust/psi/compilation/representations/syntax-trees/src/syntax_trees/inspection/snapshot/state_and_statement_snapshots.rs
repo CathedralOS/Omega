@@ -207,11 +207,10 @@ macro_rules! state_signature_snapshot {
         StateSignatureSnapshot {
             name: snapshot_identifier($syntax_trees, &$signature.name),
             spelling: $signature.spelling.map(|spelling| spelling.symbol()),
-            lifetime_parameters: $signature
-                .lifetime_parameters
-                .iter()
-                .map(|value| snapshot_identifier($syntax_trees, value))
-                .collect(),
+            lifetime_parameters: snapshot_identifier_slice(
+                $syntax_trees,
+                &$signature.lifetime_parameters,
+            ),
             type_parameters: $syntax_trees
                 .items
                 .type_parameters($signature.type_parameters)

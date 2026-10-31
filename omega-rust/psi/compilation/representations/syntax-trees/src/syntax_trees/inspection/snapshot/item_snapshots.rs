@@ -3,12 +3,12 @@
 
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, ExternalBinding,
-    GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause,
+    GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause, TypeParameter,
 };
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_expression_handle, snapshot_identifier, snapshot_identifier_slice,
-    snapshot_type_reference_handle,
+    snapshot_type_reference_handle, snapshot_type_references,
 };
 use crate::syntax_trees::inspection::snapshot::state_and_statement_snapshots::{
     snapshot_state_node, snapshot_state_parameter, snapshot_state_signature,
@@ -18,6 +18,7 @@ use crate::syntax_trees::inspection::snapshot::{
     ExpressionSnapshot, IdentifierSnapshot, StateParameterSnapshot, StateSignatureSnapshot,
     StateSnapshot, TypeReferenceSnapshot,
 };
+use arena::HandleSpan;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -394,29 +395,17 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
         },
         Item::Conformance(value) => ItemSnapshot::Conformance {
             is_public: value.is_public,
-            lifetime_parameters: value
-                .lifetime_parameters
-                .iter()
-                .map(|value| snapshot_identifier(syntax_trees, value))
-                .collect(),
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-                .collect(),
+            lifetime_parameters: snapshot_identifier_slice(
+                syntax_trees,
+                &value.lifetime_parameters,
+            ),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
             trait_name: snapshot_identifier(syntax_trees, &value.trait_name),
-            trait_lifetime_arguments: value
-                .trait_lifetime_arguments
-                .iter()
-                .map(|value| snapshot_identifier(syntax_trees, value))
-                .collect(),
-            trait_arguments: syntax_trees
-                .type_references
-                .type_reference_handles(value.trait_arguments)
-                .iter()
-                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                .collect(),
+            trait_lifetime_arguments: snapshot_identifier_slice(
+                syntax_trees,
+                &value.trait_lifetime_arguments,
+            ),
+            trait_arguments: snapshot_type_references(syntax_trees, value.trait_arguments),
             alias: value
                 .alias
                 .as_ref()
@@ -483,17 +472,11 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 language_core::DataSupplyMode::CheckedShape => "checked_shape",
                 language_core::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
             },
-            lifetime_parameters: value
-                .lifetime_parameters
-                .iter()
-                .map(|value| snapshot_identifier(syntax_trees, value))
-                .collect(),
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-                .collect(),
+            lifetime_parameters: snapshot_identifier_slice(
+                syntax_trees,
+                &value.lifetime_parameters,
+            ),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
             conformance_bounds: value
                 .conformance_bounds
                 .iter()
@@ -520,12 +503,10 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                                 .identifier_path_members(selection.relation),
                         ),
                         trait_name: snapshot_identifier(syntax_trees, &selection.trait_name),
-                        trait_arguments: syntax_trees
-                            .type_references
-                            .type_reference_handles(selection.trait_arguments)
-                            .iter()
-                            .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                            .collect(),
+                        trait_arguments: snapshot_type_references(
+                            syntax_trees,
+                            selection.trait_arguments,
+                        ),
                         conformance_name: snapshot_identifier(
                             syntax_trees,
                             &selection.conformance_name,
@@ -543,19 +524,9 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
         },
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(syntax_trees, &value.name),
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-                .collect(),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
-            index_arguments: syntax_trees
-                .type_references
-                .type_reference_handles(value.index_arguments)
-                .iter()
-                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                .collect(),
+            index_arguments: snapshot_type_references(syntax_trees, value.index_arguments),
             is_public: value.is_public,
             alias: value
                 .alias
@@ -628,12 +599,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
         Item::Proposition(value) => ItemSnapshot::Proposition {
             name: snapshot_identifier(syntax_trees, &value.name),
             is_public: value.is_public,
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-                .collect(),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
             parameters: syntax_trees
                 .items
                 .state_parameters(value.parameters)
@@ -696,17 +662,11 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .map(|value| snapshot_identifier(syntax_trees, value)),
             boundary: value.boundary,
             is_top_level_boundary_requirement: value.is_top_level_boundary_requirement,
-            lifetime_parameters: value
-                .lifetime_parameters
-                .iter()
-                .map(|value| snapshot_identifier(syntax_trees, value))
-                .collect(),
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-                .collect(),
+            lifetime_parameters: snapshot_identifier_slice(
+                syntax_trees,
+                &value.lifetime_parameters,
+            ),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
             satisfies: syntax_trees
                 .items
                 .satisfies_clauses(value.satisfies)
@@ -769,28 +729,17 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             name: snapshot_identifier(syntax_trees, &value.name),
             is_boundary: value.is_boundary,
             is_public: value.is_public,
-            lifetime_parameters: value
-                .lifetime_parameters
-                .iter()
-                .map(|value| snapshot_identifier(syntax_trees, value))
-                .collect(),
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-                .collect(),
+            lifetime_parameters: snapshot_identifier_slice(
+                syntax_trees,
+                &value.lifetime_parameters,
+            ),
+            type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
             conformance_bounds: value
                 .conformance_bounds
                 .iter()
                 .map(|bound| snapshot_generic_conformance_bound(syntax_trees, bound))
                 .collect(),
-            parents: syntax_trees
-                .type_references
-                .type_reference_handles(value.parents)
-                .iter()
-                .map(|parent| snapshot_type_reference_handle(syntax_trees, *parent))
-                .collect(),
+            parents: snapshot_type_references(syntax_trees, value.parents),
             requires: snapshot_identifier_slice(
                 syntax_trees,
                 syntax_trees.items.identifier_path_members(value.requires),
@@ -821,17 +770,8 @@ fn snapshot_operator(
             syntax_trees,
             syntax_trees.items.identifier_path_members(operator.name),
         ),
-        lifetime_parameters: operator
-            .lifetime_parameters
-            .iter()
-            .map(|value| snapshot_identifier(syntax_trees, value))
-            .collect(),
-        type_parameters: syntax_trees
-            .items
-            .type_parameters(operator.type_parameters)
-            .iter()
-            .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-            .collect(),
+        lifetime_parameters: snapshot_identifier_slice(syntax_trees, &operator.lifetime_parameters),
+        type_parameters: snapshot_type_parameters(syntax_trees, operator.type_parameters),
         parameters: syntax_trees
             .items
             .state_parameters(operator.parameters)
@@ -934,6 +874,17 @@ pub(crate) fn snapshot_type_parameter(
     }
 }
 
+pub(crate) fn snapshot_type_parameters(
+    syntax_trees: &SyntaxTrees,
+    span: HandleSpan<TypeParameter>,
+) -> Vec<TypeParameterSnapshot> {
+    syntax_trees
+        .items
+        .type_parameters(span)
+        .iter()
+        .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+        .collect()
+}
 fn snapshot_data_properties(properties: crate::item::DataProperties) -> DataPropertiesSnapshot {
     use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension, Multiplicity};
     DataPropertiesSnapshot {
@@ -1050,12 +1001,7 @@ fn snapshot_proof_fact(syntax_trees: &SyntaxTrees, fact: &ProofFact) -> ProofFac
                     .items
                     .identifier_path_members(membership.domain),
             ),
-            domain_arguments: syntax_trees
-                .type_references
-                .type_reference_handles(membership.domain_arguments)
-                .iter()
-                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
-                .collect(),
+            domain_arguments: snapshot_type_references(syntax_trees, membership.domain_arguments),
         },
     }
 }
@@ -1108,17 +1054,8 @@ fn snapshot_satisfies_clause(
 ) -> SatisfiesClauseSnapshot {
     SatisfiesClauseSnapshot {
         trait_name: snapshot_identifier(syntax_trees, &clause.trait_name),
-        lifetime_arguments: clause
-            .lifetime_arguments
-            .iter()
-            .map(|value| snapshot_identifier(syntax_trees, value))
-            .collect(),
-        arguments: syntax_trees
-            .type_references
-            .type_reference_handles(clause.arguments)
-            .iter()
-            .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
-            .collect(),
+        lifetime_arguments: snapshot_identifier_slice(syntax_trees, &clause.lifetime_arguments),
+        arguments: snapshot_type_references(syntax_trees, clause.arguments),
         requirement: clause
             .requirement
             .as_ref()
@@ -1147,12 +1084,7 @@ fn snapshot_generic_conformance_bound(
     GenericConformanceBoundSnapshot {
         binder: snapshot_identifier(syntax_trees, &bound.binder),
         trait_name: snapshot_identifier(syntax_trees, &bound.trait_name),
-        arguments: syntax_trees
-            .type_references
-            .type_reference_handles(bound.arguments)
-            .iter()
-            .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
-            .collect(),
+        arguments: snapshot_type_references(syntax_trees, bound.arguments),
     }
 }
 
