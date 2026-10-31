@@ -379,9 +379,11 @@ impl Emission<'_, '_, '_> {
             let producer_operation = match transformation.source {
                 ContentClaimTransformationSource::Call { call_ordinal, .. } => {
                     let mut calls = self.operations.source_calls.iter().filter(|call| {
-                        call.source_state == transformation.state_symbol
-                            && call.statement_index == transformation.statement_index
-                            && call.call_ordinal == call_ordinal
+                        call.matches_statement(
+                            transformation.state_symbol,
+                            transformation.statement_index,
+                            call_ordinal,
+                        )
                     });
                     let call = calls.next().ok_or(LoweringError::Unsupported(
                         "content ancestry call was not emitted",

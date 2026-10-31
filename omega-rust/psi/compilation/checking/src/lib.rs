@@ -157,6 +157,7 @@ pub use proof_contracts::signature_ensures::{
     collect_parameter_bound_comparisons, ensures_contract_expressions,
 };
 use typed_trees::types::TypeReferenceHandle;
+pub use value_custody::access_atomic_observing_results;
 pub use value_custody::byte_observations::{ByteObservationCarrier, comparable_byte_carrier_type};
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
@@ -172,7 +173,6 @@ pub use value_custody::owned_value_source::{
     whole_owned_value_source,
 };
 pub use value_custody::permission_provenance::expression_permission_provenance;
-pub use value_custody::placed_atomic_observing_results;
 pub use value_custody::receiving_values::receiving_value;
 pub use value_custody::reference_shells::{
     ReferenceShell, SliceViewShell, byte_sequence_carrier, reference_shell, slice_view_shell,
@@ -281,8 +281,8 @@ pub use crate::machine_calls::calls::{
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{
-    admit_specification_calls, checked_value_call_candidate, expression_values_have_call_identity,
-    normal_return_call_candidate, requirement_satisfiers,
+    SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
+    expression_values_have_call_identity, normal_return_call_candidate, requirement_satisfiers,
     selected_operator_has_closed_value_denotation,
 };
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
@@ -298,7 +298,7 @@ pub use crate::value_custody::content_projections::build_content_projection_plan
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
-    data_requires_nominal_drop, has_no_owned_cleanup_obligations,
+    data_requires_nominal_drop, has_no_code_cleanup_contents, has_no_owned_cleanup_obligations,
     has_plain_contents_without_nominal_cleanup, type_graph_requires_nominal_drop,
 };
 pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
@@ -427,7 +427,7 @@ pub use value_custody::recasts::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, ReferenceFormationInterpretation,
     ReferenceFormationSource, SliceRecastByteRegion, SliceRecastSource,
-    ValidatedLiteralIndexedRecastFootprint, placed_borrow_has_empty_write_frame,
+    ValidatedLiteralIndexedRecastFootprint, access_borrow_has_empty_write_frame,
     recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_geometry,
     recast_scalar_path_projection, recast_scalar_projection, reference_formation_source,
     reference_view_storage, slice_recast_byte_region, slice_recast_source,

@@ -20,7 +20,7 @@ use terminal_semantics::descriptor_results::{
     writable_descriptor_slots,
 };
 
-pub mod placed_results;
+pub mod access_results;
 mod scalar_expressions;
 use scalar_expressions::ScalarExpressions;
 
@@ -838,7 +838,7 @@ fn adapt(
                             .push((slot, kernel::DescriptorCallOrigin::Empty));
                     }
                 }
-                O::EstablishPlacedReference {
+                O::EstablishAccessReference {
                     psi_operation,
                     result,
                     correspondence,
@@ -851,7 +851,7 @@ fn adapt(
                     // source; this token supplies no allocation guarantee.
                     graph.originations.entry(position).or_default().push((
                         DescriptorLocation::whole(result.place),
-                        kernel::DescriptorCallOrigin::PlacedFormation {
+                        kernel::DescriptorCallOrigin::AccessFormation {
                             machine: function.machine,
                             operation: *psi_operation,
                             place: result.place,
@@ -1465,10 +1465,10 @@ fn adapt(
                         && let Some(declaration) = boundaries.iter().find(|row| row.id == *boundary)
                         && declaration.declaration.as_ref().is_some_and(|head| {
                             head.execution.placement_operation()
-                                == Some(terminal_psi::TerminalPlacementLifecycleOperation::View)
+                                == Some(terminal_psi::TerminalAccessLifecycleOperation::View)
                         })
                         && let Some((path, carrier)) =
-                            terminal_semantics::placement_view_reference_slot(
+                            terminal_semantics::access_view_reference_slot(
                                 types,
                                 result.structural_type,
                             )
@@ -1481,7 +1481,7 @@ fn adapt(
                                 &path,
                                 None,
                             )?,
-                            kernel::DescriptorCallOrigin::PlacedFormation {
+                            kernel::DescriptorCallOrigin::AccessFormation {
                                 machine: function.machine,
                                 operation: operation.psi_operation()?,
                                 place: result.place,
@@ -1540,11 +1540,11 @@ fn adapt(
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
                         && !declaration.reference_outputs.is_empty()
-                        && slot_kind != kernel::DescriptorSlotKind::PlacedOrigins
+                        && slot_kind != kernel::DescriptorSlotKind::AccessOrigins
                         && !(slot_kind == kernel::DescriptorSlotKind::References
                             && declaration.declaration.as_ref().is_some_and(|head| {
                                 head.execution.placement_operation()
-                                    == Some(terminal_psi::TerminalPlacementLifecycleOperation::View)
+                                    == Some(terminal_psi::TerminalAccessLifecycleOperation::View)
                             }))
                     {
                         graph.calls.insert(

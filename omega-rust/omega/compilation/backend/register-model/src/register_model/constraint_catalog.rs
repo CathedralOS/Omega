@@ -96,8 +96,8 @@ pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
-    pub placed_read: Option<RegisterConstraintKey>,
-    pub placed_write: Option<RegisterConstraintKey>,
+    pub access_read: Option<RegisterConstraintKey>,
+    pub access_write: Option<RegisterConstraintKey>,
     pub port_write: Option<RegisterConstraintKey>,
     pub system_register_read: Option<RegisterConstraintKey>,
     pub system_register_write: Option<RegisterConstraintKey>,
@@ -405,6 +405,15 @@ impl ValidatedRegisterConstraintCatalog {
 
     pub const fn catalog(&self) -> &RegisterConstraintCatalog {
         &self.catalog
+    }
+
+    /// The uniquely keyed row in this immutable, strictly key-sorted catalog.
+    pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
+        self.catalog
+            .constraints
+            .binary_search_by_key(&key, |row| row.key)
+            .ok()
+            .map(|position| &self.catalog.constraints[position])
     }
 
     pub const fn identity(&self) -> RegisterConstraintCatalogIdentity {

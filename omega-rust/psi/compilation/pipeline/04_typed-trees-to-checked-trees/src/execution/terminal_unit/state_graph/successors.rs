@@ -121,6 +121,8 @@ pub(in crate::execution::terminal_unit) struct EdgeCalls<'a> {
 pub(in crate::execution::terminal_unit) fn successor(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
+    records: &super::loan_backing::RetainedBorrowRecords<'_>,
     fused: &FusedStates<'_>,
     source_index: usize,
     signatures: &[Signature],
@@ -135,6 +137,8 @@ pub(in crate::execution::terminal_unit) fn successor(
     let successor = successor_bindings(
         program,
         facts,
+        declarations,
+        records,
         fused,
         source_index,
         signatures,
@@ -174,6 +178,8 @@ pub(in crate::execution::terminal_unit) fn successor(
 pub(in crate::execution::terminal_unit) fn successor_bindings(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
+    records: &super::loan_backing::RetainedBorrowRecords<'_>,
     fused: &FusedStates<'_>,
     source_index: usize,
     signatures: &[Signature],
@@ -655,7 +661,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             return structural_transfer_plan(
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     retired_carrier_backing: super::loan_backing::retired_carrier_backing(
-                                        program, facts, machine.symbol, source.symbol,
+                                        program, records, machine.symbol, source.symbol,
                                         ordinal as usize, arrival.target, arguments,
                                         target.position as usize, operations, &subject,
                                     ),
@@ -916,8 +922,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         trace.phase("state loan: captured backing");
         trace.statement(Some(ordinal));
         let storage = super::loan_backing::retained_storage(
-            program,
-            facts,
+            declarations,
+            records,
             machine.symbol,
             source.symbol,
             ordinal as usize,

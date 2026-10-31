@@ -1,0 +1,18 @@
+public boundary trait Echo {
+    machine mirror<const Prefix: u64, T>(value: T) -> T reaches;
+    machine touch<const Prefix: u64, T>(value: &T) reaches;
+    machine pair<T>(left: &T, right: &T) -> u64 reaches;
+}
+public SelectedEcho satisfies Echo {
+    machine mirror<const Prefix: u64, T>(value: T) -> T { value }
+    machine touch<const Prefix: u64, T>(value: &T) {}
+    machine pair<T>(left: &T, right: &T) -> u64 { 0 }
+}
+// Expected exit: 0
+machine program() crashes Trap {
+    let value: u64 = Echo::mirror<7u64>(9u64);
+    Echo::touch<7u64>(&value);
+    transition value == 9u64 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

@@ -35,7 +35,7 @@ pub(super) fn check(
         || candidate.semantic_entry_offset != section.semantic_entry_offset
         || candidate.relocation_requirements != section.relocation_requirements
         || candidate.fragments != fragments.identity
-        || candidate.placement_policy != section.policy
+        || candidate.access_policy != section.policy
         || candidate.text_section != section.identity
         || candidate.statistics != placement::text_section_statistics(section, fragments)?
         || candidate.symbols != FunctionFragmentTextSectionUnavailableData::Unavailable

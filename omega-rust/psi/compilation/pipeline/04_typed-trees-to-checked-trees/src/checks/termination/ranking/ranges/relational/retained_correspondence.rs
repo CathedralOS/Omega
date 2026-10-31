@@ -237,6 +237,9 @@ impl RankArrivalAdmission {
                     casts: plan
                         .application_casts
                         .insert_many(application.casts().iter().cloned()),
+                    calls: plan
+                        .application_calls
+                        .insert_many(application.calls().iter().copied()),
                 },
                 None => Default::default(),
             };

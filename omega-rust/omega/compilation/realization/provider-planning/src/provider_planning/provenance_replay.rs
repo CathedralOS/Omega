@@ -62,7 +62,7 @@ pub struct ProviderPlanProvenance {
     /// external, and evaluated-payload rows.
     pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
     /// Compiler-catalog custody is distinct from authored target-machine origins.
-    pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
+    pub row_accessors: Vec<Option<crate::SealedAccessor>>,
 }
 
 pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;

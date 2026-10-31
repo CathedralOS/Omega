@@ -6,8 +6,8 @@ data Native {
 data Packet {
 }
 
-machine forge() -> Placed<Native, Packet> {
-    Placed { }
+machine forge() -> Access<Native, Packet> {
+    Access { }
 }
 
 machine main() {

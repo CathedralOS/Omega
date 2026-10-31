@@ -13,7 +13,7 @@ use crate::BuildTimeAdmissionPlan;
 
 mod access_value;
 
-pub(crate) use access_value::compute_selected_placement_plan;
+pub(crate) use access_value::compute_selected_access_plan;
 
 fn evaluate_selected_policy(
     typed: &TypedTrees,

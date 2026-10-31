@@ -20,7 +20,7 @@
 //! when the consumer needs argument custody rather than a direct callee. A
 //! consumer that needs only those facts never lists the five operations.
 
-use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::emission::operation_emission::buffer::{OperationBuffer, SourceInvocation};
 use crate::lowering_error::LoweringError;
 use lowered_psi::LoweredSourceFrontierBindings;
 use semantic_vocabulary::{MachineId, ObligationId, ProofTerm, ScalarTerm, ValueId};
@@ -94,13 +94,13 @@ pub(crate) enum CallRecord<'a> {
 /// source-call occurrence and push the operation. The boundary route keeps
 /// its own operation kind — a boundary application is not a machine call.
 /// Ordinary module callers obtain `selected_state` from the exact checked
-/// SourceCallCoordinate through call_sites::checked_source_call. Quotient records
+/// invocation origin through call_sites::checked_invocation. Quotient records
 /// are sealed requests with no ordinary source-call occurrence; that arm does
 /// not read this target. Authored/public spelling stays in the checked flow row.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_direct_call(
     operations: &mut OperationBuffer,
-    coordinate: SourceCallCoordinate,
+    coordinate: impl Into<SourceInvocation>,
     source_site: Option<checked_trees::NominalMachineUseSite>,
     selected_state: symbols::SymbolHandle,
     record: CallRecord<'_>,

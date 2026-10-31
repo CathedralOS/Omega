@@ -6,4 +6,4 @@ use omega::language::core::layout;
 public data Word { value: u64; }
 public data WordPlacement {}
 
-public boundary trait UnusedLifecycle: PlacementLifecycle<WordPlacement, Word> {}
+public boundary trait UnusedLifecycle: AccessLifecycle<WordPlacement, Word> {}

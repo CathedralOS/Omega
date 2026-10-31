@@ -113,6 +113,8 @@ pub(crate) fn build_checked_value_computation_plans(
                     statement_index,
                     parameters,
                     declaration_parameters: &[],
+                    declaration_scope: None,
+                    declaration_values: Vec::new(),
                     declaration_bindings: &[],
                     authored_parameters: program.state_parameters(state),
                     parameter_types: &parameter_types,

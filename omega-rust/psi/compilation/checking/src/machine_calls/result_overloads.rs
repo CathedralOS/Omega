@@ -69,16 +69,6 @@ impl MachineOverloadIndex {
             groups,
         }
     }
-
-    fn group(&self, entry: SymbolHandle) -> Option<&MachineOverloadGroup> {
-        self.entry_to_group
-            .get(&entry.arena_index())
-            .and_then(|index| self.groups.get(*index))
-    }
-
-    fn contains_entry(&self, entry: SymbolHandle) -> bool {
-        self.entry_to_group.contains_key(&entry.arena_index())
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -905,7 +895,9 @@ fn provisional_target_is_named_non_operator_callable(
     machine_overloads: &MachineOverloadIndex,
     target: SymbolHandle,
 ) -> bool {
-    machine_overloads.contains_entry(target)
+    machine_overloads
+        .entry_to_group
+        .contains_key(&target.arena_index())
         || program.traits().iter().any(|trait_definition| {
             program
                 .trait_machine_signatures(trait_definition)
@@ -922,7 +914,11 @@ fn selected_named_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if let Some(group) = machine_overloads.group(provisional_target) {
+    if let Some(group) = machine_overloads
+        .entry_to_group
+        .get(&provisional_target.arena_index())
+        .and_then(|index| machine_overloads.groups.get(*index))
+    {
         let visible_overloads = group
             .overloads
             .iter()

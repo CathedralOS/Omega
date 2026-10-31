@@ -235,7 +235,7 @@ typed_trees::digest_commitment! {
     MachineContractCommitment
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineContractIdentity {
     pub report_fingerprint: u64,
     pub commitment: MachineContractCommitment,

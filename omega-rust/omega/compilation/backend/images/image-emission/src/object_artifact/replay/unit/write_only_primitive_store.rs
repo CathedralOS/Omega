@@ -365,7 +365,7 @@ pub(crate) fn scalar_parameter_call_plan_matches(
     let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
     let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
     let (scalar_shape, byte_size) = native_scalar_shape(scalar_type)?;
-    let (expected_location, placed_byte_size) =
+    let (expected_location, access_byte_size) =
         match scalar_parameter.placement.locations.as_slice() {
             [
                 ValueLocation::Register {
@@ -414,7 +414,7 @@ pub(crate) fn scalar_parameter_call_plan_matches(
             && scalar_parameter.value == source_value
             && scalar_parameter.scalar_type == scalar_type
             && scalar_parameter.placement.shape == scalar_shape
-            && placed_byte_size == u32::from(byte_size)
+            && access_byte_size == u32::from(byte_size)
             && location == expected_location
             && abi.call_plan == expected_plan
             && abi.call_plan.parameters.get(scalar_parameter_index)

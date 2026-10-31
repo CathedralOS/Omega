@@ -102,8 +102,8 @@ pub struct ReferenceFormationSource {
 pub enum ReferenceFormationInterpretation {
     Declared,
     RepresentationView,
-    Placed,
-    ResidentPlaced {
+    Access,
+    ResidentAccess {
         extent: symbols::SymbolHandle,
         granted: symbols::SymbolHandle,
         resident: symbols::SymbolHandle,
@@ -113,7 +113,7 @@ pub enum ReferenceFormationInterpretation {
 /// A sealed view formation captures a loan without changing the lender's
 /// bytes. Mutable access governs subsequent uses of the view, not an implicit
 /// write during formation. Argument evaluation keeps its own effects.
-pub fn placed_borrow_has_empty_write_frame(
+pub fn access_borrow_has_empty_write_frame(
     program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> bool {
@@ -122,35 +122,35 @@ pub fn placed_borrow_has_empty_write_frame(
             .map(|(machine, _)| machine)
     });
     machine.is_some_and(|machine| {
-        program.placed_borrow_factory(machine.symbol).is_some()
-            || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+        program.access_borrow_factory(machine.symbol).is_some()
+            || typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
                 program,
                 machine.symbol,
             )
             .is_ok_and(|declaration| {
                 declaration.is_some_and(|declaration| {
                     declaration.operation()
-                        == typed_trees::typed_trees::PlacementLifecycleOperation::View
+                        == typed_trees::typed_trees::AccessLifecycleOperation::View
                 })
             })
     })
 }
 
 impl ReferenceFormationInterpretation {
-    /// Both families lend a source owner, but only ordinary Placed borrows
+    /// Both families lend a source owner, but only ordinary Access borrows
     /// interpret that owner's own bytes. Consumers must preserve this distinction.
-    pub fn is_placed(self) -> bool {
-        matches!(self, Self::Placed | Self::ResidentPlaced { .. })
+    pub fn is_access_view(self) -> bool {
+        matches!(self, Self::Access | Self::ResidentAccess { .. })
     }
 
     /// Join the source-selected endpoint to the already evaluated placement.
     /// This validates type correspondence only. A qualified descriptor cannot
     /// supply an executable backing or provider receipt by its type alone.
-    pub fn placed_storage(
+    pub fn access_storage(
         self,
         program: &dyn crate::CheckingInput,
         endpoint: TypeReferenceHandle,
-        plan: &typed_trees::typed_trees::PlacedViewPlan,
+        plan: &typed_trees::typed_trees::AccessViewPlan,
     ) -> Option<checked_trees::CheckedReferenceStorage> {
         use checked_trees::CheckedReferenceStorage;
         let endpoint_carrier = program.type_reference_table.peeled_type_reference(endpoint);
@@ -161,10 +161,10 @@ impl ReferenceFormationInterpretation {
             return None;
         };
         match self {
-            Self::Placed => {
-                (*symbol == plan.schema_symbol).then_some(CheckedReferenceStorage::Placed)
+            Self::Access => {
+                (*symbol == plan.schema_symbol).then_some(CheckedReferenceStorage::Access)
             }
-            Self::ResidentPlaced {
+            Self::ResidentAccess {
                 extent,
                 granted,
                 resident,
@@ -188,7 +188,7 @@ impl ReferenceFormationInterpretation {
                 {
                     return None;
                 }
-                Some(CheckedReferenceStorage::ResidentPlaced {
+                Some(CheckedReferenceStorage::ResidentAccess {
                     extent: owner.extent,
                     granted: owner.granted,
                     resident: owner.resident,
@@ -211,7 +211,7 @@ pub fn reference_formation_source(
             crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
                 .map(|(machine, _)| machine)
         })?;
-        let request = program.placed_borrow_factory(selected.symbol)?;
+        let request = program.access_borrow_factory(selected.symbol)?;
         let result = crate::machine_calls::calls::call_result_type(program, expression)?;
         let shell = crate::reference_shell(program, result)?;
         if shell.access != request.access {
@@ -226,7 +226,7 @@ pub fn reference_formation_source(
             return None;
         };
         let mut plans = program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .filter(|plan| plan.data_symbol == *symbol);
         let (Some(_), None) = (plans.next(), plans.next()) else {
@@ -258,14 +258,14 @@ pub fn reference_formation_source(
             access: request.access,
             view_type: shell.referee,
             interpretation: match request.backing {
-                typed_trees::expression::PlacedBorrowBacking::Ordinary => {
-                    ReferenceFormationInterpretation::Placed
+                typed_trees::expression::AccessBorrowBacking::Ordinary => {
+                    ReferenceFormationInterpretation::Access
                 }
-                typed_trees::expression::PlacedBorrowBacking::Resident {
+                typed_trees::expression::AccessBorrowBacking::Resident {
                     extent,
                     granted,
                     resident,
-                } => ReferenceFormationInterpretation::ResidentPlaced {
+                } => ReferenceFormationInterpretation::ResidentAccess {
                     extent,
                     granted,
                     resident,

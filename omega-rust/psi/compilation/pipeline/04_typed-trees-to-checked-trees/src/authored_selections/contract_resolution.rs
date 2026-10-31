@@ -218,7 +218,11 @@ fn checked_resultless_law_equality(
             .contract_facts
             .iter()
             .filter(|(_, contract)| {
-                contract_contains_expression(program, contract.fact, expression)
+                validation::expression_owners::proof_fact_contains_expression(
+                    program,
+                    contract.fact,
+                    expression,
+                )
             })
             .map(|(handle, _)| handle)
             .collect(),
@@ -251,14 +255,6 @@ fn checked_resultless_law_equality(
         found = true;
     }
     found
-}
-
-fn contract_contains_expression(
-    program: &dyn ::validation::CheckingInput,
-    fact: arena::Handle<typed_trees::domain::ProofFact>,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    validation::expression_owners::proof_fact_contains_expression(program, fact, expression)
 }
 
 fn resultless_state_signature(

@@ -82,11 +82,14 @@ impl OwnerIndex {
     }
 
     fn add(&mut self, expression: ExpressionHandle, environment: usize) {
-        self.entries
-            .entry(expression)
-            .or_default()
-            .environments
-            .push(environment);
+        let rows = &mut self.entries.entry(expression).or_default().environments;
+        // Each interned environment is emitted as one contiguous group by
+        // add_all or the executable-statement loop. Raw contains/any records
+        // that environment once, even when several roots reach the expression.
+        // Different environment IDs remain distinct, including equal binders.
+        if rows.last() != Some(&environment) {
+            rows.push(environment);
+        }
     }
 
     /// Record `environment` for each expression, storing it only when at
@@ -234,3 +237,6 @@ pub fn source_declaration_owner(
     }
     owner.is_valid().then_some(owner)
 }
+
+#[cfg(test)]
+mod index_tests;

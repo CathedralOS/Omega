@@ -1,9 +1,9 @@
-use crate::access_plan::diagnostic::reject_when;
+use crate::access_fields::diagnostic::reject_when;
 use crate::plan_policy::authorization::validate_operation_ordering;
 use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
     AtomicAccessOperation, BorrowPolarity, EffectFootprint, EffectiveSupplyKind,
-    LogicalFieldExtent, ObservationModel, PrimitiveAccessRequest, ValidatedPlacementPlan,
+    LogicalFieldExtent, ObservationModel, PrimitiveAccessRequest, ValidatedAccessPlan,
 };
 use language_core::atomic::AtomicOrderingPlan;
 
@@ -130,7 +130,7 @@ macro_rules! primitive_request_read_surface {
             self.request.effect_footprint
         }
 
-        /// Retained physical correspondence, when the originating placed view
+        /// Retained physical correspondence, when the originating access view
         /// was provider-corresponded. The specialization neither manufactures
         /// nor requires this separate provider-issued fact.
         pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
@@ -394,19 +394,19 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
         "Independently replay the complete placed authority, admitted Atomic supply, operation family, and ordering law before an outward lowering consumer accepts this request. Rejection only borrows the carrier; it performs no atomic attempt and preserves the same request for retry."
     );
 
-    /// Replay this request's complete retained placement authority against an
-    /// independently checked placement plan.
+    /// Replay this request's complete retained access authority against an
+    /// independently checked access plan.
     ///
-    /// The compact [`PlacementPlanId`] remains useful artifact evidence, but
-    /// is never accepted as placement authority by itself. This comparison
+    /// The compact [`AccessPlanId`] remains useful artifact evidence, but
+    /// is never accepted as access authority by itself. This comparison
     /// therefore requires every sealed layout, access, and reach field to
     /// match after the request's own authority has independently replayed.
-    pub fn validate_against_checked_placement(
+    pub fn validate_against_checked_access_plan(
         &self,
-        checked: &ValidatedPlacementPlan,
+        checked: &ValidatedAccessPlan,
     ) -> Result<(), AccessPlanDiagnostic> {
         self.validate_for_lowering()?;
-        if self.request._authority.placement_plan() != checked {
+        if self.request._authority.access_plan() != checked {
             return Err(AccessPlanDiagnostic(
                 "Atomic primitive access retained placement structure differs from the independently checked placement"
                     .into(),

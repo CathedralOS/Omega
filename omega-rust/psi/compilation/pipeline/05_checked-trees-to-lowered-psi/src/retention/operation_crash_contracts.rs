@@ -270,7 +270,10 @@ fn validate_named_site_carrier(
     let source_site = checked_trees::NominalMachineUseSite::Expression(named_use.expression);
     let mut joins = lowered.source_call_occurrences.iter().filter(|occurrence| {
         occurrence.source_site == Some(source_site)
-            && occurrence.source_state == state_symbol
+            && occurrence
+                .origin
+                .statement()
+                .is_some_and(|site| site.state == state_symbol)
             && occurrence.source_target == site.selected_operator
     });
     let join = match (joins.next(), joins.next()) {
@@ -508,7 +511,7 @@ fn operator_declaration(
 /// emissions — so a call here means the join itself is corrupt; the site is
 /// rejected rather than assigned a guessed positional telescope.
 fn positional_scalar_operands(kind: &OperationKind) -> Result<Vec<ValueId>, LoweringError> {
-    if is_call_operation(kind) {
+    if direct_call_parts(kind).is_some() || matches!(kind, OperationKind::BoundaryCall { .. }) {
         return unsupported("operator crash site joins a call operation");
     }
     let mut operands = Vec::new();
@@ -521,11 +524,6 @@ fn positional_scalar_operands(kind: &OperationKind) -> Result<Vec<ValueId>, Lowe
         return unsupported("operator crash site joins an operation without scalar operands");
     }
     Ok(operands)
-}
-
-/// A direct, dynamic or boundary call.
-fn is_call_operation(kind: &OperationKind) -> bool {
-    direct_call_parts(kind).is_some() || matches!(kind, OperationKind::BoundaryCall { .. })
 }
 
 fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<ScalarType> {

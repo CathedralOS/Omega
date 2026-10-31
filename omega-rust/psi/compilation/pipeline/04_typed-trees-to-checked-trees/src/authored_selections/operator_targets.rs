@@ -676,22 +676,13 @@ pub(crate) fn typed_operator_authored_selection_candidates(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
-    typed_operator_authored_selection_candidate_operators(program, expression)
+    candidate_operators(program, expression, &[])
         .into_iter()
         .map(|candidate| candidate.operator.symbol)
         .collect()
 }
 
-/// [`typed_operator_authored_selection_candidates`] with the declarations
-/// themselves, for a caller that needs what a selected candidate would return.
-fn typed_operator_authored_selection_candidate_operators<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
-    candidate_operators(program, expression, &[])
-}
-
-/// [`typed_operator_authored_selection_candidate_operators`] for a caller that
+/// The declared operator candidates of `expression`, for a caller that
 /// already holds a BINARY expression's two operand descriptors. Deriving them
 /// again would walk each operand once per enclosing operation, which turns a
 /// nested arithmetic expression's carrier into an exponential walk.

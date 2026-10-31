@@ -28,7 +28,7 @@ macro_rules! normalized_id {
 normalized_id!(ArtifactId, "artifact");
 normalized_id!(MachineContractSetId, "machine-contract-set");
 normalized_id!(MachineFootprintId, "machine-footprint");
-normalized_id!(PlacementPlanId, "placement-plan");
+normalized_id!(AccessPlanId, "placement-plan");
 normalized_id!(EntrySetId, "entry-set");
 normalized_id!(AdmissionReceiptId, "admission-receipt");
 normalized_id!(CodePlacementId, "code-placement");

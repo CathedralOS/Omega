@@ -59,7 +59,7 @@ mod provider_closed_requirements;
 mod requirement_call_specializations;
 
 // Carry, domains and placement: carry policy, domain dependency and element
-// facts, index compatibility conditions, placed view inputs, each type
+// facts, index compatibility conditions, access view inputs, each type
 // reference's borrow custody and content classification, each state's
 // reference-result custody, and frozen expression/place/carrier types.
 mod accepted_template_identities;
@@ -140,7 +140,7 @@ pub use nominal_machine_uses::{
     CheckedMachineContractRefinement, CheckedNominalMachineUse, NominalMachineUseFacts,
     NominalMachineUseSite,
 };
-pub use placement::CheckedPlacedViewInput;
+pub use placement::CheckedAccessViewInput;
 pub use provider_closed_requirements::{
     CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
 };
@@ -161,9 +161,9 @@ pub use state_locals::{CheckedStateLocal, StateLocalFacts};
 pub use suspensions::{MachineSuspensionFact, SuspensionFacts};
 pub use synchronous_invocations::{MachineSynchronousInvocationFact, SynchronousInvocationFacts};
 pub use termination::{
-    CheckedMachineRankCorrespondence, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
-    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
-    CheckedProofRecursiveTransitionLane, CheckedRankApplicationFacts,
+    CheckedDeclarationCall, CheckedMachineRankCorrespondence, CheckedProofRankingRelation,
+    CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
+    CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedRankApplicationFacts,
     CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge,
     CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
     CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,

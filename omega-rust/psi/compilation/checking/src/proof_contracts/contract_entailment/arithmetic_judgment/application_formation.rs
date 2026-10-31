@@ -3,6 +3,14 @@
 //! complete produced value and its proven carrier facts may escape.
 
 use super::{Engine, Polynomial};
+
+mod calls;
+
+#[derive(Default)]
+struct ApplicationDecisions {
+    casts: Vec<crate::ExactIntegerCastFact>,
+    calls: Vec<checked_trees::CheckedDeclarationCall>,
+}
 use crate::frozen_program::expression_table;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -16,6 +24,7 @@ pub struct IntegerApplicationFormation {
     measure: symbols::SymbolHandle,
     body: ExpressionHandle,
     casts: Vec<crate::ExactIntegerCastFact>,
+    calls: Vec<checked_trees::CheckedDeclarationCall>,
 }
 
 impl IntegerApplicationFormation {
@@ -31,6 +40,10 @@ impl IntegerApplicationFormation {
         &self.casts
     }
 
+    pub fn calls(&self) -> &[checked_trees::CheckedDeclarationCall] {
+        &self.calls
+    }
+
     /// Rehydrate decisions already retained by checking, not a new proof.
     /// The enclosing runtime row and executable application authenticate the
     /// state, declaration and complete coordinate bindings separately.
@@ -38,6 +51,7 @@ impl IntegerApplicationFormation {
         measure: symbols::SymbolHandle,
         body: ExpressionHandle,
         casts: Vec<crate::ExactIntegerCastFact>,
+        calls: Vec<checked_trees::CheckedDeclarationCall>,
     ) -> Option<Self> {
         if !measure.is_valid() || !body.is_valid() {
             return None;
@@ -53,10 +67,18 @@ impl IntegerApplicationFormation {
                 return None;
             }
         }
+        if calls.iter().any(|call| {
+            !call.expression.is_valid()
+                || !call.target_machine.is_valid()
+                || !call.target_state.is_valid()
+        }) {
+            return None;
+        }
         Some(Self {
             measure,
             body,
             casts,
+            calls,
         })
     }
 }
@@ -87,17 +109,16 @@ impl Engine<'_> {
         let primitive = program.primitive_type_reference(declaration.return_type)?;
         let (minimum, maximum) = primitive.integer_bounds()?;
         let mut admitted = self.clone();
-        let mut casts = Vec::new();
+        let mut decisions = ApplicationDecisions::default();
         let value = admitted.with_formal_arguments(
             measure,
             &[(formal.symbol, input.clone())],
             |engine| {
-                if !formed_type(engine, program, formal.type_reference, input, &mut casts) {
+                if !formed_type(engine, program, formal.type_reference, input) {
                     return None;
                 }
-                let value = formed_value(engine, program, *body, 0, &mut casts)?;
-                formed_type(engine, program, declaration.return_type, &value, &mut casts)
-                    .then_some(value)
+                let value = formed_value(engine, program, *body, 0, &mut decisions)?;
+                formed_type(engine, program, declaration.return_type, &value).then_some(value)
             },
         )?;
         // These are consequences of the completed application, never premises
@@ -119,7 +140,8 @@ impl Engine<'_> {
         let formation = (!admitted.requires_unsatisfiable).then_some(IntegerApplicationFormation {
             measure,
             body: *body,
-            casts,
+            casts: decisions.casts,
+            calls: decisions.calls,
         });
         *self = admitted;
         Some(FormedIntegerApplication { value, formation })
@@ -131,7 +153,7 @@ fn formed_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     depth: usize,
-    casts: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut ApplicationDecisions,
 ) -> Option<Polynomial> {
     if depth >= 128 {
         return None;
@@ -142,10 +164,10 @@ fn formed_value(
     }
     match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            formed_value(engine, program, atomic.value, depth + 1, casts)
+            formed_value(engine, program, atomic.value, depth + 1, decisions)
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
-            let operand = formed_value(engine, program, unary.operand, depth + 1, casts)?;
+            let operand = formed_value(engine, program, unary.operand, depth + 1, decisions)?;
             let reference = engine.source_result_type(expression)?;
             let primitive = program.primitive_type_reference(reference)?;
             engine.admit_integer_complement(primitive, &operand)
@@ -155,8 +177,8 @@ fn formed_value(
                 && cast.domain == ArithmeticDomain::Exact
                 && cast.semantic_domain.is_empty() =>
         {
-            let value = formed_value(engine, program, cast.value, depth + 1, casts)?;
-            if !formed_type(engine, program, cast.target_type, &value, casts) {
+            let value = formed_value(engine, program, cast.value, depth + 1, decisions)?;
+            if !formed_type(engine, program, cast.target_type, &value) {
                 return None;
             }
             let target = program.primitive_type_reference(cast.target_type)?;
@@ -184,20 +206,21 @@ fn formed_value(
                     minimum: super::super::BigInt::from_i128(source_min.max(target_min)),
                     maximum: super::super::BigInt::from_i128(source_max.min(target_max)),
                 };
-                if !casts.contains(&fact) {
-                    casts.push(fact);
+                if !decisions.casts.contains(&fact) {
+                    decisions.casts.push(fact);
                 }
             }
             Some(value)
         }
+        ExpressionNode::Call(_) => calls::form(engine, program, expression, depth, decisions),
         ExpressionNode::Binary(binary) => {
             // Selection is authenticated in the expression's supplying
             // declaration, not the runtime frame supplying its actual values.
             if !engine.selected_binary_meaning(expression, binary) {
                 return None;
             }
-            let left = formed_value(engine, program, binary.left, depth + 1, casts)?;
-            let right = formed_value(engine, program, binary.right, depth + 1, casts)?;
+            let left = formed_value(engine, program, binary.left, depth + 1, decisions)?;
+            let right = formed_value(engine, program, binary.right, depth + 1, decisions)?;
             let references =
                 [binary.left, binary.right].map(|operand| engine.source_result_type(operand));
             let primitives = references
@@ -246,7 +269,6 @@ fn formed_type(
     program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
     value: &Polynomial,
-    casts: &mut Vec<crate::ExactIntegerCastFact>,
 ) -> bool {
     use numerics::bignum::BigInt;
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -264,10 +286,22 @@ fn formed_type(
             else {
                 return false;
             };
-            let Some(minimum) = formed_value(engine, program, *minimum, 0, casts) else {
+            let Some(minimum) = formed_value(
+                engine,
+                program,
+                *minimum,
+                0,
+                &mut ApplicationDecisions::default(),
+            ) else {
                 return false;
             };
-            let Some(maximum) = formed_value(engine, program, *maximum, 0, casts) else {
+            let Some(maximum) = formed_value(
+                engine,
+                program,
+                *maximum,
+                0,
+                &mut ApplicationDecisions::default(),
+            ) else {
                 return false;
             };
             if !engine.prove_at_least(&value.sub(&minimum), &BigInt::zero())

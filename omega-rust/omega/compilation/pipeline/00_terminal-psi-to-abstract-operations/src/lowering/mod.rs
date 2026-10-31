@@ -56,9 +56,9 @@ pub(crate) fn lower_selected_module(
             structural_types,
             module.structural_referents.clone(),
         )
-        .with_placed_views(module.placed_view_plans.clone())
-        .with_placed_view_inputs(module.placed_view_inputs.clone())
-        .with_placement_lifecycles(module.placement_lifecycle_plans.clone())
+        .with_access_views(module.access_view_plans.clone())
+        .with_access_view_inputs(module.access_view_inputs.clone())
+        .with_access_lifecycles(module.access_lifecycle_plans.clone())
         .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?,

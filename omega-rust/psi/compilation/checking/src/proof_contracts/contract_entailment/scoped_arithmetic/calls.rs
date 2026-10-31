@@ -385,6 +385,42 @@ impl<'program> ScopedCalls<'program> {
         self.hypotheses(&[])
     }
 
+    /// Consume independently formed call inputs and attach checked public
+    /// guarantees to the supplied result identity. Reservation of that identity
+    /// does not invoke this operation or provide its precondition evidence.
+    pub(in crate::proof_contracts::contract_entailment) fn formed_call_guarantees(
+        &mut self,
+        source_owner: SymbolHandle,
+        expression: ExpressionHandle,
+        actuals: &[ScopedArithmeticBinding],
+        result: ScopedArithmeticValue,
+    ) -> Option<Vec<ScopedArithmeticHypothesis>> {
+        let call = expression_table(self.program).call_node(expression)?;
+        let owner = selected_call_contract(self.program, source_owner, call)?;
+        let arguments = expression_table(self.program).expression_handles(call.arguments);
+        if owner_parameters(self.program, &owner).len() != arguments.len()
+            || !self.independent(owner, &mut Vec::new(), &mut Vec::new())?
+            || !crate::machine_calls::contract_dependencies::independent_call_application(
+                self.program,
+                self.context,
+                owner_symbol(&owner),
+                typed_trees::references::StaticArgumentCall::Expression(expression, call),
+            )
+        {
+            return None;
+        }
+        let bindings = self.completed_bindings(
+            owner,
+            arguments,
+            CallOccurrence::Expression(expression),
+            actuals,
+            Some(result),
+            self.scopes.len(),
+        )?;
+        self.transport_guarantees(owner, &bindings, None)?;
+        self.hypotheses(&[])
+    }
+
     fn completed_bindings(
         &mut self,
         owner: SelectedCallContract<'program>,

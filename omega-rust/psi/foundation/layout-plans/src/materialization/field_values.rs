@@ -75,7 +75,7 @@ pub struct AggregateFieldSchema {
     pub field: String,
     /// Stable schema identity when this field belongs to a numbered record.
     /// The validated layout and compiler-derived schema rejoin through this
-    /// identity, so a source rename cannot change placement authority.
+    /// identity, so a source rename cannot change access authority.
     pub(crate) member_identity: Option<u64>,
     pub byte_size: u64,
     pub(crate) shape: AggregateFieldShape,

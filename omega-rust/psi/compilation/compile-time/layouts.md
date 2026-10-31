@@ -26,7 +26,7 @@ under `LIBRARY-REPRESENTATION-FAMILIES`, `PREFIX-CASE-IDENTITIES` and
 
 ## Ownership
 
-The access contract uses `AccessPolicy::plan(schema) -> AccessPlan`, containing
+The access contract uses `AccessPolicy::plan(schema) -> AccessFields`, containing
 `LayoutPlan`, field decisions and required reach. Layout helpers return data;
 the final validator independently checks complete schema coverage and permitted
 operations. Seeding inaccessible decisions deduplicates keys across fragments,
@@ -40,7 +40,7 @@ validated result. Build supplies explicit deployment roots, selected providers
 and immutable target facts. The facade preserves package selection authority
 while ordinary compile-time admission checks the complete policy closure.
 An inactive target scope with no application needs no layout facts.
-`placed_views/`, `access_plans/` and `wire_plans.rs` own their respective probes
+`access_views/`, `access_plans/` and `wire_plans.rs` own their respective probes
 and installations. Omega supplies target inputs through those services rather
 than reinterpreting policy semantics or reopening source initializers.
 

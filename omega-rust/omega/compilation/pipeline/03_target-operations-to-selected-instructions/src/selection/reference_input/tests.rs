@@ -1,7 +1,7 @@
 //! Address geometry is not backing admission. These controls pin the physical
 //! endpoint while the original operand independently retains the owner's loan.
 
-use abstract_operations::{PlacedReferenceBacking, ResidentReferenceBacking};
+use abstract_operations::{AccessReferenceBacking, ResidentReferenceBacking};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, ObligationId, PlaceId, ScalarType, StructuralDomainId,
     StructuralFieldId, StructuralTypeId, ValueId,
@@ -89,8 +89,8 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
     ]
 }
 
-fn backing() -> PlacedReferenceBacking {
-    PlacedReferenceBacking::Resident(ResidentReferenceBacking {
+fn backing() -> AccessReferenceBacking {
+    AccessReferenceBacking::Resident(ResidentReferenceBacking {
         owner: type_id(1),
         schema: type_id(5),
         carrier: type_id(6),

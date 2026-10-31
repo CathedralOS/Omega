@@ -38,8 +38,8 @@ pub(crate) use receiver::{
     family_data_binding_parameter,
 };
 pub(crate) use regions::StorageRegion;
-pub(in crate::flow) use summary::instantiate_call_relative_places;
 use summary::instantiate_known_call_mutation_summary_places;
+pub(in crate::flow) use summary::{AccessRouteReader, instantiate_call_relative_places};
 pub(crate) use summary::{StateMutationSummaryCache, state_storage_writes};
 
 #[derive(Clone, Copy)]
@@ -259,7 +259,7 @@ fn call_write_places(
     // not overwrite the linear claim descriptor or establish a replacement
     // ownership identity when this call completes.
     if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol)
-        || validation::placed_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
+        || validation::access_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
     {
         return Some(Vec::new());
     }
@@ -524,7 +524,7 @@ fn shared_call_storage_regions(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol)
-        || validation::placed_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
+        || validation::access_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
     {
         return Some(Vec::new());
     }

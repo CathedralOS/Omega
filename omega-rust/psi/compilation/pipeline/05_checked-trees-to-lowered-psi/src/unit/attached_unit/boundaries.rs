@@ -175,19 +175,29 @@ pub(crate) fn lower_declarations(
             .map(|source| {
                 Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
                     source,
-                    execution: match typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
-                        &checked.typed, plan.machine,
-                    ).map_err(|_| LoweringError::Unsupported("placement primitive declaration is malformed"))? {
-                        None => terminal_psi::CheckedBoundaryExecution::Provider,
-                        Some(declaration) => match declaration.operation() {
-                            typed_trees::typed_trees::PlacementLifecycleOperation::Initialize =>
-                                terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
-                            typed_trees::typed_trees::PlacementLifecycleOperation::MoveOut =>
-                                terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
-                            typed_trees::typed_trees::PlacementLifecycleOperation::View =>
-                                terminal_psi::CheckedBoundaryExecution::PlacementView,
+                    execution:
+                        match typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
+                            &checked.typed,
+                            plan.machine,
+                        )
+                        .map_err(|_| {
+                            LoweringError::Unsupported(
+                                "placement primitive declaration is malformed",
+                            )
+                        })? {
+                            None => terminal_psi::CheckedBoundaryExecution::Provider,
+                            Some(declaration) => match declaration.operation() {
+                                typed_trees::typed_trees::AccessLifecycleOperation::Initialize => {
+                                    terminal_psi::CheckedBoundaryExecution::AccessInitialize
+                                }
+                                typed_trees::typed_trees::AccessLifecycleOperation::MoveOut => {
+                                    terminal_psi::CheckedBoundaryExecution::AccessMoveOut
+                                }
+                                typed_trees::typed_trees::AccessLifecycleOperation::View => {
+                                    terminal_psi::CheckedBoundaryExecution::AccessView
+                                }
+                            },
                         },
-                    },
                     method_arguments:
                         crate::retention::conformance_applications::checked_method_arguments(
                             identities,

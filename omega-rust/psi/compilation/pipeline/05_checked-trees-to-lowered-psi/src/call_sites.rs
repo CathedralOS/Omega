@@ -1,10 +1,11 @@
-//! Calls as stage 04 recorded them. The source-custody binding pass joins
+//! Calls as stage 04 recorded them. Statement custody joins
 //! every flow call row (`FlowCallFact`) to its authored call site and records
 //! the site kind, the callee as spelled, the explicit arguments,
 //! what the statement does with the result, and whether a named transition is
 //! the state's closing invocation. Lowering reads those rows here, with the
 //! callee's declared signature, instead of walking the authored statement
-//! again.
+//! again. Declaration applications carry their own admitted receipts into
+//! `checked_invocation`; neither source owner can impersonate the other.
 
 use crate::checked_facts::flow_facts;
 use crate::lowering_error::{LoweringError, unsupported};
@@ -85,23 +86,82 @@ pub(crate) fn selected_module_target<'source>(
     checked: &'source CheckedTrees,
     occurrence: &lowered_psi::LoweredSourceCallOccurrence,
 ) -> Result<ModuleCallTarget<'source>, LoweringError> {
-    let call = checked_source_call(
-        checked,
-        crate::emission::operation_emission::buffer::SourceCallCoordinate {
-            state: occurrence.source_state,
-            statement_index: occurrence.statement_index,
-            call_ordinal: occurrence.call_ordinal,
-        },
-    )?;
-    if call.target_symbol != occurrence.source_target {
+    let (target, static_requirement_dispatch, _) = checked_invocation(checked, occurrence.origin)?;
+    if target != occurrence.source_target {
         return unsupported("emitted call selected target disagrees with its checked occurrence");
     }
-    let (machine, state) = crate::declarations::state_declaration(checked, call.target_symbol)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, target)?;
     Ok(ModuleCallTarget {
         machine,
         state,
-        static_requirement_dispatch: call.static_requirement_dispatch,
+        static_requirement_dispatch,
     })
+}
+
+/// Rejoin either admitted source owner without inventing a statement call.
+pub(crate) fn checked_invocation(
+    checked: &CheckedTrees,
+    origin: lowered_psi::LoweredSourceCallOrigin,
+) -> Result<
+    (
+        symbols::SymbolHandle,
+        Option<checked_trees::StaticRequirementDispatchFact>,
+        Option<checked_trees::NominalMachineUseSite>,
+    ),
+    LoweringError,
+> {
+    let selected = match origin {
+        lowered_psi::LoweredSourceCallOrigin::Statement(coordinate) => {
+            let call = checked_source_call(checked, coordinate)?;
+            (
+                call.target_symbol,
+                call.static_requirement_dispatch,
+                source_site(checked, coordinate, call)?,
+            )
+        }
+        lowered_psi::LoweredSourceCallOrigin::Declaration {
+            state,
+            application,
+            call,
+            ..
+        } => {
+            let owner = checked
+                .machine_holding_state(state)
+                .ok_or(LoweringError::Unsupported(
+                    "declaration invocation lost its source owner",
+                ))?;
+            let (_, retained) = checked_trees::CheckedCallOrigin::Declaration { application, call }
+                .declaration(
+                    &checked.facts.termination.rank_arrivals,
+                    owner.symbol,
+                    state,
+                )
+                .map_err(LoweringError::Unsupported)?;
+            let contract = checked
+                .facts
+                .contract_plans
+                .for_machine(retained.target_machine)
+                .ok_or(LoweringError::Unsupported(
+                    "declaration invocation lost its target contract",
+                ))?;
+            if retained.target_contract
+                != Some(checked_trees::MachineContractIdentity {
+                    report_fingerprint: contract.report_fingerprint,
+                    commitment: contract.commitment,
+                })
+            {
+                return unsupported("declaration invocation changed its bound target contract");
+            }
+            (
+                retained.target_state,
+                None,
+                Some(checked_trees::NominalMachineUseSite::Expression(
+                    retained.expression,
+                )),
+            )
+        }
+    };
+    Ok(selected)
 }
 
 /// Authenticate one direct-call source coordinate through its unique bound row.

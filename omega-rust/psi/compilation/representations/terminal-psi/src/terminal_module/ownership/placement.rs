@@ -3,7 +3,7 @@ use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalPlacedViewInput {
+pub struct TerminalAccessViewInput {
     pub machine: MachineId,
     pub position: u32,
     /// Dense structural ingress coordinate for this exact source state.
@@ -29,12 +29,12 @@ pub struct TerminalPlacedViewInput {
     pub placement_commitment: [u8; 32],
 }
 
-/// Canonical source-free identity of the synthesized `Placed<P, T>` view.
+/// Canonical source-free identity of the synthesized `Access<P, T>` view.
 /// Length framing keeps the policy/schema pair injective even when declaration
 /// paths contain punctuation used by the presentation grammar.
-pub fn canonical_placed_view_identity(policy: &str, schema: &str) -> String {
+pub fn canonical_access_view_identity(policy: &str, schema: &str) -> String {
     format!(
-        "placed-view:{}:{policy}:{}:{schema}",
+        "access-view:{}:{policy}:{}:{schema}",
         policy.len(),
         schema.len()
     )
@@ -44,15 +44,15 @@ pub fn canonical_placed_view_identity(policy: &str, schema: &str) -> String {
 /// plan describes demand; actual storage, supply, rights and lifetime are bound
 /// independently by establishment. No concrete address crosses this boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacedViewPlan {
+pub struct TerminalAccessViewPlan {
     pub carrier: semantic_vocabulary::StructuralTypeId,
     pub schema: semantic_vocabulary::StructuralTypeId,
     pub view_identity: TerminalIdentityIndex,
     pub policy_identity: TerminalIdentityIndex,
     pub policy_plan_machine_identity: TerminalIdentityIndex,
     pub schema_identity: TerminalIdentityIndex,
-    pub placement: access_plans::ValidatedPlacementPlan,
-    pub fields: Vec<TerminalPlacedFieldPlan>,
+    pub placement: access_plans::ValidatedAccessPlan,
+    pub fields: Vec<TerminalAccessFieldPlan>,
 }
 
 /// Whole-value placement demand at an exact boundary declaration.
@@ -62,11 +62,11 @@ pub struct TerminalPlacedViewPlan {
 /// receipt, or claim that the operation has executed. Installation must bind
 /// its selected provider and execution must retain the original extent.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacementLifecyclePlan {
+pub struct TerminalAccessLifecyclePlan {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub operation: TerminalPlacementLifecycleOperation,
-    pub execution: TerminalPlacementLifecycleExecution,
-    pub storage: TerminalPlacementStorage,
+    pub operation: TerminalAccessLifecycleOperation,
+    pub execution: TerminalAccessLifecycleExecution,
+    pub storage: TerminalAccessStorage,
     pub schema: semantic_vocabulary::StructuralTypeId,
     /// Complete represented schema fields in normalized access-slot order,
     /// including inaccessible fields. Whole-value encoding must initialize
@@ -76,14 +76,14 @@ pub struct TerminalPlacementLifecyclePlan {
     pub policy_identity: TerminalIdentityIndex,
     pub policy_plan_machine_identity: TerminalIdentityIndex,
     pub schema_identity: TerminalIdentityIndex,
-    pub placement: access_plans::ValidatedPlacementPlan,
+    pub placement: access_plans::ValidatedAccessPlan,
 }
 
 /// Who must fulfill this operation's normal-completion contract. A private
 /// compiler primitive cannot be replaced by an ordinary selected provider or
 /// host effect handler. Neither variant records successful execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TerminalPlacementLifecycleExecution {
+pub enum TerminalAccessLifecycleExecution {
     SelectedProvider,
     CompilerPrimitive {
         /// Exact selected-profile input of View or initialization; absent for extraction. This
@@ -91,7 +91,7 @@ pub enum TerminalPlacementLifecycleExecution {
         profile_type: Option<semantic_vocabulary::StructuralTypeId>,
         /// Exact core ResourceProfileSupply requirement whose completed call
         /// may supply placement. A matching result type is not this role.
-        profile_requirement: Option<TerminalPlacementProfileRequirement>,
+        profile_requirement: Option<TerminalAccessProfileRequirement>,
     },
 }
 
@@ -101,7 +101,7 @@ pub enum TerminalPlacementLifecycleExecution {
 /// alone cannot substitute another admitted trait. Source proof/admission,
 /// not this consistency record, authenticates the projection itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacementProfileRequirement {
+pub struct TerminalAccessProfileRequirement {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub owner: crate::NominalDeclarationIdentity,
     pub callable: TerminalIdentityIndex,
@@ -111,7 +111,7 @@ pub struct TerminalPlacementProfileRequirement {
 /// spelling, and an arbitrary pair of integer fields are not this contract.
 /// Runtime binding still needs the actual admitted owner and its live claim.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacementStorage {
+pub struct TerminalAccessStorage {
     pub carrier: semantic_vocabulary::StructuralTypeId,
     pub base: semantic_vocabulary::StructuralFieldId,
     pub length: semantic_vocabulary::StructuralFieldId,
@@ -122,7 +122,7 @@ pub struct TerminalPlacementStorage {
     pub resident: Option<semantic_vocabulary::StructuralDomainId>,
 }
 
-impl TerminalPlacementStorage {
+impl TerminalAccessStorage {
     pub fn owned_content(
         &self,
     ) -> Result<
@@ -134,7 +134,7 @@ impl TerminalPlacementStorage {
     > {
         match (self.vacant, self.resident) {
             (Some(vacant), Some(resident)) => Ok((vacant, resident)),
-            _ => Err("owned placement lifecycle lost its exact content qualification roles"),
+            _ => Err("owned access lifecycle lost its exact content qualification roles"),
         }
     }
 }
@@ -153,14 +153,14 @@ pub struct ResidentReferenceSource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TerminalPlacementLifecycleOperation {
+pub enum TerminalAccessLifecycleOperation {
     Initialize,
     MoveOut,
     View,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacedFieldPlan {
+pub struct TerminalAccessFieldPlan {
     /// Exact normalizer-issued slot under the enclosing complete plan.
     pub access_slot: u32,
     /// Member identities on the view and original schema respectively.
@@ -169,25 +169,25 @@ pub struct TerminalPlacedFieldPlan {
     pub accessor: semantic_vocabulary::StructuralTypeId,
     /// Only actually retained callable rows appear here; an unused source
     /// accessor cannot create an ambient provider or execution demand.
-    pub operations: Vec<TerminalPlacedAccessor>,
+    pub operations: Vec<TerminalAccessor>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TerminalPlacedAccessorKind {
+pub enum TerminalAccessorKind {
     Read,
     Take,
     Write,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacedAccessor {
+pub struct TerminalAccessor {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub kind: TerminalPlacedAccessorKind,
+    pub kind: TerminalAccessorKind,
 }
 
 /// Physical compatibility metadata; this data grants no storage or access.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlacedRamFieldCorrespondence {
+pub struct AccessRamFieldCorrespondence {
     pub access_slot: u32,
     pub source_field: semantic_vocabulary::StructuralFieldId,
     pub byte_offset: u64,
@@ -197,19 +197,19 @@ pub struct PlacedRamFieldCorrespondence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlacedRamCorrespondence {
+pub struct AccessRamCorrespondence {
     pub schema: semantic_vocabulary::StructuralTypeId,
     pub carrier: semantic_vocabulary::StructuralTypeId,
     pub source_byte_length: u64,
     /// Remaining condition on the concrete captured source address. Declared
     /// type alignment alone cannot discharge it for a re-viewed source.
     pub required_base: access_plans::BaseCongruence,
-    pub fields: Vec<PlacedRamFieldCorrespondence>,
+    pub fields: Vec<AccessRamFieldCorrespondence>,
 }
 
 /// Exact source-free scalar boundary demand. Geometry supplies no backing or loan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlacedScalarBoundaryDemand {
+pub struct AccessorScalarBoundaryDemand {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub carrier: semantic_vocabulary::StructuralTypeId,
     pub schema: semantic_vocabulary::StructuralTypeId,
@@ -217,7 +217,7 @@ pub struct PlacedScalarBoundaryDemand {
     pub view_field: crate::TerminalIdentityIndex,
     pub access_slot: u32,
     pub placement_commitment: [u8; 32],
-    pub operation: TerminalPlacedAccessorKind,
+    pub operation: TerminalAccessorKind,
     pub access: crate::StructuralAccess,
     pub scalar: semantic_vocabulary::ScalarType,
     pub byte_offset: u64,

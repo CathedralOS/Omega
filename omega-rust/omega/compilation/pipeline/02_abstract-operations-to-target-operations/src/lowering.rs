@@ -2,6 +2,7 @@
 //! retained owner live in `optimized.rs`; `coordination.rs` binds every
 //! admitted input and lowers each function through the common control graph.
 
+pub mod access_view_inputs;
 mod borrowed_storage;
 mod boundary_settlements;
 pub(crate) mod control_flow;
@@ -11,7 +12,6 @@ mod function;
 mod function_signature;
 pub(crate) mod model;
 pub(crate) mod optimized;
-pub mod placed_view_inputs;
 mod provider_evidence;
 mod scalar;
 mod scalar_abi;

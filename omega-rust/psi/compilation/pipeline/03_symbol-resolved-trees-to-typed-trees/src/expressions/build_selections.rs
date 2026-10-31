@@ -2,9 +2,6 @@
 //! Preparation authenticates the explicit activation before later value operands
 //! execute. The private request context is captured beside those exact calls.
 
-mod native_locators;
-pub(crate) use native_locators::normalize as normalize_native_locators;
-
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, RootBindingOperand,

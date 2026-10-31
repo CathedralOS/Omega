@@ -1,4 +1,4 @@
 module lookalike;
 // This namespace imports no compiler accessor template.
-public data PlacedField<T [copy]> { value: T; }
-public machine PlacedField::read<T [copy]>(value: &PlacedField<T>) -> u32 { 11 }
+public data Accessor<T [copy]> { value: T; }
+public machine Accessor::read<T [copy]>(value: &Accessor<T>) -> u32 { 11 }

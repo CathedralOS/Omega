@@ -748,9 +748,10 @@ impl Evaluation {
             if producers.next().is_some()
                 || produced.claims.is_empty()
                 || !operations.source_calls.iter().any(|occurrence| {
-                    occurrence.source_state == state
-                        && occurrence.statement_index == result.statement_index as usize
-                        && occurrence.terminal_site.operation() == Some(producer.id)
+                    occurrence.origin.statement().is_some_and(|site| {
+                        site.state == state
+                            && site.statement_index == result.statement_index as usize
+                    }) && occurrence.terminal_site.operation() == Some(producer.id)
                 })
             {
                 return unsupported("linear local lost its exact call result custody");
@@ -1771,6 +1772,7 @@ impl Evaluation {
                 next_value,
                 operations,
                 calls,
+                environment,
             )?
         {
             return Ok(completed);

@@ -11,19 +11,6 @@ use facts::PlaceSegment;
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 
-fn established_here(
-    facts: &CheckFacts,
-    value: Handle<FlowOperandFact>,
-    path: &[PlaceSegment],
-    domain: SymbolHandle,
-    semantic_domain: SemanticDomainId,
-) -> bool {
-    facts
-        .qualifications
-        .content
-        .establishes_completed_membership(&facts.flow, value, path, domain, semantic_domain)
-}
-
 pub fn completed_membership(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -48,7 +35,11 @@ pub fn completed_membership(
         {
             return false;
         }
-        if established_here(facts, value, path, domain, semantic_domain) {
+        if facts
+            .qualifications
+            .content
+            .establishes_completed_membership(&facts.flow, value, path, domain, semantic_domain)
+        {
             return true;
         }
         let Some(predecessors) = super::predecessors(program, facts, value, path) else {

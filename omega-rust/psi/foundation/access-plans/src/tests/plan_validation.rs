@@ -1,10 +1,10 @@
-use super::{access_plan, field_key, reach, uart_access_plan, uart_access_source, uart_layout};
-use crate::plan_policy::access_plan_validation::validate_entry_geometry;
+use super::{access_plan, field_key, reach, uart_access_fields, uart_access_source, uart_layout};
+use crate::plan_policy::access_fields_validation::validate_entry_geometry;
 use crate::{
-    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
+    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessFields, AccessOperation, AccessPlan,
     AtomicPermissions, BorrowPolarity, BoundaryReach, BoundaryServiceReachId, ExternalRead,
-    FieldAccess, LogicalFieldFragment, ObservationModel, PlacementPlan, RelativeEffectFootprint,
-    validate_access_plan, validate_placement_plan,
+    FieldAccess, LogicalFieldFragment, ObservationModel, RelativeEffectFootprint,
+    validate_access_fields, validate_access_plan,
 };
 use layout_plans::test_support::{layout_field_entry, layout_report};
 use layout_plans::{
@@ -21,7 +21,7 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
     );
     for name in [
         "non_authoritative_access_plan_compatibility_fingerprint",
-        "non_authoritative_placement_compatibility_fingerprint",
+        "non_authoritative_access_compatibility_fingerprint",
         "non_authoritative_resource_profile_compatibility_fingerprint",
     ] {
         assert!(
@@ -37,7 +37,7 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
     );
     assert!(
         source.contains("omega.access-field-layout.authoritative.v1\\0")
-            && include_str!("../access_plan.rs")
+            && include_str!("../access_fields.rs")
                 .contains("layout_commitment: AccessLayoutCommitment"),
         "access field keys must retain a domain-separated exact-layout commitment"
     );
@@ -76,7 +76,7 @@ fn stored_integer_geometry_uses_the_exact_encoded_width() {
 #[test]
 fn inaccessible_seed_has_exact_canonical_schema_cardinality() {
     let layout = uart_layout();
-    let plan = AccessPlan::inaccessible(&layout).expect("inaccessible plan");
+    let plan = AccessFields::inaccessible(&layout).expect("inaccessible plan");
     assert_eq!(plan.entries().len(), 3);
     assert_eq!(
         plan.entries()
@@ -90,7 +90,7 @@ fn inaccessible_seed_has_exact_canonical_schema_cardinality() {
             .iter()
             .all(|entry| entry.access() == &FieldAccess::Inaccessible)
     );
-    let validated = validate_access_plan(plan, &layout).expect("all-inaccessible plan");
+    let validated = validate_access_fields(plan, &layout).expect("all-inaccessible plan");
     assert!(validated.field_descriptors().is_empty());
     assert!(
         validated
@@ -117,7 +117,7 @@ fn numbered_field_rename_does_not_change_access_identity() {
         size: Some(4),
         align: 4,
     };
-    let original = validate_access_plan(
+    let original = validate_access_fields(
         access_plan(
             &original_layout,
             &[("word", super::stable_word32_read(AccessExposure::Exported))],
@@ -127,7 +127,7 @@ fn numbered_field_rename_does_not_change_access_identity() {
     .expect("original numbered plan");
 
     original_layout.entries[0].field = "renamed_word".into();
-    let renamed = validate_access_plan(
+    let renamed = validate_access_fields(
         access_plan(
             &original_layout,
             &[(
@@ -162,7 +162,7 @@ fn inaccessible_plan_rejects_one_name_for_multiple_field_identities() {
         align: 4,
     };
 
-    let error = AccessPlan::inaccessible(&layout)
+    let error = AccessFields::inaccessible(&layout)
         .expect_err("one presentation name cannot select two stable field identities");
     assert!(
         error.0.contains(
@@ -186,7 +186,7 @@ fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
         size: Some(8),
         align: 8,
     };
-    let mut plan = AccessPlan::inaccessible(&layout).expect("canonical access seed");
+    let mut plan = AccessFields::inaccessible(&layout).expect("canonical access seed");
     let compact_identity = plan.layout_report_fingerprint;
     plan.retained_layout.entries[0].placement = LayoutPlacementReport::At { offset: 4 };
     assert_eq!(
@@ -194,7 +194,7 @@ fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
         "the simulated carrier drift deliberately leaves its compact identity unchanged"
     );
 
-    let error = validate_access_plan(plan, &layout)
+    let error = validate_access_fields(plan, &layout)
         .expect_err("structural carrier drift must reject before access-plan sealing");
     assert!(
         error.0.contains("different validated layout"),
@@ -215,7 +215,7 @@ fn access_identity_covers_operation_width_and_exposure() {
         8,
     );
     let validate = |access: FieldAccess| {
-        validate_access_plan(access_plan(&layout, &[("word", access)]), &layout)
+        validate_access_fields(access_plan(&layout, &[("word", access)]), &layout)
             .expect("identity test plan")
             .identity()
     };
@@ -248,7 +248,7 @@ fn access_identity_covers_operation_width_and_exposure() {
     };
 
     let commitment = |access: FieldAccess| {
-        validate_placement_plan(PlacementPlan {
+        validate_access_plan(AccessPlan {
             access: access_plan(&layout, &[("word", access)]),
             layout: layout.clone(),
             reach: BoundaryReach::default(),
@@ -280,7 +280,7 @@ fn access_identity_covers_operation_width_and_exposure() {
 fn placement_identity_owns_normalized_reach() {
     let layout = uart_layout();
     let access = uart_access_source(&layout);
-    let uart = validate_placement_plan(PlacementPlan {
+    let uart = validate_access_plan(AccessPlan {
         layout: layout.clone(),
         access: access.clone(),
         reach: BoundaryReach::from_services([reach(), reach()]),
@@ -288,7 +288,7 @@ fn placement_identity_owns_normalized_reach() {
     .expect("UART placement");
     let alternate_reach =
         BoundaryServiceReachId::from_normalized_identity(8).expect("alternate reach");
-    let alternate = validate_placement_plan(PlacementPlan {
+    let alternate = validate_access_plan(AccessPlan {
         layout,
         access,
         reach: BoundaryReach::from_services([alternate_reach]),
@@ -305,7 +305,7 @@ fn placement_identity_owns_normalized_reach() {
 
 #[test]
 fn uart_access_plan_validates_geometry_and_borrow_polarity() {
-    let plan = uart_access_plan();
+    let plan = uart_access_fields();
 
     let status = plan
         .authorize(
@@ -377,7 +377,7 @@ fn uart_access_plan_validates_geometry_and_borrow_polarity() {
 #[test]
 fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
     let layout = uart_layout();
-    let plan = validate_access_plan(
+    let plan = validate_access_fields(
         access_plan(
             &layout,
             &[(
@@ -420,7 +420,7 @@ fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
         "an exclusive current borrow cannot upgrade a shared source loan"
     );
 
-    let plan = validate_access_plan(
+    let plan = validate_access_fields(
         access_plan(
             &layout,
             &[(
@@ -445,7 +445,7 @@ fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
 #[test]
 fn narrow_external_write_rejects_before_admission() {
     let layout = uart_layout();
-    let error = validate_access_plan(
+    let error = validate_access_fields(
         access_plan(
             &layout,
             &[(
@@ -470,7 +470,7 @@ fn narrow_external_write_rejects_before_admission() {
 #[test]
 fn destructive_access_requires_one_whole_snapshot_accessor() {
     let layout = uart_layout();
-    let error = validate_access_plan(
+    let error = validate_access_fields(
         access_plan(
             &layout,
             &[(
@@ -502,7 +502,7 @@ fn destructive_access_requires_one_whole_snapshot_accessor() {
         size: Some(4),
         align: 4,
     };
-    let error = validate_access_plan(
+    let error = validate_access_fields(
         access_plan(
             &aliased_layout,
             &[
@@ -549,7 +549,7 @@ fn empty_access_cases_reject_in_favor_of_inaccessible() {
             exposure: AccessExposure::Exported,
         },
     ] {
-        let error = validate_access_plan(access_plan(&layout, &[("status", access)]), &layout)
+        let error = validate_access_fields(access_plan(&layout, &[("status", access)]), &layout)
             .expect_err("empty access case must reject");
         assert!(error.0.contains("Inaccessible"));
     }
@@ -575,7 +575,7 @@ fn overlapping_atomic_fields_cannot_select_mixed_widths() {
         },
         exposure: AccessExposure::Exported,
     };
-    let error = validate_access_plan(
+    let error = validate_access_fields(
         access_plan(
             &layout,
             &[("wide", atomic_load(64)), ("upper", atomic_load(32))],
@@ -618,7 +618,7 @@ fn multi_container_fragments_are_not_one_access() {
         Some(8),
         4,
     );
-    let error = validate_access_plan(
+    let error = validate_access_fields(
         access_plan(
             &layout,
             &[("entry", super::stable_word32_read(AccessExposure::Exported))],
@@ -632,10 +632,11 @@ fn multi_container_fragments_are_not_one_access() {
 #[test]
 fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
     let layout = uart_layout();
-    let mut plan = AccessPlan::inaccessible(&layout).expect("UART seed");
+    let mut plan = AccessFields::inaccessible(&layout).expect("UART seed");
     let mut alternate_layout = layout.clone();
     alternate_layout.schema_report_fingerprint = 2;
-    let mut alternate = AccessPlan::inaccessible(&alternate_layout).expect("alternate schema seed");
+    let mut alternate =
+        AccessFields::inaccessible(&alternate_layout).expect("alternate schema seed");
     alternate.layout_report_fingerprint = plan.layout_report_fingerprint;
     for entry in &mut alternate.entries {
         entry.key.layout_report_fingerprint = plan.layout_report_fingerprint;

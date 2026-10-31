@@ -6,7 +6,7 @@ use crate::{
     SynchronousInvocationFacts, TerminationFacts,
 };
 
-use crate::{CheckedFactCallProjection, CheckedPlacedViewInput};
+use crate::{CheckedAccessViewInput, CheckedFactCallProjection};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckFacts {
@@ -138,10 +138,10 @@ pub struct CheckFacts {
     /// Denotational, non-executing call-result projections admitted by
     /// validation. Package review must rejoin this row exactly.
     pub fact_call_projections: Vec<CheckedFactCallProjection>,
-    /// Direct state inputs whose opaque placed-view meaning has been joined to
-    /// its exact source-derived placement plan. These rows grant no runtime
+    /// Direct state inputs whose opaque access-view meaning has been joined to
+    /// its exact source-derived access plan. These rows grant no runtime
     /// storage, accessor, provider, or ABI authority.
-    pub placed_view_inputs: Vec<CheckedPlacedViewInput>,
+    pub access_view_inputs: Vec<CheckedAccessViewInput>,
     /// Comparisons the judgment proved against retained constant recipes,
     /// discharged by each target closure against its closed values.
     pub constant_recipe_obligations: Vec<crate::ConstantRecipeObligation>,

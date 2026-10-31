@@ -13,6 +13,59 @@ use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 impl Engine<'_> {
+    /// Formation supplies completed operands before this operation publishes
+    /// any result guarantee. Polynomial snapshots preserve the supplying
+    /// declaration's formal roster without reading caller symbols by spelling.
+    pub(super) fn complete_formed_call(
+        &mut self,
+        expression: ExpressionHandle,
+        arguments: &[(ExpressionHandle, Polynomial)],
+        result: &Polynomial,
+    ) -> bool {
+        let mut remaining = 4096usize;
+        let Some(actuals) = arguments
+            .iter()
+            .map(|(source, value)| {
+                Some(ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Occurrence(*source),
+                    value: captured_polynomial(value, &self.unsigned_atoms, &mut remaining)?,
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let Some(result) = captured_polynomial(result, &self.unsigned_atoms, &mut remaining) else {
+            return false;
+        };
+        let mut calls = self
+            .captured_calls
+            .take()
+            .unwrap_or_else(|| ScopedCalls::for_declaration(self.program, self.machine_symbol));
+        let hypotheses =
+            calls.formed_call_guarantees(self.source_owner, expression, &actuals, result);
+        self.captured_calls = Some(calls);
+        let Some(hypotheses) = hypotheses else {
+            return false;
+        };
+        let previous_owner = self.source_owner;
+        let previous_types = self.source_type_bindings.clone();
+        let previous_formals = self.formal_arguments.take();
+        let previous_symbols = self.strict_symbol_bindings.clone();
+        let previous_result = self.strict_result_binding.clone();
+        let previous_occurrences = self.strict_occurrences.clone();
+        let previous_conditions = std::mem::take(&mut self.saved_conditions);
+        let accepted = install_hypotheses(self.program, self, &hypotheses);
+        self.source_owner = previous_owner;
+        self.source_type_bindings = previous_types;
+        self.formal_arguments = previous_formals;
+        self.strict_symbol_bindings = previous_symbols;
+        self.strict_result_binding = previous_result;
+        self.strict_occurrences = previous_occurrences;
+        self.saved_conditions = previous_conditions;
+        accepted
+    }
+
     /// Prepare call results before normalization while keeping every actual in
     /// the original caller frame. Imported hypotheses are normalized values;
     /// their clause namespace must not replace the next operand's bindings.

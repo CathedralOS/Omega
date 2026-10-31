@@ -131,14 +131,17 @@ impl Evaluation {
             bindings,
             &source_types,
         )?;
-        let mut expansion = self.scalar_computation_expansion(
-            identities,
-            checked,
-            &self.shared_qualifications,
-            root.machine,
-            operations,
-            environment.next_place,
-        )?;
+        let observation_scope = operations.reserve_observation_scope()?;
+        let mut expansion = self
+            .scalar_computation_expansion(
+                identities,
+                checked,
+                &self.shared_qualifications,
+                root.machine,
+                operations,
+                environment.next_place,
+            )?
+            .with_declaration_observation(observation_scope);
         let entry =
             expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
         let states = expansion.finish();

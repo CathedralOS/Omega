@@ -152,7 +152,7 @@ impl CheckRequest<'_> {
             record_whole_program_reuse();
             let outcome =
                 typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?;
-            build_time_evaluation::admit_placement_lifecycle_plans(
+            build_time_evaluation::admit_access_lifecycle_plans(
                 &outcome.checked.typed,
                 self.admission.declarations,
             )?;
@@ -167,8 +167,8 @@ impl CheckRequest<'_> {
             // Whole-value lifecycle demands become concrete through the same
             // specialization as ordinary calls. Add geometry only: preparation's
             // executable bodies and mathematical judgments remain unchanged.
-            let program = phase_profile::scope("05.c.placement_lifecycle_plans", || {
-                build_time_evaluation::retain_placement_lifecycle_plans(
+            let program = phase_profile::scope("05.c.access_lifecycle_plans", || {
+                build_time_evaluation::retain_access_lifecycle_plans(
                     program,
                     self.admission.declarations,
                 )

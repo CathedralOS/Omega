@@ -14,51 +14,6 @@ pub struct NativeLocatorVocabulary {
     pub dll_import: SymbolHandle,
 }
 
-/// Build and Product retain distinct checked declarations even for the same
-/// core source bytes. An occurrence consumes its owner's admitted vocabulary;
-/// another purpose or an invisible activation cannot compete with that owner.
-pub fn vocabulary_for_owner(
-    typed: &TypedTrees,
-    owner: SymbolHandle,
-) -> Result<NativeLocatorVocabulary, Vec<Diagnostic>> {
-    let occurrence = typed
-        .symbols
-        .symbol_provenance_source_span(owner)
-        .filter(|span| span.span.start < span.span.end)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "native locator owner has no exact authored source occurrence",
-            )]
-        })?;
-    let sources = typed.symbols.source_map().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native locator owner lost its checked source custody",
-        )]
-    })?;
-    let source = sources.file_at(occurrence).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native locator owner has no admitted source instance",
-        )]
-    })?;
-    vocabulary(typed, |symbol| {
-        typed
-            .symbols
-            .symbol_source_span(symbol)
-            .is_some_and(|declaration| {
-                sources.file_at(declaration).is_some_and(|candidate| {
-                    candidate.dependency_scope == source.dependency_scope
-                        && sources.reference_can_see_declaration(occurrence, declaration)
-                })
-            })
-    })
-    .map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| error.with_source_span(occurrence))
-            .collect()
-    })
-}
-
 /// Validate the exact toolchain definitions before any descriptor labels are
 /// consumed. `in_scope` retains the caller's source admission boundary.
 pub fn vocabulary(
@@ -82,31 +37,9 @@ pub fn vocabulary(
     let bindings = exact("ForeignBinding");
     let imports = exact("DllImport");
     let ([binding], [dll_import]) = (bindings.as_slice(), imports.as_slice()) else {
-        let owners = bindings
-            .iter()
-            .chain(&imports)
-            .filter_map(|definition| {
-                let span = typed.symbols.symbol_source_span(definition.symbol)?;
-                let source = typed.symbols.source_file(span)?;
-                Some(format!(
-                    "{} {:?}: source={:?}, scope={:?}, origin={:?}, stratum={:?}, root={}, path={}",
-                    definition.name,
-                    definition.symbol,
-                    span.source_id,
-                    source.dependency_scope,
-                    source.origin,
-                    source.resolution_stratum,
-                    source.package_root.display(),
-                    source.path.display(),
-                ))
-            })
-            .collect::<Vec<_>>();
-        return Err(vec![Diagnostic::error(format!(
-            "native locator requires the unique compiler-owned ForeignBinding and DllImport vocabulary; admitted ForeignBinding={}, DllImport={}; candidates=[{}]",
-            bindings.len(),
-            imports.len(),
-            owners.join("; "),
-        ))]);
+        return Err(vec![Diagnostic::error(
+            "native locator requires the unique compiler-owned ForeignBinding and DllImport vocabulary",
+        )]);
     };
     let binding_parameters = exact_width_parameters(typed, binding)?;
     let import_parameters = exact_width_parameters(typed, dll_import)?;
@@ -116,6 +49,154 @@ pub fn vocabulary(
         binding: binding.symbol,
         dll_import: dll_import.symbol,
     })
+}
+
+/// Consume the produced locator's own retained generic owner. Build and Product
+/// may legitimately carry separate core instances; global name counting cannot
+/// select either one or authenticate their relationship. Schema and toolchain
+/// custody are validated on that exact owner before any coordinate is consumed.
+pub fn application_widths(
+    typed: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Result<[u64; 3], Vec<Diagnostic>> {
+    // The operand's retained generic origin owns its exact vocabulary. A
+    // later namespace normalization may qualify declaration presentation names;
+    // scanning those names cannot authenticate (or recover) this application.
+    let application =
+        binding_application(typed, reference).map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let TypeReferenceNode::Generic { base_symbol, .. } =
+        typed.type_reference_table.type_reference(application)
+    else {
+        return Err(vec![Diagnostic::error(
+            "native locator lost its exact generic origin",
+        )]);
+    };
+    let binding = exact_vocabulary(typed, *base_symbol, "ForeignBinding")?;
+    let import_symbol = typed
+        .data_members(binding)
+        .first()
+        .and_then(DataMember::as_variant)
+        .and_then(|variant| typed.data_payload_fields(variant).first())
+        .and_then(|field| {
+            match typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            {
+                TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                _ => None,
+            }
+        })
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "compiler-owned ForeignBinding lost its exact DllImport payload",
+            )]
+        })?;
+    let import = exact_vocabulary(typed, import_symbol, "DllImport")?;
+    let parameters = exact_width_parameters(typed, binding)?;
+    let import_parameters = exact_width_parameters(typed, import)?;
+    validate_dll_import_shape(typed, import, import_parameters)?;
+    validate_binding_shape(typed, binding, parameters, import.symbol)?;
+    binding_widths(typed, binding.symbol, reference)
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+/// The exact SDK sum prescribes zero for unused locator coordinates. This is
+/// a declaration-owned equation, independent of the constructor's caller.
+pub fn unused_coordinate_widths(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    case: SymbolHandle,
+) -> Option<[bool; 3]> {
+    if let Ok(definition) = exact_vocabulary(typed, symbol, "DllImport") {
+        let parameters = exact_width_parameters(typed, definition).ok()?;
+        validate_dll_import_shape(typed, definition, parameters).ok()?;
+        let ordinal = typed.data_members(definition).iter().position(|member| {
+            member
+                .as_variant()
+                .is_some_and(|variant| variant.symbol == case)
+        })?;
+        return [
+            [false, false, true],
+            [false, true, true],
+            [false; 3],
+            [false, false, true],
+        ]
+        .get(ordinal)
+        .copied();
+    }
+    let definition = exact_vocabulary(typed, symbol, "ForeignBinding").ok()?;
+    let widths = exact_width_parameters(typed, definition).ok()?;
+    let import_symbol = typed
+        .data_members(definition)
+        .first()?
+        .as_variant()
+        .and_then(|variant| typed.data_payload_fields(variant).first())
+        .and_then(|field| {
+            match typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            {
+                TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                _ => None,
+            }
+        })?;
+    let import = exact_vocabulary(typed, import_symbol, "DllImport").ok()?;
+    validate_dll_import_shape(typed, import, exact_width_parameters(typed, import).ok()?).ok()?;
+    validate_binding_shape(typed, definition, widths, import_symbol).ok()?;
+    let ordinal = typed.data_members(definition).iter().position(|member| {
+        member
+            .as_variant()
+            .is_some_and(|variant| variant.symbol == case)
+    })?;
+    [[false; 3], [true; 3]].get(ordinal).copied()
+}
+
+fn exact_vocabulary<'a>(
+    typed: &'a TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+) -> Result<&'a DataDefinition, Vec<Diagnostic>> {
+    let definition = typed
+        .unique_data_definition_by_symbol(symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "native binding lost the exact `{name}` template declaration"
+            ))]
+        })?;
+    let admitted = typed.symbols.name(symbol) == name
+        && definition.generic_instance.is_none()
+        && definition.is_public
+        && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+        && typed
+            .symbols
+            .symbol_source_span(symbol)
+            .and_then(|span| typed.symbols.source_file(span))
+            .is_some_and(|file| {
+                file.origin == SourceOrigin::Toolchain
+                    && file
+                        .path
+                        .ends_with(std::path::Path::new("core/external_binding.omg"))
+            });
+    if !admitted {
+        return Err(vec![Diagnostic::error(format!(
+            "native binding requires the exact compiler-owned `{name}` declaration"
+        ))]);
+    }
+    Ok(definition)
+}
+
+fn binding_application(
+    typed: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Result<TypeReferenceHandle, String> {
+    match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => typed
+            .unique_data_definition_by_symbol(*symbol)
+            .and_then(|definition| definition.generic_instance)
+            .ok_or_else(|| "native locator must return a closed Binding application".to_owned()),
+        TypeReferenceNode::Generic { .. } => Ok(reference),
+        _ => Err("native locator must return a closed Binding application".to_owned()),
+    }
 }
 
 fn exact_external_binding_source(typed: &TypedTrees, symbol: SymbolHandle) -> Option<&SourceFile> {

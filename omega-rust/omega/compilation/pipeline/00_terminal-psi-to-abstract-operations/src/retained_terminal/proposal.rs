@@ -239,7 +239,7 @@ fn project_terminal_native_body(
             }
             // Numeric meaning and external satisfaction travel in Terminal.
             // Keep the exact selected declaration separately from independent
-            // host/placement authority; equal meaning cannot replace identity.
+            // host/access authority; equal meaning cannot replace identity.
             Ok((
                 retained
                     .row_executions

@@ -556,8 +556,7 @@ where
                         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && is_partial_affine_path(types, source.structural_type, &argument.path))
             }
-            StructuralProjectionPolicy::Projected => true,
-            StructuralProjectionPolicy::Boundary => true,
+            StructuralProjectionPolicy::Projected | StructuralProjectionPolicy::Boundary => true,
         };
         // Borrowing lends completed storage without transferring carried permissions.
         let completed_result = source.operation_result.is_some_and(|result| {
@@ -1224,7 +1223,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
             | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishStructuralLocal { result, .. }
                 | O::EstablishReference { result, .. }
-                | O::EstablishPlacedReference { result, .. }
+                | O::EstablishAccessReference { result, .. }
                 // The moved subtree leaves the window as an owned whole value;
                 // the repair store consumes it with exactly that custody.
                 | O::MoveStructuralField { result, .. }

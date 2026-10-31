@@ -85,7 +85,7 @@ impl Execution<'_, '_, '_> {
         else {
             return;
         };
-        if formation.interpretation != validation::ReferenceFormationInterpretation::Placed {
+        if formation.interpretation != validation::ReferenceFormationInterpretation::Access {
             return;
         }
         // The formation owner authenticated this single ordinary-source factory.

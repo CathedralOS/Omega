@@ -12,7 +12,7 @@ pub use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
     AbstractBlockEntry, AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractOperationPlanWithPlacedViewInputs, AbstractParameter, AbstractResult,
+    AbstractOperationPlanWithAccessViewInputs, AbstractParameter, AbstractResult,
     AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCasePayloadBinding,
     AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicCoherenceViolation,
     AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
@@ -25,8 +25,8 @@ pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
 };
 
-pub use abstract_operations::PlacementLifecycleOperands;
+pub use abstract_operations::AccessLifecycleOperands;
 pub use abstract_operations::quotients;
 pub use abstract_operations::{
-    BorrowedExtentBacking, PlacedReferenceBacking, ResidentReferenceBacking,
+    AccessReferenceBacking, BorrowedExtentBacking, ResidentReferenceBacking,
 };

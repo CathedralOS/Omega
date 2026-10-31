@@ -518,16 +518,16 @@ pub enum CompilerBuiltinExecution {
     /// Compiler-private whole-value initialization or extraction. The exact
     /// boundary joins its retained lifecycle plan; an ordinary provider row
     /// cannot stand in for this executable operation.
-    PlacementLifecycle {
+    AccessLifecycle {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        operation: terminal_psi::TerminalPlacementLifecycleOperation,
+        operation: terminal_psi::TerminalAccessLifecycleOperation,
     },
     /// Closed sealed operation identity; every occurrence separately owes RAM custody.
-    PlacedScalarAccess {
+    AccessorScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
         access_slot: u32,
-        operation: terminal_psi::TerminalPlacedAccessorKind,
+        operation: terminal_psi::TerminalAccessorKind,
     },
     HostedExitProcessI32,
     HostedReadByte,

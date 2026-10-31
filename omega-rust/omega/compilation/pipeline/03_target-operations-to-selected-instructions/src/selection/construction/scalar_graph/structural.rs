@@ -7,7 +7,7 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
 use crate::selection::element_view_homes::ElementViewHomes;
-use calling_conventions::{IndirectPointerLocation, ValueShape};
+use calling_conventions::IndirectPointerLocation;
 use legalized_operations::LegalizedScalarInstruction;
 use optimization_core::AcceptedObligationFactIdentity;
 use selected_instructions::{
@@ -21,6 +21,7 @@ mod block_views;
 mod entry;
 pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
+mod access_lifecycles;
 mod atomic_outcome;
 mod byte_concatenation;
 mod byte_field_read;
@@ -31,7 +32,6 @@ mod descriptor_operands;
 mod leaf_copy;
 mod literals;
 mod local_storage;
-mod placement_lifecycles;
 
 pub(super) fn establish_atomic_outcome(
     source: &LegalizedScalarFunction,
@@ -62,6 +62,7 @@ mod scalar_array;
 mod scalar_case;
 mod structural_array;
 mod structural_local;
+mod zero_fill;
 mod zeroed;
 pub(super) use primitive_locals::read;
 mod encoded_scalar;
@@ -350,8 +351,8 @@ pub(super) fn operation(
     );
     dispatch_kind!(
         row,
-        Kind::PlacementLifecycle { .. },
-        placement_lifecycles::emit(source, row, builder)
+        Kind::AccessLifecycle { .. },
+        access_lifecycles::emit(source, row, builder)
     );
     dispatch_kind!(
         row,
@@ -428,7 +429,7 @@ pub(super) fn operation(
     );
     dispatch_kind!(
         row,
-        Kind::EstablishReference { .. } | Kind::EstablishPlacedReference { .. },
+        Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. },
         reference::establish(source, row, builder)
     );
     // Closing a loan changes custody, not referent bytes. Trivial empty locals
@@ -528,44 +529,6 @@ pub(super) fn obligation_provenance(
         ..Default::default()
     }
 }
-/// Zero an established structural result before its tag and payloads publish:
-/// one zero register fills the whole extent through descending-width stores.
-pub(super) fn zeroed_slot(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    place: PlaceId,
-    shape: ValueShape,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let slot = builder.transport.push_structural_local_slot(
-        row.operation,
-        place,
-        shape.byte_size,
-        shape.alignment,
-    );
-    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
-    let zero = transport_register(builder, place, 0)?;
-    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
-    let mut offset = 0;
-    while offset < shape.byte_size {
-        let remaining = shape.byte_size - offset;
-        let width = [8, 4, 2, 1]
-            .into_iter()
-            .find(|width| *width <= remaining)
-            .ok_or_else(invalid)?;
-        memory(
-            builder,
-            row,
-            place,
-            offset,
-            width,
-            SelectedMemoryAccessRole::WritePlace,
-        )?;
-        builder.emit_store(offset, width as u8, pointer, zero, provenance(row))?;
-        offset += width;
-    }
-    Ok(pointer)
-}
-
 /// Keep native displacement limits separate from semantic storage bounds.
 /// Address staging has no memory effect: callers record the original place
 /// offset on the following access, even when its encoded displacement is zero.

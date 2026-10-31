@@ -360,7 +360,8 @@ fn append_move_events_for_call_arguments(
         return;
     }
 
-    let receiver_is_static_path = receiver_expression_is_static_type_path(program, call.receiver);
+    let receiver_is_static_path =
+        receiver_expression_static_path_segments(program, call.receiver).is_some();
     let arguments = program.expression_table.expression_handles(call.arguments);
     let operator = resolve_operator_for_call(
         program,
@@ -620,16 +621,6 @@ fn operator_call_ownership_policy(
         },
         positional,
     }
-}
-
-/// Whether a call's receiver expression is a static type/module path
-/// (`String::with_capacity(...)`) rather than a runtime value. A static path
-/// names no place, so it can never be moved from.
-fn receiver_expression_is_static_type_path(
-    program: &dyn ::validation::CheckingInput,
-    receiver: ExpressionHandle,
-) -> bool {
-    receiver_expression_static_path_segments(program, receiver).is_some()
 }
 
 /// The textual segments of a static type/module path receiver, or `None` when

@@ -7,7 +7,7 @@ crashes Trap allow {
         _ -> 0.0f32 as f32 in Trapping
     }
     machine risky(value: f32 in Trapping) -> f32 in Trapping {
-        value * 2.0f32
+        (value * 2.0f32) as f32 in Trapping
     }
 }
 
@@ -18,7 +18,7 @@ crashes Trap allow {
         _ -> 0.0f32 as f32 in Trapping
     }
     machine risky(value: f64 in Trapping) -> f32 in Trapping {
-        F32::from_f64(value)
+        F32::from_f64(value) as f32 in Trapping
     }
 }
 

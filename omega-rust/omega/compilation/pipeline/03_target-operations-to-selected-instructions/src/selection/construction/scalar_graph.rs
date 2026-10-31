@@ -30,6 +30,7 @@ pub(in crate::selection) fn value_provenance(value: ValueId) -> SelectedInstruct
     }
 }
 
+mod accessor_scalar_access;
 mod aggregate_argument;
 mod aggregate_memory;
 mod aggregate_return;
@@ -48,7 +49,6 @@ pub(in crate::selection) mod integer_conversion;
 mod no_normal;
 mod normalized_foreign;
 mod operation_control;
-mod placed_scalar_access;
 mod process_exit;
 mod register_access;
 mod scalar_call;
@@ -342,7 +342,7 @@ fn select_function(
             if register_access::emit(function, operation, &mut builder)? {
                 continue;
             }
-            if placed_scalar_access::emit(source, operation, &mut builder)? {
+            if accessor_scalar_access::emit(source, operation, &mut builder)? {
                 continue;
             }
             if atomic_access::emit(function, source, operation, &mut builder)? {
@@ -406,7 +406,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::RegisterAccess { .. }
                     | LegalizedScalarInstructionKind::AtomicFence { .. }
                     | LegalizedScalarInstructionKind::AtomicAccess { .. }
-                    | LegalizedScalarInstructionKind::PlacedScalarAccess { .. } => {
+                    | LegalizedScalarInstructionKind::AccessorScalarAccess { .. } => {
                         return Err(invalid());
                     }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
@@ -496,7 +496,7 @@ fn select_function(
                     LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
                     | LegalizedScalarInstructionKind::SplitActivationClaim { .. }
                     | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
-                    | LegalizedScalarInstructionKind::PlacementLifecycle { .. }
+                    | LegalizedScalarInstructionKind::AccessLifecycle { .. }
                     | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
                     | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { .. }
@@ -509,7 +509,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
-                    | LegalizedScalarInstructionKind::EstablishPlacedReference { .. }
+                    | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }

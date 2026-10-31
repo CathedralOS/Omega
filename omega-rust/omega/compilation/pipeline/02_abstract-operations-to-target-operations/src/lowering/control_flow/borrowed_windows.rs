@@ -348,7 +348,7 @@ fn root_window_loan(
         .collect::<Option<Vec<_>>>()
     else {
         // Provider backing has no caller storage coordinate. Dropping it from
-        // this all-origins check would incorrectly grant replacement authority.
+        // this all-origins check would incorrectly grant reaccess authority.
         return false;
     };
     terminal_semantics::structural_window_origins(

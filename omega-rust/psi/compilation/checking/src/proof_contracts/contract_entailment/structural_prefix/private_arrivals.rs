@@ -74,7 +74,7 @@ where
         else {
             continue;
         };
-        if same_frontier(&caller_roots, &roots)
+        if caller_roots.len() == roots.len() && caller_roots.iter().all(|root| roots.iter().any(|other| root.symbol == other.symbol))
             // Ranked mathematical induction retains its original owner.
             || caller_roots.iter().any(|caller| classification.is_proof_machine(program, caller))
         {
@@ -104,13 +104,6 @@ where
         case_facts_only,
         &arrivals,
     ))
-}
-
-fn same_frontier(left: &[&Machine], right: &[&Machine]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .all(|root| right.iter().any(|other| root.symbol == other.symbol))
 }
 
 fn observe_frontier(

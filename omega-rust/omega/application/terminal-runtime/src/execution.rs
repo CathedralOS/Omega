@@ -297,7 +297,7 @@ pub fn execute_sliced(
             if matches!(
                 provision.realization,
                 target_operations::BoundarySettlementRealization::Builtin(
-                    target_operations::BoundaryRealization::PlacedScalarAccess(_)
+                    target_operations::BoundaryRealization::AccessorScalarAccess(_)
                 )
             ) {
                 continue;

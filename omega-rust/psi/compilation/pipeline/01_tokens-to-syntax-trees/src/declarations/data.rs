@@ -400,16 +400,25 @@ fn parse_data_member<'tokens, 'source>(
         }
     }
 
+    let (identity, mut input) = take_optional_identity(input)?;
     if input.at_contextual("case") {
-        // Distinguish a `case Name;` member from a field named `case`
-        // (`case: i32;`) by what follows the contextual keyword.
+        // `case` stays a legal field name. The declaration kind follows the
+        // optional identity, while payload fields retain their own scope.
         let after_case = input.take_contextual("case")?;
-        if after_case.at_name_like() || after_case.at_punctuation(PunctuationKind::Hash) {
-            return parse_case_member(syntax_trees, after_case);
+        if after_case.at_punctuation(PunctuationKind::Hash) {
+            return Err(after_case
+                .error_here("numbered cases are spelled `#N case Name`, not `case #N Name`"));
+        }
+        if after_case.at_punctuation(PunctuationKind::LeftBrace) {
+            return Err(after_case.error_here(
+                "case declaration blocks are not supported; declare each `case Name` separately",
+            ));
+        }
+        if after_case.at_name_like() {
+            return parse_case_member(syntax_trees, after_case, identity);
         }
     }
 
-    let (identity, mut input) = take_optional_identity(input)?;
     let (field_name, next) = input.take_identifier()?;
     let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
     input = next;
@@ -465,8 +474,8 @@ fn parse_data_member<'tokens, 'source>(
 fn parse_case_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    identity: Option<u64>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
-    let (identity, input) = take_optional_identity(input)?;
     let (case_name, mut input) = input.take_identifier()?;
 
     let (payload, retired_payload_identities) = if input.at_punctuation(PunctuationKind::LeftParen)

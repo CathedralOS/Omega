@@ -250,9 +250,41 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 true
             };
             if !authorized || !prerequisites {
-                return malformed(
-                    "scalar return origin does not match its source or authorized issuer",
-                );
+                let machine_identity = machine
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.callable))
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| format!("machine:{}", machine.id.get()));
+                let source_memberships: Option<Vec<String>> =
+                    super::qualification_domains(module, source.qualifications).map(
+                        |memberships| {
+                            memberships
+                                .iter()
+                                .map(|membership| {
+                                    super::scalar_domain(module, *membership)
+                                        .and_then(|domain| module.identities.text(domain.identity))
+                                        .map(str::to_owned)
+                                        .unwrap_or_else(|| format!("domain:{}", membership.get()))
+                                })
+                                .collect()
+                        },
+                    );
+                return Err(CodecError::MalformedScalarReturnFoundation {
+                    machine: machine_identity,
+                    domain: module
+                        .identities
+                        .text(domain.identity)
+                        .unwrap_or("<missing domain identity>")
+                        .to_owned(),
+                    edge: returned.edge,
+                    source: returned.source,
+                    result: returned.result,
+                    reason: format!(
+                        "scalar return origin does not match its source or authorized issuer: site={:?}, origin={origin:?}, source memberships={source_memberships:?}, origin authorized={authorized}, prerequisites satisfied={prerequisites}",
+                        returned.site,
+                    ),
+                });
             }
         }
     }

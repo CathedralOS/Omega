@@ -179,7 +179,7 @@ pub(super) fn retained_machines_with_roots(
 /// Every machine identity a module-level row names is a retention root:
 /// coercions, float and integer entry ranges, invariants, operation crash
 /// contracts, suspensions, proof outputs, conformance applications,
-/// reborrow publications, placed views, float
+/// reborrow publications, access views, float
 /// projections, evidence lanes, providers, and attached machines each keep
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
@@ -280,7 +280,7 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
         roots.insert(use_row.machine);
         roots.insert(use_row.call_target_machine);
     }
-    for input in &module.placed_view_inputs {
+    for input in &module.access_view_inputs {
         roots.insert(input.machine);
     }
     for lane in &module.evidence_contract_lanes {

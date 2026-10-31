@@ -30,7 +30,7 @@ pub(crate) enum StorageRegion {
     /// it does not establish backing/profile authority or a qualification.
     NonresidentContent {
         owner: CanonicalPlace,
-        formation: typed_trees::typed_trees::PlacementExecutionDeclaration,
+        formation: typed_trees::typed_trees::AccessExecutionDeclaration,
     },
 }
 
@@ -40,8 +40,7 @@ impl StorageRegion {
     pub(crate) fn anchor(&self) -> &CanonicalPlace {
         match self {
             Self::Declared(place) => place,
-            Self::ResidentContent { owner, .. } => owner,
-            Self::NonresidentContent { owner, .. } => owner,
+            Self::ResidentContent { owner, .. } | Self::NonresidentContent { owner, .. } => owner,
             Self::UnresolvedContent { carrier } => carrier,
         }
     }

@@ -39,7 +39,7 @@ optimization_core::record_views! {
     }
 }
 
-/// Construct the frame before instruction encoding needs its displacement plan.
+/// Construct the frame before instruction encoding needs its disaccess plan.
 pub fn stage_function_frame(
     current: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,

@@ -16,6 +16,8 @@ mod project_requests;
 mod resident_storage;
 #[path = "terminal_result_custody.rs"]
 mod result_custody;
+#[path = "terminal_result_observation.rs"]
+mod result_observation;
 #[path = "terminal_storage_budget.rs"]
 mod storage_budget;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -30,6 +32,7 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["result-storage", oracles @ ..] => result_observation::observe(artifact, oracles),
         ["project-requests"] => project_requests::observe(artifact, requests),
         ["result-custody", cells, bytes, oracle @ ..] => {
             result_custody::observe(artifact, cells, bytes, oracle)

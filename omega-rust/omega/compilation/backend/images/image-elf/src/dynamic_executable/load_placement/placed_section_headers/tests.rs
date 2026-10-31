@@ -1,4 +1,4 @@
-//! Placed section header tests.
+//! Access section header tests.
 
 use super::{
     Candidate, DecodedElf64SectionHeader, ELF64_SECTION_HEADER_SIZE,

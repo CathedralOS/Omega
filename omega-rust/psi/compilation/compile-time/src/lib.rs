@@ -6,7 +6,7 @@
 //! checked program. Admitted constants use common Terminal production and
 //! execution; remaining pure policy/value jobs still use checked-tree evaluation.
 //! Build activations execute through Omega's Terminal host, not this evaluator. Results
-//! are installed as const lengths, const domain facts, layout plans, placed views,
+//! are installed as const lengths, const domain facts, layout plans, access views,
 //! and wire plans. Omega schedules these services; it never reinterprets them.
 //!
 //! `build_time_evaluation.rs` is the lifecycle root. The evaluators are grouped
@@ -68,11 +68,9 @@ pub use const_evaluation::data_layout_queries::{
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
+pub use layouts::access_lifecycles::{admit_access_lifecycle_plans, retain_access_lifecycle_plans};
+pub use layouts::access_views::{AccessViewRecord, desugar_access_views};
 pub use layouts::layout_plans::compute_native_layout_plan_for_machine;
-pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
-pub use layouts::placement_lifecycles::{
-    admit_placement_lifecycle_plans, retain_placement_lifecycle_plans,
-};
 pub use layouts::plan_laid::{FixedLayoutTargetScope, evaluate_fixed_layout_applications};
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,

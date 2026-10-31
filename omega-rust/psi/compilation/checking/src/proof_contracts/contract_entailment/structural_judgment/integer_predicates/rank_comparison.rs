@@ -33,6 +33,8 @@ impl StructuralJudge<'_> {
         rank: &CapturedIntegerRank,
     ) -> Result<FormedIntegerRank, &'static str> {
         let mut observations = IntegerObservations::empty(self.program);
+        observations.engine =
+            super::Engine::strict_for_declaration(self.program, self.machine_symbol);
         let input = self
             .integer_value(&rank.input, rank.primitive, &mut observations, 0)
             .ok_or("the entry rank input has no exact integer observation")?;
@@ -114,6 +116,8 @@ impl StructuralJudge<'_> {
         destination: &CapturedIntegerRank,
     ) -> Result<bool, &'static str> {
         let mut observations = IntegerObservations::empty(self.program);
+        observations.engine =
+            super::Engine::strict_for_declaration(self.program, self.machine_symbol);
         let mut substitutions = BTreeMap::new();
         for (name, value, primitive) in &source.atoms {
             let value = self

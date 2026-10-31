@@ -116,7 +116,7 @@ impl ReferenceCallEffects {
                                         DescriptorStoredOrigin::Invocation { .. }
                                         | DescriptorStoredOrigin::IncomingContents { .. }
                                         | DescriptorStoredOrigin::Provider(_)
-                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::PlacedFormation { .. } => None,
+                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::AccessFormation { .. } => None,
                                     }
                                 })
                                 .collect::<Option<Vec<_>>>()?;

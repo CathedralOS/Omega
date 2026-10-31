@@ -18,6 +18,7 @@ pub mod references;
 pub mod service_declarations;
 pub mod typed_trees;
 
+pub use typed_trees::SpelledDeclarationTable;
 pub use typed_trees::calls::{
     boundary, dynamic_traits, finite_family, service, signature, static_applications,
 };
@@ -46,11 +47,11 @@ pub use language_semantics::declaration_selection::{
 };
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
-    BoundaryCompletionDeclaration, DataDefinitionTable, FrozenTypedTrees,
-    PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation, PlanLaidBitField,
+    BoundaryCompletionDeclaration, DataDefinitionTable, FrozenTypedTrees, PlanLaidBitField,
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
-    closed_conformance_applications_of, machine_specialization_matches_template_identity,
+    ProgramIdentity, ScalarAccessorDeclaration, ScalarAccessorOperation, TypedTreeRoots,
+    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
+    machine_specialization_matches_template_identity,
 };

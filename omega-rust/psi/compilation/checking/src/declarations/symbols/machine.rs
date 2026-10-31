@@ -219,8 +219,7 @@ fn callable_receiver_type_name(
             callable_receiver_type_name(program, *base_type)
         }
         TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => None,
-        TypeReferenceNode::Generic { .. } => None,
-        TypeReferenceNode::ConstExpression(_) => None,
+        TypeReferenceNode::Generic { .. } | TypeReferenceNode::ConstExpression(_) => None,
         TypeReferenceNode::DynamicTrait { name, .. } => Some(name.as_str()),
         TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
         TypeReferenceNode::Unit => None,

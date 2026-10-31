@@ -25,7 +25,7 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    let pointer = super::zeroed_slot(builder, row, result.place, layout.shape)?;
+    let pointer = super::record::initialize_storage(row, builder, result.place, layout.shape)?;
     let tag = transport_register(builder, result.place, 0)?;
     builder.emit_materialize_i64(
         IntegerValue::Unsigned(ordinal as u128),

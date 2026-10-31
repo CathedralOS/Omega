@@ -132,6 +132,9 @@ pub(super) fn capture(
         if !call.build_selection.is_valid() {
             continue;
         }
+        let coordinate = occurrence.origin.statement().ok_or_else(|| {
+            diagnostics::Diagnostic::error("Build binding has no checked statement custody")
+        })?;
         let request = checked
             .expression_table
             .build_selection_request(call.build_selection)
@@ -164,7 +167,7 @@ pub(super) fn capture(
         let selecting_machine = if request.requires_lexical_subject() {
             Some(
                 checked
-                    .machine_holding_state(occurrence.source_state)
+                    .machine_holding_state(coordinate.state)
                     .and_then(|machine| {
                         checked
                             .symbols
@@ -183,8 +186,8 @@ pub(super) fn capture(
             Some(native_locator::capture(
                 checked,
                 lowered,
-                occurrence.source_state,
-                occurrence.statement_index,
+                coordinate.state,
+                coordinate.statement_index,
                 call,
                 boundary,
                 &mut native_shapes,
@@ -198,7 +201,7 @@ pub(super) fn capture(
             .any(|operand| operand.application.is_some())
         {
             checked
-                .machine_holding_state(occurrence.source_state)
+                .machine_holding_state(coordinate.state)
                 .map(|machine| {
                     typed_trees::product_operand::capture_static_environment(
                         &checked.typed,
@@ -221,7 +224,7 @@ pub(super) fn capture(
                     .iter()
                     .find(|selected| {
                         selected.selection == call.build_selection
-                            && selected.source_state == occurrence.source_state
+                            && selected.source_state == coordinate.state
                     })
                     .ok_or_else(|| {
                         diagnostics::Diagnostic::error(

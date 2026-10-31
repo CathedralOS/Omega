@@ -90,16 +90,16 @@ pub(crate) fn validate_plan(
         };
         let placement = fields
             .iter()
-            .find(|(name, _)| name == "placement")
+            .find(|(name, _)| name == "representation")
             .map(|(_, value)| value)
-            .ok_or_else(|| fail(format!("entry {entry_index} carries no `placement`")))?;
+            .ok_or_else(|| fail(format!("entry {entry_index} carries no `representation`")))?;
         Ok((field_index, placement))
     };
     let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
         match payload.iter().find(|(field, _)| field == name) {
             Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
             other => Err(fail(format!(
-                "placement carries no integer `{name}`: {other:?}"
+                "representation carries no integer `{name}`: {other:?}"
             ))),
         }
     };

@@ -173,7 +173,7 @@ pub(crate) fn derive_provider_plans(
                     .provenance
                     .row_target_machine_origins
                     .push(target_machine_origin.clone());
-                plans[position].provenance.row_placed_accessors.push(None);
+                plans[position].provenance.row_accessors.push(None);
             }
         }
     }
@@ -190,7 +190,7 @@ pub(crate) fn derive_provider_plans(
     let named =
         super::named_provider_plans::derive(services, calling_plans, selected_target, &plans);
     plans.extend(named);
-    derive_placed_accessor_plans(services, selected_target, &mut plans)?;
+    derive_accessor_plans(services, selected_target, &mut plans)?;
     // Coverage includes the selected target's direct body closure, not only
     // the portable adapter's own declaration. Keep every authored source body,
     // but exclude a whole map when one of its rows reaches a known absent
@@ -334,7 +334,7 @@ fn derive_top_level_requirement_plans(
                 .provenance
                 .row_target_machine_origins
                 .push(None);
-            plans[position].provenance.row_placed_accessors.push(None);
+            plans[position].provenance.row_accessors.push(None);
         }
     }
     plans
@@ -462,7 +462,7 @@ fn derive_boundary_operator_plans(
                 .provenance
                 .row_target_machine_origins
                 .push(None);
-            plans[position].provenance.row_placed_accessors.push(None);
+            plans[position].provenance.row_accessors.push(None);
         }
     }
     plans
@@ -648,7 +648,7 @@ fn derived_plan_position(
                     row_requirements: Vec::new(),
                     row_realizations: Vec::new(),
                     row_target_machine_origins: Vec::new(),
-                    row_placed_accessors: Vec::new(),
+                    row_accessors: Vec::new(),
                 },
             });
             plans.len() - 1
@@ -657,7 +657,7 @@ fn derived_plan_position(
 
 /// Compiler-owned semantic primitives use the same candidate plan/selection
 /// route as authored providers, with a separate exact declaration-custody role.
-fn derive_placed_accessor_plans(
+fn derive_accessor_plans(
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     selected_target: Option<&str>,
     plans: &mut Vec<DerivedProviderPlan>,
@@ -667,14 +667,14 @@ fn derive_placed_accessor_plans(
         return Ok(());
     };
     let typed = context.typed;
-    for view in &typed.placed_view_plans {
+    for view in &typed.access_view_plans {
         for field in &view.fields {
             for operation in &field.accessor_targets {
                 if !context.contains(operation.machine_symbol) {
                     continue;
                 }
                 let Some(accessor) =
-                    crate::SealedPlacedAccessor::prepared(services, operation.machine_symbol)
+                    crate::SealedAccessor::prepared(services, operation.machine_symbol)
                         .map_err(|error| vec![error])?
                 else {
                     continue;
@@ -707,7 +707,7 @@ fn derive_placed_accessor_plans(
                         .symbol_package_identity(field.accessor_data_symbol),
                     target.to_owned(),
                     schema,
-                    ProviderSchemaDeclaration::SealedPlacedAccessor(accessor.machine()),
+                    ProviderSchemaDeclaration::SealedAccessor(accessor.machine()),
                     Some(field.accessor_data_symbol),
                     typed.symbols.symbol_package_identity(machine.symbol),
                 );
@@ -730,7 +730,7 @@ fn derive_placed_accessor_plans(
                     .row_realizations
                     .push(ProviderRowRealization::Authored(machine.symbol));
                 provenance.row_target_machine_origins.push(None);
-                provenance.row_placed_accessors.push(Some(accessor));
+                provenance.row_accessors.push(Some(accessor));
             }
         }
     }

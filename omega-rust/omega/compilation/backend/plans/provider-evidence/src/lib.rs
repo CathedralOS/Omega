@@ -27,16 +27,16 @@ pub(crate) use provider_evidence::SelectedProviderClosureDigest;
 pub use provider_evidence::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
 pub use provider_evidence::authority::terminal_authority::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
-    CheckedSyscallArgumentContractIdentity, CompilerIntrinsicExecutionIdentity,
-    CompilerNumericType, CompilerPlacedScalarOperation, CompilerPrimitiveFloatBinaryOperation,
+    CheckedSyscallArgumentContractIdentity, CompilerAccessorScalarOperation,
+    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, NormalizedForeignArgumentContract,
     NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
     SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureCustody,
     TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin,
     TerminalAuthorityClosureReviewReceipt, TerminalAuthorityDisposition,
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
-    TerminalMechanismIdentity, compiler_intrinsic_execution_identity_bytes,
-    compiler_placed_scalar_contract_identity, numeric_type_tag, primitive_float_operation_tag,
+    TerminalMechanismIdentity, compiler_accessor_scalar_contract_identity,
+    compiler_intrinsic_execution_identity_bytes, numeric_type_tag, primitive_float_operation_tag,
     primitive_integer_comparison_operation_tag, terminal_mechanism_identity_bytes,
 };
 pub use provider_evidence::component_eras::component_era_entry_ledger::{

@@ -326,7 +326,7 @@ impl<'program> ShapeCollector<'program> {
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        if let Some(identity) = self.add_placed_accessor_attachment(data, binders) {
+        if let Some(identity) = self.add_accessor_attachment(data, binders) {
             return Some(identity);
         }
         if !self.program.data_type_parameters(data).is_empty() {
@@ -339,14 +339,14 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data.clone(), binders, Vec::new())
     }
 
-    /// A placed-view plan's generated accessor shell stays `BoundaryOpaque`
+    /// A access-view plan's generated accessor shell stays `BoundaryOpaque`
     /// to source construction, yet each cloned `read`/`take`/`write` target
     /// still attaches to it. Admit that attachment through the exact plan
     /// row — not the generated name — as the empty nominal record the layout
     /// catalog already assigns the same definition. The shell keeps no
     /// members a source carrier could construct; this only publishes the
     /// attachment identity its boundary operations and their callers join.
-    fn add_placed_accessor_attachment(
+    fn add_accessor_attachment(
         &mut self,
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
@@ -354,14 +354,14 @@ impl<'program> ShapeCollector<'program> {
         if data.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
             || !self
                 .program
-                .placed_view_plans
+                .access_view_plans
                 .iter()
                 .flat_map(|view| view.fields.iter())
                 .any(|field| field.accessor_data_symbol == data.symbol)
         {
             return None;
         }
-        let (view, field) = self.program.placed_view_plans.iter().find_map(|view| {
+        let (view, field) = self.program.access_view_plans.iter().find_map(|view| {
             view.fields
                 .iter()
                 .find(|field| field.accessor_data_symbol == data.symbol)
@@ -399,7 +399,7 @@ impl<'program> ShapeCollector<'program> {
             descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
-                storage: checked_trees::CheckedUnitRecordStorage::PlacedAccessor(storage),
+                storage: checked_trees::CheckedUnitRecordStorage::Accessor(storage),
                 fields: Vec::new(),
             },
         };
@@ -705,15 +705,6 @@ impl<'program> ShapeCollector<'program> {
             self.add_logical_type(storage, binders, substitutions)?;
             return Some(identity);
         }
-        // Usage multiplicity permits repeated exclusive-reference access; it
-        // does not permit copying that descriptor, including inside an array.
-        // Ask the same declared-property owner as stored-value copy planning.
-        let copyable = validation::type_satisfies_declared_property(
-            self.program,
-            &[],
-            validation::structural_storage_type(self.program, type_reference, substitutions),
-            validation::DeclaredPropertyRequirement::Copy,
-        );
         // One identity names one plan for the whole module, and lowering
         // rejoins this plan by recomputing the identity from source types, so
         // both use the one rule: a bounded byte owner keeps its qualification
@@ -725,24 +716,40 @@ impl<'program> ShapeCollector<'program> {
             binders,
             substitutions,
         );
-        let no_code_affine_cleanup = validation::has_contents(
-            self.program,
-            validation::structural_storage_type(self.program, type_reference, substitutions),
-            substitutions,
-            validation::ContentsRequirement::RepresentedOwned,
-        );
-        let descriptor_cleanup = validation::has_contents(
-            self.program,
-            validation::structural_storage_type(self.program, type_reference, substitutions),
-            substitutions,
-            validation::ContentsRequirement::DescriptorCleanup,
-        );
-        // An owned copy aggregate may contain intrinsic descriptor lifetimes
-        // without a source affine claim. The checked contents judgment excludes
-        // hooks and conserved claims; disposal of this copied home never owns
-        // its descriptors' external referents.
-        let no_code_affine_cleanup = no_code_affine_cleanup || (descriptor_cleanup && copyable);
+        // Completed ordinary shapes and nominal data do not use these properties.
+        // Data collection owns its separate declaration/representation rules.
+        let program = self.program;
+        let storage_properties = || {
+            // Usage multiplicity permits repeated exclusive-reference access; it
+            // does not permit copying that descriptor, including inside an array.
+            // Ask the same declared-property owner as stored-value copy planning.
+            let copyable = validation::type_satisfies_declared_property(
+                program,
+                &[],
+                storage,
+                validation::DeclaredPropertyRequirement::Copy,
+            );
+            let no_code_affine_cleanup = validation::has_contents(
+                program,
+                storage,
+                substitutions,
+                validation::ContentsRequirement::RepresentedOwned,
+            );
+            let descriptor_cleanup = validation::has_contents(
+                program,
+                storage,
+                substitutions,
+                validation::ContentsRequirement::DescriptorCleanup,
+            );
+            // An owned copy aggregate may contain intrinsic descriptor lifetimes
+            // without a source affine claim. The checked contents judgment excludes
+            // hooks and conserved claims; disposal of this copied home never owns
+            // its descriptors' external referents.
+            let no_code_affine_cleanup = no_code_affine_cleanup || (descriptor_cleanup && copyable);
+            (copyable, no_code_affine_cleanup, descriptor_cleanup)
+        };
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
+            let (copyable, no_code_affine_cleanup, _) = storage_properties();
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
             // carrier has no element field, so retain the declaration's u8
@@ -822,8 +829,7 @@ impl<'program> ShapeCollector<'program> {
         // Every other carrier names the shared semantic identity beneath its
         // loan. Scalar receiving restrictions retain their own identity and
         // declaration; membership-only qualifications remain separate.
-        let type_reference =
-            validation::structural_storage_type(self.program, type_reference, substitutions);
+        let type_reference = storage;
         // The same nonconstructible carrier can be a field, a parameter or
         // reference backing. Storage collection must not depend on which
         // owner first demanded its shape. Occurrence closure and established
@@ -838,6 +844,7 @@ impl<'program> ShapeCollector<'program> {
             return Some(identity);
         }
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+            let (copyable, no_code_affine_cleanup, descriptor_cleanup) = storage_properties();
             let scalar_restriction = match scalar_fields::retain_scalar_field(
                 self.program,
                 type_reference,
@@ -872,6 +879,7 @@ impl<'program> ShapeCollector<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            let (copyable, no_code_affine_cleanup, descriptor_cleanup) = storage_properties();
             // An element carrier spelled with a const parameter binds its
             // declared length at each application. Literal actuals resolve
             // here; an open binder keeps no numeric extent and declines.
@@ -1046,7 +1054,7 @@ impl<'program> ShapeCollector<'program> {
         // opaque representation or a quotient's cloned physical carrier.
         let copyable =
             data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted;
-        if let Some(accessor) = self.add_placed_accessor_attachment(&data, binders) {
+        if let Some(accessor) = self.add_accessor_attachment(&data, binders) {
             return (accessor == identity).then_some(identity);
         }
         if self.types.contains_key(&identity) {
@@ -1251,14 +1259,14 @@ impl<'program> ShapeCollector<'program> {
             .plan_laid_layouts
             .iter()
             .find(|plan| program.normalized_type_identity(plan.application) == identity);
-        let placed_view = program.placed_view_plans.iter().find_map(|view| {
+        let access_view = program.access_view_plans.iter().find_map(|view| {
             let definition = program.data_definition_by_symbol(view.data_symbol)?;
             (closed_data_identity(program, definition, binders) == identity).then_some(view)
         });
-        let record_storage = if let Some(view) = placed_view {
+        let record_storage = if let Some(view) = access_view {
             let schema_symbol = view.schema_symbol;
             let schema = program.data_definition_by_symbol(schema_symbol)?.clone();
-            checked_trees::CheckedUnitRecordStorage::PlacedView {
+            checked_trees::CheckedUnitRecordStorage::AccessView {
                 schema_type_identity: self.add_attached_data(&schema, binders)?,
                 storage: semantic_vocabulary::AuthoredRecordStorage {
                     byte_size: view.placement.layout().size?,
@@ -1310,8 +1318,8 @@ impl<'program> ShapeCollector<'program> {
                     )?);
                 }
             }
-            if let Some(view) = placed_view {
-                let placed_field = view
+            if let Some(view) = access_view {
+                let access_field = view
                     .fields
                     .iter()
                     .find(|candidate| candidate.view_field_symbol == field.symbol)?;
@@ -1320,7 +1328,7 @@ impl<'program> ShapeCollector<'program> {
                     .access()
                     .field_descriptors()
                     .iter()
-                    .find(|descriptor| descriptor.key() == placed_field.access_key)
+                    .find(|descriptor| descriptor.key() == access_field.access_key)
                 {
                     field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: descriptor.container_byte_offset(),
@@ -1328,7 +1336,7 @@ impl<'program> ShapeCollector<'program> {
                 } else if let Some(region) = view
                     .placement
                     .access()
-                    .field_region(placed_field.access_key)
+                    .field_region(access_field.access_key)
                 {
                     field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: region.byte_offset(),
@@ -1627,7 +1635,7 @@ impl<'program> ShapeCollector<'program> {
                             schema_type_identity,
                             ..
                         }
-                        | checked_trees::CheckedUnitRecordStorage::PlacedView {
+                        | checked_trees::CheckedUnitRecordStorage::AccessView {
                             schema_type_identity,
                             ..
                         } = storage

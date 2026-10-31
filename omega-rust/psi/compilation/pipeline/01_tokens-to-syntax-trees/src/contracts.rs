@@ -31,8 +31,7 @@ pub(crate) fn reject_retired_operational_reach(
 ) -> Result<(), crate::diagnostics::parse_error::ParseError> {
     let replacement = match service.as_str(&input) {
         "Suspend" => "suspends",
-        "Block" => "blocks",
-        "thread_block" => "blocks",
+        "Block" | "thread_block" => "blocks",
         "sync_wait" => "the appropriate independent `suspends` and/or `blocks` clause",
         _ => return Ok(()),
     };

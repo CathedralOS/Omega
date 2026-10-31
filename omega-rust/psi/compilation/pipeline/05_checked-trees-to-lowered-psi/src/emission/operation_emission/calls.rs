@@ -1,6 +1,6 @@
 //! Evaluate scalar call operands in authored order, then emit the exact callee.
 
-use super::buffer::{OperationBuffer, SourceCallCoordinate};
+use super::buffer::{OperationBuffer, SourceCallCoordinate, SourceInvocation};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::direct_calls::DirectCallResult;
 use crate::lowering_error::LoweringError;
@@ -156,7 +156,7 @@ impl PreparedStructuralArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredDirectCallBinding {
-    pub(crate) source_coordinate: SourceCallCoordinate,
+    pub(crate) source_coordinate: SourceInvocation,
     pub(crate) caller_types: crate::expression_preparation::bindings::PublishedStructuralTypes,
     pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub(crate) target_machine: symbols::SymbolHandle,

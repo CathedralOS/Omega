@@ -24,7 +24,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Construction,
     ExpressionNode, Multiplicity, ShapeCollector, SymbolHandle, checked_structural_result_type,
-    is_record_pattern_marker, scalar_computation_local_at, structural_operands,
+    scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::execution::terminal_unit::types::{
@@ -178,7 +178,7 @@ fn plan_inner(
     if (reference_capture.is_none()
         && structural_root.is_none()
         && erased_locals.contains(&local.symbol))
-        || is_record_pattern_marker(local)
+        || local.role == language_core::LocalBindingRole::RecordPattern
     {
         return Some(LocalPlan::Planned);
     }

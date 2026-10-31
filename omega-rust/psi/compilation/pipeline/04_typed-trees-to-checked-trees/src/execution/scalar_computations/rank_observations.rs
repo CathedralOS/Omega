@@ -144,6 +144,8 @@ pub(super) fn record(
             parameters: &parameters,
             authored_parameters: &inputs,
             declaration_parameters: &inputs,
+            declaration_scope: None,
+            declaration_values: Vec::new(),
             declaration_bindings: &declaration_bindings,
             parameter_types: &parameter_types,
             locals: &[],
@@ -212,12 +214,12 @@ fn input_coordinate(
     builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type, &[])
 }
 
-fn observation(
-    builder: &mut Builder<'_, '_>,
+fn observation<'program>(
+    builder: &mut Builder<'program, '_>,
     rank: &CheckedStateNaturalRank,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
-    admitted: &checked_trees::CheckedRankArrivalPlan,
+    admitted: &'program checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
     let observed = match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
@@ -263,51 +265,31 @@ fn observation(
                     subject_type,
                     admitted.entry_indexes.span(input.entry_indexes)?,
                 )?;
-                // A logical declaration can form differently at different
-                // applications. Only this exact retained state/body/input
-                // telescope supplies its partial conversion decisions.
-                let scoped_casts = if formation.is_valid() {
-                    let proof = admitted.application_formations.get(formation);
-                    let (owner, _) = validation::find_state(builder.program, builder.state)?;
-                    if proof.machine != builder.machine
-                        || proof.machine_body != owner.states
-                        || proof.state != builder.state
-                        || proof.application.measure != measure
-                        || proof.application.definition_body != *body
-                        || proof.bindings != application_inputs
-                    {
-                        return None;
-                    }
-                    admitted.application_casts.span(proof.application.casts)?
-                } else {
-                    &[]
-                };
-                let expression = crate::values::scalar::scalar_lowering::lower_return_expression(
-                    builder.program,
-                    builder.operators,
-                    *body,
-                    std::slice::from_ref(formal),
-                    std::slice::from_ref(formal),
-                    &[subject_type],
-                    &[],
-                    primitive_type,
-                    scoped_casts,
-                )?;
-                let operands = builder.plans.operands.insert_many([operand]);
-                Some(builder.insert(
-                    primitive_type,
-                    CheckedScalarComputationKind::Apply {
-                        source_expression: *body,
-                        expression,
-                        operands,
-                    },
-                ))
-            } else {
-                // The shared graph builder composes the declaration's entire
-                // body under its explicit subject binding. Projection geometry
-                // and arithmetic remain owned by their ordinary operations.
-                builder.expression(*body, primitive_type)
+                builder.declaration_values.push((formal.symbol, operand));
             }
+            // Bind every operation in the declaration body to this exact
+            // application, including partial casts and ordinary calls.
+            if formation.is_valid() {
+                let proof = admitted.application_formations.get(formation);
+                let (owner, _) = validation::find_state(builder.program, builder.state)?;
+                if proof.machine != builder.machine
+                    || proof.machine_body != owner.states
+                    || proof.state != builder.state
+                    || proof.application.measure != measure
+                    || proof.application.definition_body != *body
+                    || proof.bindings != application_inputs
+                {
+                    return None;
+                }
+                builder.exact_integer_casts =
+                    admitted.application_casts.span(proof.application.casts)?;
+                builder.declaration_scope = Some(super::builder::DeclarationScope {
+                    plan: admitted,
+                    application: formation,
+                });
+            }
+            builder.declaration_parameters = std::slice::from_ref(formal);
+            builder.expression(*body, primitive_type)
         }
         CheckedNaturalRankMeasure::IntegerValue {
             coordinate,

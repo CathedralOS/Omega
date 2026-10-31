@@ -1,17 +1,17 @@
 use super::{
     admit_uart, established_stable_word, expect_exact_stable_compound_rejection,
     expect_exact_stable_primitive_rejection, field_key, primitive_request_snapshot,
-    provider_existing_content, stable_word_placement, stable_word_profile, uart_extent,
-    uart_extent_with_lineage, uart_placement_plan, uart_reach, uart_resource_profile,
+    provider_existing_content, stable_word_placement, stable_word_profile, uart_access_plan,
+    uart_extent, uart_extent_with_lineage, uart_reach, uart_resource_profile,
 };
-use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::{
-    AccessOperation, BorrowPolarity, BoundaryReach, BoundaryServiceReachId, EffectiveSupplyKind,
-    ObservationModel, PlacedOccurrenceId, PlacementAdmission, PlacementAdmissionId,
-    PlacementPlanId, ResourceProfileReceiptId, SchemaCorrespondenceProviderId,
-    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableDeviceInstanceId,
-    StablePrimitiveOperation, admit_owned_placement, admit_placement, adopt_owned_stable,
-    bind_schema_correspondence_to_placement, place,
+    AccessAdmission, AccessAdmissionId, AccessOccurrenceId, AccessOperation, AccessPlanId,
+    BorrowPolarity, BoundaryReach, BoundaryServiceReachId, EffectiveSupplyKind, ObservationModel,
+    ResourceProfileReceiptId, SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
+    SchemaDeviceCorrespondenceGrant, StableDeviceInstanceId, StablePrimitiveOperation,
+    admit_access, admit_owned_access, adopt_owned_stable,
+    bind_schema_correspondence_to_access_plan, place,
 };
 use extents::LoanPolarity;
 use extents::ResidentClaimId;
@@ -122,7 +122,7 @@ fn stable_primitive_lowering_replays_authority_without_consuming_retry() {
     let diagnostic = stable
         .validate_for_lowering()
         .expect_err("outward preflight must reject copied receipt drift");
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     stable.request.profile_receipt =
         ResourceProfileReceiptId::from_normalized_identity(91).expect("profile receipt");
 
@@ -146,13 +146,13 @@ fn provider_stable_preflight_requires_and_retains_exact_correspondence() {
     let extent = uart_extent_with_lineage(0xa780, 4, 272);
     let profile = stable_word_profile(&extent);
     let loan = extent.loan(0, 4).expect("shared Stable loan");
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(273).expect("admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(273).expect("admission"),
         loan,
         &plan,
         &profile,
     )
-    .expect("Stable placement admission");
+    .expect("Stable access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(274)
         .expect("correspondence provider");
     let device = StableDeviceInstanceId::from_normalized_identity(275).expect("stable device");
@@ -167,7 +167,7 @@ fn provider_stable_preflight_requires_and_retains_exact_correspondence() {
     .expect("provider correspondence grant")
     .admit(&plan, &profile)
     .expect("schema correspondence admission");
-    let view = bind_schema_correspondence_to_placement(admission, correspondence)
+    let view = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("correspondence placement binding")
         .establish_view()
         .expect("corresponded view establishment");
@@ -208,10 +208,10 @@ fn provider_stable_preflight_requires_and_retains_exact_correspondence() {
 
     crate::tests::assert_rejects_alternate_correspondence!(corresponded, alternate_correspondence);
 
-    corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    corresponded.replace_request_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let diagnostic = corresponded
         .validate_for_provider_lowering()
-        .expect_err("provider/device Stable preflight must replay placement authority");
+        .expect_err("provider/device Stable preflight must replay access authority");
     assert!(diagnostic.0.contains("copied plan"));
     corresponded.replace_request_plan_for_test(plan.identity());
     corresponded
@@ -228,13 +228,13 @@ fn provider_stable_preflight_requires_and_retains_exact_correspondence() {
         .loan(0, 4)
         .expect("ordinary shared Stable loan");
     let ordinary = place(
-        admit_placement(
-            PlacementAdmissionId::from_normalized_identity(281).expect("ordinary admission"),
+        admit_access(
+            AccessAdmissionId::from_normalized_identity(281).expect("ordinary admission"),
             ordinary_loan,
             &plan,
             &ordinary_profile,
         )
-        .expect("ordinary Stable placement admission"),
+        .expect("ordinary Stable access admission"),
     )
     .expect("ordinary Stable view establishment");
     let ordinary_projection = ordinary
@@ -339,7 +339,7 @@ fn stable_compound_lowering_replays_authority_without_consuming_retry() {
     let diagnostic = compound
         .validate_for_lowering()
         .expect_err("outward preflight must reject copied receipt drift");
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     compound.request.profile_receipt =
         ResourceProfileReceiptId::from_normalized_identity(91).expect("profile receipt");
 
@@ -362,13 +362,13 @@ fn provider_stable_compound_preflight_requires_exact_correspondence() {
     let mut extent = uart_extent_with_lineage(0xad18, 4, 282);
     let profile = stable_word_profile(&extent);
     let loan = extent.loan_mut(0, 4).expect("exclusive Stable loan");
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(283).expect("admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(283).expect("admission"),
         loan,
         &plan,
         &profile,
     )
-    .expect("Stable placement admission");
+    .expect("Stable access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(284)
         .expect("correspondence provider");
     let device = StableDeviceInstanceId::from_normalized_identity(285).expect("stable device");
@@ -383,7 +383,7 @@ fn provider_stable_compound_preflight_requires_exact_correspondence() {
     .expect("provider correspondence grant")
     .admit(&plan, &profile)
     .expect("schema correspondence admission");
-    let mut view = bind_schema_correspondence_to_placement(admission, correspondence)
+    let mut view = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("correspondence placement binding")
         .establish_view()
         .expect("corresponded view establishment");
@@ -423,10 +423,10 @@ fn provider_stable_compound_preflight_requires_exact_correspondence() {
 
     crate::tests::assert_rejects_alternate_correspondence!(corresponded, alternate_correspondence);
 
-    corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    corresponded.replace_request_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let diagnostic = corresponded
         .validate_for_provider_lowering()
-        .expect_err("provider/device compound preflight must replay placement authority");
+        .expect_err("provider/device compound preflight must replay access authority");
     assert!(diagnostic.0.contains("copied plan"));
     corresponded.replace_request_plan_for_test(plan.identity());
     corresponded
@@ -443,13 +443,13 @@ fn provider_stable_compound_preflight_requires_exact_correspondence() {
         .loan_mut(0, 4)
         .expect("ordinary exclusive Stable loan");
     let mut ordinary = place(
-        admit_placement(
-            PlacementAdmissionId::from_normalized_identity(291).expect("ordinary admission"),
+        admit_access(
+            AccessAdmissionId::from_normalized_identity(291).expect("ordinary admission"),
             ordinary_loan,
             &plan,
             &ordinary_profile,
         )
-        .expect("ordinary Stable placement admission"),
+        .expect("ordinary Stable access admission"),
     )
     .expect("ordinary Stable view establishment");
     let mut ordinary_projection = ordinary
@@ -488,7 +488,7 @@ fn placed_field_authorization_replays_projection_authority_and_allows_retry() {
     let diagnostic = projection
         .read()
         .expect_err("authorization must reject copied placement identity drift");
-    assert!(diagnostic.0.contains("placed field authorization"));
+    assert!(diagnostic.0.contains("access field authorization"));
     assert!(diagnostic.0.contains("retained authority"));
     projection.plan = plan.identity();
 
@@ -569,8 +569,8 @@ fn placed_authorization_and_specialization_replay_resident_content_grant() {
     let (replacement_extent, replacement_content) =
         provider_existing_content(&plan, 0xad50, 4, 224, 225);
     let replacement_profile = stable_word_profile(&replacement_extent);
-    let replacement_admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(223).expect("matching admission"),
+    let replacement_admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(223).expect("matching admission"),
         replacement_extent,
         &plan,
         &replacement_profile,
@@ -579,7 +579,7 @@ fn placed_authorization_and_specialization_replay_resident_content_grant() {
     let replacement_dormant = adopt_owned_stable(replacement_admission, replacement_content)
         .expect("replacement resident adoption");
     let mut corrupt = replacement_dormant
-        .view(PlacedOccurrenceId::from_normalized_identity(10_223).expect("matching occurrence"))
+        .view(AccessOccurrenceId::from_normalized_identity(10_223).expect("matching occurrence"))
         .expect("replacement resident view");
     let (_unrelated_extent, unrelated_content) =
         provider_existing_content(&plan, 0xad50, 4, 228, 229);
@@ -588,29 +588,29 @@ fn placed_authorization_and_specialization_replay_resident_content_grant() {
     let mut projection = established
         .project(field_key(plan.access(), "word"))
         .expect("shared Stable projection");
-    projection._authority = PlacementAuthorityRef::EstablishedOwned(&corrupt);
+    projection._authority = AccessAuthorityRef::EstablishedOwned(&corrupt);
     projection.resident_claim = Some(corrupt.resident_claim());
-    projection.placed_occurrence = Some(corrupt.occurrence());
+    projection.access_occurrence = Some(corrupt.occurrence());
     let diagnostic = projection
         .read()
         .expect_err("authorization must replay resident content beyond copied identities");
     assert!(diagnostic.0.contains("resident content grant"));
 
-    projection._authority = PlacementAuthorityRef::EstablishedOwned(&established);
+    projection._authority = AccessAuthorityRef::EstablishedOwned(&established);
     projection.resident_claim = Some(established.resident_claim());
-    projection.placed_occurrence = Some(established.occurrence());
+    projection.access_occurrence = Some(established.occurrence());
     let mut request = projection
         .read()
         .expect("repaired projection remains authorizable")
         .into_primitive_request();
-    request._authority = PlacementAuthorityRef::EstablishedOwned(&corrupt);
+    request._authority = AccessAuthorityRef::EstablishedOwned(&corrupt);
     request.resident_claim = Some(corrupt.resident_claim());
-    request.placed_occurrence = Some(corrupt.occurrence());
+    request.access_occurrence = Some(corrupt.occurrence());
     request = expect_exact_stable_primitive_rejection(request, "resident content grant");
 
-    request._authority = PlacementAuthorityRef::EstablishedOwned(&established);
+    request._authority = AccessAuthorityRef::EstablishedOwned(&established);
     request.resident_claim = Some(established.resident_claim());
-    request.placed_occurrence = Some(established.occurrence());
+    request.access_occurrence = Some(established.occurrence());
     let stable = request
         .into_stable_primitive_access()
         .expect("repaired resident content authority supports specialization");
@@ -654,10 +654,10 @@ fn stable_primitive_specialization_replays_exact_placement_authority() {
     let extent = uart_extent_with_lineage(0xad70, 4, 176);
     let profile = stable_word_profile(&extent);
     let loan = extent.loan(0, 4).expect("shared Stable loan");
-    let admission_id = PlacementAdmissionId::from_normalized_identity(177).expect("admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(177).expect("admission");
     let admission =
-        admit_placement(admission_id, loan, &plan, &profile).expect("borrowed Stable admission");
-    let view = place(admission).expect("Stable placed-view establishment");
+        admit_access(admission_id, loan, &plan, &profile).expect("borrowed Stable admission");
+    let view = place(admission).expect("Stable access-view establishment");
     let projection = view
         .project(field_key(plan.access(), "word"))
         .expect("shared Stable projection");
@@ -667,24 +667,24 @@ fn stable_primitive_specialization_replays_exact_placement_authority() {
         .into_primitive_request();
 
     request.plan.0 ^= 1;
-    request = expect_exact_stable_primitive_rejection(request, "placement authority");
+    request = expect_exact_stable_primitive_rejection(request, "access authority");
     request.plan = plan.identity();
 
     request.profile_receipt = ResourceProfileReceiptId::from_normalized_identity(
         request.profile_receipt.normalized_identity() ^ 1,
     )
     .expect("tampered nonzero profile receipt");
-    request = expect_exact_stable_primitive_rejection(request, "placement authority");
+    request = expect_exact_stable_primitive_rejection(request, "access authority");
     request.profile_receipt = profile.receipt();
 
     request.admission.0 ^= 1;
-    request = expect_exact_stable_primitive_rejection(request, "placement authority");
+    request = expect_exact_stable_primitive_rejection(request, "access authority");
     request.admission = admission_id;
 
     request.reach = BoundaryReach::from_services([
         BoundaryServiceReachId::from_normalized_identity(178).expect("reach"),
     ]);
-    request = expect_exact_stable_primitive_rejection(request, "placement authority");
+    request = expect_exact_stable_primitive_rejection(request, "access authority");
     request.reach = plan.reach().clone();
 
     request.source_loan = BorrowPolarity::Exclusive;
@@ -709,10 +709,10 @@ fn stable_primitive_specialization_rejects_coherent_authorization_rewrite() {
     let mut extent = uart_extent_with_lineage(0xad74, 4, 186);
     let profile = stable_word_profile(&extent);
     let loan = extent.loan_mut(0, 4).expect("exclusive Stable loan");
-    let admission_id = PlacementAdmissionId::from_normalized_identity(187).expect("admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(187).expect("admission");
     let admission =
-        admit_placement(admission_id, loan, &plan, &profile).expect("borrowed Stable admission");
-    let view = place(admission).expect("Stable placed-view establishment");
+        admit_access(admission_id, loan, &plan, &profile).expect("borrowed Stable admission");
+    let view = place(admission).expect("Stable access-view establishment");
     let projection = view
         .project(field_key(plan.access(), "word"))
         .expect("shared projection over exclusive source loan");
@@ -738,24 +738,24 @@ fn borrowed_view_establishment_replays_profile_and_returns_admission_for_retry()
     let extent = uart_extent_with_lineage(0xad7c, 4, 188);
     let profile = stable_word_profile(&extent);
     let loan = extent.loan(0, 4).expect("shared Stable loan");
-    let admission_id = PlacementAdmissionId::from_normalized_identity(189).expect("admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(189).expect("admission");
     let admission =
-        admit_placement(admission_id, loan, &plan, &profile).expect("borrowed Stable admission");
+        admit_access(admission_id, loan, &plan, &profile).expect("borrowed Stable admission");
 
     let coincident = uart_extent_with_lineage(0xad7c, 4, 190);
     let wrong_profile = stable_word_profile(&coincident);
     assert_eq!(wrong_profile.receipt(), profile.receipt());
-    let PlacementAdmission {
+    let AccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile: _,
         resources,
         loan,
     } = admission;
-    let corrupt = PlacementAdmission {
+    let corrupt = AccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile: wrong_profile,
         resources,
@@ -774,17 +774,17 @@ fn borrowed_view_establishment_replays_profile_and_returns_admission_for_retry()
     let (returned, _) = rejection.into_parts();
     assert_eq!(returned.identity(), admission_id);
     assert_eq!(returned.profile_receipt(), profile.receipt());
-    let PlacementAdmission {
+    let AccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile: _,
         resources,
         loan,
     } = returned;
-    let repaired = PlacementAdmission {
+    let repaired = AccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile,
         resources,
@@ -796,9 +796,9 @@ fn borrowed_view_establishment_replays_profile_and_returns_admission_for_retry()
     view.profile = stable_word_profile(&coincident);
     let diagnostic = view
         .project(field_key(plan.access(), "word"))
-        .expect_err("field projection must replay retained placement authority");
+        .expect_err("field projection must replay retained access authority");
     assert!(diagnostic.0.contains("field projection"));
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     assert_eq!(view.admission(), admission_id);
     assert_eq!(view.base(), 0xad7c);
     assert_eq!(view.length(), 4);
@@ -820,16 +820,15 @@ fn borrowed_view_establishment_replays_profile_and_returns_admission_for_retry()
 
 #[test]
 fn borrowed_view_retirement_replays_authority_and_returns_exact_loan() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent_with_lineage(0xad88, 12, 265);
     let origin = extent.origin();
     let lineage = extent.lineage_root();
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let profile = uart_resource_profile(&loan, &uart_reach());
-    let admission_id =
-        PlacementAdmissionId::from_normalized_identity(266).expect("placement admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(266).expect("access admission");
     let admission =
-        admit_placement(admission_id, loan, &plan, &profile).expect("borrowed placement admission");
+        admit_access(admission_id, loan, &plan, &profile).expect("borrowed access admission");
     let mut view = place(admission).expect("borrowed view establishment");
     let exact_resources = view.resources.clone();
 
@@ -873,8 +872,8 @@ fn established_primitive_specialization_replays_resident_identities() {
     request = expect_exact_stable_primitive_rejection(request, "resident identities");
     request.resident_claim = Some(established.resident_claim());
 
-    request.placed_occurrence =
-        Some(PlacedOccurrenceId::from_normalized_identity(185).expect("drifting occurrence"));
+    request.access_occurrence =
+        Some(AccessOccurrenceId::from_normalized_identity(185).expect("drifting occurrence"));
     let request = expect_exact_stable_primitive_rejection(request, "resident identities");
     drop(request);
     assert_eq!(established.validity_receipt().normalized_identity(), 181);
@@ -926,11 +925,11 @@ fn stable_compound_specialization_fails_closed_and_returns_exact_request() {
 
 #[test]
 fn external_request_rejects_stable_specialization_and_returns_exact_request() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let extent = uart_extent(0xb000, 12);
     let loan = extent.loan(0, 12).expect("shared UART loan");
     let admission = admit_uart(132, loan, &plan, &uart_reach()).expect("admitted shared UART view");
-    let view = place(admission).expect("shared UART placed-view establishment");
+    let view = place(admission).expect("shared UART access-view establishment");
     let projection = view
         .project(field_key(plan.access(), "status"))
         .expect("External status projection");

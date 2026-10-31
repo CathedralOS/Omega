@@ -8,7 +8,7 @@ fn numbered_declarations_share_ordinary_data_and_source_identity() {
         "data Message [copy] { #7 value: u32; retired #8; }",
         "data Message where value <= 10 { #7 value: u32; retired #8; }",
         "data Message<'scope> { #7 value: &'scope u32; retired #8; }",
-        "data Message { #7 value: u32; case #9 Ready; }",
+        "data Message { #7 value: u32; #9 case Ready; }",
     ] {
         let parsed =
             super::parse_source_verbose(declaration, "tokens", "ordinary numbered declaration");

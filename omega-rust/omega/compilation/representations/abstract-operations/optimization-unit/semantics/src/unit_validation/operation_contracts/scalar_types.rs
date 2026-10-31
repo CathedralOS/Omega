@@ -78,7 +78,7 @@ pub(crate) fn operation_scalar_types_match(
                     scalar(*value).is_some_and(|scalar| matches_carrier(scalar, carrier.bits()))
                 })
         }
-        O::EstablishPlacedReference { .. } => true,
+        O::EstablishAccessReference { .. } => true,
         O::EstablishReference { storage, .. } => storage.as_ref().is_none_or(|view| {
             matches!(scalar(view.byte_offset), Some(ScalarType::Integer(integer))
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
@@ -199,8 +199,7 @@ pub(crate) fn operation_scalar_types_match(
             scalar_type, value, ..
         } => match scalar_type {
             ScalarType::Integer(integer) => integer.admits(*value),
-            ScalarType::Boolean => false,
-            ScalarType::IeeeFloat(_) => false,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) => false,
         },
         O::IeeeFloatConstant { .. } => true,
         O::FloatResultPolicy { format, policy, .. } => {

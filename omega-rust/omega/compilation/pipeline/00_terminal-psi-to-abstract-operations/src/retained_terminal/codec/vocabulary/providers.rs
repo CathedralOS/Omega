@@ -22,8 +22,8 @@ record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     2 => HostedReadByte,
     3 => ProgramImageRetainedSuffixStart,
     4 => ProgramStorageEntry,
-    5 => PlacementLifecycle(value0),
-    6 => PlacedScalarAccess { contract, placement_commitment, access_slot, operation },
+    5 => AccessLifecycle(value0),
+    6 => AccessorScalarAccess { contract, placement_commitment, access_slot, operation },
     7 => BuiltinFunction(value0),
     8 => PrimitiveFloatBinary { operation, format },
     9 => PrimitiveIntegerComparison { operation, integer_type },
@@ -44,7 +44,7 @@ record_variants!(effects::CompilerNumericType {
     9 => F64,
 });
 
-record_variants!(effects::CompilerPlacedScalarOperation {
+record_variants!(effects::CompilerAccessorScalarOperation {
     0 => Read,
     1 => Take,
     2 => Write,

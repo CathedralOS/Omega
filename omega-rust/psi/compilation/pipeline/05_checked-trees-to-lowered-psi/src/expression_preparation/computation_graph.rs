@@ -414,7 +414,7 @@ fn collect_reachable_nodes(
                     if let Some(place) = argument.as_place() {
                         extend_range(checked, place, &mut pending);
                         if matches!(place.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
-                            let root = produced_value_root(checked, *source_call, place)?.root;
+                            let root = produced_value_root(checked, source_call.statement().ok_or(LoweringError::Unsupported("declaration call has no structural producer custody"))?, place)?.root;
                             if !structural_roots.contains(&root) {
                                 structural_roots.push(root);
                             }
@@ -658,17 +658,7 @@ pub(crate) fn produced_value_root<'checked>(
         return unsupported("computed structural operand lost its checked invocation");
     }
     let call = control.calls.get(source_call);
-    let mut owners = control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .filter(|state| {
-            control
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .any(|candidate| std::ptr::eq(candidate, call))
-        });
+    let mut owners = control.call_owners(source_call).into_iter();
     let state = owners.next().ok_or(LoweringError::Unsupported(
         "computed structural operand has no invocation state",
     ))?;

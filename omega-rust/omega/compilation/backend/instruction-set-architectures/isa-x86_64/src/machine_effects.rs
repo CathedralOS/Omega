@@ -230,8 +230,8 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
             // LOCK is architectural on every x86-64 target; no feature custody
             // gates the family the way AArch64's LSE does.
-            placed_read: Some(crate::X86_64_PLACED_READ),
-            placed_write: Some(crate::X86_64_PLACED_WRITE),
+            access_read: Some(crate::X86_64_ACCESSOR_READ),
+            access_write: Some(crate::X86_64_ACCESSOR_WRITE),
             atomic_load: Some(crate::X86_64_ATOMIC_LOAD),
             atomic_store: Some(crate::X86_64_ATOMIC_STORE),
             atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
@@ -581,7 +581,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     .expect("x86 flags restore"),
             );
         }
-        MachineSemanticKind::PlacedScalarAccess(form) => {
+        MachineSemanticKind::AccessorScalarAccess(form) => {
             if form.write {
                 (vec![0, 1], vec![])
             } else {
@@ -881,7 +881,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::SystemRegisterWrite
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
-        MachineSemanticKind::PlacedScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
+        MachineSemanticKind::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         MachineSemanticKind::PortWrite => {
             MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16)
         }

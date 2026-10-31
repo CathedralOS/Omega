@@ -87,12 +87,13 @@ pub(crate) fn lower_outcome_specific_call_evidence(
         // that mutates an earlier captured actual. The checked arm retains the
         // exact producing expression; statement order cannot select its call.
         let mut occurrences = lowered.source_call_occurrences.iter().filter(|occurrence| {
-            occurrence.source_state == arm.caller_state_symbol
-                && occurrence.statement_index == arm.result_call_statement_index
-                && occurrence.source_site
-                    == Some(checked_trees::NominalMachineUseSite::Expression(
-                        arm.result_call_expression,
-                    ))
+            occurrence.origin.statement().is_some_and(|site| {
+                site.state == arm.caller_state_symbol
+                    && site.statement_index == arm.result_call_statement_index
+            }) && occurrence.source_site
+                == Some(checked_trees::NominalMachineUseSite::Expression(
+                    arm.result_call_expression,
+                ))
         });
         let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
             "outcome-specific arm has no exact lowered call occurrence",

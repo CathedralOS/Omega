@@ -63,8 +63,8 @@ fn has_checked_write_only_implementation(
     machine.supplies_checked_body()
         // Whole-value placement moves descriptors as values; it never reads
         // through a stored reference. Unsupported represented/non-runtime
-        // custody still rejects at placement planning and realization.
-        || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, machine.symbol)
+        // custody still rejects at access planning and realization.
+        || typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(program, machine.symbol)
             .is_ok_and(|contract| contract.is_some())
         || crate::machine_calls::calls::target_family_members(program, machine).is_some_and(
             |members| {
@@ -980,7 +980,7 @@ fn validate_statement<'p>(
                     roots,
                     diagnostics,
                 );
-            } else if expression_mentions_write_only_root(program, assignment.target, roots) {
+            } else if mentioned_write_only_root(program, assignment.target, roots).is_some() {
                 diagnose_unsupported_write_only_assignment_target(
                     program,
                     machine,
@@ -2105,14 +2105,6 @@ fn mentioned_write_only_root<'a>(
     roots
         .iter()
         .find(|root| expression_mentions_root(program, expression, root))
-}
-
-fn expression_mentions_write_only_root(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-) -> bool {
-    mentioned_write_only_root(program, expression, roots).is_some()
 }
 
 fn expression_mentions_root(

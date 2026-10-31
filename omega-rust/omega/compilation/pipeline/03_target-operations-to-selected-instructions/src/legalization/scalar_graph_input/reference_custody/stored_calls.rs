@@ -59,9 +59,9 @@ pub(super) struct Effects {
     boundaries: BTreeMap<BoundaryMachineId, Option<Vec<Effect>>>,
     pub(super) observations:
         BTreeMap<MachineId, terminal_semantics::descriptor_results::DescriptorSourceObservations>,
-    pub(super) placed_results: BTreeMap<
+    pub(super) access_results: BTreeMap<
         MachineId,
-        Option<Vec<optimization_unit_semantics::descriptor_results::placed_results::ResultSlot>>,
+        Option<Vec<optimization_unit_semantics::descriptor_results::access_results::ResultSlot>>,
     >,
 }
 
@@ -97,7 +97,7 @@ pub(super) fn prepare(
             .map(|boundary| (boundary.id, None))
             .collect(),
         observations: BTreeMap::new(),
-        placed_results: BTreeMap::new(),
+        access_results: BTreeMap::new(),
         machines: candidates
             .iter()
             .map(|function| (function.machine, None))
@@ -173,7 +173,7 @@ pub(super) fn prepare(
             .find(|function| function.machine == machine.id)
             .and_then(|function| {
                 let result = function.result.structural()?;
-                optimization_unit_semantics::descriptor_results::placed_results::summarize(
+                optimization_unit_semantics::descriptor_results::access_results::summarize(
                     types,
                     &unit.boundary_machines,
                     &function.structural_parameters,
@@ -189,7 +189,7 @@ pub(super) fn prepare(
                     },
                 )
             });
-        effects.placed_results.insert(machine.id, result);
+        effects.access_results.insert(machine.id, result);
     }
     for function in candidates {
         let summary = analysis.stored_effects(function.machine).and_then(|rows| {
@@ -257,7 +257,7 @@ pub(super) fn prepare(
                             DescriptorStoredOrigin::Invocation { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. }
                             | DescriptorStoredOrigin::Literal { .. }
-                            | DescriptorStoredOrigin::PlacedFormation { .. } => return None,
+                            | DescriptorStoredOrigin::AccessFormation { .. } => return None,
                         }
                     }
                     sources.sort();
@@ -725,7 +725,7 @@ pub(super) fn stage(
                         }],
                         contract,
                         referent,
-                        placed: super::placed_source(function, custody, types, &source),
+                        placed: super::access_source(function, custody, types, &source),
                     });
                     continue;
                 }

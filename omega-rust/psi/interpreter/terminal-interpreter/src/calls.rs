@@ -309,16 +309,16 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             let plan = program
                 .catalogs
-                .placement_lifecycle_plans
+                .access_lifecycle_plans
                 .iter()
                 .find(|plan| plan.boundary == boundary)
                 .ok_or_else(malformed)?;
             match placement_operation {
-                terminal_psi::TerminalPlacementLifecycleOperation::View => {
-                    self.establish_placement_view(operation, plan)?;
+                terminal_psi::TerminalAccessLifecycleOperation::View => {
+                    self.establish_access_view(operation, plan)?;
                     return Ok(OperationFlow::Advance);
                 }
-                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
+                terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
                     let [storage_argument, value, profile_argument] =
                         structural_arguments.as_slice()
                     else {
@@ -356,13 +356,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                         image,
                     )?;
                     match prepared {
-                        Err(rejection) => self.reject_placement_initialization(
+                        Err(rejection) => self.reject_access_initialization(
                             operation,
                             boundary_declaration,
                             plan,
                             rejection,
                         )?,
-                        Ok(prepared) => self.complete_placement_initialization(
+                        Ok(prepared) => self.complete_access_initialization(
                             operation,
                             boundary_declaration,
                             plan,
@@ -371,8 +371,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                     }
                     return Ok(OperationFlow::Advance);
                 }
-                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
-                    self.extract_placement_resident(operation, boundary_declaration, plan)?;
+                terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
+                    self.extract_access_resident(operation, boundary_declaration, plan)?;
                     return Ok(OperationFlow::Advance);
                 }
             }
@@ -555,7 +555,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             }
             return Ok(OperationFlow::Redispatch);
         }
-        if self.execute_placed_boundary(
+        if self.execute_access_boundary(
             operation,
             boundary_declaration,
             &scalar_arguments,

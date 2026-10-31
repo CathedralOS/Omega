@@ -778,6 +778,35 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// The caller already authenticated this exact observed integer and
+    /// its resident interval. Only fold the completed comparison;
+    /// resolving its value would replay an unrelated descriptive call body.
+    fn intake_observed_integer_bound(
+        &mut self,
+        reference: TypeReferenceHandle,
+        meaning: (
+            typed_trees::types::PrimitiveType,
+            numerics::arithmetic::ArithmeticDomain,
+        ),
+        value: &StructuralTerm,
+        operator: BinaryOperator,
+        bound: numerics::bignum::BigInt,
+    ) {
+        if self.case_facts_only {
+            return;
+        }
+        let bound = StructuralTerm::Integer(bound);
+        let predicate = super::fold_scalar_binary(operator, [meaning; 2], value, &bound)
+            .unwrap_or_else(|| StructuralTerm::ScalarBinary {
+                references: [reference; 2],
+                operator,
+                meaning: [meaning; 2],
+                left: Box::new(value.clone()),
+                right: Box::new(bound),
+            });
+        self.intake_equation_fact(predicate, super::value_predicates::boolean_term(true), 0);
+    }
+
     /// A completed atomic load is a fresh snapshot of a declaration-valid
     /// resident. Its bound belongs to this captured value, never to a cached
     /// value of the cell or the receiving annotation's requested predicate.
@@ -818,16 +847,13 @@ impl StructuralJudge<'_> {
             (BinaryOperator::LessOrEqual, bounds.high()),
         ] {
             let Some(bound) = bound else { continue };
-            let predicate = StructuralTerm::ScalarBinary {
-                references: [reference; 2],
+            self.intake_observed_integer_bound(
+                reference,
+                meaning,
+                value,
                 operator,
-                meaning: [meaning; 2],
-                left: Box::new(value.clone()),
-                right: Box::new(StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(
-                    bound,
-                ))),
-            };
-            self.intake_equation(predicate, super::value_predicates::boolean_term(true), 0);
+                numerics::bignum::BigInt::from_i64(bound),
+            );
         }
     }
 
@@ -1027,8 +1053,9 @@ impl StructuralJudge<'_> {
         }
         self.rewrites.entries().iter().any(|(left, right)| {
             mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
-        }) || self.captured_result_equations.iter().any(|(left, right)| {
-            mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
+        }) || self.captured_result_equations.iter().any(|equation| {
+            mentions_projection_of(&equation.left, root_sem)
+                || mentions_projection_of(&equation.right, root_sem)
         }) || self
             .substitutions
             .iter()

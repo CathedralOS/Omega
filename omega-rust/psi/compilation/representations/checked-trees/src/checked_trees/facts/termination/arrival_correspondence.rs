@@ -245,6 +245,7 @@ pub struct CheckedSourceNaturalRankComponent {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankArrivalPlan {
     pub application_casts: Arena<crate::operators::ExactIntegerCastFact>,
+    pub application_calls: Arena<super::CheckedDeclarationCall>,
     pub application_formations: Arena<super::CheckedRankApplicationFormation>,
     pub judgments: Arena<CheckedRankBodyJudgment>,
     pub machines: Arena<CheckedMachineRankCorrespondence>,

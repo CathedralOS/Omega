@@ -186,7 +186,12 @@ fn canonical_place_segment_pair_may_overlap(
                 start: right_start,
                 end: right_end,
             },
-        ) => fixed_ranges_overlap(left_start, left_end, right_start, right_end),
+        ) => {
+            left_start < left_end
+                && right_start < right_end
+                && left_start < right_end
+                && right_start < left_end
+        },
         (
             facts::PlaceSegment::FixedRange { start, end },
             facts::PlaceSegment::FixedIndex { index },
@@ -222,18 +227,6 @@ fn canonical_place_segment_pair_may_overlap(
 
 fn fixed_range_contains(start: usize, end: usize, index: usize) -> bool {
     start < end && start <= index && index < end
-}
-
-fn fixed_ranges_overlap(
-    left_start: usize,
-    left_end: usize,
-    right_start: usize,
-    right_end: usize,
-) -> bool {
-    left_start < left_end
-        && right_start < right_end
-        && left_start < right_end
-        && right_start < left_end
 }
 
 fn expression_static_index(

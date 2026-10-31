@@ -342,7 +342,10 @@ fn push_call(
         .machine_by_symbol(authored_target)
         .and_then(|machine| program.machine_states(machine).first())
         .map_or(authored_target, |state| state.symbol);
-    let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
+    let target_machine_symbol = program
+        .machine_holding_state(target_state_symbol)
+        .map(|machine| machine.symbol)
+        .unwrap_or_else(SymbolHandle::invalid);
     // Static selection changes execution, not the requirement's independent
     // acknowledgement envelope. Both nominal and structural binders retain it.
     let direct = program
@@ -371,16 +374,6 @@ fn push_call(
         transitive_may_block: false,
         acknowledgement,
     });
-}
-
-fn machine_symbol_for_state(
-    program: &dyn crate::CheckingInput,
-    state_symbol: SymbolHandle,
-) -> SymbolHandle {
-    program
-        .machine_holding_state(state_symbol)
-        .map(|machine| machine.symbol)
-        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 /// Signature effects are declaration data for this inference pass. Collection

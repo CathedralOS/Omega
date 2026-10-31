@@ -20,12 +20,12 @@ pub(super) fn nominal_name(
     // two admitted packages can publish the same logical P/T paths.
     let qualified = TypeIdentityContext {
         // Producer identity retains exact semantic value indices. Storage-only
-        // erasure must not collapse the applied placement policy or schema.
+        // erasure must not collapse the applied access policy or schema.
         storage_value_indices: false,
         qualification: TypeIdentityQualification::PackageQualified,
         ..*context
     };
-    for view in &program.placed_view_plans {
+    for view in &program.access_view_plans {
         let field = view.fields.iter().find(|field| {
             field.accessor_data_symbol == symbol
                 || field

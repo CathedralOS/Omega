@@ -146,10 +146,11 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         let occurrences = source_calls
             .iter()
             .filter(|occurrence| {
-                occurrence.source_state == event.state_symbol
-                    && occurrence.statement_index == call.statement_index
-                    && occurrence.call_ordinal == call.call_ordinal
-                    && occurrence.source_target == call.target_symbol
+                occurrence.matches_statement(
+                    event.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                ) && occurrence.source_target == call.target_symbol
             })
             .collect::<Vec<_>>();
         let [occurrence] = occurrences.as_slice() else {

@@ -46,6 +46,18 @@ pub(crate) fn validate_specification_calls(
     pending.extend(crate::mathematical_applications::scoped_expression_nodes(
         program,
     ));
+    // Declared value bodies have the same operational admission obligations
+    // as specification expressions. Application formation separately proves
+    // argument requirements under the exact supplying values; a result
+    // guarantee alone cannot establish the callee's progress or purity.
+    for declaration in program.measures() {
+        pending.extend(
+            expression_table(program)
+                .expression_handles(declaration.body)
+                .iter()
+                .map(|expression| (declaration.symbol, *expression)),
+        );
+    }
     for proposition in program.propositions() {
         if let PropositionBody::Transparent {
             proposition: formula,

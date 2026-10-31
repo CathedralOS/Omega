@@ -242,7 +242,7 @@ pub(super) const REPLACE_DISCARDABLE_STRUCTURAL_FIELD: u8 = 118;
 pub(super) const ATOMIC_FENCE: u8 = 119;
 
 /// Explicit initialized-RAM placed interpretation; distinct from recasts.
-pub(super) const ESTABLISH_PLACED_REFERENCE: u8 = 120;
+pub(super) const ESTABLISH_ACCESS_REFERENCE: u8 = 120;
 
 /// An exact catalogued register event and its ordinary scalar operand.
 pub(super) const REGISTER_ACCESS: u8 = 121;

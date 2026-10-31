@@ -3,14 +3,14 @@
 // argument is a MACHINE — `WindowProcedure::call` cites
 // the callback requirement directly. A named
 // implementation is inert until a layout policy cites it
-// through `Plan::place_private<Implementation>`.
+// through `LayoutPlan::place_private<Implementation>`.
 //
 //   * `trait PrivateCallbackSlot<Layout, machine
 //     Requirement>` — machine-typed trait parameter.
 //   * `Slot satisfies PrivateCallbackSlot<Spread,
 //     WindowProcedure::call>` — named impl citing the
 //     boundary machine by reference.
-//   * `Plan::place_private<WndClassSlot>(plan, 8)` — the
+//   * `LayoutPlan::place_private<WndClassSlot>(plan, 8)` — the
 //     policy machine cites the named impl as a static
 //     argument; runtime code receives no slot identity.
 //
@@ -29,21 +29,21 @@ WndClassSlot satisfies PrivateCallbackSlot<Spread, WindowProcedure::call> { }
 
 SecondarySlot satisfies PrivateCallbackSlot<Spread, WindowProcedure::call> { }
 
-machine Spread::plan(schema: Schema) -> Plan {
+machine Spread::plan(schema: Schema) -> LayoutPlan {
     let mut owned_entries: [FieldEntry; 64];
     owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
-    let plan: Plan = Plan {
+    let plan: LayoutPlan = LayoutPlan {
         entries: owned_entries,
         entry_count: 1,
         size_fixed: 24,
         size_is_dynamic: false,
         align: 8,
     };
-    let placed: Plan = Plan::place_private<WndClassSlot>(plan, 8);
-    Plan::place_private<SecondarySlot>(placed, 16)
+    let placed: LayoutPlan = LayoutPlan::place_private<WndClassSlot>(plan, 8);
+    LayoutPlan::place_private<SecondarySlot>(placed, 16)
 }
 
 data Main { hits: i32 in Wrapping; }

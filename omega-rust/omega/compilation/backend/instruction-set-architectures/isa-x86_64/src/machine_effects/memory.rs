@@ -16,7 +16,7 @@ use selected_instructions::{
 /// membership list instead of re-spelling the rows.
 macro_rules! declared_semantics {
     () => {
-        MachineSemanticKind::PlacedScalarAccess(_)
+        MachineSemanticKind::AccessorScalarAccess(_)
             | MachineSemanticKind::CopyBytes
             | MachineSemanticKind::ZeroBytes
             | MachineSemanticKind::LoadEncodedScalar
@@ -56,7 +56,7 @@ pub(super) fn declaration(
         .expect("canonical stack pointer")
         .id;
     let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
-        MachineSemanticKind::PlacedScalarAccess(form) => (
+        MachineSemanticKind::AccessorScalarAccess(form) => (
             if form.write {
                 MachineMemoryEffect::WritePointerV1
             } else {
@@ -274,7 +274,7 @@ pub(super) fn declaration(
         constraint,
         memory,
         trap,
-        barrier: if matches!(semantic, MachineSemanticKind::PlacedScalarAccess(_)) {
+        barrier: if matches!(semantic, MachineSemanticKind::AccessorScalarAccess(_)) {
             MachineBarrier::ExternalEffect
         } else if is_call {
             MachineBarrier::Call

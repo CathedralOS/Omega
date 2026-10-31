@@ -35,7 +35,13 @@ pub(crate) fn anonymous_integer_landing_warnings(
     let mut warned = Vec::new();
     visit_destination_trees(program, |destination, expression| {
         if let Some(primitive) = program.primitive_type_reference(destination) {
-            append_landing_warning(program, primitive, expression, &mut warned, &mut warnings);
+            append_integer_landing_warning(
+                program,
+                Some(primitive),
+                expression,
+                &mut warned,
+                &mut warnings,
+            );
         }
     });
     // Integer range endpoints land in proof-integer arithmetic. Keeping the
@@ -104,16 +110,6 @@ pub(crate) fn anonymous_integer_landing_warnings(
         }
     }
     warnings
-}
-
-fn append_landing_warning(
-    program: &dyn crate::CheckingInput,
-    primitive: PrimitiveType,
-    expression: ExpressionHandle,
-    warned: &mut Vec<ExpressionHandle>,
-    warnings: &mut Vec<Diagnostic>,
-) {
-    append_integer_landing_warning(program, Some(primitive), expression, warned, warnings);
 }
 
 /// A missing machine carrier denotes the unbounded proof Int landing.

@@ -53,6 +53,7 @@ pub fn project_checked_package_policy<'a>(
         external_providers: Some(&external_providers),
         checking_input: &queries.candidate,
         custody_checking_input: &queries.custody,
+        contract_owner_queries: None,
         ..input
     };
     if compilation.custody.sources().package_identity() != Some(package)
