@@ -1,6 +1,7 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
 mod constant_roots;
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use symbols::JoinedPath;
 use validation::collect_statement_expression_trees;
 
@@ -141,16 +142,15 @@ pub(super) fn clone_single_specialized_machine(
                     .filter_map(|((formal, _, _), actual)| actual.map(|actual| (*formal, actual))),
             )
             .collect::<Vec<_>>();
-        let predicates = input
-            .expression_table
-            .expression_handles(source_machine.declared_type_predicates);
+        let predicates =
+            expressions_of(input).expression_handles(source_machine.declared_type_predicates);
         let mut complete = true;
         for &predicate in predicates {
             match input.applied_static_type_predicate_value(predicate, &substitutions) {
                 Some(true) => {}
                 Some(false) => return Err(vec![Diagnostic::error(format!(
                     "machine `{}` where type predicate does not hold for the supplied arguments", source_machine.name
-                )).with_source_span(input.expression_table.source_span(predicate))]),
+                )).with_source_span(expressions_of(input).source_span(predicate))]),
                 None => complete = false,
             }
         }
@@ -174,7 +174,7 @@ pub(super) fn clone_single_specialized_machine(
                         "machine `{}` requires type predicate does not hold for the supplied arguments",
                         source_machine.name
                     ))
-                    .with_source_span(input.expression_table.source_span(*predicate))]);
+                    .with_source_span(expressions_of(input).source_span(*predicate))]);
                 }
             }
         }
@@ -194,7 +194,7 @@ pub(super) fn clone_single_specialized_machine(
     // last pre-existing node; using the backing arena count keeps retained source
     // predicates out of the sweep even when iteration roots were projected.
     let type_start = program.type_reference_table.type_reference_count() + 1;
-    let expression_start = program.expression_table.expression_count() + 1;
+    let expression_start = expressions_of(program).expression_count() + 1;
 
     let type_arguments = bound_type_displays(&candidate.type_bindings, source, program);
     let type_identities = bound_type_identities(&candidate.type_bindings, source, program);
@@ -503,18 +503,15 @@ pub(super) fn clone_single_specialized_machine(
         })
         .collect::<Result<Vec<_>, TypeCopyError>>()?;
     cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
-    let predicates = source
-        .unwrap_or(program)
-        .expression_table
+    let predicates = expressions_of(source.unwrap_or(program))
         .expression_handles(source_machine.declared_type_predicates)
         .to_vec();
     let predicates = predicates
         .into_iter()
         .map(|expression| copy_expression(source, program, expression, &symbol_map))
         .collect::<Vec<_>>();
-    cloned.declared_type_predicates = program
-        .expression_table
-        .insert_expression_handles(predicates);
+    cloned.declared_type_predicates =
+        expressions_of_mut(program).insert_expression_handles(predicates);
 
     if capture.is_none() {
         cloned.conformance_bounds.clear();
@@ -565,7 +562,7 @@ pub(super) fn clone_single_specialized_machine(
     .map(|expression| {
         let copied = copy_expression(source, program, expression, &symbol_map);
         if let Some(realized) = state_realized_parameters.first() {
-            program.expression_table.remap_symbols_in(copied, realized);
+            expressions_of_mut(program).remap_symbols_in(copied, realized);
         }
         copied
     })
@@ -579,7 +576,7 @@ pub(super) fn clone_single_specialized_machine(
     .map(|expression| {
         let copied = copy_expression(source, program, expression, &symbol_map);
         if let Some(realized) = state_realized_parameters.first() {
-            program.expression_table.remap_symbols_in(copied, realized);
+            expressions_of_mut(program).remap_symbols_in(copied, realized);
         }
         copied
     })
@@ -591,7 +588,7 @@ pub(super) fn clone_single_specialized_machine(
         .map(|expression| {
             let copied = copy_expression(source, program, expression, &symbol_map);
             if let Some(realized) = state_realized_parameters.first() {
-                program.expression_table.remap_symbols_in(copied, realized);
+                expressions_of_mut(program).remap_symbols_in(copied, realized);
             }
             copied
         });
@@ -674,9 +671,7 @@ pub(super) fn clone_single_specialized_machine(
                     typed_trees::references::StaticArgumentCall::Statement(call).applications();
                 let mut arguments = std::mem::take(&mut call.machine_arguments);
                 for argument in &mut arguments {
-                    program
-                        .expression_table
-                        .remap_static_argument_symbols(argument, realized);
+                    expressions_of_mut(program).remap_static_argument_symbols(argument, realized);
                 }
                 let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
                 else {
@@ -684,8 +679,7 @@ pub(super) fn clone_single_specialized_machine(
                 };
                 call.machine_arguments = arguments;
                 for application in applications {
-                    program
-                        .expression_table
+                    expressions_of_mut(program)
                         .remap_static_application_operands(application, realized);
                 }
             }
@@ -697,7 +691,7 @@ pub(super) fn clone_single_specialized_machine(
                 let mut roots = Vec::new();
                 collect_statement_expression_trees(program, &statement, &mut roots);
                 for root in roots {
-                    program.expression_table.remap_symbols_in(root, realized);
+                    expressions_of_mut(program).remap_symbols_in(root, realized);
                 }
             }
         }
@@ -801,8 +795,7 @@ pub(super) fn clone_single_specialized_machine(
             let applications =
                 typed_trees::references::StaticArgumentCall::Statement(call).applications();
             for application in applications {
-                let mut authored_arguments = program
-                    .expression_table
+                let mut authored_arguments = expressions_of(program)
                     .static_machine_application_arguments(application)
                     .to_vec();
                 copy_static_argument_type_payloads(
@@ -811,8 +804,7 @@ pub(super) fn clone_single_specialized_machine(
                     &mut authored_arguments,
                     &symbol_map,
                 )?;
-                program
-                    .expression_table
+                expressions_of_mut(program)
                     .static_machine_application_arguments_mut(application)
                     .clone_from_slice(&authored_arguments);
                 copy_application_binding_type_payloads(source, program, application, &symbol_map)?;
@@ -830,8 +822,7 @@ pub(super) fn clone_single_specialized_machine(
     // must be rejoined even while its body is still under construction. This
     // relation is preparation data; immutable checking still admits its tuple.
     if let Some((application, supplying_application)) = capture {
-        let retained = program
-            .expression_table
+        let retained = expressions_of_mut(program)
             .static_machine_application_mut(candidate.binding_application);
         retained.registration_operation = application.declaration;
         retained.binding_declaration = application.declaration;
@@ -872,8 +863,7 @@ pub(super) fn clone_single_specialized_machine(
     if let Some((application, supplying_application)) =
         capture.filter(|(application, _)| !application.lifetime_arguments.is_empty())
     {
-        let owner = program
-            .expression_table
+        let owner = expressions_of(program)
             .static_machine_application(supplying_application)
             .lexical_owner;
         let arguments = application
@@ -1118,12 +1108,10 @@ pub(super) fn copy_expression(
         return ExpressionHandle::invalid();
     }
     let copied = match source {
-        Some(source) => program
-            .expression_table
-            .copy_from(&source.expression_table, expression),
-        None => program.expression_table.insert_copy(expression),
+        Some(source) => expressions_of_mut(program).copy_from(expressions_of(source), expression),
+        None => expressions_of_mut(program).insert_copy(expression),
     };
-    program.expression_table.remap_symbols_in(copied, symbols);
+    expressions_of_mut(program).remap_symbols_in(copied, symbols);
     copied
 }
 
@@ -1138,8 +1126,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     expression_start: usize,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> Result<(), TypeCopyError> {
-    let query_carriers = program
-        .expression_table
+    let query_carriers = expressions_of(program)
         .iter_expressions_from(expression_start)
         .filter(|(_, expression)| {
             matches!(expression, ExpressionNode::Call(call)
@@ -1148,26 +1135,20 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .map(|(handle, _)| {
             (
                 handle,
-                program
-                    .expression_table
-                    .constructed_value_type_reference(handle),
+                expressions_of(program).constructed_value_type_reference(handle),
             )
         })
         .collect::<Vec<_>>();
     for (expression, carrier) in query_carriers {
         let carrier = copy_type_reference(source, program, carrier, symbols)?;
-        program
-            .expression_table
-            .set_constructed_value_type_reference(expression, carrier);
+        expressions_of_mut(program).set_constructed_value_type_reference(expression, carrier);
     }
     // Index authority is copied before ordinary type-parameter substitution,
     // just like cast types. The clone cannot mutate its template's contract.
-    let index_payloads = program
-        .expression_table
+    let index_payloads = expressions_of(program)
         .iter_expressions_from(expression_start)
         .filter_map(|(handle, _)| {
-            program
-                .expression_table
+            expressions_of(program)
                 .index_expression_authority(handle)
                 .cloned()
                 .map(|authority| (handle, authority))
@@ -1190,12 +1171,9 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 )?;
             }
         }
-        *program
-            .expression_table
-            .index_expression_authority_mut(handle) = authority;
+        *expressions_of_mut(program).index_expression_authority_mut(handle) = authority;
     }
-    let calls = program
-        .expression_table
+    let calls = expressions_of(program)
         .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| match expression {
             ExpressionNode::Call(call) => Some((
@@ -1219,13 +1197,11 @@ pub(super) fn copy_cloned_expression_type_payloads(
         let requirement = copy_type_reference(source, program, requirement, symbols)?;
         let coercion_target = copy_type_reference(source, program, coercion_target, symbols)?;
         for application in applications {
-            let mut authored_arguments = program
-                .expression_table
+            let mut authored_arguments = expressions_of(program)
                 .static_machine_application_arguments(application)
                 .to_vec();
             copy_static_argument_type_payloads(source, program, &mut authored_arguments, symbols)?;
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .static_machine_application_arguments_mut(application)
                 .clone_from_slice(&authored_arguments);
             copy_application_binding_type_payloads(source, program, application, symbols)?;
@@ -1239,7 +1215,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 symbols,
             )?;
         }
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+        let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) else {
             unreachable!();
         };
         call.machine_arguments = arguments;
@@ -1247,8 +1223,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
         call.requirement_application = requirement;
         call.exact_coercion_target = coercion_target;
     }
-    let cast_payloads = program
-        .expression_table
+    let cast_payloads = expressions_of(program)
         .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             let ExpressionNode::Cast(cast) = expression else {
@@ -1276,7 +1251,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
         let arguments = program
             .type_reference_table
             .insert_type_reference_handles(copied_arguments);
-        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
+        let ExpressionNode::Cast(cast) = expressions_of_mut(program).expression_mut(handle) else {
             unreachable!("collected cast changed kind")
         };
         cast.target_type = target_type;
@@ -1284,8 +1259,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
         cast.semantic_domain_arguments = arguments;
     }
 
-    let zero_values = program
-        .expression_table
+    let zero_values = expressions_of(program)
         .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             let (ExpressionNode::ZeroValue(type_reference)
@@ -1299,7 +1273,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     for (handle, type_reference) in zero_values {
         let type_reference = copy_type_reference(source, program, type_reference, symbols)?;
         let (ExpressionNode::ZeroValue(current) | ExpressionNode::TypeExpression(current)) =
-            program.expression_table.expression_mut(handle)
+            expressions_of_mut(program).expression_mut(handle)
         else {
             unreachable!("collected zero-value expression changed kind")
         };
@@ -1314,22 +1288,18 @@ fn copy_application_binding_type_payloads(
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> Result<(), TypeCopyError> {
-    let mut selected = program
-        .expression_table
+    let mut selected = expressions_of(program)
         .static_machine_application_selected_machines(application)
         .to_vec();
     copy_static_argument_type_payloads(source, program, &mut selected, symbols)?;
-    program
-        .expression_table
+    expressions_of_mut(program)
         .static_machine_application_selected_machines_mut(application)
         .clone_from_slice(&selected);
-    let mut bindings = program
-        .expression_table
+    let mut bindings = expressions_of(program)
         .static_machine_application_bindings(application)
         .to_vec();
     copy_binding_type_payloads(source, program, &mut bindings, symbols)?;
-    program
-        .expression_table
+    expressions_of_mut(program)
         .static_machine_application_bindings_mut(application)
         .clone_from_slice(&bindings);
     Ok(())
@@ -1412,7 +1382,7 @@ pub(crate) fn copy_type_reference(
         let tables = &mut program.tables;
         tables.type_reference_table.copy_with_expressions(
             &source.type_reference_table,
-            &source.expression_table,
+            expressions_of(source),
             &mut tables.expression_table,
             type_reference,
             &mut expressions,
@@ -1422,7 +1392,7 @@ pub(crate) fn copy_type_reference(
         let mut staged_expressions = Vec::new();
         let staged = staging.type_reference_table.copy_with_expressions(
             &program.type_reference_table,
-            &program.expression_table,
+            expressions_of(program),
             &mut staging.expression_table,
             type_reference,
             &mut staged_expressions,
@@ -1532,9 +1502,7 @@ pub(super) fn copy_signature_contract(
                 )
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
-                let arguments = source
-                    .unwrap_or(program)
-                    .expression_table
+                let arguments = expressions_of(source.unwrap_or(program))
                     .expression_handles(application.arguments)
                     .to_vec()
                     .into_iter()
@@ -1542,9 +1510,7 @@ pub(super) fn copy_signature_contract(
                         constant_roots::copy_expression(source, program, argument, symbols)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let arguments = program
-                    .expression_table
-                    .insert_expression_handles(arguments);
+                let arguments = expressions_of_mut(program).insert_expression_handles(arguments);
                 typed_trees::domain::ProofFact::Proposition(
                     typed_trees::proposition::PropositionApplication {
                         proposition: remapped_symbol(application.proposition, symbols),
@@ -1598,7 +1564,7 @@ pub(super) fn remap_contract_value_subjects(
         validation::append_fact_expression_roots(program, fact, &mut roots);
     }
     for root in roots {
-        program.expression_table.remap_symbols_in(root, realized);
+        expressions_of_mut(program).remap_symbols_in(root, realized);
     }
 }
 
@@ -1629,7 +1595,7 @@ fn rebind_realized_member_symbols(
         validation::expression_traversal::collect_expression_tree(program, root, &mut members);
     }
     for handle in members {
-        let Some(member) = program.expression_table.member_node(handle) else {
+        let Some(member) = expressions_of(program).member_node(handle) else {
             continue;
         };
         if member.member_symbol.is_valid() || member.case_variant.is_some() {
@@ -1642,7 +1608,8 @@ fn rebind_realized_member_symbols(
         else {
             continue;
         };
-        let ExpressionNode::Member(member) = program.expression_table.expression_mut(handle) else {
+        let ExpressionNode::Member(member) = expressions_of_mut(program).expression_mut(handle)
+        else {
             unreachable!();
         };
         member.member_symbol = field.symbol;
@@ -1674,9 +1641,7 @@ fn realized_receiver_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expressions_of(program).expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Borrow(inner) => {
             realized_receiver_type(program, state, realized, inner.target, depth + 1)

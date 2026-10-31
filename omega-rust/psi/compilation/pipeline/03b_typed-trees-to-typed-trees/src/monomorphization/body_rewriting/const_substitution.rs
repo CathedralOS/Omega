@@ -3,6 +3,7 @@
 use crate::monomorphization::{
     Candidate, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
+use crate::tables::{expressions_of, expressions_of_mut};
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::expression::StaticMachineArgument;
@@ -150,7 +151,7 @@ pub(crate) fn substitute_const_index_expression_parameters(
         validation::collect_expression_tree(program, root, &mut expressions);
     }
     for expression in expressions {
-        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        let ExpressionNode::Name(path) = expressions_of(program).expression(expression) else {
             continue;
         };
         let Some((_, binding, carrier)) = replacements
@@ -164,7 +165,7 @@ pub(crate) fn substitute_const_index_expression_parameters(
                 "const index binder has no exact canonical value under its declared carrier"
                     .to_owned()
             })?;
-        *program.expression_table.expression_mut(expression) = value;
+        *expressions_of_mut(program).expression_mut(expression) = value;
     }
     Ok(())
 }
@@ -188,52 +189,47 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
     expression_start: usize,
     state_spans: &[arena::HandleSpan<typed_trees::state::State>],
 ) -> Result<(), String> {
-    let expression_handles = program
-        .expression_table
+    let expression_handles = expressions_of(program)
         .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             matches!(expression, ExpressionNode::Call(_)).then_some(handle)
         })
         .collect::<Vec<_>>();
     for handle in expression_handles {
-        let application = program
-            .expression_table
+        let application = expressions_of(program)
             .call_node(handle)
             .expect("call roster")
             .authored_machine_application;
         let owner = if application.is_valid() {
-            program
-                .expression_table
+            expressions_of(program)
                 .static_machine_application(application)
                 .lexical_owner
         } else {
             SymbolHandle::invalid()
         };
-        let mut native_query = program
-            .expression_table
+        let mut native_query = expressions_of(program)
             .call_node(handle)
             .and_then(|call| call.native_code_layout.clone());
         if let Some(query) = &mut native_query
             && normalize_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
-            && let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+            && let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
         {
             call.native_code_layout = native_query;
         }
-        let has_machine_args = program
-            .expression_table
+        let has_machine_args = expressions_of(program)
             .call_node(handle)
             .is_some_and(|call| !call.machine_arguments.is_empty());
         if !has_machine_args {
             continue;
         }
-        let mut arguments = program
-            .expression_table
+        let mut arguments = expressions_of(program)
             .call_node(handle)
             .expect("call roster")
             .machine_arguments
             .clone();
         if normalize_const_arguments(program, owner, &mut arguments)? {
-            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
+            else {
                 continue;
             };
             call.machine_arguments = arguments;
@@ -263,8 +259,7 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
             .expect("call roster")
             .authored_machine_application;
         let owner = if application.is_valid() {
-            program
-                .expression_table
+            expressions_of(program)
                 .static_machine_application(application)
                 .lexical_owner
         } else {
@@ -347,7 +342,7 @@ fn closed_const_argument(program: &TypedTrees, argument: &StaticMachineArgument)
     else {
         return None;
     };
-    match const_integer::classify(&program.expression_table, *expression, &|_, _| false)? {
+    match const_integer::classify(expressions_of(program), *expression, &|_, _| false)? {
         ConstIntegerExpression::Closed(value) => Some(value),
         ConstIntegerExpression::Open => None,
     }
@@ -394,11 +389,9 @@ fn closed_structural_argument(
     else {
         return Ok(None);
     };
-    let carrier = match program.expression_table.expression(*expression) {
+    let carrier = match expressions_of(program).expression(*expression) {
         ExpressionNode::StructLiteral(literal) => {
-            let retained = program
-                .expression_table
-                .constructed_value_type_reference(*expression);
+            let retained = expressions_of(program).constructed_value_type_reference(*expression);
             retained.is_valid().then_some(retained).or_else(|| {
                 program
                     .type_reference_table

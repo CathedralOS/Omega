@@ -2,6 +2,7 @@
 //! and checking. Collect exact occurrence meanings before publishing them;
 //! copies must agree, and a checked ledger never repairs a typed table.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionFinalizationError, AuthoredDeclarationSelectionIntrinsic,
@@ -347,9 +348,8 @@ pub fn exact_named_operator_call<'program>(
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
-        let path = program.expression_table.name_path_node(call.receiver)?;
-        let static_segments = program
-            .expression_table
+        let path = expression_table(program).name_path_node(call.receiver)?;
+        let static_segments = expression_table(program)
             .name_path_members(path.members)
             .iter()
             .map(|segment| segment.as_str())
@@ -360,8 +360,7 @@ pub fn exact_named_operator_call<'program>(
             call.target_symbol,
             Some(&static_segments),
             call.target.as_str(),
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .len(),
             false,

@@ -3,6 +3,7 @@
 //! caller-owned operands using the existing structural index normalizer. An
 //! unsupported operand contributes no proof, even inside an alias.
 
+use crate::frozen_program::expression_table;
 use checked_trees::DeclaredContractFact;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
@@ -51,8 +52,7 @@ fn proposition_fact(
     binders: &[(SymbolHandle, String)],
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<CorrespondenceFact> {
-    if !program
-        .expression_table
+    if !expression_table(program)
         .expression_handles(application.arguments)
         .iter()
         .all(|argument| {
@@ -81,9 +81,7 @@ fn proposition_fact(
             ..StaticMachineArgument::default()
         })
         .collect::<Vec<_>>();
-    let arguments = program
-        .expression_table
-        .expression_handles(application.arguments);
+    let arguments = expression_table(program).expression_handles(application.arguments);
     let declaration = program.proposition_definition_by_symbol(application.proposition);
     if let Some(declaration) = declaration {
         let parameters = program.proposition_parameters(declaration);

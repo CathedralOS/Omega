@@ -9,6 +9,7 @@ use super::{
     ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference,
 };
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::declared_reference_access;
 use crate::value_custody::type_references::substituted_identity;
 use language_semantics::ReferenceAccess;
@@ -803,16 +804,15 @@ fn projection_ends_at_owned_rvalue(
     mut expression: ExpressionHandle,
 ) -> bool {
     loop {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(indexed)
-                if !program.expression_table.indexed_on_range(indexed) =>
+                if !expression_table(program).indexed_on_range(indexed) =>
             {
                 expression = indexed.collection;
             }
             ExpressionNode::Match(dispatch) => {
-                return program
-                    .expression_table
+                return expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .all(|arm| projection_ends_at_owned_rvalue(program, arm.value));
@@ -863,9 +863,9 @@ pub(crate) fn place_permits_reference_borrow(
 ) -> bool {
     // A range lends its collection's backing. Its bounds remain independently
     // checked; selecting its extent cannot manufacture source permission.
-    if let Some(indexed) = program.expression_table.indexed_node(expression)
+    if let Some(indexed) = expression_table(program).indexed_node(expression)
         && matches!(
-            program.expression_table.expression(indexed.index),
+            expression_table(program).expression(indexed.index),
             ExpressionNode::Range(_)
         )
     {
@@ -1010,9 +1010,9 @@ fn selected_value_type(
     forwarding_root: Option<(facts::PlaceRoot, TypeReferenceHandle)>,
     projection: &mut ProjectionContext,
 ) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(name) => {
-            let [spelling] = program.expression_table.name_path_members(name.members) else {
+            let [spelling] = expression_table(program).name_path_members(name.members) else {
                 return None;
             };
             if !(name.symbol.is_valid() && name.symbol == name.head_symbol) {
@@ -1031,8 +1031,7 @@ fn selected_value_type(
             // The definition authenticates the completed capture; do not
             // substitute the supplier's current place for its value anchor.
             let source = program.saved_value_source(saved)?;
-            let anchor = program
-                .expression_table
+            let anchor = expression_table(program)
                 .value_capture(saved.capture)
                 .value_anchor;
             if let Some((root, reference)) = forwarding_root {
@@ -1048,7 +1047,7 @@ fn selected_value_type(
         // arm; divergent arms stay unresolved rather than picking one.
         ExpressionNode::Match(dispatch) if forwarding_root.is_none() => {
             let mut joined = None;
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
                 let mut arm_substitutions = substitutions.clone();
                 let arm_type = selected_value_type(
                     program,
@@ -1071,7 +1070,7 @@ fn selected_value_type(
         ExpressionNode::Member(member) => {
             if forwarding_root.is_none()
                 && let ExpressionNode::Name(root) =
-                    program.expression_table.expression(member.receiver)
+                    expression_table(program).expression(member.receiver)
                 && let Some(machine) = program.machines().iter().find(|machine| {
                     root.head_symbol.is_valid() && machine.symbol == root.head_symbol
                 })
@@ -1192,9 +1191,7 @@ fn selected_value_type(
         ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
             if forwarding_root.is_none() =>
         {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
+            let reference = expression_table(program).constructed_value_type_reference(expression);
             reference.is_valid().then_some(reference).or_else(|| {
                 // Substituted constant arrays retain their declaration's exact
                 // carrier when they have no separately prepared construction.
@@ -1202,7 +1199,7 @@ fn selected_value_type(
             })
         }
         ExpressionNode::Indexed(indexed) => {
-            if program.expression_table.indexed_on_range(indexed) {
+            if expression_table(program).indexed_on_range(indexed) {
                 return None;
             }
             let collection = selected_value_type(
@@ -1246,7 +1243,7 @@ fn selected_value_type(
                     program,
                     language_core::OperatorSpelling::Index,
                     &operands,
-                    program.expression_table.source_span(expression),
+                    expression_table(program).source_span(expression),
                 )
                 .is_empty()
             };
@@ -1269,7 +1266,7 @@ fn place_machine_symbol(
     mut expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     for _ in 0..128 {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Member(member) => expression = member.receiver,
             ExpressionNode::Indexed(indexed) => expression = indexed.collection,
             ExpressionNode::Name(path)

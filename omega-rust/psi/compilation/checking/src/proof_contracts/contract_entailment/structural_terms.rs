@@ -5,6 +5,7 @@
 //! the judge can compare soundly; every other expression remains opaque or
 //! unsupported.
 
+use crate::frozen_program::expression_table;
 use symbols::JoinedPath;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
@@ -213,7 +214,7 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         StructuralTerm::ObservedValue { value, .. } => term_spelling(program, value),
         StructuralTerm::BoundValue(symbol) => program.symbols.name(*symbol).to_owned(),
         StructuralTerm::CapturedValue { expression, .. } => {
-            program.expression_table.display_name(*expression)
+            expression_table(program).display_name(*expression)
         }
         StructuralTerm::BoundProjection { subject, path } => {
             format!("{}.{path}", program.symbols.name(*subject))
@@ -405,12 +406,11 @@ pub(crate) fn source_operations_have_same_meaning(
     right: ExpressionHandle,
 ) -> bool {
     let bindings = |expression| {
-        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
             return None;
         };
         if path.symbol.is_valid()
-            && ((program
-                .expression_table
+            && ((expression_table(program)
                 .name_path_members(path.members)
                 .len()
                 == 1
@@ -536,14 +536,14 @@ pub(super) fn structural_term(
     if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression) {
         return Some(StructuralTerm::Integer(value));
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             if program.symbols.builtin_type_member(path.symbol)
                 == Some(symbols::BuiltinTypeMember::AddressBound)
             {
                 return Some(StructuralTerm::BoundValue(path.symbol));
             }
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             if let Some((owner, parameters)) = frame {
                 // A declaration's formal is selected by its resolved symbol.
                 // Lexical names must retain their own identity: a same-named
@@ -589,7 +589,7 @@ pub(super) fn structural_term(
                     Some(StructuralTerm::BoundValue(path.symbol))
                 }
                 _ => Some(StructuralTerm::Opaque(
-                    program.expression_table.display_name(expression),
+                    expression_table(program).display_name(expression),
                 )),
             }
         }
@@ -649,7 +649,7 @@ pub(super) fn structural_term(
                 && (call.static_requirement_dispatch.is_none() || realization.is_some())
             {
                 let target = realization.unwrap_or(target);
-                let handles = program.expression_table.expression_handles(call.arguments);
+                let handles = expression_table(program).expression_handles(call.arguments);
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
                     .filter_map(|argument| {
@@ -689,7 +689,7 @@ pub(super) fn structural_term(
                 }
             }
             Some(StructuralTerm::Opaque(
-                program.expression_table.display_name(expression),
+                expression_table(program).display_name(expression),
             ))
         }
         ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
@@ -734,7 +734,7 @@ pub(super) fn structural_term(
             {
                 return Some(measure);
             }
-            if let Some(call) = program.expression_table.call_node(member.receiver)
+            if let Some(call) = expression_table(program).call_node(member.receiver)
                 && (!call.receiver.is_valid()
                     || static_call_receiver_for_target(
                         program,
@@ -745,7 +745,7 @@ pub(super) fn structural_term(
                 && call.static_requirement_dispatch.is_none()
                 && program.state_by_symbol(call.target_symbol).is_some()
             {
-                let handles = program.expression_table.expression_handles(call.arguments);
+                let handles = expression_table(program).expression_handles(call.arguments);
                 let arguments = handles
                     .iter()
                     .filter_map(|argument| {
@@ -798,7 +798,7 @@ pub(super) fn structural_term(
                     .map(|(_, term)| term)
                     .or_else(|| {
                         Some(StructuralTerm::Opaque(
-                            program.expression_table.display_name(expression),
+                            expression_table(program).display_name(expression),
                         ))
                     }),
                 Some(
@@ -815,7 +815,7 @@ pub(super) fn structural_term(
                     })
                 }
                 _ => Some(StructuralTerm::Opaque(
-                    program.expression_table.display_name(expression),
+                    expression_table(program).display_name(expression),
                 )),
             }
         }
@@ -882,7 +882,7 @@ fn static_call_receiver_for_target(
     // This classifies a namespace only; ordinary call admission still proves
     // the application and checks every explicit operand.
     if call.target_symbol.is_valid()
-        && let Some(receiver) = program.expression_table.name_path_node(call.receiver)
+        && let Some(receiver) = expression_table(program).name_path_node(call.receiver)
         && crate::machine_calls::calls::requirement_namespace_member(
             program,
             receiver.symbol,

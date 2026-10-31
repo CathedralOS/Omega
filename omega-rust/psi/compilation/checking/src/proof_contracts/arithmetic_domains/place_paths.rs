@@ -1,5 +1,6 @@
 //! Canonical place paths and their overlap.
 
+use crate::frozen_program::expression_table;
 use symbols::JoinedPath;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -33,18 +34,17 @@ pub(crate) fn place_path(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             program.saved_value_source(saved)?;
             Some(capture_path(
-                program
-                    .expression_table
+                expression_table(program)
                     .value_capture(saved.capture)
                     .value_anchor,
             ))
         }
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             if members.is_empty() {
                 return None;
             }

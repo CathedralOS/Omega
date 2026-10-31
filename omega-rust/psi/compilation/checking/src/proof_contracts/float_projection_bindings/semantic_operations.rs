@@ -9,6 +9,7 @@
 //! type, or whose signature no longer matches its row, rejects instead of
 //! surviving as an ordinary unsupplied declaration.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE;
 use numerics::float_semantics_catalog::{
@@ -64,8 +65,7 @@ pub fn float_semantic_application_for_parameters(
     &'static FloatSemanticOperation,
     FloatSemanticContractIdentity,
 )> {
-    let references = program
-        .expression_table
+    let references = expression_table(program)
         .expression_handles(call.arguments)
         .iter()
         .map(|argument| {

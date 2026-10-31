@@ -11,6 +11,7 @@ use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, StaticMachineArgument, SymbolHandle,
     SymbolKind, const_arguments,
 };
+use crate::tables::expressions_of;
 use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::types::TypeReferenceNode;
 
@@ -57,7 +58,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
             // An open `Degree - 1` waits for the caller to specialize. A
             // closed integer uses the same named binding as a decimal literal.
             match const_integer::classify(
-                &program.expression_table,
+                expressions_of(program),
                 expression,
                 &|symbol, spelling| const_binder(program, symbol, spelling),
             ) {

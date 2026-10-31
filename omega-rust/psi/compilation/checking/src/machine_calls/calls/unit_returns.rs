@@ -1,6 +1,7 @@
 //! Unit calls retain their exact statement or return use and declaration.
 
 use super::{ExpressionHandle, Machine, State, TypeReferenceHandle, TypeReferenceNode};
+use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// A standalone call may perform Unit work before later statements. The final
@@ -13,11 +14,10 @@ pub fn unit_statement_call_is_admitted(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return false;
     }
-    if program
-        .expression_table
+    if expression_table(program)
         .call_node(expression)
         .and_then(|call| call.native_code_layout.as_ref())
         .is_some_and(|query| query.discards_result)
@@ -80,7 +80,7 @@ pub(crate) fn call_completes_unit_state(
     expression: ExpressionHandle,
 ) -> bool {
     unit_type(program, state.return_type)
-        && program.expression_table.expression_is_valid(expression)
+        && expression_table(program).expression_is_valid(expression)
         && call_returns_unit(program, machine, expression)
 }
 
@@ -100,7 +100,7 @@ fn declared_call_result<'program>(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<DeclaredCallResult<'program>> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     if admitted_build_declaration_call(program, expression) {
         return Some(DeclaredCallResult::IntrinsicUnit);
     }
@@ -154,7 +154,7 @@ pub(super) fn admitted_build_declaration_call(
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return false;
     };
     let (intrinsic, static_count, value_count) =
@@ -200,8 +200,7 @@ pub(super) fn admitted_build_declaration_call(
         || !call.receiver.is_valid()
         || !static_count.contains(&call.machine_arguments.len())
         || !value_count.contains(
-            &program
-                .expression_table
+            &expression_table(program)
                 .expression_handles(call.arguments)
                 .len(),
         )

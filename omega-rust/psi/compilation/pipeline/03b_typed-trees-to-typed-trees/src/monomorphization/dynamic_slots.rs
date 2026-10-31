@@ -25,6 +25,7 @@
 //! call, and validation must judge the final call edges. The authored
 //! requirement stays generic; instantiation only adds type rows and symbols.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -243,7 +244,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                         program, root, &mut tree,
                     );
                     for expression in tree {
-                        let Some(call) = program.expression_table.call_node(expression) else {
+                        let Some(call) = expressions_of(program).call_node(expression) else {
                             continue;
                         };
                         if let Some(slot) = slot_for(
@@ -269,7 +270,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
         }
     }
     for (expression, (slot, name)) in expression_targets {
-        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
+        if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(expression) {
             call.target_symbol = slot;
             call.target = name;
         }

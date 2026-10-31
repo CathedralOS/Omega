@@ -1,4 +1,5 @@
 use super::validate_array_literal_elements_for_shape;
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -28,8 +29,8 @@ pub fn array_window_shape(
     target: ExpressionHandle,
     bound_lookup: &mut crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'_>,
 ) -> Option<ArrayWindowShape> {
-    let indexed = program.expression_table.indexed_node(target)?;
-    let range = program.expression_table.range_node(indexed.index)?;
+    let indexed = expression_table(program).indexed_node(target)?;
+    let range = expression_table(program).range_node(indexed.index)?;
     let collection_type = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,
@@ -92,8 +93,7 @@ pub(crate) fn validate_array_window_elements<'p>(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    if program
-        .expression_table
+    if expression_table(program)
         .indexed_node(target)
         .and_then(|indexed| program.expression_table.range_node(indexed.index))
         .is_none()
@@ -120,17 +120,16 @@ pub(crate) fn validate_array_window_elements<'p>(
     // The window's width, rather than the backing array's capacity, is owed.
     let mut pending = vec![value];
     while let Some(value) = pending.pop() {
-        if let Some(dispatch) = program.expression_table.match_node(value) {
+        if let Some(dispatch) = expression_table(program).match_node(value) {
             pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .map(|arm| arm.value),
             );
             continue;
         }
-        if let Some(borrow) = program.expression_table.borrow_expression(value) {
+        if let Some(borrow) = expression_table(program).borrow_expression(value) {
             pending.push(borrow.target);
             continue;
         }

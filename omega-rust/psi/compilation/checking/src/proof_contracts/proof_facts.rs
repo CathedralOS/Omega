@@ -1,4 +1,5 @@
 use crate::StateSignatureOwner;
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use facts::FactPlan;
 use std::fmt;
@@ -292,12 +293,12 @@ pub(crate) fn validate_domain_fact_payloads(
         if !is_boolean_fact_expression(program, fact.expression) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} proof fact `{}` is not boolean-shaped",
-                program.expression_table.display_name(fact.expression)
+                expression_table(program).display_name(fact.expression)
             )));
         } else if !is_boolean_domain_fact_expression(program, domain, fact.expression) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} proof fact `{}` must have type `bool`",
-                program.expression_table.display_name(fact.expression)
+                expression_table(program).display_name(fact.expression)
             )));
         }
     }
@@ -341,7 +342,7 @@ pub(crate) fn validate_proof_facts(
                 if !is_boolean_owned_fact_expression(program, *expression, owner) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} proof fact `{}` is not boolean-shaped",
-                        program.expression_table.display_name(*expression)
+                        expression_table(program).display_name(*expression)
                     )));
                 }
             }
@@ -383,8 +384,7 @@ pub(crate) fn validate_proof_facts(
                 } else {
                     &[]
                 };
-                for (index, (argument, parameter)) in program
-                    .expression_table
+                for (index, (argument, parameter)) in expression_table(program)
                     .expression_handles(application.arguments)
                     .iter()
                     .zip(parameters)
@@ -427,8 +427,7 @@ fn abstract_trait_self_member_in_fact(
         ProofFact::Membership(membership) => {
             abstract_trait_self_member_in_expression(program, membership.value, &mut visited)
         }
-        ProofFact::Proposition(application) => program
-            .expression_table
+        ProofFact::Proposition(application) => expression_table(program)
             .expression_handles(application.arguments)
             .iter()
             .find_map(|argument| {
@@ -449,13 +448,12 @@ fn abstract_trait_self_member_in_expression(
     if let Some(member) = self_member_name(program, expression) {
         return Some(member.to_owned());
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
                 .find_map(|child| abstract_trait_self_member_in_expression(program, child, visited))
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .find_map(|value| abstract_trait_self_member_in_expression(program, *value, visited)),
@@ -475,8 +473,7 @@ fn abstract_trait_self_member_in_expression(
         ExpressionNode::Call(call) => {
             abstract_trait_self_member_in_expression(program, call.receiver, visited).or_else(
                 || {
-                    program
-                        .expression_table
+                    expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
                         .find_map(|argument| {
@@ -500,8 +497,7 @@ fn abstract_trait_self_member_in_expression(
             abstract_trait_self_member_in_expression(program, range.start, visited)
                 .or_else(|| abstract_trait_self_member_in_expression(program, range.end, visited))
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .find_map(|field| {
@@ -555,7 +551,7 @@ fn proof_argument_declared_type(
     {
         return Some(type_reference);
     }
-    let symbol = match program.expression_table.expression(argument) {
+    let symbol = match expression_table(program).expression(argument) {
         ExpressionNode::Name(path) => path.symbol,
         ExpressionNode::Member(member) => member.member_symbol,
         _ => return None,
@@ -594,19 +590,19 @@ fn self_member_name(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&str> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => {
-            let Some(path) = program.expression_table.name_path_node(member.receiver) else {
+            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
                 return None;
             };
             matches!(
-                program.expression_table.name_path_members(path.members),
+                expression_table(program).name_path_members(path.members),
                 [name] if name.is_self_receiver()
             )
             .then_some(member.member.as_str())
         }
         ExpressionNode::Name(path) => {
-            match program.expression_table.name_path_members(path.members) {
+            match expression_table(program).name_path_members(path.members) {
                 [root, member] if root.is_self_receiver() => Some(member.as_str()),
                 _ => None,
             }
@@ -653,7 +649,7 @@ fn is_boolean_domain_fact_expression(
     domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             crate::value_custody::expression_types::domain_expression_result_type_reference(
                 program, domain, expression,
@@ -687,7 +683,7 @@ fn is_boolean_owned_fact_expression(
     owner: ProofFactOwner<'_>,
 ) -> bool {
     if !matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Match(_)
     ) {
         return is_boolean_fact_expression(program, expression);
@@ -720,7 +716,7 @@ fn boolean_record_match_shape(
     expression: ExpressionHandle,
     type_of: impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> bool {
-    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) else {
         return false;
     };
     type_of(expression).and_then(|reference| program.primitive_type_reference(reference))
@@ -734,7 +730,7 @@ fn is_boolean_fact_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => false,
         ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
         ExpressionNode::Binary(binary) => match binary.operator {
@@ -788,7 +784,7 @@ pub(crate) fn is_boolean_asm_fact_expression(
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(_) => {
             let Some(state) = state.or_else(|| program.machine_states(machine).first()) else {
                 return false;

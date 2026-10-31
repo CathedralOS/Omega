@@ -2,6 +2,7 @@
 //! Integer embeddings and nominal tag predicates need the same result scope:
 //! spelling or an equal carrier on another machine cannot authorize a result.
 
+use crate::frozen_program::expression_table;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -36,7 +37,7 @@ pub fn reserved_result_place(
         if !program.expression_table.expression_is_valid(root) || projections.len() >= 128 {
             return None;
         }
-        match program.expression_table.expression(root) {
+        match expression_table(program).expression(root) {
             ExpressionNode::Member(member) => {
                 projections.push(root);
                 root = member.receiver;
@@ -58,14 +59,14 @@ pub fn reserved_result_place(
     }
     let mut segments = Vec::with_capacity(projections.len());
     for projection in projections.into_iter().rev() {
-        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(projection) {
+        if let ExpressionNode::Indexed(indexed) = expression_table(program).expression(projection) {
             // Storage spelling does not select [] meaning. Authenticate the
             // exact declaration telescope and retained operator occurrence;
             // an authored operator may return an entirely different value.
             // Only an immutable literal selector enters this path. Computed
             // selectors need their own completed-capture evidence, even when
             // a later storage observation could give them the same number.
-            let literal = program.expression_table.integer_node(indexed.index)?;
+            let literal = expression_table(program).integer_node(indexed.index)?;
             if literal.landing().is_some_and(|landing| {
                 landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                     || landing.landed_type == numerics::literals::LandedIntegerType::Addr
@@ -78,9 +79,8 @@ pub fn reserved_result_place(
                 AuthoredDeclarationSelectionLateBinding as LateBinding,
                 AuthoredDeclarationSelectionTarget as Target,
             };
-            let mut occurrences = program
-                .expression_table
-                .authored_selection_occurrences(projection);
+            let mut occurrences =
+                expression_table(program).authored_selection_occurrences(projection);
             let occurrence = occurrences.next()?;
             let selection = program.authored_declaration_selections().get(occurrence)?;
             // Stage 04 settles ordinary operator occurrences after proving
@@ -133,7 +133,8 @@ pub fn reserved_result_place(
             type_reference = *element_type;
             continue;
         }
-        let ExpressionNode::Member(member) = program.expression_table.expression(projection) else {
+        let ExpressionNode::Member(member) = expression_table(program).expression(projection)
+        else {
             return None;
         };
         let receiver =
@@ -211,7 +212,7 @@ pub fn reserved_result_owner(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
-    if !program.expression_table.names_reserved_result(expression) {
+    if !expression_table(program).names_reserved_result(expression) {
         return None;
     }
 
@@ -249,10 +250,10 @@ pub(crate) fn expression_has_source_builtin_index_meaning(
         program, expression, &mut nodes, &mut seen,
     );
     nodes.into_iter().all(|node| {
-        let Some(indexed) = program.expression_table.indexed_node(node) else {
+        let Some(indexed) = expression_table(program).indexed_node(node) else {
             return true;
         };
-        if program.expression_table.indexed_on_range(indexed) {
+        if expression_table(program).indexed_on_range(indexed) {
             return true;
         }
         let Ok(owner) = source_contract_declaration_owner(program, node) else {
@@ -317,8 +318,7 @@ fn proposition_has_source_builtin_index_meaning(
 ) -> bool {
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
-    if !program
-        .expression_table
+    if !expression_table(program)
         .expression_handles(application.arguments)
         .iter()
         .all(|argument| expression_has_source_builtin_index_meaning(program, *argument))
@@ -583,9 +583,7 @@ fn contract_nodes(
                 );
             }
             ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
+                for argument in expression_table(program).expression_handles(application.arguments)
                 {
                     crate::expression_traversal::collect_expression_nodes(
                         program, *argument, &mut nodes, &mut seen,

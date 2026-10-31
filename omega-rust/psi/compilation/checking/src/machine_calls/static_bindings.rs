@@ -9,6 +9,7 @@
 mod forwarded_evidence;
 mod placed_primitives;
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
@@ -249,7 +250,7 @@ pub fn validate_static_machine_bindings(
         .expressions
         .iter()
         .filter_map(
-            |expression| match program.expression_table.expression(*expression) {
+            |expression| match expression_table(program).expression(*expression) {
                 ExpressionNode::Call(call) => {
                     call_targets.push((
                         call.authored_machine_application,
@@ -340,13 +341,9 @@ pub fn validate_static_machine_bindings(
     );
     applications.extend(providers.into_iter().map(|(provider, _)| provider));
     for handle in applications {
-        let application = program.expression_table.static_machine_application(handle);
-        let bindings = program
-            .expression_table
-            .static_machine_application_bindings(handle);
-        let lifetimes = program
-            .expression_table
-            .static_machine_application_lifetimes(handle);
+        let application = expression_table(program).static_machine_application(handle);
+        let bindings = expression_table(program).static_machine_application_bindings(handle);
+        let lifetimes = expression_table(program).static_machine_application_lifetimes(handle);
         if let Err(diagnostic) = placed_primitives::validate(
             program,
             application,
@@ -486,16 +483,10 @@ pub fn validate_static_machine_bindings(
         if judged.iter().any(|(declaration, owner, previous)| {
             *declaration == machine.symbol
                 && *owner == scope
-                && program
-                    .expression_table
-                    .static_machine_application_bindings(*previous)
+                && expression_table(program).static_machine_application_bindings(*previous)
                     == bindings
-                && program
-                    .expression_table
-                    .static_machine_application_lifetimes(*previous)
-                    == program
-                        .expression_table
-                        .static_machine_application_lifetimes(handle)
+                && expression_table(program).static_machine_application_lifetimes(*previous)
+                    == expression_table(program).static_machine_application_lifetimes(handle)
         }) {
             continue;
         }
@@ -615,9 +606,7 @@ pub fn validate_static_machine_bindings(
             &machine,
             application,
             bindings,
-            program
-                .expression_table
-                .static_machine_application_lifetimes(handle),
+            expression_table(program).static_machine_application_lifetimes(handle),
             &mut diagnostics,
         );
         if complete {
@@ -626,9 +615,7 @@ pub fn validate_static_machine_bindings(
                 &machine,
                 application,
                 bindings,
-                program
-                    .expression_table
-                    .static_machine_application_lifetimes(handle),
+                expression_table(program).static_machine_application_lifetimes(handle),
                 &mut diagnostics,
             );
         }

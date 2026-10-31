@@ -2,6 +2,7 @@
 //! Whole-owner retirement must include scalar siblings as well as stored loans;
 //! borrowing a leaf does not make its owner's remaining data dead.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
@@ -66,7 +67,7 @@ fn expression_uses_symbol_except(
     if completed_value(expression) {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         typed_trees::expression::ExpressionNode::SavedSubject(saved) => {
             program.saved_value_source(saved).is_some_and(|subject| {
                 expression_uses_symbol_except(program, subject, symbol, completed_value)
@@ -79,8 +80,7 @@ fn expression_uses_symbol_except(
         typed_trees::expression::ExpressionNode::Atomic(atomic) => {
             expression_uses_symbol_except(program, atomic.value, symbol, completed_value)
         }
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .any(|value| expression_uses_symbol_except(program, *value, symbol, completed_value)),
@@ -91,8 +91,7 @@ fn expression_uses_symbol_except(
         typed_trees::expression::ExpressionNode::Call(call) => {
             (call.receiver.is_valid()
                 && expression_uses_symbol_except(program, call.receiver, symbol, completed_value))
-                || program
-                    .expression_table
+                || expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| {
@@ -123,8 +122,7 @@ fn expression_uses_symbol_except(
             expression_uses_symbol_except(program, unary.operand, symbol, completed_value)
         }
         typed_trees::expression::ExpressionNode::Name(path) => {
-            program
-                .expression_table
+            expression_table(program)
                 .name_path_member_symbols(path.member_symbols)
                 .first()
                 .copied()
@@ -132,19 +130,19 @@ fn expression_uses_symbol_except(
                 .or_else(|| path.head_symbol.is_valid().then_some(path.head_symbol))
                 .or_else(|| path.symbol.is_valid().then_some(path.symbol))
                 .is_some_and(|path_symbol| path_symbol == symbol)
-                || program
-                    .expression_table
+                || expression_table(program)
                     .name_path_member_symbols(path.member_symbols)
                     .contains(&symbol)
                 || path.symbol == symbol
         }
-        typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => program
-            .expression_table
-            .struct_fields(struct_literal.fields)
-            .iter()
-            .any(|field| {
-                expression_uses_symbol_except(program, field.value, symbol, completed_value)
-            }),
+        typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            expression_table(program)
+                .struct_fields(struct_literal.fields)
+                .iter()
+                .any(|field| {
+                    expression_uses_symbol_except(program, field.value, symbol, completed_value)
+                })
+        }
         typed_trees::expression::ExpressionNode::Boolean(_)
         | typed_trees::expression::ExpressionNode::Float(_)
         | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)

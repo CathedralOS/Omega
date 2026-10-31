@@ -13,6 +13,7 @@ use super::{
     expression_is_effectful_for_transparent_result, free_machine_entry_state,
     machine_state_by_symbol,
 };
+use crate::frozen_program::expression_table;
 
 #[derive(Clone, Copy)]
 pub(super) enum CallResultRequirement {
@@ -74,17 +75,16 @@ pub(super) fn push_value_children(
     position: ValuePosition,
     pending: &mut Vec<PendingValue>,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             let comparison = ValuePosition::ComputedOperand(CallResultRequirement::CallerIsolated);
-            for arm in program
-                .expression_table
+            for arm in expression_table(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .rev()
             {
                 pending.push((arm.value, position));
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+                for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                     pending.push((pattern, comparison));
                 }
             }
@@ -103,8 +103,7 @@ pub(super) fn push_value_children(
             if !struct_literal_type_is_caller_isolated(program, literal) {
                 return false;
             }
-            for field in program
-                .expression_table
+            for field in expression_table(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .rev()
@@ -121,7 +120,7 @@ pub(super) fn push_value_children(
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
-            let elements = program.expression_table.expression_handles(*elements);
+            let elements = expression_table(program).expression_handles(*elements);
             let element_position = match position {
                 ValuePosition::CallArgument(expected_type)
                 | ValuePosition::AggregateElement(expected_type) => {
@@ -178,7 +177,7 @@ pub(super) fn value_call_result_is_admitted(
     ) {
         return true;
     }
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return false;
     };
     let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol).or_else(|| {
@@ -230,7 +229,7 @@ fn push_computed_operands(
 ) -> bool {
     let operand = ValuePosition::ComputedOperand(requirement);
     // Reverse the push order so the worklist checks siblings in source order.
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Binary(binary) => {
             pending.push((binary.right, operand));
             pending.push((binary.left, operand));

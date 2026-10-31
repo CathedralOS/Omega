@@ -2,6 +2,7 @@ use super::{
     BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
     SymbolHandle, proof_nat_cast,
 };
+use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
 mod application_formation;
 #[cfg(test)]
@@ -752,7 +753,7 @@ impl<'program> Engine<'program> {
         selections: &[crate::proof_contracts::arithmetic_domains::DispatchSelection],
     ) -> Self {
         let mut bindings = Vec::new();
-        for (handle, expression) in program.expression_table.iter_expressions() {
+        for (handle, expression) in expression_table(program).iter_expressions() {
             let ExpressionNode::Name(path) = expression else {
                 continue;
             };
@@ -860,7 +861,7 @@ impl<'program> Engine<'program> {
     }
 
     fn source_integer_disequality(&self, expression: ExpressionHandle) -> bool {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let ExpressionNode::Binary(binary) = expression_table(self.program).expression(expression)
         else {
             return false;
         };
@@ -1115,7 +1116,7 @@ impl<'program> Engine<'program> {
     /// Judge a full ensures fact: an `&&` chain proves when every conjunct
     /// proves, and is disproved when any conjunct is.
     pub(super) fn judge(&mut self, fact: ExpressionHandle) -> Judgment {
-        match self.program.expression_table.expression(fact) {
+        match expression_table(self.program).expression(fact) {
             ExpressionNode::Boolean(true) => return Judgment::Proven,
             ExpressionNode::Boolean(false) => return Judgment::ConstantFalse,
             _ => {}
@@ -1287,10 +1288,7 @@ impl<'program> Engine<'program> {
         // Dummy expression storage is an integer zero. An authority-bearing
         // substitution must not turn a missing or stale operand into a constant.
         if self.strict_symbol_bindings.is_some()
-            && !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+            && !expression_table(self.program).expression_is_valid(expression)
         {
             return None;
         }
@@ -1414,10 +1412,7 @@ impl<'program> Engine<'program> {
                         .map(|value| Polynomial::constant(value.value));
                 }
                 if let Some(bindings) = &self.strict_symbol_bindings {
-                    let [member] = self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members)
+                    let [member] = expression_table(self.program).name_path_members(path.members)
                     else {
                         return None;
                     };
@@ -1434,10 +1429,7 @@ impl<'program> Engine<'program> {
                         .clone()
                         .filter(|_| member.as_str() == RESULT_BINDER);
                 }
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 if members.len() != 1 {
                     return None;
                 }
@@ -1582,9 +1574,7 @@ impl<'program> Engine<'program> {
                         return self.integer_binary_value(binary.operator, dividend, divisor);
                     }
                     let builtin_proof_integer = proof_integer_expression(self.program, expression)
-                        && self
-                            .program
-                            .expression_table
+                        && expression_table(self.program)
                             .authored_selection_occurrences(expression)
                             .all(|occurrence| {
                                 use language_semantics::declaration_selection::{
@@ -1720,9 +1710,7 @@ impl<'program> Engine<'program> {
         &mut self,
         dispatch: &typed_trees::expression::TableMatchExpression,
     ) -> Option<Polynomial> {
-        let arms = self
-            .program
-            .expression_table
+        let arms = expression_table(self.program)
             .match_arms(dispatch.arms)
             .to_vec();
         if arms.is_empty() {
@@ -1790,7 +1778,7 @@ impl<'program> Engine<'program> {
             .primitive_type_reference(cast.target_type)
             .is_some_and(|target| target.is_fixed_integer())
             && (matches!(
-                self.program.expression_table.expression(cast.value),
+                expression_table(self.program).expression(cast.value),
                 ExpressionNode::Integer(_)
             ) || crate::proof_contracts::proof_embeddings::integer_embedding(
                 self.program,
@@ -1800,8 +1788,7 @@ impl<'program> Engine<'program> {
     }
 
     fn is_mathematical_application(&self, expression: ExpressionHandle) -> bool {
-        self.program
-            .expression_table
+        expression_table(self.program)
             .call_node(expression)
             .is_some_and(|call| {
                 crate::mathematical_applications::selected_definition(self.program, call).is_some()
@@ -1834,7 +1821,7 @@ impl<'program> Engine<'program> {
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
         let embedding =
             crate::proof_contracts::proof_embeddings::integer_embedding(self.program, expression)?;
-        if let Some(literal) = self.program.expression_table.integer_node(expression) {
+        if let Some(literal) = expression_table(self.program).integer_node(expression) {
             return Some(Polynomial::constant(literal.value_bignum()?));
         }
         // Embedding projects the same selected, policy-correct value used by
@@ -1894,7 +1881,7 @@ fn member_receiver_root_symbol(
 ) -> Option<SymbolHandle> {
     let mut handle = expression;
     loop {
-        match program.expression_table.expression(handle) {
+        match expression_table(program).expression(handle) {
             ExpressionNode::Member(member) => handle = member.receiver,
             ExpressionNode::Borrow(inner) => handle = inner.target,
             ExpressionNode::Name(path) => {
@@ -1914,7 +1901,7 @@ fn integer_source_identity(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> String {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => format!("name:{:?}", path.symbol),
         ExpressionNode::Integer(literal) => format!("literal:{literal:?}"),
         ExpressionNode::Binary(binary) => format!(
@@ -1957,8 +1944,7 @@ fn integer_source_identity(
                 call.target_symbol,
                 call.machine_arguments,
                 integer_source_identity(program, call.receiver),
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .map(|argument| integer_source_identity(program, *argument))

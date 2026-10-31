@@ -6,6 +6,7 @@
 //! the structural judge and package-review identity never acquire an implicit
 //! execution model.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use typed_trees::data::DataShapeKind;
 use typed_trees::domain::ProofFact;
@@ -28,9 +29,7 @@ pub(crate) fn validate_fact_call_projections(
             ProofFact::Proposition(application) => {
                 proposition_applications.push(application);
                 roots.extend_from_slice(
-                    program
-                        .expression_table
-                        .expression_handles(application.arguments),
+                    expression_table(program).expression_handles(application.arguments),
                 );
             }
         }
@@ -39,9 +38,7 @@ pub(crate) fn validate_fact_call_projections(
         if let PropositionBody::Transparent { proposition } = &proposition.body {
             match proposition {
                 PropositionFormula::Application(application) => roots.extend_from_slice(
-                    program
-                        .expression_table
-                        .expression_handles(application.arguments),
+                    expression_table(program).expression_handles(application.arguments),
                 ),
                 PropositionFormula::BooleanExpression(expression) => roots.push(*expression),
             }
@@ -73,10 +70,10 @@ pub(crate) fn validate_fact_call_projections(
         );
     }
     for (projection_expression, call_expression) in substituted {
-        let Some(member) = program.expression_table.member_node(projection_expression) else {
+        let Some(member) = expression_table(program).member_node(projection_expression) else {
             continue;
         };
-        let Some(call) = program.expression_table.call_node(call_expression) else {
+        let Some(call) = expression_table(program).call_node(call_expression) else {
             continue;
         };
         if let Some(row) = validate_direct_projection(
@@ -118,9 +115,7 @@ fn substituted_projection_requests(
         return Vec::new();
     };
     let parameters = program.proposition_parameters(declaration);
-    let arguments = program
-        .expression_table
-        .expression_handles(application.arguments);
+    let arguments = expression_table(program).expression_handles(application.arguments);
     if parameters.len() != arguments.len() {
         return Vec::new();
     }
@@ -143,12 +138,12 @@ fn append_substituted_projection_requests(
     if !expression.is_valid() {
         return;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => {
-            if let Some(path) = program.expression_table.name_path_node(member.receiver)
+            if let Some(path) = expression_table(program).name_path_node(member.receiver)
                 && let Some(actual) = crate::substitutions::actual_for(bindings, path.symbol)
                 && matches!(
-                    program.expression_table.expression(actual),
+                    expression_table(program).expression(actual),
                     ExpressionNode::Call(_)
                 )
             {
@@ -199,9 +194,9 @@ fn validate_expression(
             )
         };
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => {
-            match program.expression_table.expression(member.receiver) {
+            match expression_table(program).expression(member.receiver) {
                 ExpressionNode::Call(call) => {
                     if let Some(row) = validate_direct_projection(
                         program,
@@ -253,8 +248,7 @@ fn validate_direct_projection(
     if (call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call))
         || call.quotient_operation.is_some()
         || !call.evidence_arguments.is_empty()
-        || program
-            .expression_table
+        || expression_table(program)
             .expression_handles(call.arguments)
             .iter()
             .any(|argument| expression_contains_call(program, *argument))
@@ -507,7 +501,7 @@ pub(crate) fn expression_contains_call_projection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
         ExpressionNode::Atomic(atomic) => {
             expression_contains_call_projection(program, atomic.value)
@@ -521,8 +515,7 @@ pub(crate) fn expression_contains_call_projection(
         ExpressionNode::Cast(cast) => expression_contains_call_projection(program, cast.value),
         ExpressionNode::Call(call) => {
             expression_contains_call_projection(program, call.receiver)
-                || program
-                    .expression_table
+                || expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| expression_contains_call_projection(program, *argument))
@@ -535,14 +528,12 @@ pub(crate) fn expression_contains_call_projection(
             expression_contains_call_projection(program, range.start)
                 || expression_contains_call_projection(program, range.end)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_contains_call_projection(program, field.value)),
         ExpressionNode::Unary(unary) => expression_contains_call_projection(program, unary.operand),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .any(|value| expression_contains_call_projection(program, *value)),
@@ -557,7 +548,7 @@ fn expression_contains_call(
     if !expression.is_valid() {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Call(_) => true,
         ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
         ExpressionNode::Borrow(inner) => expression_contains_call(program, inner.target),

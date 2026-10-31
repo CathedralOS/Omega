@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use std::collections::{BTreeSet, HashSet};
 use typed_trees::proposition::ProofSubstitutions;
 
@@ -233,7 +234,7 @@ fn intake_proof_output_propositions(
             continue;
         }
         let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression(package.call)
+            expression_table(program).expression(package.call)
         else {
             continue;
         };
@@ -459,7 +460,7 @@ fn call_parameter_substitutions(
             let label = {
                 let label = arguments
                     .get(argument_index)
-                    .map(|argument| program.expression_table.display_name(*argument))
+                    .map(|argument| expression_table(program).display_name(*argument))
                     .unwrap_or_else(|| parameter.name.as_str().to_owned());
                 argument_index = argument_index.saturating_add(1);
                 label
@@ -520,8 +521,7 @@ fn application_label(
                 .unwrap_or_else(|| argument.display_name())
         })
         .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
+    let argument_labels = expression_table(program)
         .expression_handles(application.arguments)
         .iter()
         .map(|argument| {

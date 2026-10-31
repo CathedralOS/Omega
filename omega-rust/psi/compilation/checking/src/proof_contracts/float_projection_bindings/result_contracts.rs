@@ -5,6 +5,7 @@
 //! the sealed semantic term equated to that requirement's result projection,
 //! with only its own formals and closed catalog values as inputs.
 
+use crate::frozen_program::expression_table;
 use numerics::float_semantics_catalog::FloatSemanticValueKind;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::{OperatorDefinition, resolve_named_expression_call};
@@ -24,7 +25,7 @@ pub fn float_result_semantic_contract(
         program,
         program.operator_contracts(operator),
     ) {
-        let Some(equality) = program.expression_table.binary_node(expression) else {
+        let Some(equality) = expression_table(program).binary_node(expression) else {
             continue;
         };
         if equality.operator != BinaryOperator::Equal {
@@ -34,7 +35,7 @@ pub fn float_result_semantic_contract(
             (equality.left, equality.right),
             (equality.right, equality.left),
         ] {
-            let Some(result_call) = program.expression_table.call_node(result) else {
+            let Some(result_call) = expression_table(program).call_node(result) else {
                 continue;
             };
             let Some((projection, primitive, _, _)) =
@@ -45,9 +46,8 @@ pub fn float_result_semantic_contract(
             else {
                 continue;
             };
-            let [result_value] = program
-                .expression_table
-                .expression_handles(result_call.arguments)
+            let [result_value] =
+                expression_table(program).expression_handles(result_call.arguments)
             else {
                 continue;
             };
@@ -67,7 +67,7 @@ pub fn float_result_semantic_contract(
             {
                 continue;
             }
-            let Some(call) = program.expression_table.call_node(meaning) else {
+            let Some(call) = expression_table(program).call_node(meaning) else {
                 continue;
             };
             let Some(semantic) =
@@ -92,7 +92,7 @@ pub fn float_result_semantic_contract(
                 PrimitiveType::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
                 _ => unreachable!("float result checked above"),
             };
-            let arguments = program.expression_table.expression_handles(call.arguments);
+            let arguments = expression_table(program).expression_handles(call.arguments);
             if arguments.len() != semantic.parameters.len()
                 || arguments
                     .iter()
@@ -123,7 +123,7 @@ pub fn float_saturation_divisor_parameter(
     operator: &OperatorDefinition,
 ) -> Option<Option<usize>> {
     let raw = float_result_semantic_contract(program, operator)?;
-    let call = program.expression_table.call_node(raw)?;
+    let call = expression_table(program).call_node(raw)?;
     let selected = resolve_named_expression_call(program, call)?;
     let (row, _) =
         super::semantic_operations::exact_toolchain_float_semantic_contract(program, selected)?;
@@ -133,21 +133,17 @@ pub fn float_saturation_divisor_parameter(
     ) {
         return Some(None);
     }
-    let divisor = *program
-        .expression_table
+    let divisor = *expression_table(program)
         .expression_handles(call.arguments)
         .last()?;
-    let projection = program.expression_table.call_node(divisor)?;
+    let projection = expression_table(program).call_node(divisor)?;
     crate::proof_contracts::float_projection_invocations::exact_projection_operation(
         program, projection,
     )?;
-    let [source] = program
-        .expression_table
-        .expression_handles(projection.arguments)
-    else {
+    let [source] = expression_table(program).expression_handles(projection.arguments) else {
         return None;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(*source) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(*source) else {
         return None;
     };
     program
@@ -170,7 +166,7 @@ fn semantic_term_uses_only_inputs(
     if super::semantic_values::exact_toolchain_float_format_const(program, expression).is_some() {
         return true;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Float(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Name(path) => {
             program
@@ -194,8 +190,7 @@ fn semantic_term_uses_only_inputs(
                     )
                     .is_some();
             admitted
-                && program
-                    .expression_table
+                && expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| {
@@ -239,7 +234,7 @@ pub(crate) fn float_scalar_semantic_contract(
         program,
         program.operator_contracts(operator),
     ) {
-        let Some(equality) = program.expression_table.binary_node(expression) else {
+        let Some(equality) = expression_table(program).binary_node(expression) else {
             continue;
         };
         if equality.operator != BinaryOperator::Equal
@@ -262,7 +257,7 @@ pub(crate) fn float_scalar_semantic_contract(
             {
                 continue;
             }
-            let Some(call) = program.expression_table.call_node(predicate) else {
+            let Some(call) = expression_table(program).call_node(predicate) else {
                 continue;
             };
             let Some((_, row, _)) =

@@ -8,6 +8,7 @@
 //! must prove every one -- so a defined premise means exactly what the
 //! defined goal means.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
@@ -38,9 +39,7 @@ pub(super) fn transparent_application_conjuncts(
         return None;
     }
     let parameters = program.proposition_parameters(declaration);
-    let arguments = program
-        .expression_table
-        .expression_handles(application.arguments);
+    let arguments = expression_table(program).expression_handles(application.arguments);
     if parameters.len() != arguments.len() {
         return None;
     }
@@ -108,9 +107,7 @@ fn unfold_definition(
             let inner = program
                 .proposition_definition_by_symbol(expansion.proposition)
                 .map(|inner| program.proposition_parameters(inner));
-            let arguments = program
-                .expression_table
-                .expression_handles(expansion.arguments);
+            let arguments = expression_table(program).expression_handles(expansion.arguments);
             let inner_environment = inner
                 .filter(|inner| inner.len() == arguments.len())
                 .and_then(|inner| {
@@ -155,7 +152,7 @@ fn unfold_boolean(
     environment: &[(String, StructuralTerm)],
     conjuncts: &mut Vec<Option<(StructuralTerm, StructuralTerm)>>,
 ) {
-    if let Some(binary) = program.expression_table.binary_node(expression)
+    if let Some(binary) = expression_table(program).binary_node(expression)
         && binary.operator == BinaryOperator::And
     {
         unfold_boolean(
@@ -179,7 +176,7 @@ fn unfold_boolean(
     // `true` is the unit of conjunction: it owes a goal nothing and grants a
     // premise nothing. A total relation (`= true`) therefore unfolds to no
     // equations rather than one unreadable conjunct.
-    if program.expression_table.boolean_node(expression) == Some(&true) {
+    if expression_table(program).boolean_node(expression) == Some(&true) {
         return;
     }
     conjuncts.push(
@@ -371,7 +368,7 @@ fn argument_term(
     caller_state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return structural_term(
             program,
             Some((caller_machine, caller_state, Default::default())),
@@ -423,8 +420,7 @@ fn argument_term(
             None,
         );
     }
-    let arguments = program
-        .expression_table
+    let arguments = expression_table(program)
         .expression_handles(call.arguments)
         .iter()
         .map(|argument| {

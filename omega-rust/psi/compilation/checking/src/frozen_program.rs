@@ -125,6 +125,15 @@ impl PartialEq for dyn CheckingInput + '_ {
 
 impl Eq for dyn CheckingInput + '_ {}
 
+/// The expression table of the input under check. A reader that would
+/// otherwise name the table in the middle of a long receiver chain names it
+/// here once.
+pub(crate) fn expression_table(
+    program: &dyn CheckingInput,
+) -> &typed_trees::expression::ExpressionTable {
+    &program.expression_table
+}
+
 impl CheckingInput for TypedTrees {
     fn typed_program(&self) -> &TypedTrees {
         self

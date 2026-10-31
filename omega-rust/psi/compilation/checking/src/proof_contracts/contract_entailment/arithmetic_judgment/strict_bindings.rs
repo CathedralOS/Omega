@@ -5,6 +5,7 @@ use super::super::{
     BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, SymbolHandle,
 };
 use super::{Engine, OpaqueTerm, Polynomial};
+use crate::frozen_program::expression_table;
 use crate::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
 };
@@ -153,7 +154,7 @@ impl<'program> Engine<'program> {
             return;
         }
         if !matches!(
-            self.program.expression_table.expression(expression),
+            expression_table(self.program).expression(expression),
             ExpressionNode::Member(_)
         ) {
             return;
@@ -291,7 +292,7 @@ impl<'program> Engine<'program> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<Polynomial> {
-        let binary = self.program.expression_table.binary_node(expression)?;
+        let binary = expression_table(self.program).binary_node(expression)?;
         if binary.operator != BinaryOperator::Modulo {
             return None;
         }
@@ -425,7 +426,7 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         if !self.source_type_bindings.is_empty()
-            && let Some(binary) = self.program.expression_table.binary_node(expression)
+            && let Some(binary) = expression_table(self.program).binary_node(expression)
         {
             let operands =
                 [binary.left, binary.right].map(|operand| self.source_result_type(operand));
@@ -553,7 +554,7 @@ impl<'program> Engine<'program> {
             return;
         }
         let mut comparisons = Vec::new();
-        if let ExpressionNode::Boolean(value) = self.program.expression_table.expression(pattern) {
+        if let ExpressionNode::Boolean(value) = expression_table(self.program).expression(pattern) {
             self.collect_condition_comparisons(
                 subject,
                 selection.matched == *value,
@@ -604,8 +605,8 @@ impl<'program> Engine<'program> {
                     BinaryOperator::Equal | BinaryOperator::NotEqual
                 ) {
                     let wrapped = match (
-                        self.program.expression_table.expression(binary.left),
-                        self.program.expression_table.expression(binary.right),
+                        expression_table(self.program).expression(binary.left),
+                        expression_table(self.program).expression(binary.right),
                     ) {
                         (_, ExpressionNode::Boolean(value)) => Some((binary.left, *value)),
                         (ExpressionNode::Boolean(value), _) => Some((binary.right, *value)),
@@ -732,7 +733,7 @@ impl<'program> Engine<'program> {
         value: Polynomial,
     ) -> bool {
         matches!(
-            self.program.expression_table.expression(expression),
+            expression_table(self.program).expression(expression),
             ExpressionNode::Member(_)
         ) && self.bind_strict_occurrence(expression, value)
     }
@@ -743,7 +744,7 @@ impl<'program> Engine<'program> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<()> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
+        let Some(binary) = expression_table(self.program).binary_node(expression) else {
             return None;
         };
         let dividend = self.normalize(binary.left)?;
@@ -767,7 +768,7 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
         count_bits: u32,
     ) -> Option<()> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
+        let Some(binary) = expression_table(self.program).binary_node(expression) else {
             return None;
         };
         let value = self.normalize(binary.left)?;
@@ -792,7 +793,7 @@ impl<'program> Engine<'program> {
         bits: u32,
         signed: bool,
     ) -> Option<()> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
+        let Some(binary) = expression_table(self.program).binary_node(expression) else {
             return None;
         };
         let left = self.normalize(binary.left)?;
@@ -855,10 +856,7 @@ impl<'program> Engine<'program> {
     ) -> bool {
         if self.strict_symbol_bindings.is_none()
             || !self.strict_symbol_bindings_valid
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+            || !expression_table(self.program).expression_is_valid(expression)
         {
             return false;
         }

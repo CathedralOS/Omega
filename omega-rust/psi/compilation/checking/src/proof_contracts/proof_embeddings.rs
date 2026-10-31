@@ -7,6 +7,7 @@
 /// Membership sets take the integer hasher; none is iterated for output order.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use symbols::BuiltinFunction;
@@ -65,9 +66,7 @@ pub(crate) fn validate_proof_embeddings(
                 nodes!(program => membership.value => &mut proof_nodes => &mut proof_seen);
             }
             ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
+                for argument in expression_table(program).expression_handles(application.arguments)
                 {
                     collect_expression_nodes(program, *argument, &mut proof_nodes, &mut proof_seen);
                 }
@@ -84,9 +83,8 @@ pub(crate) fn validate_proof_embeddings(
                     nodes!(program => *expression => &mut proof_nodes => &mut proof_seen);
                 }
                 PropositionFormula::Application(application) => {
-                    for argument in program
-                        .expression_table
-                        .expression_handles(application.arguments)
+                    for argument in
+                        expression_table(program).expression_handles(application.arguments)
                     {
                         nodes!(program => *argument => &mut proof_nodes => &mut proof_seen);
                     }
@@ -140,7 +138,7 @@ pub(crate) fn validate_proof_embeddings(
         runtime_seen.remove(expression);
     }
 
-    for (handle, node) in program.expression_table.iter_expressions() {
+    for (handle, node) in expression_table(program).iter_expressions() {
         let mathematical = match node {
             ExpressionNode::Name(path) => {
                 program.symbols.builtin_type_member(path.symbol).is_some()
@@ -173,8 +171,7 @@ pub(crate) fn validate_proof_embeddings(
             diagnostics.push(Diagnostic::error(
                 "compiler-owned `embed` requires exactly one receiverless value argument and no static or evidence arguments",
             ));
-        } else if program
-            .expression_table
+        } else if expression_table(program)
             .expression_handles(call.arguments)
             .first()
             .and_then(|argument| integer_embedding(program, *argument))
@@ -276,11 +273,11 @@ pub fn integer_embedding_argument(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ExpressionHandle)> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     if !is_exact_embed_call(program, call) || !has_embedding_shape(call) {
         return None;
     }
-    let [argument] = program.expression_table.expression_handles(call.arguments) else {
+    let [argument] = expression_table(program).expression_handles(call.arguments) else {
         return None;
     };
     Some((integer_embedding(program, *argument)?.primitive, *argument))
@@ -304,7 +301,7 @@ fn expression_primitive(
     if let Some(type_reference) = expression_type_reference(program, expression) {
         return program.primitive_type_reference(type_reference);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(literal) => Some(PrimitiveType::from_landed_integer(
             literal.landing()?.landed_type,
         )),
@@ -360,7 +357,7 @@ fn expression_primitive(
 }
 
 fn is_unlanded_integer(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-    matches!(program.expression_table.expression(expression),
+    matches!(expression_table(program).expression(expression),
         ExpressionNode::Integer(literal) if literal.landing().is_none())
 }
 
@@ -374,11 +371,11 @@ fn collection_measure_receiver(
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<crate::collection_operations::MeasureReceiver> {
     let mut receiver = member.receiver;
-    while let Some(borrow) = program.expression_table.borrow_expression(receiver) {
+    while let Some(borrow) = expression_table(program).borrow_expression(receiver) {
         receiver = borrow.target;
     }
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(receiver)
-        && program.expression_table.indexed_on_range(indexed)
+    if let ExpressionNode::Indexed(indexed) = expression_table(program).expression(receiver)
+        && expression_table(program).indexed_on_range(indexed)
     {
         return Some(crate::collection_operations::MeasureReceiver::Window);
     }
@@ -393,7 +390,7 @@ pub(crate) fn expression_type_reference(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             crate::value_custody::expression_types::named_value_type_reference(program, path)
                 .or_else(|| {
@@ -408,7 +405,7 @@ pub(crate) fn expression_type_reference(
             // verifies that receiver identity and rejoins the field through
             // the attached definition's own symbols.
             if let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
+                expression_table(program).expression(member.receiver)
                 && let Some(machine) = program.machine(receiver.symbol)
                 && let Some(field) =
                     crate::value_custody::places::exact_self_field(program, machine, expression)

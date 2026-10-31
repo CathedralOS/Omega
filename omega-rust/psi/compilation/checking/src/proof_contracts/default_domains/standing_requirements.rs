@@ -14,6 +14,7 @@
 //! equal spellings belonging to unrelated declarations.
 
 use super::place_queries::data_definition_for_expression;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::collection_predicates::{fact_argument_field, predicate_application};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -45,7 +46,7 @@ pub fn standing_facts_prove_requirement(
     let mut receiver = None;
     let mut required = Vec::with_capacity(application.arguments.len());
     for argument in application.arguments {
-        if let Some(value) = program.expression_table.constant_integer_value(*argument) {
+        if let Some(value) = expression_table(program).constant_integer_value(*argument) {
             required.push(RequiredArgument::Integer(value));
             continue;
         }
@@ -59,7 +60,7 @@ pub fn standing_facts_prove_requirement(
         else {
             return false;
         };
-        let Some(member) = program.expression_table.member_node(place) else {
+        let Some(member) = expression_table(program).member_node(place) else {
             return false;
         };
         // Every field argument must come from one receiver place, the one
@@ -67,8 +68,7 @@ pub fn standing_facts_prove_requirement(
         match receiver {
             None => receiver = Some(member.receiver),
             Some(existing)
-                if program
-                    .expression_table
+                if expression_table(program)
                     .expressions_structurally_equal(existing, member.receiver) => {}
             Some(_) => return false,
         }
@@ -114,7 +114,7 @@ pub fn standing_facts_prove_requirement(
                                 .is_some_and(|field| field.symbol == *symbol)
                         }
                         RequiredArgument::Integer(value) => {
-                            program.expression_table.constant_integer_value(*argument)
+                            expression_table(program).constant_integer_value(*argument)
                                 == Some(*value)
                         }
                     })
@@ -132,7 +132,7 @@ fn collection_observation_place(
     mut expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     for _ in 0..128 {
-        if let Some(borrow) = program.expression_table.borrow_expression(expression) {
+        if let Some(borrow) = expression_table(program).borrow_expression(expression) {
             if borrow.access == language_core::ReferenceAccess::WriteOnly {
                 return None;
             }

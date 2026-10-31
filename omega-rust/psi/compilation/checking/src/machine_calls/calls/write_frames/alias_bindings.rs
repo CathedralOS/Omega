@@ -9,6 +9,7 @@ use super::isolation::type_is_caller_isolated_local;
 use super::local_aliases::expression_may_rebind_mutable_alias;
 use super::place_paths::{FramePlaceOrigin, coarse_place_path, split_place_root};
 use super::type_capabilities::{type_may_carry_write, type_reference_is_reference};
+use crate::frozen_program::expression_table;
 use language_core::is_self_receiver;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -66,8 +67,7 @@ pub fn state_reference_parameter_binding_is_stable(
             }
             if let Some(call) = statement.as_call() {
                 let contract = super::super::callee_entry_contract(program, call.target_symbol);
-                return program
-                    .expression_table
+                return expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .enumerate()
@@ -110,10 +110,10 @@ fn expression_exposes_reference_slot(
     scalar_referent: Option<typed_trees::types::PrimitiveType>,
     is_binding: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(borrow)
             if borrow.access.is_exclusive() && is_binding(borrow.target) =>
         {
@@ -133,8 +133,7 @@ fn expression_exposes_reference_slot(
                 return true;
             }
             let contract = super::super::callee_entry_contract(program, call.target_symbol);
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(call.arguments)
                 .iter()
                 .enumerate()

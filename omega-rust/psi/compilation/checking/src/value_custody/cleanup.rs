@@ -3,6 +3,7 @@
 //! the hook may transition between its own states: those exact selections
 //! select control-flow destinations, not another invocation of the hook.
 
+use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
@@ -684,8 +685,7 @@ fn owner_type_matches(
                             TypeReferenceNode::ConstExpression(expression)
                                 if parameter.kind.is_const_or_value() =>
                             {
-                                program
-                                    .expression_table
+                                expression_table(program)
                                     .name_path_node(*expression)
                                     .is_some_and(|name| name.symbol == parameter.symbol)
                             }
@@ -713,7 +713,7 @@ pub(crate) fn validate_cleanup_delivery(
     // Casts do not execute cleanup. Follow their exact operand rather than
     // using the erased result as evidence that no obligation existed.
     while let typed_trees::expression::ExpressionNode::Cast(cast) =
-        program.expression_table.expression(value)
+        expression_table(program).expression(value)
     {
         value = cast.value;
     }

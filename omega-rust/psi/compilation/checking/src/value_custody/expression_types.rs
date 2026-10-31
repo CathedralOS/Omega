@@ -38,6 +38,7 @@
 //!   declared type or granting a referent value. Structural edge traversal
 //!   and occurrence collection belong to `crate::expression_traversal`.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use std::fmt;
 use symbols::SymbolHandle;
@@ -228,7 +229,7 @@ pub(crate) fn argument_matches_carrier(
     // A call may attenuate an explicit mutable borrow to shared access. The
     // referent still passes through ordinary carrier matching; the caller
     // separately proves required domains and validates loan exclusivity.
-    if let Some(borrow) = program.expression_table.borrow_expression(argument)
+    if let Some(borrow) = expression_table(program).borrow_expression(argument)
         && borrow.access == language_semantics::ReferenceAccess::Mutable
         && let TypeReferenceNode::Reference {
             referee,
@@ -288,21 +289,18 @@ fn argument_matches_type_reference_using(
     ) {
         return true;
     }
-    if let Some(dispatch) = program.expression_table.match_node(argument) {
+    if let Some(dispatch) = expression_table(program).match_node(argument) {
         // Selection changes which value arrives, not its required carrier.
         // Reference arms obey the same exact referent/access correspondence;
         // independent access and loan checks still own their authority.
-        return !program
-            .expression_table
+        return !expression_table(program)
             .match_arms(dispatch.arms)
             .is_empty()
-            && program
-                .expression_table
-                .match_arms_all(dispatch.arms, |_, value| {
-                    match_argument!(value, type_reference)
-                });
+            && expression_table(program).match_arms_all(dispatch.arms, |_, value| {
+                match_argument!(value, type_reference)
+            });
     }
-    if let Some(inner_expression) = program.expression_table.borrow_expression(argument) {
+    if let Some(inner_expression) = expression_table(program).borrow_expression(argument) {
         let TypeReferenceNode::Reference {
             referee, access, ..
         } = program.type_reference_table.type_reference(type_reference)
@@ -385,7 +383,7 @@ fn argument_matches_type_reference_using(
     // the stated type here must neither infer a conversion from the destination
     // nor erase qualifications. Required bindings are simultaneous: a selected
     // caller type must not be rebound by another callee formal.
-    if let Some(cast) = program.expression_table.cast_node(argument)
+    if let Some(cast) = expression_table(program).cast_node(argument)
         && cast.form.is_recast()
     {
         let required_carrier = if let TypeReferenceNode::Reference {
@@ -425,10 +423,10 @@ fn argument_matches_type_reference_using(
 
     // An element projection selects a stored value; a range constructs a view
     // and retains the existing slice-matching path below.
-    let selects_stored_value = match program.expression_table.expression(argument) {
+    let selects_stored_value = match expression_table(program).expression(argument) {
         ExpressionNode::Member(_) => true,
         ExpressionNode::Indexed(indexed) => !matches!(
-            program.expression_table.expression(indexed.index),
+            expression_table(program).expression(indexed.index),
             ExpressionNode::Range(_)
         ),
         _ => false,
@@ -458,7 +456,7 @@ fn argument_matches_type_reference_using(
     if matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Reference { .. }
-    ) && let ExpressionNode::Name(path) = program.expression_table.expression(argument)
+    ) && let ExpressionNode::Name(path) = expression_table(program).expression(argument)
         && let Some(actual) = named_value_type_reference(program, path)
         && matches!(
             program.type_reference_table.type_reference(actual),
@@ -500,7 +498,7 @@ fn argument_matches_type_reference_using(
         }
     }
 
-    let argument_node = program.expression_table.expression(argument);
+    let argument_node = expression_table(program).expression(argument);
 
     // A subslice `collection[a..b]` produces a fresh view over the
     // collection's own backing, so its reference correspondence is the
@@ -508,7 +506,7 @@ fn argument_matches_type_reference_using(
     // borrow: only a mutable source answers a mutable result.
     if let ExpressionNode::Indexed(indexed) = argument_node
         && matches!(
-            program.expression_table.expression(indexed.index),
+            expression_table(program).expression(indexed.index),
             ExpressionNode::Range(_)
         )
         && reference_values::subslice_view_matches_reference(
@@ -565,7 +563,7 @@ fn argument_matches_type_reference_using(
                     && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8);
             }
             if let ExpressionNode::ArrayLiteral(elements) = argument_node {
-                let elements = program.expression_table.expression_handles(*elements);
+                let elements = expression_table(program).expression_handles(*elements);
                 return !matches!(length, typed_trees::types::FixedArrayLength::Literal(length)
                     if *length != elements.len())
                     && elements
@@ -784,7 +782,7 @@ pub(crate) fn named_value_type_reference(
     if let Some(reference) = builtin_member_type_reference(program, path.symbol) {
         return Some(reference);
     }
-    let [_] = program.expression_table.name_path_members(path.members) else {
+    let [_] = expression_table(program).name_path_members(path.members) else {
         return None;
     };
     if let Some(reference) =
@@ -1014,7 +1012,7 @@ pub(crate) fn validate_expression_type_handle(
     diagnostics: &mut Vec<Diagnostic>,
     owner: ExpressionTypeOwner<'_>,
 ) {
-    if let ExpressionNode::String(literal) = program.expression_table.expression(expression)
+    if let ExpressionNode::String(literal) = expression_table(program).expression(expression)
         && let Some(capacity) = bounded_byte_buffer_capacity(program, type_reference)
         && literal.len() > capacity
     {
@@ -1045,7 +1043,7 @@ pub(crate) fn expression_type_name_handle(
     program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
 ) -> &'static str {
-    match program.expression_table.expression(argument) {
+    match expression_table(program).expression(argument) {
         ExpressionNode::Match(_) => "match expression",
         ExpressionNode::SavedSubject(_) => "saved match subject",
         ExpressionNode::Atomic(atomic) => expression_type_name_handle(program, atomic.value),

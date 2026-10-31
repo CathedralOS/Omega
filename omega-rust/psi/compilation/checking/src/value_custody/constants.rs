@@ -15,6 +15,7 @@
 //! exact range reader. This supplies neither domain issuance nor an invocation
 //! proof for a computed initializer, whose admission remains independent.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
 use symbols::BuiltinTypeAtom;
@@ -59,7 +60,7 @@ pub fn validate_constant_literal_integer_ranges(
                 // Read only the retained literal, never fold a runtime expression
                 // or treat its destination as evidence of its own membership.
                 let ExpressionNode::Integer(literal) =
-                    program.expression_table.expression(expression)
+                    expression_table(program).expression(expression)
                 else {
                     return Err(
                         "constant initializer lacks an integer literal for its declared range",
@@ -82,14 +83,13 @@ pub fn validate_constant_literal_integer_ranges(
         let carrier = program
             .type_reference_table
             .unconstrained_type_reference(destination);
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::ArrayLiteral(elements) => {
                 if let TypeReferenceNode::FixedArray { element_type, .. } =
                     program.type_reference_table.type_reference(carrier)
                 {
                     pending.extend(
-                        program
-                            .expression_table
+                        expression_table(program)
                             .expression_handles(*elements)
                             .iter()
                             .map(|element| (*element_type, *element)),
@@ -97,7 +97,7 @@ pub fn validate_constant_literal_integer_ranges(
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
+                for field in expression_table(program).struct_fields(literal.fields) {
                     let field_type =
                         crate::value_custody::struct_literals::selected_construction_field_type(
                             program,

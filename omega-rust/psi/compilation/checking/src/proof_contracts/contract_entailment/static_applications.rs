@@ -4,6 +4,7 @@
 //! arithmetic judgment owns integer entailment; this adapter supplies Boolean
 //! composition and canonical Boolean constants, not domain membership evidence.
 
+use crate::frozen_program::expression_table;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
@@ -249,7 +250,7 @@ fn immutable_fact(
     let mut pending = vec![expression];
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expression_table(program).expression_is_valid(expression) {
             return false;
         }
         if visited.contains(&expression) {
@@ -259,13 +260,12 @@ fn immutable_fact(
             return false;
         }
         visited.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         match node {
             ExpressionNode::Name(path) => {
                 let bound_const = path.symbol.is_valid()
                     && path.head_symbol == path.symbol
-                    && program
-                        .expression_table
+                    && expression_table(program)
                         .name_path_members(path.members)
                         .len()
                         == 1
@@ -352,9 +352,7 @@ impl StaticFacts<'_> {
             if !hypotheses[position].holds {
                 continue;
             }
-            let Some(binary) = self
-                .program
-                .expression_table
+            let Some(binary) = expression_table(self.program)
                 .binary_node(hypotheses[position].proposition.expression)
             else {
                 continue;
@@ -404,7 +402,7 @@ impl StaticFacts<'_> {
         if let Some(value) = self.boolean_value(expression) {
             return if value { Proven } else { Refuted };
         }
-        if let Some(unary) = self.program.expression_table.unary_node(expression)
+        if let Some(unary) = expression_table(self.program).unary_node(expression)
             && unary.operator == UnaryOperator::LogicalNot
         {
             return match self.judge(unary.operand, depth + 1) {
@@ -413,7 +411,7 @@ impl StaticFacts<'_> {
                 Unknown => Unknown,
             };
         }
-        if let Some(binary) = self.program.expression_table.binary_node(expression) {
+        if let Some(binary) = expression_table(self.program).binary_node(expression) {
             match binary.operator {
                 BinaryOperator::And => {
                     return conjunction(
@@ -464,12 +462,10 @@ impl StaticFacts<'_> {
     }
 
     fn boolean_value(&self, expression: ExpressionHandle) -> Option<bool> {
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),
             ExpressionNode::Name(path) => {
-                if self
-                    .program
-                    .expression_table
+                if expression_table(self.program)
                     .name_path_members(path.members)
                     .len()
                     != 1

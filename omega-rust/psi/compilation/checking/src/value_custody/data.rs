@@ -1,4 +1,5 @@
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::value_custody::type_references::{
     TypeParameterScope, TypeReferenceOwner, type_reference_label, type_references_match,
@@ -238,12 +239,11 @@ fn validate_data_default_domain(
             continue;
         };
         let typed_trees::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(membership.value)
+            expression_table(program).expression(membership.value)
         else {
             continue;
         };
-        let Some(field_name) = program
-            .expression_table
+        let Some(field_name) = expression_table(program)
             .name_path_members(path.members)
             .last()
         else {

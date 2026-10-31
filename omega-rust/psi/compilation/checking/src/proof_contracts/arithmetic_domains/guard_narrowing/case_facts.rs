@@ -21,6 +21,7 @@ use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, ValueEnvironment, meaning,
     ordered_values,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 
 /// Establish the selected application's case facts on the exact subject.
@@ -80,7 +81,7 @@ fn contribute_fact_expression(
     environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
-    let Some(comparison) = program.expression_table.binary_node(expression) else {
+    let Some(comparison) = expression_table(program).binary_node(expression) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {
@@ -130,7 +131,7 @@ fn fact_side(
     subject: &ordered_values::Operand,
     expression: ExpressionHandle,
 ) -> Option<ProjectedOperand> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(literal)
             if literal.landing().is_none_or(|landing| {
                 landing.landed_type != numerics::literals::LandedIntegerType::Addr
@@ -139,8 +140,7 @@ fn fact_side(
             Some(ProjectedOperand::literal(literal))
         }
         ExpressionNode::Name(path) => {
-            let name = program
-                .expression_table
+            let name = expression_table(program)
                 .name_path_members(path.members)
                 .last()?
                 .as_str();

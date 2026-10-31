@@ -4,6 +4,7 @@
 //! The predicate reader must independently bind one readable, effect-free
 //! subject in its current frame. Ambient captures cannot borrow this witness.
 
+use crate::frozen_program::expression_table;
 use arena::Handle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -37,13 +38,11 @@ impl LogicalRecordCapture {
         saved.capture == self.capture
             && saved.pattern_head == self.head
             && program.saved_value_source(saved) == Some(self.subject)
-            && program
-                .expression_table
+            && expression_table(program)
                 .value_capture(saved.capture)
                 .definition
                 == self.definition
-            && program
-                .expression_table
+            && expression_table(program)
                 .value_capture(saved.capture)
                 .value_anchor
                 == self.anchor
@@ -57,13 +56,13 @@ pub fn logical_record_match_capture(
     expression: ExpressionHandle,
     subject_type: TypeReferenceHandle,
 ) -> Option<LogicalRecordCapture> {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) else {
         return None;
     };
-    let [arm] = program.expression_table.match_arms(dispatch.arms) else {
+    let [arm] = expression_table(program).match_arms(dispatch.arms) else {
         return None;
     };
     let MatchPattern::Destructure(pattern) = arm.pattern else {
@@ -74,7 +73,7 @@ pub fn logical_record_match_capture(
     }
     if pattern.condition.is_valid()
         && !matches!(
-            program.expression_table.expression(pattern.condition),
+            expression_table(program).expression(pattern.condition),
             ExpressionNode::Boolean(true)
         )
     {
@@ -86,15 +85,14 @@ pub fn logical_record_match_capture(
             .data_members(data)
             .iter()
             .any(|member| member.as_variant().is_some())
-        || program
-            .expression_table
+        || expression_table(program)
             .name_path_node(pattern.head)?
             .symbol
             != data.symbol
     {
         return None;
     }
-    let fields = program.expression_table.match_fields(pattern.fields);
+    let fields = expression_table(program).match_fields(pattern.fields);
     let declared = program
         .data_members(data)
         .iter()
@@ -117,19 +115,14 @@ pub fn logical_record_match_capture(
     {
         return None;
     }
-    if !program
-        .expression_table
-        .contains_value_capture(dispatch.capture)
-    {
+    if !expression_table(program).contains_value_capture(dispatch.capture) {
         return None;
     }
-    let capture = program.expression_table.value_capture(dispatch.capture);
+    let capture = expression_table(program).value_capture(dispatch.capture);
     if capture.owner != ValueCaptureOwner::Match
         || capture.definition != expression
         || capture.subject != dispatch.subject
-        || !program
-            .expression_table
-            .expression_is_valid(capture.value_anchor)
+        || !expression_table(program).expression_is_valid(capture.value_anchor)
     {
         return None;
     }
@@ -143,7 +136,7 @@ pub fn logical_record_match_capture(
     };
     if capture.value_anchor != capture.subject {
         let ExpressionNode::SavedSubject(saved) =
-            program.expression_table.expression(capture.value_anchor)
+            expression_table(program).expression(capture.value_anchor)
         else {
             return None;
         };
@@ -161,7 +154,7 @@ pub fn expression_has_closed_value_captures(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
+    if !expression_table(program).expression_is_valid(expression) {
         return false;
     }
     let mut expressions = Vec::new();
@@ -172,16 +165,11 @@ pub fn expression_has_closed_value_captures(
     while position < expressions.len() {
         let current = expressions[position];
         position += 1;
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(current) {
-            let dependencies = program
-                .expression_table
+        if let ExpressionNode::Match(dispatch) = expression_table(program).expression(current) {
+            let dependencies = expression_table(program)
                 .match_arms(dispatch.arms)
                 .iter()
-                .flat_map(|arm| {
-                    program
-                        .expression_table
-                        .match_pattern_dependencies(arm.pattern)
-                })
+                .flat_map(|arm| expression_table(program).match_pattern_dependencies(arm.pattern))
                 .collect::<Vec<_>>();
             for dependency in dependencies {
                 crate::expression_traversal::collect_expression_tree(
@@ -193,14 +181,14 @@ pub fn expression_has_closed_value_captures(
         }
     }
     expressions.iter().all(|expression| {
-        let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(*expression)
+        let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(*expression)
         else {
             return true;
         };
         if program.saved_value_source(saved).is_none() {
             return false;
         }
-        let capture = program.expression_table.value_capture(saved.capture);
+        let capture = expression_table(program).value_capture(saved.capture);
         let owner = match capture.owner {
             ValueCaptureOwner::Match => capture.definition,
             ValueCaptureOwner::ExpressionArgument { call, .. } => call,
@@ -230,7 +218,7 @@ pub fn logical_saved_subject_projection<Subject: Clone>(
 ) -> Option<(Subject, Vec<facts::PlaceSegment>)> {
     let mut leaf = expression;
     for _ in 0..64 {
-        match program.expression_table.expression(leaf) {
+        match expression_table(program).expression(leaf) {
             ExpressionNode::Member(member) => leaf = member.receiver,
             ExpressionNode::Indexed(indexed) => leaf = indexed.collection,
             ExpressionNode::Borrow(borrow) => leaf = borrow.target,

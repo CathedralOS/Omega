@@ -1,3 +1,4 @@
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
@@ -36,9 +37,8 @@ pub(super) fn argument_comparison(
     if rank.is_subject(program, argument, &role) {
         return Some(Comparison::Equal);
     }
-    let ExpressionNode::StructLiteral(literal) = program
-        .expression_table
-        .expression(unwrapped(program, argument))
+    let ExpressionNode::StructLiteral(literal) =
+        expression_table(program).expression(unwrapped(program, argument))
     else {
         return None;
     };
@@ -46,7 +46,7 @@ pub(super) fn argument_comparison(
     {
         return None;
     }
-    let fields = program.expression_table.struct_fields(literal.fields);
+    let fields = expression_table(program).struct_fields(literal.fields);
     let mut strict = false;
     for field in components {
         let mut matching = fields.iter().filter(|value| value.field_symbol == *field);
@@ -107,9 +107,8 @@ fn component_comparison(
     if rank.is_component(program, value, field, role) {
         return Some(Comparison::Equal);
     }
-    let ExpressionNode::Binary(binary) = program
-        .expression_table
-        .expression(unwrapped(program, value))
+    let ExpressionNode::Binary(binary) =
+        expression_table(program).expression(unwrapped(program, value))
     else {
         return None;
     };
@@ -136,7 +135,7 @@ fn integer(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     let expression = unwrapped(program, expression);
-    if let Some(literal) = program.expression_table.integer_node(expression) {
+    if let Some(literal) = expression_table(program).integer_node(expression) {
         return literal.value_i64();
     }
     program
@@ -161,9 +160,8 @@ fn guard_proves_lower_bound(
     if !guard.is_valid() {
         return false;
     }
-    let ExpressionNode::Binary(binary) = program
-        .expression_table
-        .expression(unwrapped(program, guard))
+    let ExpressionNode::Binary(binary) =
+        expression_table(program).expression(unwrapped(program, guard))
     else {
         return false;
     };
@@ -172,9 +170,8 @@ fn guard_proves_lower_bound(
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) {
         for (condition, boolean) in [(binary.left, binary.right), (binary.right, binary.left)] {
-            if let ExpressionNode::Boolean(value) = program
-                .expression_table
-                .expression(unwrapped(program, boolean))
+            if let ExpressionNode::Boolean(value) =
+                expression_table(program).expression(unwrapped(program, boolean))
             {
                 return guard_proves_lower_bound(
                     program,

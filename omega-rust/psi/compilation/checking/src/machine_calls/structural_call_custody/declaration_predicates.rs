@@ -49,6 +49,7 @@
 //! beneath definitions, and through literal-length arrays at each exact index.
 
 use super::super::super::proof_contracts::collection_predicates;
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerComparisonKind,
     CheckedOperatorFacts, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
@@ -719,7 +720,7 @@ impl FactSpelling<'_> {
         ) {
             return self.exact_ordering(consequence);
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
                 CheckedBooleanExpression::Not(Box::new(self.boolean(unary.operand)?)),
@@ -734,9 +735,7 @@ impl FactSpelling<'_> {
                     ) =>
                 {
                     let (path, reference) = self.field_path(binary.left)?;
-                    let selected = self
-                        .program
-                        .expression_table
+                    let selected = expression_table(self.program)
                         .name_path_node(binary.right)?
                         .symbol;
                     let case = self
@@ -890,7 +889,7 @@ impl FactSpelling<'_> {
             _ => return None,
         };
         if matches!(operand_type, PrimitiveType::F32 | PrimitiveType::F64) {
-            let Some(binary) = self.program.expression_table.binary_node(authored) else {
+            let Some(binary) = expression_table(self.program).binary_node(authored) else {
                 return None;
             };
             let operand_types = [
@@ -950,7 +949,10 @@ impl FactSpelling<'_> {
             PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
             _ => return None,
         };
-        match (&operand, self.program.expression_table.expression(authored)) {
+        match (
+            &operand,
+            expression_table(self.program).expression(authored),
+        ) {
             (CheckedScalarExpression::IeeeFloatLiteral { .. }, ExpressionNode::Float(literal)) => {
                 if literal.landing().is_some_and(|landing| landing != format) {
                     return None;
@@ -982,7 +984,7 @@ impl FactSpelling<'_> {
         if self.selects_declared_operator(expression) {
             return None;
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && self.program.symbols.get(path.symbol).kind
@@ -1109,27 +1111,19 @@ impl FactSpelling<'_> {
         Vec<CheckedStructuralPredicatePathSegment>,
         TypeReferenceHandle,
     )> {
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(name) => {
                 if self.definition.predicate_subject_symbol.is_valid()
                     && name.symbol == self.definition.predicate_subject_symbol
                     && name.head_symbol == name.symbol
-                    && self
-                        .program
-                        .expression_table
-                        .name_path_member_symbols(name.member_symbols)
+                    && expression_table(self.program).name_path_member_symbols(name.member_symbols)
                         == [name.symbol]
                 {
                     return Some((self.prefix.to_vec(), self.definition.predicate_subject_type));
                 }
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(name.members);
-                let member_symbols = self
-                    .program
-                    .expression_table
-                    .name_path_member_symbols(name.member_symbols);
+                let members = expression_table(self.program).name_path_members(name.members);
+                let member_symbols =
+                    expression_table(self.program).name_path_member_symbols(name.member_symbols);
                 let mut path = self.prefix.to_vec();
                 let mut owner = self.definition;
                 let mut leaf = None;

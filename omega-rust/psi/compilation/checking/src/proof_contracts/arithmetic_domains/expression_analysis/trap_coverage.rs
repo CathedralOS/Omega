@@ -30,6 +30,7 @@
 //! selected operators keep their coverage checks in checked-tree production.
 
 use super::ExpressionWalk;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::guard_narrowing::narrow_environment_by_condition;
 use crate::proof_contracts::arithmetic_domains::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, SignatureContractKind, State,
@@ -65,7 +66,7 @@ pub(super) fn trap_ceiling(program: &dyn crate::CheckingInput, machine: &Machine
         if facts.is_empty()
             || facts.iter().any(|fact| {
                 matches!(fact, ProofFact::Expression(route)
-                    if matches!(program.expression_table.expression(*route), ExpressionNode::Boolean(true)))
+                    if matches!(expression_table(program).expression(*route), ExpressionNode::Boolean(true)))
             })
         {
             return TrapCeiling::Permitted;
@@ -90,13 +91,12 @@ fn reads_only_stable_entry_parameters(
 ) -> bool {
     let mut pending = vec![route];
     while let Some(expression) = pending.pop() {
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
             ExpressionNode::Unary(unary) => pending.push(unary.operand),
             ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
             ExpressionNode::Name(path)
-                if program
-                    .expression_table
+                if expression_table(program)
                     .name_path_members(path.members)
                     .len()
                     == 1 =>
@@ -173,14 +173,13 @@ impl ExpressionWalk<'_> {
                 self.owner,
                 site(),
             ))
-            .with_source_span(self.program.expression_table.source_span(expression)),
+            .with_source_span(expression_table(self.program).source_span(expression)),
         );
     }
 
     /// An operand's source spelling for a site diagnostic.
     pub(super) fn operand_label(&self, operand: ExpressionHandle) -> String {
-        self.program
-            .expression_table
+        expression_table(self.program)
             .display_name(operand)
             .trim_end()
             .to_owned()

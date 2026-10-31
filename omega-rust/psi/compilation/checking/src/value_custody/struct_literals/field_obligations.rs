@@ -2,6 +2,7 @@ mod scalar_values;
 mod stored_integers;
 
 use super::observations::ConstructionObservations;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -61,7 +62,7 @@ pub(super) fn enforce_construction_field_obligations(
         return;
     }
 
-    for field in program.expression_table.struct_fields(literal.fields) {
+    for field in expression_table(program).struct_fields(literal.fields) {
         let Some(field_type) =
             selected_construction_field_type(program, expression, literal, field.field_symbol)
         else {
@@ -349,8 +350,8 @@ fn check_array_literal_elements(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    if let Some(dispatch) = program.expression_table.match_node(value) {
-        for arm in program.expression_table.match_arms(dispatch.arms) {
+    if let Some(dispatch) = expression_table(program).match_node(value) {
+        for arm in expression_table(program).match_arms(dispatch.arms) {
             check_array_literal_elements(
                 program,
                 machine,
@@ -368,7 +369,7 @@ fn check_array_literal_elements(
     // Element formation still owes its exact carrier checks independently.
     let array_shape =
         crate::value_custody::places::peel_declared_constraints(program, expected_type);
-    if let Some(borrow) = program.expression_table.borrow_expression(value)
+    if let Some(borrow) = expression_table(program).borrow_expression(value)
         && let TypeReferenceNode::Reference { referee, .. } =
             program.type_reference_table.type_reference(array_shape)
     {
@@ -430,10 +431,10 @@ fn check_array_literal_elements_for_shape(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    let Some(elements) = program.expression_table.array_literal_node(value) else {
+    let Some(elements) = expression_table(program).array_literal_node(value) else {
         return;
     };
-    let element_handles = program.expression_table.expression_handles(*elements);
+    let element_handles = expression_table(program).expression_handles(*elements);
     // LENGTH check: a `[T; N]` literal must supply exactly N elements. Too few
     // leaves trailing slots reading uninitialized; too many overflows the storage
     // -- a write PAST the array's bounds into adjacent fields (memory corruption),
@@ -632,27 +633,20 @@ pub(crate) fn construction_application(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> TypeReferenceHandle {
-    let required = program
-        .expression_table
-        .construction_required_type_reference(expression);
-    let constructed = program
-        .expression_table
-        .constructed_value_type_reference(expression);
+    let required = expression_table(program).construction_required_type_reference(expression);
+    let constructed = expression_table(program).constructed_value_type_reference(expression);
     if required.is_valid() {
         return required;
     }
     if constructed.is_valid() {
         return constructed;
     }
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in expression_table(program).authored_selection_occurrences(expression) {
         if let Some(selection) = program.authored_declaration_selections().get(occurrence) {
             // Initializer roots retain their complete dependency inventory.
             // Only this occurrence's selection supplies its carrier; a nested
             // constant operand cannot select the enclosing constructor's type.
-            if selection.source_span() != program.expression_table.source_span(expression) {
+            if selection.source_span() != expression_table(program).source_span(expression) {
                 continue;
             }
             if let Some(selected) = selection.target().as_resolved() {
@@ -709,7 +703,7 @@ pub(crate) fn each_selected_literal_field(
     literal: &TableStructLiteral,
     mut each: impl FnMut(ExpressionHandle, TypeReferenceHandle),
 ) {
-    for field in program.expression_table.struct_fields(literal.fields) {
+    for field in expression_table(program).struct_fields(literal.fields) {
         let Some(field_type) =
             selected_construction_field_type(program, expression, literal, field.field_symbol)
         else {
@@ -804,7 +798,7 @@ fn construction_field_literal(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<i64> {
-    match program.expression_table.expression(value) {
+    match expression_table(program).expression(value) {
         ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,
     }

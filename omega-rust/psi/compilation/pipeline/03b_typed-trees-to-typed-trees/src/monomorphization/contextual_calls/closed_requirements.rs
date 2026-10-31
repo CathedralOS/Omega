@@ -2,6 +2,7 @@
 
 use super::super::failed;
 use super::{CallSite, Diagnostic, TypedTrees, invocations};
+use crate::tables::expressions_of;
 
 /// Requirement closure substitutes the source demand after provider tuples
 /// have settled. Derive its checking view from that same occurrence's retained
@@ -10,7 +11,7 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
     for invocation in invocations::collect(program)? {
         let (target, application) = match invocation.site {
             CallSite::Expression(handle) => {
-                let Some(call) = program.expression_table.call_node(handle) else {
+                let Some(call) = expressions_of(program).call_node(handle) else {
                     continue;
                 };
                 (call.target_symbol, call.authored_machine_application)
@@ -73,15 +74,10 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 // refinement; no determined provider tuple is manufactured.
                 continue;
             };
-            let bindings = program
-                .expression_table
-                .static_machine_application_bindings(provider);
-            let lifetimes = program
-                .expression_table
-                .static_machine_application_lifetimes(provider);
+            let bindings = expressions_of(program).static_machine_application_bindings(provider);
+            let lifetimes = expressions_of(program).static_machine_application_lifetimes(provider);
             let caller_operands = &invocation.types;
-            let caller_lifetimes = program
-                .expression_table
+            let caller_lifetimes = expressions_of(program)
                 .static_machine_application_lifetimes(application)
                 .to_vec();
             if !program.applied_machine_callable_matches(

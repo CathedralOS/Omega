@@ -4,6 +4,7 @@
 //! deliberately separate from application closure: absent, ambiguous, and
 //! conflicting regions remain errors rather than declaration-based guesses.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -66,8 +67,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             // Its new outer loan has no authored region operand, but nested
             // reference and phantom operands still constrain the invocation.
             // An existing reference value keeps its original shell below.
-            let required = if program
-                .expression_table
+            let required = if expressions_of(program)
                 .borrow_expression(*argument)
                 .is_some()
             {
@@ -120,8 +120,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         }
 
         let application = match call.site {
-            ElisionCallSite::Expression(handle) => program
-                .expression_table
+            ElisionCallSite::Expression(handle) => expressions_of(program)
                 .call_node(handle)
                 .map(|call| call.authored_machine_application),
             ElisionCallSite::Statement(handle) => program
@@ -294,19 +293,17 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             // Region-only ordinary calls have no type-specialization step to
             // bind their source telescope later. Retain its exact declaration
             // with the operands; an existing static selection keeps its owner.
-            let source = program
-                .expression_table
-                .static_machine_application_mut(application);
+            let source = expressions_of_mut(program).static_machine_application_mut(application);
             if !source.binding_declaration.is_valid() {
                 source.binding_declaration = binding_declaration;
             }
-            program
-                .expression_table
+            expressions_of_mut(program)
                 .set_static_machine_application_lifetimes(application, &lifetimes);
         }
         match call.site {
             ElisionCallSite::Expression(handle) => {
-                let ExpressionNode::Call(current) = program.expression_table.expression_mut(handle)
+                let ExpressionNode::Call(current) =
+                    expressions_of_mut(program).expression_mut(handle)
                 else {
                     continue;
                 };
@@ -396,7 +393,7 @@ impl ElisionWalk<'_> {
         {
             return;
         }
-        match self.program.expression_table.expression(expression) {
+        match expressions_of(self.program).expression(expression) {
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Call(call) => {
                 calls.push(ElisionCall {
@@ -404,24 +401,18 @@ impl ElisionWalk<'_> {
                     caller_machine: self.caller_machine,
                     caller_state: self.caller_state,
                     target: call.target_symbol,
-                    arguments: self
-                        .program
-                        .expression_table
+                    arguments: expressions_of(self.program)
                         .expression_handles(call.arguments)
                         .to_vec(),
                     machine_arguments: call.machine_arguments.clone(),
                 });
                 self.visit(call.receiver, calls);
-                for argument in self
-                    .program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                {
+                for argument in expressions_of(self.program).expression_handles(call.arguments) {
                     self.visit(*argument, calls);
                 }
             }
             ExpressionNode::ArrayLiteral(values) => {
-                for value in self.program.expression_table.expression_handles(*values) {
+                for value in expressions_of(self.program).expression_handles(*values) {
                     self.visit(*value, calls);
                 }
             }
@@ -430,12 +421,10 @@ impl ElisionWalk<'_> {
                 self.visit(atomic.result, calls);
             }
             ExpressionNode::Match(dispatch) => {
-                self.program
-                    .expression_table
-                    .match_deep_all(dispatch, |handle| {
-                        self.visit(handle, calls);
-                        true
-                    });
+                expressions_of(self.program).match_deep_all(dispatch, |handle| {
+                    self.visit(handle, calls);
+                    true
+                });
             }
             ExpressionNode::Binary(binary) => {
                 self.visit(binary.left, calls);
@@ -453,7 +442,7 @@ impl ElisionWalk<'_> {
                 self.visit(range.end, calls);
             }
             ExpressionNode::StructLiteral(literal) => {
-                for field in self.program.expression_table.struct_fields(literal.fields) {
+                for field in expressions_of(self.program).struct_fields(literal.fields) {
                     self.visit(field.value, calls);
                 }
             }

@@ -9,6 +9,7 @@
 //! incoming value as vacant storage. Subsequent invariant windows still police
 //! every affected read, independently of entry validity.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, declared_root_established, expression_root_symbol,
     place_spelling_covers, self_place_spelling, transition_evaluated_expressions,
@@ -214,7 +215,7 @@ fn scan_expression_use(
     );
     if consumes_value {
         let is_name = matches!(
-            program.expression_table.expression(expression),
+            expression_table(program).expression(expression),
             ExpressionNode::Name(_)
         );
         let has_open_window =
@@ -270,9 +271,9 @@ fn scan_expression_use(
             }
         }
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
+            let members = expression_table(program).name_path_members(path.members);
             if consumes_value && members.len() > 1 {
                 let receiver_spelling = members[..members.len() - 1].joined_path_with(".");
                 if let Some(place) = tracked
@@ -393,7 +394,7 @@ fn scan_expression_use(
                 return;
             }
             if let ExpressionNode::Member(member) =
-                program.expression_table.expression(inner.target)
+                expression_table(program).expression(inner.target)
                 && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
                 && let Some(place) = tracked.iter().find(|place| {
                     place_spelling_covers(&place.spelling, &receiver_spelling)
@@ -411,7 +412,7 @@ fn scan_expression_use(
         }
         ExpressionNode::Call(call) => {
             read_child!(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            for argument in expression_table(program).expression_handles(call.arguments) {
                 read_child!(*argument);
             }
         }
@@ -432,8 +433,7 @@ fn scan_expression_use(
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
-            for element in program
-                .expression_table
+            for element in expression_table(program)
                 .expression_handles(*elements)
                 .iter()
                 .copied()
@@ -442,15 +442,15 @@ fn scan_expression_use(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
+            for field in expression_table(program).struct_fields(literal.fields) {
                 read_child!(field.value);
             }
         }
         ExpressionNode::Match(matched) => {
             read_child!(matched.subject);
-            for arm in program.expression_table.match_arms(matched.arms) {
+            for arm in expression_table(program).match_arms(matched.arms) {
                 read_child!(arm.value);
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+                for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                     read_child!(pattern);
                 }
             }
@@ -476,7 +476,7 @@ fn validate_qualified_place_read(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !matches!(
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         ExpressionNode::Name(_)
             | ExpressionNode::Member(_)
             | ExpressionNode::Indexed(_)

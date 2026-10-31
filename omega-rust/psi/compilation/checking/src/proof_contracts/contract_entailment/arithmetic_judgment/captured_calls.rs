@@ -9,6 +9,7 @@ use super::super::scoped_arithmetic::{
     ScopedArithmeticValue, calls::ScopedCalls, install_hypotheses,
 };
 use super::{Engine, Polynomial};
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 impl Engine<'_> {
@@ -57,7 +58,7 @@ impl Engine<'_> {
             if depth >= 64 {
                 return false;
             }
-            let node = self.program.expression_table.expression(operand);
+            let node = expression_table(self.program).expression(operand);
             if !visited {
                 pending.push((operand, true, depth));
                 super::super::super::super::expression_traversal::children(
@@ -79,10 +80,7 @@ impl Engine<'_> {
             };
             let parameters =
                 super::super::specification_calls::owner_parameters(self.program, &owner);
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments);
+            let arguments = expression_table(self.program).expression_handles(call.arguments);
             if parameters.len() != arguments.len() {
                 return false;
             }
@@ -177,7 +175,7 @@ fn demanded_bindings(
             }
             continue;
         }
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if let ExpressionNode::Name(name) = node {
             let binder = ScopedArithmeticBinder::Symbol(name.symbol);
             if let Some(binding) = bindings.iter().find(|binding| binding.binder == binder)

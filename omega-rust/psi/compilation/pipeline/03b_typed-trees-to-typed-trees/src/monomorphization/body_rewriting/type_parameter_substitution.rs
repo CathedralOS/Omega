@@ -14,6 +14,7 @@ use crate::monomorphization::{
     Candidate, Diagnostic, ExpressionHandle, ExpressionNode, ProofFact, StatementNode,
     SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
+use crate::tables::{expressions_of, expressions_of_mut};
 
 pub(crate) fn substitute_cloned_type_parameters(
     source: Option<&dyn ::validation::CheckingInput>,
@@ -57,9 +58,7 @@ pub(crate) fn substitute_cloned_type_parameters(
         let owner = if definition.is_some() {
             candidate.template.template_symbol
         } else {
-            source
-                .unwrap_or(program)
-                .expression_table
+            expressions_of(source.unwrap_or(program))
                 .static_machine_application(candidate.binding_application)
                 .lexical_owner
         };
@@ -160,10 +159,7 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
         return Ok(());
     }
     let mut roots = Vec::new();
-    for &predicate in program
-        .expression_table
-        .expression_handles(cloned.declared_type_predicates)
-    {
+    for &predicate in expressions_of(program).expression_handles(cloned.declared_type_predicates) {
         collect_expression_type_roots(program, predicate, &mut roots);
     }
     for equation in program
@@ -313,8 +309,8 @@ fn rebind_type_value_subjects(
                         minimum, maximum, ..
                     } = constraint
                     {
-                        program.expression_table.remap_symbols_in(minimum, realized);
-                        program.expression_table.remap_symbols_in(maximum, realized);
+                        expressions_of_mut(program).remap_symbols_in(minimum, realized);
+                        expressions_of_mut(program).remap_symbols_in(maximum, realized);
                     }
                 }
             }
@@ -366,8 +362,7 @@ pub(crate) fn cloned_expression_roots(
     program: &dyn ::validation::CheckingInput,
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
-    let mut roots = program
-        .expression_table
+    let mut roots = expressions_of(program)
         .expression_handles(cloned.declared_type_predicates)
         .to_vec();
     for equation in program
@@ -426,10 +421,7 @@ pub(crate) fn collect_contract_type_roots(
                 collect_expression_type_roots(program, membership.value, roots);
             }
             ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                {
+                for argument in expressions_of(program).expression_handles(application.arguments) {
                     collect_expression_type_roots(program, *argument, roots);
                 }
             }
@@ -445,7 +437,7 @@ pub(crate) fn collect_expression_type_roots(
     let mut tree = Vec::new();
     collect_expression_tree(program, expression, &mut tree);
     for handle in tree {
-        match program.expression_table.expression(handle) {
+        match expressions_of(program).expression(handle) {
             ExpressionNode::Cast(cast) => {
                 roots.push(cast.target_type);
                 roots.push(cast.result_type);
@@ -477,7 +469,7 @@ pub(crate) fn name_mentions_symbol(
     collect_expression_tree(program, expression, &mut tree);
     tree.into_iter().any(|handle| {
         matches!(
-            program.expression_table.expression(handle),
+            expressions_of(program).expression(handle),
             ExpressionNode::Name(path) if path.symbol == symbol
         )
     })

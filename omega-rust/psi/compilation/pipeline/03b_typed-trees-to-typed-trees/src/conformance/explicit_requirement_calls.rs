@@ -10,6 +10,7 @@
 //! that binder's own requirement call, `Order::compare(left, right)`, which
 //! specialization binds.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -108,7 +109,7 @@ pub(crate) fn route_explicit_requirement_calls(
         if (qualified || !has_selection_operand) && arguments.len() > *invocation_arity {
             let source_span = match occurrence.site {
                 RequirementCallSite::Expression(handle) => {
-                    program.expression_table.source_span(handle)
+                    expressions_of(program).source_span(handle)
                 }
                 RequirementCallSite::Statement(handle) => program
                     .statement_table
@@ -144,7 +145,7 @@ pub(crate) fn route_explicit_requirement_calls(
             selection,
         ));
     };
-    for (handle, node) in program.expression_table.iter_expressions() {
+    for (handle, node) in expressions_of(program).iter_expressions() {
         if let ExpressionNode::Call(call) = node {
             collect(
                 RequirementCallOccurrence {
@@ -152,8 +153,7 @@ pub(crate) fn route_explicit_requirement_calls(
                     application: call.authored_machine_application,
                 },
                 call.target_symbol,
-                program
-                    .expression_table
+                expressions_of(program)
                     .name_path_node(call.receiver)
                     .map_or_else(SymbolHandle::invalid, |path| path.symbol),
                 &call.machine_arguments,
@@ -182,7 +182,7 @@ pub(crate) fn route_explicit_requirement_calls(
     }
     for (mut occurrence, requirement, declaring_trait, mut arguments, selection) in calls {
         let source_span = match occurrence.site {
-            RequirementCallSite::Expression(handle) => program.expression_table.source_span(handle),
+            RequirementCallSite::Expression(handle) => expressions_of(program).source_span(handle),
             RequirementCallSite::Statement(handle) => program
                 .statement_table
                 .statement(handle)
@@ -248,13 +248,13 @@ pub(crate) fn route_explicit_requirement_calls(
                     ExpressionHandle::invalid,
                     |(name, binder)| {
                         crate::monomorphization::insert_subject_name(
-                            &mut program.expression_table,
+                            expressions_of_mut(program),
                             name,
                             binder,
                         )
                     },
                 );
-                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
                 else {
                     continue;
                 };
@@ -309,8 +309,7 @@ fn qualified_selection_arguments(
     if !occurrence.application.is_valid() {
         return Err("named implementation call lost its authored application".to_owned());
     }
-    let owner = program
-        .expression_table
+    let owner = expressions_of(program)
         .static_machine_application(occurrence.application)
         .lexical_owner;
     // Applied qualifiers retain their telescope separately from the method's
@@ -319,8 +318,7 @@ fn qualified_selection_arguments(
     // Applied Unit/discarded calls remain expression carriers from parsing;
     // a path-only statement has no applied qualifier to recover.
     let qualifier = match occurrence.site {
-        RequirementCallSite::Expression(handle) => program
-            .expression_table
+        RequirementCallSite::Expression(handle) => expressions_of(program)
             .call_node(handle)
             .map(|call| call.requirement_application)
             .unwrap_or_default(),
@@ -390,13 +388,12 @@ fn qualified_selection_arguments(
     arguments.push(selected);
     let requirement_name =
         typed_trees::name::Identifier::generated(program.symbols.name(requirement));
-    let application = program.expression_table.retain_static_machine_application(
+    let application = expressions_of_mut(program).retain_static_machine_application(
         requirement,
         requirement_name,
         &arguments,
     );
-    program
-        .expression_table
+    expressions_of_mut(program)
         .static_machine_application_mut(application)
         .lexical_owner = owner;
     Ok((application, arguments))
@@ -453,8 +450,7 @@ fn explicit_requirement_rewrite(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let lexical_owner = if call.application.is_valid() {
-        program
-            .expression_table
+        expressions_of(program)
             .static_machine_application(call.application)
             .lexical_owner
     } else {
@@ -562,8 +558,7 @@ impl ExplicitApplication<'_> {
             .ok_or_else(|| {
                 "direct conformance selection lost its authored application".to_owned()
             })?;
-        let ordinal = program
-            .expression_table
+        let ordinal = expressions_of(program)
             .static_machine_application_arguments(source_application)
             .len()
             .checked_sub(1)
@@ -571,8 +566,7 @@ impl ExplicitApplication<'_> {
             .ok_or_else(|| "direct conformance selection lost its explicit operand".to_owned())?;
         let target = row.realization_state;
         let row = row.clone();
-        program
-            .expression_table
+        expressions_of_mut(program)
             .static_machine_application_mut(source_application)
             .conformance_selection = Some(Box::new(
             typed_trees::static_applications::StaticConformanceSelection {
@@ -759,7 +753,7 @@ pub(crate) fn refresh_occurrence_selections(
         .iter()
         .copied()
         .filter_map(|handle| {
-            let source = program.expression_table.static_machine_application(handle);
+            let source = expressions_of(program).static_machine_application(handle);
             source.conformance_selection.as_ref().map(|selection| {
                 (
                     handle,
@@ -771,8 +765,7 @@ pub(crate) fn refresh_occurrence_selections(
         .collect::<Vec<_>>();
     let mut changed = Vec::new();
     for (handle, ordinal, previous) in pending {
-        let operand = program
-            .expression_table
+        let operand = expressions_of(program)
             .static_machine_application_arguments(handle)
             .get(ordinal as usize)
             .cloned()
@@ -790,8 +783,7 @@ pub(crate) fn refresh_occurrence_selections(
         }
         if old.as_ref() == Some(&application) {
             let previous = previous.as_ref().unwrap();
-            let source_owner = program
-                .expression_table
+            let source_owner = expressions_of(program)
                 .static_machine_application(handle)
                 .lexical_owner;
             if previous.trait_scope.scope(program).is_some()
@@ -802,8 +794,7 @@ pub(crate) fn refresh_occurrence_selections(
                 )]);
             }
             if previous.callable_application.is_valid()
-                && program
-                    .expression_table
+                && expressions_of(program)
                     .static_machine_application(previous.callable_application)
                     .lexical_owner
                     != source_owner
@@ -817,8 +808,7 @@ pub(crate) fn refresh_occurrence_selections(
         } else {
             changed.push(handle);
         }
-        program
-            .expression_table
+        expressions_of_mut(program)
             .static_machine_application_mut(handle)
             .conformance_selection
             .as_mut()
@@ -827,7 +817,7 @@ pub(crate) fn refresh_occurrence_selections(
     }
     let mut expressions = Vec::new();
     let mut statements = Vec::new();
-    for (handle, node) in program.expression_table.iter_expressions() {
+    for (handle, node) in expressions_of(program).iter_expressions() {
         if let ExpressionNode::Call(call) = node
             && let Some(dispatch) = call.static_requirement_dispatch.as_ref()
             && live.contains(&dispatch.selection_application)
@@ -856,8 +846,7 @@ pub(crate) fn refresh_occurrence_selections(
         ),
         Vec<Diagnostic>,
     > {
-        let app = program
-            .expression_table
+        let app = expressions_of(program)
             .static_machine_application(handle)
             .conformance_selection
             .as_ref()
@@ -871,7 +860,7 @@ pub(crate) fn refresh_occurrence_selections(
     };
     for (expression, handle) in expressions {
         let (fingerprint, commitment) = update(program, handle)?;
-        let call = match program.expression_table.expression_mut(expression) {
+        let call = match expressions_of_mut(program).expression_mut(expression) {
             ExpressionNode::Call(call) => call,
             _ => unreachable!(),
         };

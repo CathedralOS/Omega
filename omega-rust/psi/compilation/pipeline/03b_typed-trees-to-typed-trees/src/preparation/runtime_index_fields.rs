@@ -3,6 +3,7 @@
 //! argument once at that point. This derives ordinary field expressions only:
 //! immutable checking still proves their equality to the captured index.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -28,7 +29,7 @@ impl CallerEffects {
         validation::expression_traversal::inert_value_tree_with_operations(
             program,
             expression,
-            |operation| match program.expression_table.expression(operation) {
+            |operation| match expressions_of(program).expression(operation) {
                 ExpressionNode::Call(_) => self
                     .no_write_calls
                     .binary_search_by_key(
@@ -55,18 +56,16 @@ fn contains_reachable_construction(program: &TypedTrees, expression: ExpressionH
     if !expression.is_valid() {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expressions_of(program).expression(expression) {
         ExpressionNode::StructLiteral(_) | ExpressionNode::String(_) => true,
         ExpressionNode::Borrow(borrow) => contains_reachable_construction(program, borrow.target),
         ExpressionNode::Atomic(atomic) => contains_reachable_construction(program, atomic.value),
         ExpressionNode::Cast(cast) => contains_reachable_construction(program, cast.value),
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
+        ExpressionNode::Match(dispatch) => expressions_of(program)
             .match_arms(dispatch.arms)
             .iter()
             .any(|arm| contains_reachable_construction(program, arm.value)),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(elements) => expressions_of(program)
             .expression_handles(*elements)
             .iter()
             .any(|element| contains_reachable_construction(program, *element)),
@@ -194,11 +193,11 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                     &mut expressions,
                 );
                 for expression in expressions {
-                    if let Some(call) = program.expression_table.call_node(expression) {
+                    if let Some(call) = expressions_of(program).call_node(expression) {
                         if has_value_parameter_data {
                             statement_calls.push(expression);
                         }
-                        let arguments = program.expression_table.expression_handles(call.arguments);
+                        let arguments = expressions_of(program).expression_handles(call.arguments);
                         if arguments
                             .iter()
                             .any(|arg| contains_reachable_construction(program, *arg))
@@ -227,7 +226,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                 sidecars.as_ref().expect("built sidecars"),
             );
             for expression in references.expressions {
-                if program.expression_table.call_node(expression).is_some()
+                if expressions_of(program).call_node(expression).is_some()
                     && frames.as_ref().is_some_and(|frames| {
                         frames.declaration_expression_has_empty_write_frame(
                             expression,
@@ -273,7 +272,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                 .zip(&arguments)
                 .map(|(parameter, argument)| {
                     let stable_literal = matches!(
-                        program.expression_table.expression(*argument),
+                        expressions_of(program).expression(*argument),
                         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
                     );
                     // A Name is an observation, not a snapshot of an earlier call
@@ -387,7 +386,7 @@ fn fill(
             )
         };
     }
-    match program.expression_table.expression(expression).clone() {
+    match expressions_of(program).expression(expression).clone() {
         ExpressionNode::String(_) => {
             if let Err(error) =
                 validation::land_owned_fixed_byte_literal(program, expression, reference)
@@ -405,10 +404,10 @@ fn fill(
         }
         ExpressionNode::Atomic(atomic) => fill_child!(atomic.value, reference, true),
         ExpressionNode::Match(dispatch) => {
-            let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+            let arms = expressions_of(program).match_arms(dispatch.arms).to_vec();
             let mut prior = earlier_effects || !effects.inert(program, dispatch.subject);
             for arm in arms {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+                for pattern in expressions_of(program).match_pattern_operands(arm.pattern) {
                     prior |= !effects.inert(program, pattern);
                 }
                 fill_child!(arm.value, reference, prior);
@@ -422,8 +421,7 @@ fn fill(
                 program.type_reference_table.type_reference(reference)
             {
                 let element_type = *element_type;
-                let elements = program
-                    .expression_table
+                let elements = expressions_of(program)
                     .expression_handles(elements)
                     .to_vec();
                 let mut prior = earlier_effects;
@@ -440,9 +438,8 @@ fn fill(
                 .data_constructor_definition(reference, literal.type_symbol)
                 .is_some()
             {
-                let prior = program
-                    .expression_table
-                    .construction_required_type_reference(expression);
+                let prior =
+                    expressions_of(program).construction_required_type_reference(expression);
                 if prior.is_valid() {
                     if program.normalized_type_identity(prior)
                         != program.normalized_type_identity(reference)
@@ -453,13 +450,11 @@ fn fill(
                     // Equivalent repeated preparation must not replace the
                     // issuing occurrence's exact retained application row.
                 } else {
-                    program
-                        .expression_table
+                    expressions_of_mut(program)
                         .set_construction_required_type_reference(expression, reference);
                 }
             }
-            let mut fields = program
-                .expression_table
+            let mut fields = expressions_of(program)
                 .struct_fields(literal.fields)
                 .to_vec();
             let descriptors: Vec<_> = program
@@ -486,7 +481,7 @@ fn fill(
                     // otherwise require an inert prefix through this field.
                     let value = fields[ordinal].value;
                     let stable_literal = matches!(
-                        program.expression_table.expression(value),
+                        expressions_of(program).expression(value),
                         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
                     );
                     let stable_position = stable_literal
@@ -525,8 +520,8 @@ fn fill(
                     Some((field.value, selected.type_reference, field_prior))
                 })
                 .collect();
-            literal.fields = program.expression_table.insert_struct_fields(fields);
-            *program.expression_table.expression_mut(expression) =
+            literal.fields = expressions_of_mut(program).insert_struct_fields(fields);
+            *expressions_of_mut(program).expression_mut(expression) =
                 ExpressionNode::StructLiteral(literal);
             for (value, reference, prior) in children {
                 fill_child!(value, reference, prior);
@@ -558,7 +553,7 @@ fn index_expression(
     };
     if program.const_declaration_by_symbol(symbol).is_some() {
         let value = crate::monomorphization::materialize_static_value(program, argument, carrier)?;
-        return Some(program.expression_table.insert(value));
+        return Some(expressions_of_mut(program).insert(value));
     }
     if symbol.is_valid() {
         if let Some((_, value)) = substitutions
@@ -578,13 +573,13 @@ fn index_expression(
             return None;
         }
         return Some(crate::monomorphization::insert_subject_name(
-            &mut program.expression_table,
+            expressions_of_mut(program),
             name,
             symbol,
         ));
     }
     let value = crate::monomorphization::materialize_static_value(program, argument, carrier)?;
-    Some(program.expression_table.insert(value))
+    Some(expressions_of_mut(program).insert(value))
 }
 
 /// Materialize the application recipe under its exact supplying telescope.
@@ -598,7 +593,7 @@ fn capture_recipe(
     earlier_effects: bool,
 ) -> Option<ExpressionHandle> {
     let stable_literal = matches!(
-        program.expression_table.expression(expression),
+        expressions_of(program).expression(expression),
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
     );
     if !stable_literal && (earlier_effects || !effects.inert(program, expression)) {
@@ -607,7 +602,7 @@ fn capture_recipe(
     let mut tree = Vec::new();
     validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
     for member in &tree {
-        if let ExpressionNode::Name(path) = program.expression_table.expression(*member)
+        if let ExpressionNode::Name(path) = expressions_of(program).expression(*member)
             && let Some((_, actual)) = substitutions
                 .iter()
                 .find(|(symbol, _)| *symbol == path.symbol)
@@ -619,11 +614,11 @@ fn capture_recipe(
     // A type application owns a recipe, not an executable occurrence. Keep
     // its selected meaning and graph independent from the descriptor read;
     // later execution/checking must not rewrite the signature's proof schema.
-    let copied = program.expression_table.insert_copy(expression);
+    let copied = expressions_of_mut(program).insert_copy(expression);
     tree.clear();
     validation::expression_traversal::collect_expression_tree(program, copied, &mut tree);
     for member in tree {
-        let replacement = match program.expression_table.expression(member) {
+        let replacement = match expressions_of(program).expression(member) {
             ExpressionNode::Name(path) => substitutions
                 .iter()
                 .find(|(symbol, _)| *symbol == path.symbol)
@@ -631,9 +626,9 @@ fn capture_recipe(
             _ => None,
         };
         if let Some(actual) = replacement {
-            let actual = program.expression_table.insert_copy(actual);
-            let value = program.expression_table.expression(actual).clone();
-            *program.expression_table.expression_mut(member) = value;
+            let actual = expressions_of_mut(program).insert_copy(actual);
+            let value = expressions_of(program).expression(actual).clone();
+            *expressions_of_mut(program).expression_mut(member) = value;
         }
     }
     Some(copied)

@@ -12,6 +12,7 @@
 //! requirement evidence one visited call contributes.
 
 use super::uses::named_float_policy_adapter;
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedNamedRequirementUseFact, CheckedValueOrigin,
 };
@@ -61,7 +62,7 @@ pub(super) fn named_requirement_use_fact(
             // Only this exact trait declaration is static here; an arbitrary value
             // or another namespace cannot be erased by selected execution.
             let static_receiver = !call.receiver.is_valid()
-                || matches!(program.expression_table.expression(call.receiver),
+                || matches!(expression_table(program).expression(call.receiver),
                 ExpressionNode::Name(path) if path.symbol == owner.symbol);
             if !owner.is_boundary
                 || !static_receiver
@@ -107,8 +108,7 @@ pub fn token_bound_machine_call_target(
         return None;
     }
     let target = if call.authored_machine_application.is_valid() {
-        program
-            .expression_table
+        expression_table(program)
             .static_machine_application(call.authored_machine_application)
             .registration_operation
     } else {
