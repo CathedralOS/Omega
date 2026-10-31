@@ -152,9 +152,7 @@ impl PlacedAccessPrimitive {
             .symbols
             .symbol_source_span(conformance.symbol)
             .and_then(|span| program.symbols.source_file(span));
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments);
+        let arguments = program.type_reference_handles(conformance.arguments);
         if program
             .trait_definition_by_symbol(conformance.symbol)
             .is_none()

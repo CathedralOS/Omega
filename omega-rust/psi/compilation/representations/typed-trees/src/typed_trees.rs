@@ -130,6 +130,7 @@ pub mod names;
 mod placed_plans;
 mod selection_exclusions;
 pub use selection_exclusions::AuthoredSelectionExclusions;
+mod table_reads;
 mod trait_and_machine_tables;
 mod type_reference_queries;
 pub use type_reference_queries::ApplicationValueIndices;

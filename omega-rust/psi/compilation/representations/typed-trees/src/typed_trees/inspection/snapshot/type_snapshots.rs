@@ -244,7 +244,6 @@ pub(crate) fn type_reference_snapshot(
             base_name: base_name.to_string(),
             lifetime_arguments: to_strings(lifetime_arguments.iter()),
             arguments: program
-                .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| type_reference_snapshot(program, *argument))
@@ -287,7 +286,6 @@ pub(crate) fn type_reference_snapshot(
         } => TypeReferenceSnapshot::DynamicTrait {
             name: name.to_string(),
             arguments: program
-                .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| type_reference_snapshot(program, *argument))

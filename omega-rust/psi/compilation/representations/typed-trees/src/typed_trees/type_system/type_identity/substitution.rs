@@ -21,10 +21,7 @@ pub(super) fn index_argument(
 ) -> String {
     match argument {
         IndexIdentityArgument::TypeArgument(reference) => {
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
-            {
+            if !program.contains_type_reference(reference) {
                 return rejected(context);
             }
             normalize_type_reference(program, reference, context)
@@ -36,10 +33,7 @@ pub(super) fn index_argument(
             normalize_index_expression(program, expression, context)
         }
         IndexIdentityArgument::TypeReference(reference) => {
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
-            {
+            if !program.contains_type_reference(reference) {
                 return rejected(context);
             }
             index_reference(program, reference, context)
@@ -80,10 +74,7 @@ pub(super) fn index_argument(
                 return rejected(context);
             }
             if argument.type_reference.is_valid() {
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(argument.type_reference)
-                {
+                if !program.contains_type_reference(argument.type_reference) {
                     return rejected(context);
                 }
                 // A callable can travel through the same retained type payload
@@ -570,11 +561,7 @@ impl TypedTrees {
             let Some((_, reference)) = replacement else {
                 return usize::try_from(integer(self, symbol, spelling)?).ok();
             };
-            if active.contains(&symbol)
-                || !self
-                    .type_reference_table
-                    .contains_type_reference(*reference)
-            {
+            if active.contains(&symbol) || !self.contains_type_reference(*reference) {
                 return None;
             }
             active.push(symbol);

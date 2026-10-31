@@ -1532,10 +1532,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             .chain(definition.refines.iter())
         {
             visit_symbol(retained, requirement.symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-            {
+            for argument in program.type_reference_handles(requirement.arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1573,10 +1570,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_symbol(retained, row.realization_machine);
             visit_symbol(retained, row.realization_state);
         }
-        for argument in program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-        {
+        for argument in program.type_reference_handles(conformance.arguments) {
             visit_type_reference(program, retained, *argument);
         }
     }
@@ -1792,10 +1786,7 @@ pub fn visit_proof_fact(
             }
             visit_expression(program, retained, membership.value);
             visit_symbol(retained, membership.domain_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(membership.domain_arguments)
-            {
+            for argument in program.type_reference_handles(membership.domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1965,10 +1956,7 @@ pub fn visit_type_reference(
             ..
         } => {
             visit_symbol(retained, *base_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1981,10 +1969,7 @@ pub fn visit_type_reference(
             symbol, arguments, ..
         } => {
             visit_symbol(retained, *symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -2060,10 +2045,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             visit_type_reference(program, retained, cast.result_type);
             visit_symbol(retained, cast.semantic_domain_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(cast.semantic_domain_arguments)
-            {
+            for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -2255,10 +2237,7 @@ fn visit_conformance(
     visit_symbol(retained, conformance.symbol);
     visit_symbol(retained, conformance.requirement_symbol);
     visit_expression(program, retained, conformance.via_expression);
-    for argument in program
-        .type_reference_table
-        .type_reference_handles(conformance.arguments)
-    {
+    for argument in program.type_reference_handles(conformance.arguments) {
         visit_type_reference(program, retained, *argument);
     }
 }

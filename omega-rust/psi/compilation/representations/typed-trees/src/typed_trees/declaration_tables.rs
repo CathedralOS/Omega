@@ -841,10 +841,7 @@ impl TypedTrees {
         &self,
         application: crate::types::TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
-        if !self
-            .type_reference_table
-            .contains_type_reference(application)
-        {
+        if !self.contains_type_reference(application) {
             return None;
         }
         let row = Handle::from_parts(application.arena_index(), application.generation());

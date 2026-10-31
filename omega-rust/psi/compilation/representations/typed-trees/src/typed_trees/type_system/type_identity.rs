@@ -297,10 +297,7 @@ pub fn applied_type_lifetime_identity_in_scope(
     argument_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
-    if !program
-        .type_reference_table
-        .contains_type_reference(reference)
-    {
+    if !program.contains_type_reference(reference) {
         return None;
     }
     let crate::types::TypeReferenceNode::Generic {
@@ -787,9 +784,7 @@ impl TypedTrees {
                     && original.identity == selected.identity
                     && original.relevance == selected.relevance
                     && selected.symbol.is_valid()
-                    && self
-                        .type_reference_table
-                        .contains_type_reference(selected.type_reference)
+                    && self.contains_type_reference(selected.type_reference)
             };
         for (ordinal, member) in self.data_members(source).iter().enumerate() {
             match member {
@@ -855,9 +850,7 @@ impl TypedTrees {
             return None;
         }
         if !field.symbol.is_valid()
-            || !self
-                .type_reference_table
-                .contains_type_reference(field.type_reference)
+            || !self.contains_type_reference(field.type_reference)
             || self.symbols.get(field.symbol).parent != instance.symbol
         {
             return None;
@@ -1074,9 +1067,7 @@ impl TypedTrees {
         substitution_semantics: SubstitutionSemantics,
     ) -> Option<NormalizedTypeIdentity> {
         if let crate::types::FixedArrayLength::Expression(reference) = length
-            && (!self
-                .type_reference_table
-                .contains_type_reference(*reference)
+            && (!self.contains_type_reference(*reference)
                 || !matches!(
                     self.type_reference_table.type_reference(*reference),
                     crate::types::TypeReferenceNode::ConstExpression(_)
@@ -1201,10 +1192,7 @@ impl TypedTrees {
         request: TypeIdentityRequest<'_>,
         scope_starts: &[usize],
     ) -> Option<NormalizedTypeIdentity> {
-        if !self
-            .type_reference_table
-            .contains_type_reference(request.type_reference)
-        {
+        if !self.contains_type_reference(request.type_reference) {
             return None;
         }
         let encountered_regions = Cell::new(false);

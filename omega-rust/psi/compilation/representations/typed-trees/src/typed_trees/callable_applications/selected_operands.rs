@@ -39,7 +39,6 @@ impl TypedTrees {
                 arguments,
             } if self.symbols.get(*base_symbol).kind != symbols::SymbolKind::Data => {
                 let arguments = self
-                    .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
                     .map(|argument| self.static_operand_from_type_reference(*argument))

@@ -228,9 +228,7 @@ impl PreparedServiceCatalog {
                 declaration.symbol,
                 Handle::default(),
                 AppliedTraitScope::from_conformance(program, declaration),
-                program
-                    .type_reference_table
-                    .type_reference_handles(declaration.arguments),
+                program.type_reference_handles(declaration.arguments),
             );
         }
         for (capture, application) in program.captured_machine_applications.iter() {
@@ -248,9 +246,7 @@ impl PreparedServiceCatalog {
                     .conformance_application
                     .trait_scope
                     .scope(program),
-                program
-                    .type_reference_table
-                    .type_reference_handles(declaration.arguments),
+                program.type_reference_handles(declaration.arguments),
             );
         }
 

@@ -500,12 +500,10 @@ pub fn required_subject_memberships<'a>(
         .map(|membership| {
             (domain_subject_reference(program, domain, membership.value)
                 && program
-                    .type_reference_table
                     .type_reference_handles(membership.domain_arguments)
                     .len()
                     == membership.domain_arguments.len()
                 && program
-                    .type_reference_table
                     .type_reference_handles(membership.domain_arguments)
                     .iter()
                     .all(|argument| index_argument_is_closed(program, *argument))

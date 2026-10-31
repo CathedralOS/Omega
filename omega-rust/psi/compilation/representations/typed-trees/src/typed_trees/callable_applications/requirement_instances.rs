@@ -110,12 +110,8 @@ impl TypedTrees {
                 .callable_argument_identities
                 .span_or_empty(portable_local_arguments),
             trait_scope,
-            trait_arguments: self
-                .type_reference_table
-                .type_reference_handles(trait_arguments),
-            local_arguments: self
-                .type_reference_table
-                .type_reference_handles(local_arguments),
+            trait_arguments: self.type_reference_handles(trait_arguments),
+            local_arguments: self.type_reference_handles(local_arguments),
             invocation_contract_parameters: self
                 .data_type_parameters
                 .span_or_empty(invocation_contract_parameters),

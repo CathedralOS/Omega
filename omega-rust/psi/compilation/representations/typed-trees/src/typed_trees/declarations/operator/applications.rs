@@ -440,7 +440,6 @@ fn closed_boundary_application_type(
             lifetime_arguments.is_empty()
                 && closed_boundary_application_nominal(program, *base_symbol, base_name.as_str())
                 && program
-                    .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
                     .all(|argument| closed_boundary_application_type(program, *argument))

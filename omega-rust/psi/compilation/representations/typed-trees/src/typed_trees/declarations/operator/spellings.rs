@@ -430,11 +430,7 @@ fn closed_multiplicity_carrier(
     reference: TypeReferenceHandle,
     depth: usize,
 ) -> bool {
-    if depth >= 64
-        || !program
-            .type_reference_table
-            .contains_type_reference(reference)
-    {
+    if depth >= 64 || !program.contains_type_reference(reference) {
         return false;
     }
     let closed = |reference| closed_multiplicity_carrier(program, reference, depth + 1);
@@ -491,9 +487,7 @@ fn closed_multiplicity_carrier(
                 && closed_multiplicity_arguments(
                     program,
                     program.data_type_parameters(definition),
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
+                    program.type_reference_handles(*arguments),
                     depth + 1,
                 )
         }
@@ -515,9 +509,7 @@ fn closed_multiplicity_carrier(
                 && closed_multiplicity_arguments(
                     program,
                     program.trait_type_parameters(declaration),
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
+                    program.type_reference_handles(*arguments),
                     depth + 1,
                 )
         }
@@ -535,11 +527,7 @@ fn closed_multiplicity_arguments(
             .iter()
             .zip(arguments)
             .all(|(parameter, argument)| {
-                if !parameter.symbol.is_valid()
-                    || !program
-                        .type_reference_table
-                        .contains_type_reference(*argument)
-                {
+                if !parameter.symbol.is_valid() || !program.contains_type_reference(*argument) {
                     return false;
                 }
                 match parameter.kind {

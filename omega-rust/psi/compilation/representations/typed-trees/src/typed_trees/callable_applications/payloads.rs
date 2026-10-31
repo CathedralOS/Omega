@@ -352,10 +352,7 @@ impl CallableApplication {
         program: &mut TypedTrees,
         original: HandleSpan<types::TypeReferenceHandle>,
     ) -> Result<HandleSpan<types::TypeReferenceHandle>, &'static str> {
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(original)
-            .to_vec();
+        let arguments = program.type_reference_handles(original).to_vec();
         if arguments.len() != original.len() {
             return Err("applied callable has a stale type-argument span");
         }

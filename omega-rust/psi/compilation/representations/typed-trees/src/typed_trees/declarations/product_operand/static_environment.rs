@@ -358,7 +358,6 @@ impl Capture<'_> {
     ) -> Result<HandleSpan<Handle<ProductOperandType>>, String> {
         let program = self.program;
         let values = program
-            .type_reference_table
             .type_reference_handles(arguments)
             .iter()
             .map(|reference| self.ty(*reference))
@@ -695,7 +694,6 @@ impl Capture<'_> {
             },
             expr::ExpressionNode::Cast(cast) => {
                 let arguments = program
-                    .type_reference_table
                     .type_reference_handles(cast.semantic_domain_arguments)
                     .iter()
                     .map(|reference| self.ty(*reference))
