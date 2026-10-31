@@ -973,3 +973,36 @@ ceiling still rejects even when a convenient initializer happens to satisfy it.
 Separate productions exercise whole-owner zero establishment, restored writes,
 and the distinction between a saved value and a fresh read after mutation.
 The full parent migration remains open.
+
+## Audited arithmetic owner fields
+
+Four arithmetic customers retain five original field intervals from
+`7a9a7b8287e6` on their existing data owners:
+
+| Customer | Complete original owner bounds |
+| --- | --- |
+| `smallest_prime_factor` | Signed `Trial.n` in 0..=1000 and `Trial.d` in 0..=200. |
+| `reverse_sum` | Signed `Main.i` in -1..=4, including the final stored sentinel. |
+| `sensor_min_max` | Signed `Main.i` in 0..=6, including the final count. |
+| `stats_compute` | Signed `Stats.count` in 0..=100, including wrap from 100 to zero. |
+
+These are data `requires` propositions, not interval-only nominal domains or
+bounds supplied only on selected arithmetic edges. They apply through nested
+owners, mutable calls and handback. Zero remains valid in every owner.
+Prime factor's invoked probe and remainder steps separately require a positive
+divisor; that call obligation does not strengthen the stored divisor's domain.
+The removed probe adapter repeated the owner bounds before the square test.
+The multiply, remainder and guarded increment retain their original operations.
+
+Statistics regains `(count + 1) % 101`. The live 0..=100 owner predicate proves
+that the removed inner `% 101` was an identity and that the exact intermediate
+fits i32; the outer remainder restores the full domain. This equivalence does
+not hold for an unconstrained signed count.
+
+Exactly 31 terminal calls acknowledge the existing blocking close-prompt paths.
+Pure accumulation calls remain ordinary calls. Authored exits are 13, 75, 33
+and 70 respectively; their unchanged success transcripts are 158, 153, 164 and
+165 bytes, with LF input followed by EOF. Native and Terminal agreement on those
+oracles, fresh project acceptance, and the original owner endpoints are the
+qualification obligations. Other hosted targets and the parent migration remain
+open.
