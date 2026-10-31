@@ -36,6 +36,7 @@ pub(crate) mod structural_result_wire;
 pub(crate) mod structural_signature_wire;
 pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
+mod wire_fields;
 
 #[cfg(test)]
 mod counted_collection_bound_tests;
