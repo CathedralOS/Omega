@@ -26,11 +26,10 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::ClaimTransfer;
-use terminal_psi::CrashRouteBucket;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralOperationResult;
+use terminal_psi::{
+    ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralMultiplicity,
+    StructuralOperationResult,
+};
 
 /// The node-shape spine every admitted call shape shares: the node's own
 /// operation is its first provenance row, it uses exactly the spelled

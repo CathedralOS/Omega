@@ -21,10 +21,9 @@ use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate, ValueDefinition,
     ValueDefinitionSite,
 };
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 
 use expression_keys::{ScalarExpressionKey, ScalarExpressionRow};
-use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{

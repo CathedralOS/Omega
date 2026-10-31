@@ -2,9 +2,10 @@
 
 use super::super::super::super::O;
 use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, ValueId};
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerValue, ScalarType};
+use optimization_unit::{OptimizationBlock, OptimizationNode, PsiOptimizationFunction};
+use semantic_vocabulary::{
+    BlockId, IntegerCarrier, IntegerSign, IntegerValue, ScalarType, ValueId,
+};
 
 use super::super::{
     OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
@@ -13,8 +14,6 @@ use super::super::{
 use super::{
     OptimizationUnitValidationError, OptimizerCycleComponentSnapshot, PsiOptimizationUnit,
 };
-use optimization_unit::OptimizationBlock;
-use optimization_unit::OptimizationNode;
 mod invariant_constants;
 
 pub(super) fn derive(

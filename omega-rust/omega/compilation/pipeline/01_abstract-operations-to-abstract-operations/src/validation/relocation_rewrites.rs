@@ -11,8 +11,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, PlaceId, ScalarTerm, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::CrashRouteGuard;
-use terminal_psi::TerminalAffineCleanupAction;
+use terminal_psi::{CrashRouteGuard, TerminalAffineCleanupAction};
 
 /// Whether `picked`'s declared custody is restricted — an affine or linear
 /// result, or a trivial affine local — as opposed to the copyable

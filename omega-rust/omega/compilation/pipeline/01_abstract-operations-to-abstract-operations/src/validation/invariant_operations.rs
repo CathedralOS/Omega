@@ -16,8 +16,7 @@ use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, PsiProvenance,
 };
-use semantic_vocabulary::OperationId;
-use semantic_vocabulary::{PlaceId, ValueId};
+use semantic_vocabulary::{OperationId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::RecordFieldValue;
 

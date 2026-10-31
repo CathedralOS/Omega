@@ -11,8 +11,7 @@ use abstract_operations::{
     AbstractCallTarget, AbstractOperation as O, AbstractStructuralCallResult,
 };
 use optimization_unit::{OptimizationFact, OptimizerCycleComponent};
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{BlockId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralMultiplicity;
 
