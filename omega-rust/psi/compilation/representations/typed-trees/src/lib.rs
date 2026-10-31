@@ -46,7 +46,7 @@ pub use typed_trees::{
     PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation, PlanLaidBitField,
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField,
-    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ProgramIdentity, TypedTreeRoots,
-    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ProgramIdentity, SpelledDeclarationTable,
+    TypedTreeRoots, TypedTreeTables, TypedTrees, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };

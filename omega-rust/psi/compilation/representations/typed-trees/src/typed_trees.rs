@@ -122,7 +122,9 @@ pub mod control_flow;
 mod data_definitions;
 pub mod declaration_index;
 mod declaration_tables;
+mod spelled_declarations;
 pub use data_definitions::DataDefinitionTable;
+pub use spelled_declarations::SpelledDeclarationTable;
 pub mod declarations;
 pub mod evidence;
 pub mod inspection;
@@ -426,7 +428,7 @@ pub struct TypedTreeTables {
     pub static_type_contexts: crate::typed_trees::type_system::type_predicates::StaticTypeContexts,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
-    pub domain_definitions: Arena<domain::DomainDefinition>,
+    pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
     pub propositions: Arena<proposition::PropositionDefinition>,
@@ -442,7 +444,7 @@ pub struct TypedTreeTables {
     pub machines: Arena<machine::Machine>,
     pub measures: Arena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
-    pub operators: Arena<crate::operator::OperatorDefinition>,
+    pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,

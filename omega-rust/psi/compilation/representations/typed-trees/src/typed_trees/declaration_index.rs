@@ -10,6 +10,10 @@
 //! key the complete visible root span. This also covers public table replacement
 //! and root-generation changes without relying on an additive revision key.
 //!
+//! Raw token rows and domain lookups retain strong operator/domain storage
+//! identities and full root spans. A mutable arena escape changes the identity;
+//! a whole replacement carries the identity of its matching contents.
+//!
 //! The remaining declaration indexes retain their existing arena-revision and
 //! roster-key strategies below; the data-definition ownership boundary does not
 //! establish arbitrary replacement freshness for those separate owners.
@@ -18,6 +22,9 @@ use crate::{data, machine};
 use arena::{Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
+mod operator_spellings;
+pub(crate) use operator_spellings::OperatorSpellingRow;
+use operator_spellings::{DomainDeclarationScope, OperatorSpellingIndex, OperatorSpellingScope};
 mod relationships;
 mod requirement_applications;
 use relationships::{DataMemberIndex, StateDeclarationIndex, StateDeclarationRevision};
@@ -214,11 +221,12 @@ pub struct DeclarationIndexes {
     state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
     data_members: OwnedIndex<DataMemberIndex>,
     type_parameters: OwnedIndex<TypeParameterIndex>,
-    domains: OwnedIndex<DomainPositionIndex>,
+    domains: OwnedIndex<DomainPositionIndex, DomainDeclarationScope>,
     attached_drops: OwnedIndex<AttachedDropIndex>,
     call_targets: OwnedIndex<CallTargetIndex>,
     requirement_applications: OwnedIndex<RequirementApplicationIndex>,
-    domain_candidates: OwnedIndex<DomainCandidateIndex>,
+    domain_candidates: OwnedIndex<DomainCandidateIndex, DomainDeclarationScope>,
+    operator_spellings: OwnedIndex<OperatorSpellingIndex, OperatorSpellingScope>,
     isolation: OwnedIndex<IsolationVerdicts>,
 }
 
@@ -258,6 +266,7 @@ impl super::TypedTrees {
         self.attached_drop_machine_exists(any_symbol);
         self.with_call_target_index(|_| ());
         self.with_requirement_application_index(|_| ());
+        self.with_operator_spelling_index(|_| ());
         let indexes = &mut self.declaration_indexes;
         indexes.machines.seal();
         indexes.states.seal();
@@ -269,6 +278,7 @@ impl super::TypedTrees {
         indexes.attached_drops.seal();
         indexes.call_targets.seal();
         indexes.requirement_applications.seal();
+        indexes.operator_spellings.seal();
     }
 
     /// Mutable table access can replace an arena with an unrelated arena at
@@ -291,6 +301,7 @@ impl super::TypedTrees {
         indexes.attached_drops.unseal();
         indexes.call_targets.unseal();
         indexes.requirement_applications.unseal();
+        indexes.operator_spellings.unseal();
     }
 
     /// One freshness counter over the whole program: every table arena's
@@ -629,10 +640,7 @@ impl super::TypedTrees {
             return None;
         }
         self.declaration_indexes.domains.with(
-            self.tables
-                .domain_definitions
-                .revision()
-                .wrapping_add(roster_marker(self.roots.domain_definitions)),
+            self.domain_declaration_scope(),
             || {
                 let definitions = self.domain_definitions();
                 let mut by_symbol = HashMap::with_capacity_and_hasher(
@@ -751,7 +759,7 @@ impl super::TypedTrees {
 
     /// The domain-candidate spelling index the lowering stage fills and
     /// consumes. `build` receives the index to fill; it is called whenever
-    /// the domain table's revision moved since the stored index was built.
+    /// the domain storage identity or full visible root span changed.
     /// The index's `qualified` length doubles as its fill watermark for
     /// callers that extend it themselves.
     pub fn with_domain_candidate_index<R>(
@@ -760,10 +768,7 @@ impl super::TypedTrees {
         run: impl FnOnce(&DomainCandidateIndex) -> R,
     ) -> R {
         self.declaration_indexes.domain_candidates.with_mut(
-            self.tables
-                .domain_definitions
-                .revision()
-                .wrapping_add(roster_marker(self.roots.domain_definitions)),
+            self.domain_declaration_scope(),
             || {
                 let mut index = DomainCandidateIndex::default();
                 build(&mut index);

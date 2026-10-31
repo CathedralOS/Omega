@@ -46,35 +46,31 @@ fn spelled_candidates<'program>(
     receiver_type: Option<TypeReferenceHandle>,
     use_site: source::SourceSpan,
 ) -> impl Iterator<Item = SpelledOperator<'program>> + 'program {
-    // A token-bearing machine attached to a domain is that domain's family
-    // meaning: it participates only where an operand binding selects the
-    // domain, exactly like a domain-homed `operator` declaration.
-    let root_candidates = program
-        .operators()
-        .iter()
-        .chain(program.machine_token_bindings())
-        .filter(move |operator| operator.spelling == Some(spelling))
-        .map(move |operator| SpelledOperator {
-            operator,
-            domain: operator
-                .home_domain
-                .is_valid()
-                .then(|| crate::domain::domain_by_symbol(program, operator.home_domain))
-                .flatten(),
-        });
-    let domain_candidates = program.domain_definitions().iter().flat_map(move |domain| {
-        program
-            .domain_operators(domain)
-            .iter()
-            .filter(move |operator| operator.spelling == Some(spelling))
-            .map(move |operator| SpelledOperator {
-                operator,
-                domain: Some(domain),
+    use crate::declaration_index::OperatorSpellingRow;
+    // The roster retains root, machine-binding and domain order, including
+    // duplicate occurrences. Release the index before any use-site query.
+    program
+        .operator_spelling_rows(spelling)
+        .into_iter()
+        .flat_map(move |rows| {
+            (0..rows.len()).map(move |position| match rows[position] {
+                OperatorSpellingRow::Root(handle) => {
+                    let operator = program.operators.get(handle);
+                    SpelledOperator {
+                        operator,
+                        domain: operator
+                            .home_domain
+                            .is_valid()
+                            .then(|| crate::domain::domain_by_symbol(program, operator.home_domain))
+                            .flatten(),
+                    }
+                }
+                OperatorSpellingRow::Domain { operator, domain } => SpelledOperator {
+                    operator: program.operators.get(operator),
+                    domain: Some(program.domain_definitions.get(domain)),
+                },
             })
-    });
-
-    root_candidates
-        .chain(domain_candidates)
+        })
         // A spelling is a candidate only where its declaration may be
         // selected from the use site: a loaded source exposes nothing
         // merely by being loaded (modules spec, "Import scope and exposure").
@@ -732,3 +728,6 @@ fn operator_matches_receiver(
         &mut Vec::new(),
     )
 }
+
+#[cfg(test)]
+mod token_roster_tests;
