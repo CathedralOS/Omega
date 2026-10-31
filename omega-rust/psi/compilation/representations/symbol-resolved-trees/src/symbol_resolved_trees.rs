@@ -40,7 +40,7 @@ use crate::domain::{DomainDefinition, ProofFact};
 use crate::machine::{Machine, OwnedData};
 use crate::mathematical::{MathematicalType, MathematicalTypeHandle};
 use crate::name::DiagnosticName;
-use crate::signature::StateParameter;
+use crate::signature::{SignatureContract, StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::Statement;
 use crate::trait_definition::{TraitDefinition, TraitRequirement};
@@ -716,10 +716,7 @@ impl SymbolResolvedTrees {
         self.operator_path_members(span)
     }
 
-    pub fn trait_machine_signatures(
-        &self,
-        span: HandleSpan<signature::StateSignature>,
-    ) -> &[signature::StateSignature] {
+    pub fn trait_machine_signatures(&self, span: HandleSpan<StateSignature>) -> &[StateSignature] {
         self.declarations()
             .trait_machine_signatures
             .span_or_empty(span)
@@ -773,10 +770,7 @@ impl SymbolResolvedTrees {
         self.declarations().signature_invokes.span_or_empty(span)
     }
 
-    pub fn signature_contracts(
-        &self,
-        span: HandleSpan<signature::SignatureContract>,
-    ) -> &[signature::SignatureContract] {
+    pub fn signature_contracts(&self, span: HandleSpan<SignatureContract>) -> &[SignatureContract] {
         self.declarations().signature_contracts.span_or_empty(span)
     }
 
