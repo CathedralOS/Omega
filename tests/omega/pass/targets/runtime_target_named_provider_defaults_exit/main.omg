@@ -4,12 +4,12 @@ boundary trait Pick {
     machine spare() -> i32 reaches;
 }
 FirstMap satisfies Pick {
-    Pick::choose = first;
-    Pick::spare = shared_spare;
+    machine choose() -> i32 { first() }
+    machine spare() -> i32 { shared_spare() }
 }
 SecondMap satisfies Pick {
-    Pick::choose = second;
-    Pick::spare = shared_spare;
+    machine choose() -> i32 { second() }
+    machine spare() -> i32 { shared_spare() }
 }
 machine first() -> i32 { 1 }
 machine second() -> i32 { 2 }

@@ -1,6 +1,8 @@
 use super::*;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct Machine {
     pub name: Identifier,
     /// Exact authored template token for a method cloned onto closed generic

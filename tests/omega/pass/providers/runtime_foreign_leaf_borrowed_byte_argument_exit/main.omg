@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Console + CText + Measure {
 }
 
 MeasureProviderMeasureImplementation satisfies Measure {
-    Measure::measure = MeasureProvider::measure;
+    machine measure(text: &u8, words: &Words) -> i32 { MeasureProvider::measure(text, words) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

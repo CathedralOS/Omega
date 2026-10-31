@@ -14,7 +14,7 @@ data Main {
 }
 
 CounterIntSink satisfies IntSink<Counter> {
-    Sink::put = Counter::put;
+    machine put(sink: &mut Counter, value: i32) { Counter::put(sink, value) }
 }
 
 machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, i32>::put {

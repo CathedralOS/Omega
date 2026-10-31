@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Gate crashes Trap {
 }
 
 ProviderGateImplementation satisfies Gate {
-    Gate::accept = Provider::accepted;
+    machine accept(prefix: &Prefix, value: u32 in Flags) -> u32 { Provider::accepted(prefix, value) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

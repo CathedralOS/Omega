@@ -6,5 +6,5 @@ machine identity<const Maximum: u32>(input: u32) -> u32
 satisfies Bounded::take
 requires input <= Maximum
 { input }
-Selected satisfies Bounded { Bounded::take = identity; }
+Selected satisfies Bounded { machine take<const Limit: u32>(value: u32) -> u32 requires value <= Limit { identity<Limit>(value) } }
 machine main() {}

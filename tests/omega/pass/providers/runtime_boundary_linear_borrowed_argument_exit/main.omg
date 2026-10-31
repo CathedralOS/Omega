@@ -54,8 +54,8 @@ machine Main::main(main: &mut Main) reaches Console, TokenScale {
 }
 
 TokenScaleProviderTokenScaleImplementation satisfies TokenScale {
-    TokenScale::tag = TokenScaleProvider::tag;
-    TokenScale::weigh = TokenScaleProvider::weigh;
+    machine tag(token: &Token, marker: u64) -> bool { TokenScaleProvider::tag(token, marker) }
+    machine weigh(token: &Token) -> u64 { TokenScaleProvider::weigh(token) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

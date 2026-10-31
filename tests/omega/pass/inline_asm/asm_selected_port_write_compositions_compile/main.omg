@@ -5,12 +5,12 @@ public data Device { marker: u64; }
 public boundary trait PortSequence {
     machine emit(device: &mut Device, enabled: bool) reaches PortIo;
 }
-PortSequenceNative satisfies PortSequence { PortSequence::emit = emit; }
+PortSequenceNative satisfies PortSequence { machine emit(device: &mut Device, enabled: bool) reaches PortIo { emit_realization(device, enabled) } }
 machine second(device: &mut Device) reaches PortIo {
     asm where clobbers r10, r11, r15, rax, rdx { out 0x2F8, 0x42 }
     device.marker = 2;
 }
-machine emit(device: &mut Device, enabled: bool) reaches PortIo {
+machine emit_realization(device: &mut Device, enabled: bool) reaches PortIo {
     asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
     second(device);
     transition enabled { true -> selected(device) false -> done() }

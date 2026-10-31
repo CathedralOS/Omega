@@ -37,7 +37,7 @@ linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
 }
 
 ProviderServiceImplementation satisfies Service {
-    Service::echo = Provider::echo;
+    machine echo<const Count: u64>(value: i32) -> i32 where Count == 4 || Count == 8 || Count == 12 { Provider::echo<Count>(value) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -22,8 +22,8 @@ satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;
 
 CanaryTaskRuntimeProvider satisfies TaskRuntime {
-    TaskRuntime::start = CanaryTaskRuntime::start;
-    TaskRuntime::try_start = CanaryTaskRuntime::try_start;
+    machine start<T, Arguments, machine Target>(arguments: Arguments) -> Task<T> requires machine Target(arguments: Arguments) -> T suspends blocks; ensures true reaches { CanaryTaskRuntime::start<T, Arguments, Target>(arguments) }
+    machine try_start<T, Arguments, machine Target>(arguments: Arguments) -> StartOutcome<T, Arguments> requires machine Target(arguments: Arguments) -> T suspends blocks; ensures true reaches { CanaryTaskRuntime::try_start<T, Arguments, Target>(arguments) }
 }
 
 data TargetProviders {}

@@ -42,7 +42,7 @@ data Counter {
 }
 
 CounterResettable satisfies Resettable<Counter> {
-    Settable::set = Counter::set;
+    machine set(subject: &mut Counter, value: i32) { Counter::set(subject, value) }
 }
 
 machine Counter::set(counter: &mut Counter, value: i32) {
@@ -67,7 +67,7 @@ data Slot {
 }
 
 SlotStore satisfies Store<Slot, i32> {
-    Store::put = Slot::put;
+    machine put(subject: &mut Slot, item: i32) { Slot::put(subject, item) }
 }
 
 machine Slot::put(slot: &mut Slot, item: i32) {

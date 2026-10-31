@@ -5,8 +5,8 @@ trait Left<Input>: Reading<Input, Input> {}
 trait Right<Input, Output>: Reading<Input, Output> {}
 trait Diamond<Input, Output>: Left<Input> + Right<Input, Output> {}
 Ambiguous<'left, 'right> satisfies Diamond<&'left i32, &'right i32> {
-    Reading::read = read;
+    machine read(value: &'left i32) -> &'right i32 { read_realization(value) }
 }
-machine read<'source>(value: &'source i32) -> &'source i32 { value }
+machine read_realization<'source>(value: &'source i32) -> &'source i32 { value }
 data Main {}
 machine Main::main(main: &mut Main) {}

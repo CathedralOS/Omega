@@ -1,14 +1,14 @@
 // A trait parameter bounded by `satisfies`:
 // `trait Service<Policy satisfies Decider>` — the type
 // argument must name a Decider implementation, declared by
-// the `Impl satisfies Decider { Decider::member =
-// Data::member; }` roster spelling.
+// the `Impl satisfies Decider { machine member(..) {
+// Data::member(..) } }` roster spelling.
 //
 //   * `trait Service<Policy satisfies Decider> { }` —
 //     satisfies-bounded trait parameter.
-//   * `RegistrarDecider satisfies Decider { Decider::pick =
-//     Registrar::pick; }` — a named implementation (a map,
-//     named apart from the data) wiring a trait member to an
+//   * `RegistrarDecider satisfies Decider { machine pick(..) {
+//     Registrar::pick(..) } }` — a named implementation (a map,
+//     named apart from the data) filling a trait member from an
 //     existing machine.
 //   * `HostService satisfies Service<RegistrarDecider> { }` —
 //     the implementation used as the bounded argument.
@@ -25,7 +25,7 @@ trait Decider {
 data Registrar {}
 
 RegistrarDecider satisfies Decider {
-    Decider::pick = Registrar::pick;
+    machine pick(value: u64) -> u64 { Registrar::pick(value) }
 }
 
 machine Registrar::pick(value: u64) -> u64 { value }

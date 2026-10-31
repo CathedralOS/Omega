@@ -15,7 +15,7 @@ machine Main::main(context: &mut Main) reaches Flow crashes Trap {
 }
 
 ProviderFlowImplementation satisfies Flow {
-    Flow::forward = Provider::forward;
+    machine forward(token: Token) -> Token { Provider::forward(token) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

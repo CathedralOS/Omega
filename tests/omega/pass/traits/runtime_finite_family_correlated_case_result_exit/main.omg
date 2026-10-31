@@ -20,8 +20,8 @@ machine Item::other<Width: u32, Depth: u32>(item: &Item) -> Choice satisfies Sha
         false -> Choice::Wide { packet: Packet { width: Width, depth: Depth, provider: 202 } }
     }
 }
-Primary satisfies Shape<Item> { Shape::code = Item::code; }
-Other satisfies Shape<Item> { Shape::code = Item::other; }
+Primary satisfies Shape<Item> { machine code<Width: u32, Depth: u32>(subject: &Item) -> Choice where (Width == 32 && Depth == 8) || (Width == 16 && Depth == 4) { Item::code<Width, Depth>(subject) } }
+Other satisfies Shape<Item> { machine code<Width: u32, Depth: u32>(subject: &Item) -> Choice where (Width == 32 && Depth == 8) || (Width == 16 && Depth == 4) { Item::other<Width, Depth>(subject) } }
 machine scan(selected: dyn Shape<Item>, item: &Item, width: u32, depth: u32) -> Choice
 requires (width == 16 && depth == 4) || (width == 32 && depth == 8)
 { Shape::code<width, depth>(selected, item) }

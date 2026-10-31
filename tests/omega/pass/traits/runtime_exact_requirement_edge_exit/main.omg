@@ -3,7 +3,7 @@
 // explicit data argument
 // ([machines](../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state):
 // "Trait requirements and satisfiers use the same explicit parameter
-// correspondence"). A named implementation binds that machine as its row, and
+// correspondence"). A named implementation member forwards to that machine, and
 // a call through the implementation runs it.
 //
 // Exits 1: `increment` ran exactly once through `CounterIncrementable`.
@@ -21,7 +21,7 @@ machine Counter::increment(counter: &mut Counter) satisfies Incrementable<Counte
     counter.value = counter.value + 1;
 }
 CounterIncrementable satisfies Incrementable<Counter> {
-    Incrementable::increment = Counter::increment;
+    machine increment(counter: &mut Counter) { Counter::increment(counter) }
 }
 
 data Main { counter: Counter; }

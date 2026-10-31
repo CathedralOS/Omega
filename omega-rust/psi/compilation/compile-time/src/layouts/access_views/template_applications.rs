@@ -161,7 +161,6 @@ pub(super) fn scoped_template_applications(
                         | ConformanceMember::TraitDefault { machine, .. } => {
                             visit_machine(syntax, machine, &binders, selected_owners, &mut deferred)
                         }
-                        ConformanceMember::Reference { .. } => {}
                     }
                 }
             }

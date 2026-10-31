@@ -5,7 +5,7 @@ public boundary trait Fill {
 }
 
 ScalarWriter satisfies Fill {
-    Fill::first = write_first;
+    machine first(output: &mut [u8]) { write_first(output) }
 }
 
 machine write_first(output: &mut [u8]) {

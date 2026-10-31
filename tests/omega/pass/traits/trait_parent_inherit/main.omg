@@ -1,7 +1,7 @@
 // A child trait declares its parent: `trait IntSink<S>: Sink<S, i32>`
 // binds the parent's requirement; `CounterIntSink satisfies
-// IntSink<Counter>` fills the row by parent-qualified name
-// (`Sink::put = Counter::put`), while the provider itself satisfies
+// IntSink<Counter>` fills the parent member with an inline machine that calls
+// `Counter::put`, while the provider itself satisfies
 // the parent signature directly.
 trait Sink<S, T> {
     machine put(sink: &mut S, value: T);
@@ -15,7 +15,7 @@ machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, 
     counter.value = value;
 }
 CounterIntSink satisfies IntSink<Counter> {
-    Sink::put = Counter::put;
+    machine put(sink: &mut Counter, value: i32) { Counter::put(sink, value) }
 }
 data Main {
     counter: Counter;
