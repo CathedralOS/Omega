@@ -26,7 +26,9 @@ use package_evidence::record::PackageReviewEvidence;
 use package_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 
+use super::super::review_cache::PackageReviewCacheWrite;
 use super::PackageSourceBindings;
+use super::policy::reserve;
 
 pub struct RetainedPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
@@ -694,13 +696,12 @@ impl<'pass> PackageReviewRound<'pass> {
                 },
             )?;
         self.retained_policy_canonical_total =
-            super::policy::reserve(self.retained_policy_canonical_total, policy_canonical_bytes)
-                .ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
-                        package: key.clone(),
-                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                    }
-                })?;
+            reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
+                || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                    package: key.clone(),
+                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                },
+            )?;
         // Consumers need the same entry-schema offer whether this
         // dependency compiled now, in a prior pass, or in a prior
         // invocation. An offer is not an accepted binding: only the
@@ -780,10 +781,7 @@ impl<'pass> PackageReviewRound<'pass> {
         completion: PackageReviewCompletion<'_>,
         product: compiler::PackageReviewProduct,
         occurrence_inputs: PackageCompilationInputs,
-    ) -> Result<
-        Option<super::super::review_cache::PackageReviewCacheWrite>,
-        CompileResolvedPackageReviewsError,
-    > {
+    ) -> Result<Option<PackageReviewCacheWrite>, CompileResolvedPackageReviewsError> {
         let PackageReviewCompletion {
             occurrence,
             assembled,
@@ -825,13 +823,12 @@ impl<'pass> PackageReviewRound<'pass> {
             });
         }
         self.retained_policy_canonical_total =
-            super::policy::reserve(self.retained_policy_canonical_total, policy_canonical_bytes)
-                .ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
-                        package: key.clone(),
-                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                    }
-                })?;
+            reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
+                || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                    package: key.clone(),
+                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                },
+            )?;
         let mut semantic_binding_candidates = service_binding_candidates;
         semantic_binding_candidates.extend(proposed_entry);
         if self.discovery == TargetEntryDiscovery::Dependencies {
@@ -911,7 +908,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 &occurrence_inputs,
                 &build_snapshot,
             ) {
-                cache_write = Some(super::super::review_cache::PackageReviewCacheWrite {
+                cache_write = Some(PackageReviewCacheWrite {
                     cache,
                     key: cache_key,
                     record,
@@ -970,7 +967,7 @@ impl<'pass> PackageReviewRound<'pass> {
             } else {
                 occurrence.policy_canonical_bytes
             };
-            total = super::policy::reserve(total, length).ok_or_else(|| {
+            total = reserve(total, length).ok_or_else(|| {
                 CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
                     package: review.key.clone(),
                     maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
