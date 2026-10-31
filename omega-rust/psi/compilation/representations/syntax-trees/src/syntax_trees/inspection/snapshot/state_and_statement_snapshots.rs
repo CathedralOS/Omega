@@ -1,8 +1,9 @@
 //! Snapshots of states, signatures, parameters, statements and transitions.
 
-use crate::item::{StateParameterNode, StateSignature};
+use crate::item::{CrashCause, StateParameterNode, StateSignature};
 use crate::statement::{
-    AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
+    AssemblyExit, AssemblyFactKind, StatementNode, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode,
 };
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
@@ -315,19 +316,17 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                             })
                             .collect(),
                         exit: match &block.exit {
-                            crate::statement::AssemblyExit::Fallthrough => {
-                                AssemblyExitSnapshot::Fallthrough
-                            }
-                            crate::statement::AssemblyExit::ZeroFlag(label, when_set) => {
+                            AssemblyExit::Fallthrough => AssemblyExitSnapshot::Fallthrough,
+                            AssemblyExit::ZeroFlag(label, when_set) => {
                                 AssemblyExitSnapshot::ZeroFlag(
                                     snapshot_identifier(syntax_trees, label),
                                     *when_set,
                                 )
                             }
-                            crate::statement::AssemblyExit::Jump(label) => {
+                            AssemblyExit::Jump(label) => {
                                 AssemblyExitSnapshot::Jump(snapshot_identifier(syntax_trees, label))
                             }
-                            crate::statement::AssemblyExit::EnclosingTransition => {
+                            AssemblyExit::EnclosingTransition => {
                                 AssemblyExitSnapshot::EnclosingTransition
                             }
                         },
@@ -435,13 +434,9 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 },
             },
             crash_cause: match value.exit {
-                crate::statement::TransitionExit::Ordinary => None,
-                crate::statement::TransitionExit::Crash(crate::item::CrashCause::Trap) => {
-                    Some("Trap")
-                }
-                crate::statement::TransitionExit::Crash(crate::item::CrashCause::Abort) => {
-                    Some("Abort")
-                }
+                TransitionExit::Ordinary => None,
+                TransitionExit::Crash(CrashCause::Trap) => Some("Trap"),
+                TransitionExit::Crash(CrashCause::Abort) => Some("Abort"),
             },
         },
     }
