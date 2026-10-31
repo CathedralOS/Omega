@@ -116,13 +116,17 @@ pub fn verify_boundary_result_policies(
                     .machine_by_symbol(target)
                     .and_then(|machine| checked.typed.machine_states(machine).first())
                     .map_or(target, |state| state.symbol);
+                let coordinate = source
+                    .origin
+                    .statement()
+                    .ok_or("float result policy has no statement call custody")?;
                 let calls = control
-                    .state_by_symbol(source.source_state)
+                    .state_by_symbol(coordinate.state)
                     .into_iter()
                     .flat_map(|state| control.calls.span_or_empty(state.calls))
                     .filter(|call| {
-                        call.statement_index == source.statement_index
-                            && call.call_ordinal == source.call_ordinal
+                        call.statement_index == coordinate.statement_index
+                            && call.call_ordinal == coordinate.call_ordinal
                             && call.authored_expression == expression
                             && call.target_symbol == target_state
                     })

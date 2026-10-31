@@ -23,6 +23,7 @@ mod crash_entry_values;
 mod expression_children;
 pub(crate) use crash_entry_values::entry_parameter_place_before_statement;
 mod crash_plan_facts;
+mod declaration_calls;
 pub(crate) mod declaration_descriptions;
 mod dynamic_conformance;
 pub(crate) mod proof_applications;
@@ -414,7 +415,7 @@ pub(crate) fn build_check_facts(
     // retains public negative guarantees separately from private inference.
     let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
-    let termination = phase_profile::scope("05.d.3.c.5a.termination", || {
+    let mut termination = phase_profile::scope("05.d.3.c.5a.termination", || {
         build_termination_facts(
             program,
             &flow,
@@ -500,6 +501,11 @@ pub(crate) fn build_check_facts(
                 .for_machine(machine)
                 .map(|plan| plan.checked_summary.clone())
         },
+    )?;
+    declaration_calls::bind(
+        &mut termination.rank_arrivals,
+        &validation_facts.specification_calls,
+        &contract_plans,
     )?;
     let mut fact_call_projections = Vec::new();
     for call in &validation_facts.integer_embedding_calls {

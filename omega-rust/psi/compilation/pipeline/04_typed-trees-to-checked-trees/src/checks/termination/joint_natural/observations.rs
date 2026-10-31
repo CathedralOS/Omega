@@ -70,6 +70,9 @@ pub(in crate::checks::termination) fn retain_observation(
                         measure: application.measure(),
                         definition_body: application.body(),
                         casts,
+                        calls: admitted
+                            .application_calls
+                            .insert_many(application.calls().iter().copied()),
                     },
                     bindings,
                 })

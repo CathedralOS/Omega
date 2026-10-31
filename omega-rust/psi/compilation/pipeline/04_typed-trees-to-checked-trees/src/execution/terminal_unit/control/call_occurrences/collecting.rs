@@ -951,10 +951,12 @@ pub(super) fn collect(
             structural_arguments,
             ..
         } => {
-            if !facts.flow.control.calls.is_valid(*source_call) || consumed.contains(source_call) {
+            // Declaration applications own observation graphs, not this statement roster.
+            let source_call = source_call.statement()?;
+            if !facts.flow.control.calls.is_valid(source_call) || consumed.contains(&source_call) {
                 return None;
             }
-            let call = facts.flow.control.calls.get(*source_call);
+            let call = facts.flow.control.calls.get(source_call);
             // A computation root over a retired call describes the authored
             // body, not the settled one; decline rather than sequence it.
             if *call_ordinal < minimum_call_ordinal
@@ -968,7 +970,7 @@ pub(super) fn collect(
                 return None;
             }
             consumed.record_minimum(Some(*call_ordinal));
-            consumed.push(*source_call);
+            consumed.push(source_call);
             // A runtime implementation selector evaluates before every data operand.
             for operand in callee
                 .selector()

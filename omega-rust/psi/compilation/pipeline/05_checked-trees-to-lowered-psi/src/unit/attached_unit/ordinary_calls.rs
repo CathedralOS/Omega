@@ -14,7 +14,9 @@ use super::{
 };
 use crate::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArguments};
 use crate::emission::claim_bindings::emitted_claim_transfers;
-use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::emission::operation_emission::buffer::{
+    OperationBuffer, SourceCallCoordinate, SourceInvocation,
+};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::terminal_identities::StructuralDomainBinding;
@@ -40,7 +42,7 @@ impl ModuleInvocationArguments {
         self,
         checked: &CheckedTrees,
         operations: &mut OperationBuffer,
-        coordinate: SourceCallCoordinate,
+        coordinate: impl Into<SourceInvocation>,
         record: crate::direct_calls::CallRecord<'_>,
         result: OperationResult,
         callee: MachineId,
@@ -48,13 +50,13 @@ impl ModuleInvocationArguments {
     ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
         // Unit, scalar and structural routes supply the same checked occurrence,
         // not whichever machine/state symbol their local emission happens to use.
-        let target = crate::call_sites::checked_source_call(checked, coordinate)?;
-        let source_site = crate::call_sites::source_site(checked, coordinate, target)?;
+        let coordinate = coordinate.into();
+        let (target, _, source_site) = crate::call_sites::checked_invocation(checked, coordinate)?;
         crate::direct_calls::emit_direct_call(
             operations,
             coordinate,
             source_site,
-            target.target_symbol,
+            target,
             record,
             result,
             DirectCall::new(
@@ -261,7 +263,7 @@ pub(super) fn prepare(
 pub(crate) fn prepare_computed_module_call(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    coordinate: SourceCallCoordinate,
+    coordinate: SourceInvocation,
     caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
     target_machine: symbols::SymbolHandle,
     arguments: &[ValueDeclaration],
@@ -380,7 +382,7 @@ pub(crate) fn prepare_requirement_obligations(
 pub(crate) fn prepare_crash_continuations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    coordinate: SourceCallCoordinate,
+    coordinate: impl Into<SourceInvocation>,
     captures: &[lowered_psi::LoweredSourceLoanCapture],
     operations: &[terminal_psi::Operation],
     target: Target<'_>,
@@ -390,6 +392,7 @@ pub(crate) fn prepare_crash_continuations(
     structural_types: &[StructuralTypeDeclaration],
     caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
+    let coordinate = coordinate.into();
     if target.parameters.len() != terminal_arguments.len() {
         return unsupported("ordinary call has an unsupported structural operand arity");
     }
@@ -455,7 +458,9 @@ pub(crate) fn prepare_crash_continuations(
             };
             let argument = crate::proofs::crash_routes::captured_crash_argument(
                 checked,
-                coordinate,
+                coordinate.statement().ok_or(LoweringError::Unsupported(
+                    "structural crash capture has no statement custody",
+                ))?,
                 target
                     .predicate_parameters
                     .iter()

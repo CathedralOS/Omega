@@ -69,7 +69,7 @@ pub(super) fn lower(
                 root.machine,
                 root.state,
                 root.statement_ordinal,
-                node.completion_expression(&expansion.checked.facts.flow.control),
+                node.evaluated_expression(),
             )
             .and_then(|completion| control.actions.span(completion.actions))
             .is_some_and(|actions| actions.iter().any(|action| action.source() == &source));

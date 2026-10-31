@@ -60,6 +60,9 @@ pub(crate) fn prepare(
             let Some(bytes) = source_bytes(argument) else {
                 continue;
             };
+            let source_call = source_call.statement().ok_or(LoweringError::Unsupported(
+                "declaration call has no byte-literal argument custody",
+            ))?;
             let declaration = crate::terminal_identities::structural_declaration_by_identity(
                 types,
                 identities,

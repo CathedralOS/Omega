@@ -93,6 +93,18 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: Option<PrimitiveType>,
     ) -> Option<IntegerOperand> {
+        if let Some((computation, reference)) = self.declaration_input(expression) {
+            let primitive = self.program.primitive_type_reference(reference)?;
+            if !is_integer(primitive) || expected.is_some_and(|expected| expected != primitive) {
+                return None;
+            }
+            return Some(IntegerOperand {
+                value: parameter(0, primitive),
+                value_source: ExpressionHandle::invalid(),
+                domain: self.program.arithmetic_domain_for_type_reference(reference),
+                computation,
+            });
+        }
         if let Some((computation, primitive_type)) = self.retained_constant(expression) {
             return Some(IntegerOperand {
                 value: parameter(0, primitive_type),

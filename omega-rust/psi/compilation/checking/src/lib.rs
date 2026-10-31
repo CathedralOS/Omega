@@ -281,8 +281,8 @@ pub use crate::machine_calls::calls::{
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{
-    admit_specification_calls, checked_value_call_candidate, expression_values_have_call_identity,
-    normal_return_call_candidate, requirement_satisfiers,
+    SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
+    expression_values_have_call_identity, normal_return_call_candidate, requirement_satisfiers,
     selected_operator_has_closed_value_denotation,
 };
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;

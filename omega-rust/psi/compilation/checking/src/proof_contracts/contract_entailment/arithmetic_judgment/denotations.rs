@@ -22,17 +22,28 @@ impl IntegerDenotation {
 }
 
 impl OpaqueTerm {
-    fn operands(&self) -> [Option<&Polynomial>; 2] {
+    fn visit_operands(&self, mut visit: impl FnMut(&Polynomial)) {
         match self {
-            Self::IntegerPolicy { value, .. } => [Some(value), None],
+            Self::Call { arguments, .. } => arguments.iter().for_each(visit),
+            Self::IntegerPolicy { value, .. } => visit(value),
             Self::Remainder {
                 operand, modulus, ..
-            } => [Some(operand), Some(modulus)],
-            Self::Quotient { dividend, divisor } => [Some(dividend), Some(divisor)],
-            Self::ShiftLeft { value, count, .. } | Self::ShiftRight { value, count, .. } => {
-                [Some(value), Some(count)]
+            } => {
+                visit(operand);
+                visit(modulus);
             }
-            Self::Bitwise { left, right, .. } => [Some(left), Some(right)],
+            Self::Quotient { dividend, divisor } => {
+                visit(dividend);
+                visit(divisor);
+            }
+            Self::ShiftLeft { value, count, .. } | Self::ShiftRight { value, count, .. } => {
+                visit(value);
+                visit(count);
+            }
+            Self::Bitwise { left, right, .. } => {
+                visit(left);
+                visit(right);
+            }
         }
     }
 }
@@ -53,14 +64,14 @@ impl Engine<'_> {
             if !required.remove(atom) {
                 continue;
             }
-            for operand in operation.operands().into_iter().flatten() {
+            operation.visit_operands(|operand| {
                 required.extend(
                     operand
                         .terms
                         .keys()
                         .flat_map(|monomial| monomial.keys().cloned()),
                 );
-            }
+            });
             operations.push((atom.clone(), operation.clone()));
         }
         // A forward/cyclic opaque dependency is not an observed leaf. Unknown
@@ -114,6 +125,17 @@ impl Engine<'_> {
     ) -> Option<Polynomial> {
         let mapped = |value| apply_argument_map(value, substitutions);
         match operation {
+            OpaqueTerm::Call {
+                owner,
+                expression,
+                target,
+                arguments,
+            } => self.selected_call_value(
+                *owner,
+                *expression,
+                *target,
+                arguments.iter().map(mapped).collect::<Option<Vec<_>>>()?,
+            ),
             OpaqueTerm::IntegerPolicy {
                 primitive,
                 domain,

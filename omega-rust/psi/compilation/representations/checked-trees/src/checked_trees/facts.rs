@@ -161,9 +161,9 @@ pub use state_locals::{CheckedStateLocal, StateLocalFacts};
 pub use suspensions::{MachineSuspensionFact, SuspensionFacts};
 pub use synchronous_invocations::{MachineSynchronousInvocationFact, SynchronousInvocationFacts};
 pub use termination::{
-    CheckedMachineRankCorrespondence, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
-    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
-    CheckedProofRecursiveTransitionLane, CheckedRankApplicationFacts,
+    CheckedDeclarationCall, CheckedMachineRankCorrespondence, CheckedProofRankingRelation,
+    CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
+    CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedRankApplicationFacts,
     CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge,
     CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
     CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,

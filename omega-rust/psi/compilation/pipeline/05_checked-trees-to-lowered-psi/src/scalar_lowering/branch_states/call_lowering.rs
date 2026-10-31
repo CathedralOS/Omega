@@ -2,7 +2,7 @@
 
 use crate::checked_facts::value_facts;
 use crate::emission::expression_validation::validate_direct_parameter_types;
-use crate::emission::operation_emission::buffer::SourceCallCoordinate;
+use crate::emission::operation_emission::buffer::SourceInvocation;
 use crate::emission::operation_emission::calls::{
     LoweredDirectCallBinding, PreparedStructuralArgument,
 };
@@ -21,11 +21,9 @@ pub(crate) fn lower_scalar_call(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     caller_machine: symbols::SymbolHandle,
-    caller_state: symbols::SymbolHandle,
-    statement_ordinal: u32,
+    coordinate: SourceInvocation,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
-    call_ordinal: u32,
     result_type: QualifiedScalarType,
     caller_value_types: &[QualifiedScalarType],
     scalar_bindings: &storage::ScalarBindings,
@@ -36,6 +34,19 @@ pub(crate) fn lower_scalar_call(
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
     loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
+    let caller_state = coordinate.state();
+    let statement_site = coordinate
+        .statement()
+        .map(|site| {
+            Ok::<_, LoweringError>((
+                u32::try_from(site.statement_index).map_err(|_| {
+                    LoweringError::Unsupported("scalar call statement ordinal exceeds u32")
+                })?,
+                u32::try_from(site.call_ordinal)
+                    .map_err(|_| LoweringError::Unsupported("scalar call ordinal exceeds u32"))?,
+            ))
+        })
+        .transpose()?;
     let target = if structural_arguments.is_empty() {
         crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
             checked,
@@ -87,6 +98,9 @@ pub(crate) fn lower_scalar_call(
     // `ErasedUnitCallArgument`, in the target's erased-formal order.
     let erased_arguments = (0..target.erased_parameters().len())
         .map(|erased_ordinal| {
+            let (statement_ordinal, call_ordinal) = statement_site.ok_or(
+                LoweringError::Unsupported("declaration call has no erased value argument custody"),
+            )?;
             scalar_bindings.expression_at(
                 identities,
                 checked,
@@ -109,6 +123,9 @@ pub(crate) fn lower_scalar_call(
     // `Formal` positions stay dense.
     let erased_proof_arguments = (0..target.erased_proof_parameters().len())
         .map(|erased_ordinal| {
+            let (statement_ordinal, call_ordinal) = statement_site.ok_or(
+                LoweringError::Unsupported("declaration call has no erased proof argument custody"),
+            )?;
             let role = checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
                 call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).map_err(|_| {
@@ -129,22 +146,48 @@ pub(crate) fn lower_scalar_call(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let checked_call = checked
-        .facts
-        .contract_plans
-        .for_machine(caller_machine)
-        .and_then(|plan| {
-            plan.crash
-                .checked_call_at(caller_state, statement_ordinal, call_ordinal)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "direct scalar call has no matching checked crash-refinement row",
-        ))?;
-    if checked_call.target_machine() != target_machine
-        || checked_call.target_state() != target_state
-    {
-        return unsupported("checked scalar call target disagrees with crash refinement");
-    }
+    let checked_identity = if let Some((statement_ordinal, call_ordinal)) = statement_site {
+        let checked_call = checked
+            .facts
+            .contract_plans
+            .for_machine(caller_machine)
+            .and_then(|plan| {
+                plan.crash
+                    .checked_call_at(caller_state, statement_ordinal, call_ordinal)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "direct scalar call has no matching checked crash-refinement row",
+            ))?;
+        if checked_call.target_machine() != target_machine
+            || checked_call.target_state() != target_state
+        {
+            return unsupported("checked scalar call target disagrees with crash refinement");
+        }
+        checked_trees::MachineContractIdentity {
+            report_fingerprint: checked_call.target_contract_report_fingerprint(),
+            commitment: checked_call.target_contract_commitment(),
+        }
+    } else {
+        let SourceInvocation::Declaration {
+            application, call, ..
+        } = coordinate
+        else {
+            return unsupported("scalar invocation has no admitted source origin");
+        };
+        let (_, call) = checked_trees::CheckedCallOrigin::Declaration { application, call }
+            .declaration(
+                &checked.facts.termination.rank_arrivals,
+                caller_machine,
+                caller_state,
+            )
+            .map_err(LoweringError::Unsupported)?;
+        if call.target_machine != target_machine || call.target_state != target_state {
+            return unsupported("scalar declaration invocation changed its selected callee");
+        }
+        call.target_contract.ok_or(LoweringError::Unsupported(
+            "scalar declaration invocation has no bound target contract",
+        ))?
+    };
     let target_contract = checked
         .facts
         .contract_plans
@@ -152,8 +195,8 @@ pub(crate) fn lower_scalar_call(
         .ok_or(LoweringError::Unsupported(
             "direct scalar call target has no checked contract plan",
         ))?;
-    if checked_call.target_contract_report_fingerprint() != target_contract.report_fingerprint
-        || checked_call.target_contract_commitment() != target_contract.commitment
+    if checked_identity.report_fingerprint != target_contract.report_fingerprint
+        || checked_identity.commitment != target_contract.commitment
     {
         return unsupported("checked scalar call target contract identity disagrees");
     }
@@ -166,6 +209,9 @@ pub(crate) fn lower_scalar_call(
     // the ceiling the emitted machine contract publishes and the verifier
     // substitutes back at this call.
     let target_routes = crate::unit::effective_crash_routes(checked, target_machine)?;
+    if statement_site.is_none() && !target_routes.is_empty() {
+        return unsupported("declaration invocation lost its checked crash-free value closure");
+    }
     let crash_continuations = target_routes.clone();
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
         identities,
@@ -182,14 +228,7 @@ pub(crate) fn lower_scalar_call(
     Ok(LoweredDirectCallBinding {
         caller_types: scalar_bindings.published_structural_types()?,
         loan_completions,
-        source_coordinate: SourceCallCoordinate {
-            state: caller_state,
-            statement_index: usize::try_from(statement_ordinal).map_err(|_| {
-                LoweringError::Unsupported("scalar call statement ordinal exceeds usize")
-            })?,
-            call_ordinal: usize::try_from(call_ordinal)
-                .map_err(|_| LoweringError::Unsupported("scalar call ordinal exceeds usize"))?,
-        },
+        source_coordinate: coordinate,
         target_machine,
         result_type,
         arguments,

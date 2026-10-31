@@ -2061,7 +2061,7 @@ pub(super) fn fact_roots(
 /// Declaration validation also checks every requirement's formation, but it
 /// cannot justify a cycle of mutually dependent contracts. Check just those
 /// dependencies, not body recursion (whose well-foundedness has another owner).
-fn requirements_are_acyclic(
+pub(super) fn requirements_are_acyclic(
     program: &dyn crate::CheckingInput,
     owner: &SelectedCallContract<'_>,
     active: &mut Vec<SymbolHandle>,

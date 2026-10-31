@@ -4,7 +4,59 @@ pub use semantic_vocabulary::InvocationSite as LoweredSourceCallSite;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use terminal_psi::ValueDeclaration;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredStatementCallCoordinate {
+    pub state: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+}
+
+/// A declaration's checked call definition can execute at entry and at several
+/// arrivals. Its observation scope distinguishes those emitted invocations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoweredSourceCallOrigin {
+    Statement(LoweredStatementCallCoordinate),
+    Declaration {
+        state: symbols::SymbolHandle,
+        application: checked_trees::CheckedRankApplicationFormationHandle,
+        call: arena::Handle<checked_trees::CheckedDeclarationCall>,
+        observation: u64,
+    },
+}
+
+impl LoweredSourceCallOrigin {
+    pub fn state(self) -> symbols::SymbolHandle {
+        match self {
+            Self::Statement(site) => site.state,
+            Self::Declaration { state, .. } => state,
+        }
+    }
+
+    pub fn statement(self) -> Option<LoweredStatementCallCoordinate> {
+        match self {
+            Self::Statement(site) => Some(site),
+            Self::Declaration { .. } => None,
+        }
+    }
+}
+
+impl From<LoweredStatementCallCoordinate> for LoweredSourceCallOrigin {
+    fn from(site: LoweredStatementCallCoordinate) -> Self {
+        Self::Statement(site)
+    }
+}
+
 impl LoweredSourceCallOccurrence {
+    pub fn matches_statement(
+        &self,
+        state: symbols::SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> bool {
+        matches!(self.origin, LoweredSourceCallOrigin::Statement(site)
+            if site.state == state && site.statement_index == statement_index && site.call_ordinal == call_ordinal)
+    }
+
     /// Resolve nested expression provenance to this call's statement owner.
     pub fn matches_checked_origin(
         &self,
@@ -14,9 +66,12 @@ impl LoweredSourceCallOccurrence {
         let Some(origin) = checked.consistent_terminal_origin(origin) else {
             return false;
         };
+        let Some(site) = self.origin.statement() else {
+            return false;
+        };
         matches!(origin, checked_trees::CheckedValueOrigin::StateStatement {
         state_symbol, statement_index, ..
-    } if state_symbol == self.source_state && statement_index == self.statement_index)
+    } if state_symbol == site.state && statement_index == site.statement_index)
     }
 }
 
@@ -170,9 +225,7 @@ impl LoweredSourceFrontierBindings {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredSourceCallOccurrence {
     pub source_site: Option<checked_trees::NominalMachineUseSite>,
-    pub source_state: symbols::SymbolHandle,
-    pub statement_index: usize,
-    pub call_ordinal: usize,
+    pub origin: LoweredSourceCallOrigin,
     pub terminal_site: LoweredSourceCallSite,
     /// Ordinary direct-module calls retain the selected checked state for this
     /// coordinate. Authored/public identities remain in the checked flow row.

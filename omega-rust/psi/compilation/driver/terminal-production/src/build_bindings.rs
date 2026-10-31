@@ -132,6 +132,9 @@ pub(super) fn capture(
         if !call.build_selection.is_valid() {
             continue;
         }
+        let coordinate = occurrence.origin.statement().ok_or_else(|| {
+            diagnostics::Diagnostic::error("Build binding has no checked statement custody")
+        })?;
         let request = checked
             .expression_table
             .build_selection_request(call.build_selection)
@@ -170,7 +173,7 @@ pub(super) fn capture(
                         checked
                             .machine_states(machine)
                             .iter()
-                            .any(|state| state.symbol == occurrence.source_state)
+                            .any(|state| state.symbol == coordinate.state)
                     })
                     .and_then(|machine| {
                         checked
@@ -190,8 +193,8 @@ pub(super) fn capture(
             Some(native_locator::capture(
                 checked,
                 lowered,
-                occurrence.source_state,
-                occurrence.statement_index,
+                coordinate.state,
+                coordinate.statement_index,
                 call,
                 boundary,
                 &mut native_shapes,
@@ -211,7 +214,7 @@ pub(super) fn capture(
                     checked
                         .machine_states(machine)
                         .iter()
-                        .any(|state| state.symbol == occurrence.source_state)
+                        .any(|state| state.symbol == coordinate.state)
                 })
                 .map(|machine| {
                     typed_trees::product_operand::capture_static_environment(
@@ -235,7 +238,7 @@ pub(super) fn capture(
                     .iter()
                     .find(|selected| {
                         selected.selection == call.build_selection
-                            && selected.source_state == occurrence.source_state
+                            && selected.source_state == coordinate.state
                     })
                     .ok_or_else(|| {
                         diagnostics::Diagnostic::error(

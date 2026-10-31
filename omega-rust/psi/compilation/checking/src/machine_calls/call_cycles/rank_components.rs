@@ -150,7 +150,7 @@ pub fn retain_runtime_rank_component(
                     path,
                     entry_indexes,
                 });
-                let (application_measure, application_body, application_casts) =
+                let (application_measure, application_body, application_casts, application_calls) =
                     match state.application {
                         Some(application) => (
                             application.measure(),
@@ -158,10 +158,14 @@ pub fn retain_runtime_rank_component(
                             admitted
                                 .application_casts
                                 .insert_many(application.casts().iter().cloned()),
+                            admitted
+                                .application_calls
+                                .insert_many(application.calls().iter().copied()),
                         ),
                         None => (
                             SymbolHandle::invalid(),
                             typed_trees::expression::ExpressionHandle::invalid(),
+                            Default::default(),
                             Default::default(),
                         ),
                     };
@@ -170,6 +174,7 @@ pub fn retain_runtime_rank_component(
                         measure: application_measure,
                         definition_body: application_body,
                         casts: application_casts,
+                        calls: application_calls,
                     },
                     measure: state.measure,
                     state: state.state,
@@ -254,6 +259,10 @@ pub fn retained_runtime_natural_components(
                                 admitted
                                     .application_casts
                                     .span(state.application.casts)?
+                                    .to_vec(),
+                                admitted
+                                    .application_calls
+                                    .span(state.application.calls)?
                                     .to_vec(),
                             )?)
                         } else {
