@@ -870,7 +870,8 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
         ],
     );
     assert!(publication.contains("candidate.explicitly_selected"));
-    assert!(publication.contains("module.boundary_machines"));
+    let compact_publication = publication.split_whitespace().collect::<String>();
+    assert!(compact_publication.contains("module.boundary_machines"));
     assert!(publication.contains("crate::choose("));
     assert!(publication.contains("crate::admit("));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
@@ -882,6 +883,40 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     assert!(adapter.contains("provider_selection::admit("));
     assert!(!adapter.contains("check_operator_family_selections"));
     assert!(!adapter.contains("IndependentComponentJoin"));
+}
+
+#[test]
+fn boundary_value_layout_consumes_source_free_recipes() {
+    let materialization = include_str!("../../backend/layout/src/boundary_values.rs");
+    assert_absent(
+        &[materialization],
+        "boundary value layout reopens source",
+        &[
+            "TypedTrees",
+            "TypeReference",
+            "SymbolHandle",
+            "typed_trees",
+            "closed_data_definition",
+        ],
+    );
+    assert!(materialization.contains("recipes: &BoundaryValueRecipes"));
+    let recipes =
+        include_str!("../../../../psi/foundation/language-semantics/src/boundary_values.rs");
+    assert_absent(
+        &[recipes],
+        "boundary value recipes retain source or target choice",
+        &[
+            "TypedTrees",
+            "TypeReference",
+            "SymbolHandle",
+            "NativeTarget",
+        ],
+    );
+    let preparation = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/boundary_values.rs"
+    );
+    assert!(preparation.contains("closed_values"));
+    assert!(!preparation.contains("NativeTarget"));
 }
 
 #[test]
