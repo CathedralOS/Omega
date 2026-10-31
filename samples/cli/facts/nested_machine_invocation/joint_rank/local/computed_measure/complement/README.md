@@ -53,3 +53,12 @@ contract and desired range unchanged. It must reject the independently unproved
 application instead of borrowing the forward member's bound or its edge guard.
 Both the narrowed positives and twins are pinned as
 `nested_machine_joint_rank_complement_narrowed_*` fixtures.
+
+Final focused qualification uses the optimized C2 corpus producer built at
+`dab430ca62e2cf7b162cab35478360bc41f94b9d` (production inputs match the
+C2 CLI at `64558babf4642c5d708f0a328f6af6e398885563`). All twenty positive
+fixtures, including all nine narrowed places, agree at native and Terminal
+exit zero on macOS arm64. All twenty-two reject controls refuse for their
+authored reasons. Forty-one existing rank, bitwise and exact-conversion fixtures
+match the fixed baseline with zero lost or gained outcomes. Immutable producer,
+qualification and comparison receipts remain in the owning claim's run records.
