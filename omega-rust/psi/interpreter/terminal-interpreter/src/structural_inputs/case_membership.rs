@@ -4,14 +4,14 @@ use crate::custody::{project_structural_value, resolve_structural_path_type};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::{StructuralFieldNamespace, StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralTypeId,
 };
 use std::collections::BTreeMap;
 use terminal_psi::{
     Operation, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralTypeShape, field_by_identity,
 };
 
 /// Runtime contents retain nominal type independently of the observing view.
@@ -54,7 +54,7 @@ impl TerminalExecution<'_> {
     ) -> Result<
         (
             &[terminal_psi::StructuralFieldDeclaration],
-            crate::values::StructuralFieldNamespace,
+            StructuralFieldNamespace,
         ),
         TerminalInterpretError,
     > {
@@ -70,14 +70,11 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let selected = terminal_psi::find_structural_case(cases, case).ok_or_else(malformed)?;
-            Ok((
-                &selected.fields,
-                crate::values::StructuralFieldNamespace::CasePayload,
-            ))
+            Ok((&selected.fields, StructuralFieldNamespace::CasePayload))
         } else {
             Ok((
                 declaration.shape.direct_fields().ok_or_else(malformed)?,
-                crate::values::StructuralFieldNamespace::Member,
+                StructuralFieldNamespace::Member,
             ))
         }
     }
@@ -166,13 +163,8 @@ impl TerminalExecution<'_> {
         &self,
         root: &TerminalStructuralValue,
         target: &StructuralRuntimePlace,
-    ) -> Result<
-        (
-            StructuralTypeId,
-            Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(StructuralTypeId, Vec<CanonicalStructuralPathSegment>), TerminalInterpretError>
+    {
         let mut path = Vec::new();
         let selected = self.walk_actual_storage_path(root, target, |segment| path.push(segment))?;
         Ok((selected, path))
@@ -182,7 +174,7 @@ impl TerminalExecution<'_> {
         &self,
         root: &TerminalStructuralValue,
         target: &StructuralRuntimePlace,
-        mut emit: impl FnMut(semantic_vocabulary::CanonicalStructuralPathSegment),
+        mut emit: impl FnMut(CanonicalStructuralPathSegment),
     ) -> Result<StructuralTypeId, TerminalInterpretError> {
         if target.opaque_identity != root.opaque_identity || !target.path.starts_with(&root.path) {
             return Err(malformed());
@@ -195,7 +187,7 @@ impl TerminalExecution<'_> {
                 StructuralPathSegment::Field(identity) => {
                     let common = match &declaration.shape {
                         terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                            terminal_psi::field_by_identity(fields, *identity)
+                            field_by_identity(fields, *identity)
                         }
                         _ => None,
                     };
@@ -211,20 +203,15 @@ impl TerminalExecution<'_> {
                         if actual.structural_type != structural_type {
                             return Err(malformed());
                         }
-                        emit(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
-                            actual.case,
-                        ));
+                        emit(CanonicalStructuralPathSegment::Case(actual.case));
                         let case = terminal_psi::find_structural_case(cases, actual.case)
                             .ok_or_else(malformed)?;
-                        terminal_psi::field_by_identity(&case.fields, *identity)
-                            .ok_or_else(malformed)?
+                        field_by_identity(&case.fields, *identity).ok_or_else(malformed)?
                     };
                     let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
-                    emit(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                        field.id,
-                    ));
+                    emit(CanonicalStructuralPathSegment::Field(field.id));
                     structural_type = child;
                 }
                 StructuralPathSegment::FixedIndex(index) => {
@@ -238,7 +225,7 @@ impl TerminalExecution<'_> {
                     if *index >= length {
                         return Err(malformed());
                     }
-                    emit(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*index));
+                    emit(CanonicalStructuralPathSegment::FixedIndex(*index));
                     structural_type = element;
                 }
                 _ => return Err(malformed()),

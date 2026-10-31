@@ -15,17 +15,27 @@ use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation, operation_kind};
+use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
+use crate::reference::AggregateViewTip;
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, ScalarType,
+    StructuralDomainId,
+};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, find_structural_case,
+    ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathQualification, StructuralPathSegment,
+    StructuralTypeShape, find_structural_case, nonlinear_multiplicity_pair_pattern,
+};
+use terminal_semantics::{
+    byte_carrier_scalar_layout, is_copyable_carrier, observed_field_declaration,
+    record_field_carrier, scalar_array_leaf_shape,
 };
 
 impl TerminalExecution<'_> {
@@ -38,10 +48,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         if self.structural_values.contains_key(&result.place)
-            || !matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
-            )
+            || !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
@@ -54,9 +61,7 @@ impl TerminalExecution<'_> {
                 .iter()
                 .map(|binding| {
                     Ok((
-                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                            binding.field,
-                        )],
+                        vec![CanonicalStructuralPathSegment::Field(binding.field)],
                         self.scalar_value(binding.value)?,
                     ))
                 })
@@ -201,13 +206,11 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     storage.stage_scalar_endpoint(
-                        &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
-                            StructuralScalarRuntimeField {
-                                parent: member_root.clone(),
-                                namespace,
-                                field: binding.field,
-                            },
-                        ),
+                        &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField {
+                            parent: member_root.clone(),
+                            namespace,
+                            field: binding.field,
+                        }),
                         scalar,
                     )?;
                 }
@@ -383,15 +386,14 @@ impl TerminalExecution<'_> {
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishZeroedStructural {});
         let result = operation.result.structural().ok_or_else(malformed)?;
-        if !matches!(
-            result.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        ) || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
-            self.structural_types().values(),
-            self.program.catalogs.structural_domains.iter(),
-            result.structural_type,
-            &result.projected_qualifications,
-        ) || !result.claims.is_empty()
+        if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
+            || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
+                self.structural_types().values(),
+                self.program.catalogs.structural_domains.iter(),
+                result.structural_type,
+                &result.projected_qualifications,
+            )
+            || !result.claims.is_empty()
             || self.result_place_in_use(result.place)
         {
             return Err(malformed());
@@ -592,10 +594,8 @@ impl TerminalExecution<'_> {
             self.structural_types().get(&result.structural_type),
             Some(declaration) if declaration.shape.is_borrowed_byte_view()
         );
-        if !matches!(
-            result.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        ) || (!result.qualifications.is_empty() && !descriptor_home)
+        if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
+            || (!result.qualifications.is_empty() && !descriptor_home)
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.result_place_in_use(result.place)
@@ -748,19 +748,16 @@ impl TerminalExecution<'_> {
         };
         // A final case step selects a payload namespace, not another value.
         let (carrier_path, namespace) = match path.split_last() {
-            Some((StructuralPathSegment::Case(case), prefix)) => (
-                prefix,
-                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
-                    *case,
-                )],
-            ),
+            Some((StructuralPathSegment::Case(case), prefix)) => {
+                (prefix, vec![CanonicalStructuralPathSegment::Case(*case)])
+            }
             _ => (path.as_slice(), Vec::new()),
         };
         let (parent, view) =
             self.resolve_live_view_projection(destination, carrier_path, projection_access)?;
         let declared_parent = match view {
             None => parent.structural_type,
-            Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
+            Some(AggregateViewTip::Aggregate { view, backing })
                 if backing == parent.structural_type =>
             {
                 view.structural_type
@@ -768,13 +765,8 @@ impl TerminalExecution<'_> {
             Some(_) => return Err(malformed()),
         };
         let types = self.structural_types();
-        let member = terminal_semantics::observed_field_declaration(
-            types.values(),
-            declared_parent,
-            &namespace,
-            field,
-        )
-        .ok_or_else(malformed)?;
+        let member = observed_field_declaration(types.values(), declared_parent, &namespace, field)
+            .ok_or_else(malformed)?;
         if member.relevance.is_erased()
             || member.field_type.scalar_type() != Some(source.scalar_type())
             || !terminal_scalar_belongs_to_type(source)
@@ -782,12 +774,8 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if let Some(view) = view {
-            let carrier = terminal_semantics::record_field_carrier(
-                types.values(),
-                declared_parent,
-                &namespace,
-            )
-            .ok_or_else(malformed)?;
+            let carrier = record_field_carrier(types.values(), declared_parent, &namespace)
+                .ok_or_else(malformed)?;
             let mut logical = carrier.path;
             logical.push(StructuralPathSegment::Field(member.identity));
             let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
@@ -1134,7 +1122,7 @@ impl TerminalExecution<'_> {
             let Some(relative) = hole.path.strip_prefix(owner.path.as_slice()) else {
                 continue;
             };
-            if terminal_psi::StructuralPathQualification::select_restorable(
+            if StructuralPathQualification::select_restorable(
                 &owner.qualifications,
                 &owner.projected_qualifications,
                 relative,
@@ -1154,7 +1142,7 @@ impl TerminalExecution<'_> {
                 repaired
                     .projected_qualifications
                     .retain(|row| !row.path.starts_with(relative));
-                terminal_psi::StructuralPathQualification::append_under(
+                StructuralPathQualification::append_under(
                     qualifications,
                     projected_qualifications,
                     relative,
@@ -1234,13 +1222,8 @@ impl TerminalExecution<'_> {
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
-    ) -> Result<
-        (
-            Vec<semantic_vocabulary::StructuralDomainId>,
-            Vec<terminal_psi::StructuralPathQualification>,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(Vec<StructuralDomainId>, Vec<StructuralPathQualification>), TerminalInterpretError>
+    {
         let machine = self.program.verified_machine(self.current_machine)?;
         // Runtime dispatch has already bounded and concretized every selector.
         // Type geometry still uses the authored operation's captured selector
@@ -1285,12 +1268,8 @@ impl TerminalExecution<'_> {
             .get_mut(..path.len())
             .ok_or_else(malformed)?
             .clone_from_slice(path);
-        terminal_psi::StructuralPathQualification::select_restorable(
-            whole,
-            projected,
-            &projection.path,
-        )
-        .ok_or_else(malformed)
+        StructuralPathQualification::select_restorable(whole, projected, &projection.path)
+            .ok_or_else(malformed)
     }
 
     /// The resolved runtime hole path one window operation names and the
@@ -1490,9 +1469,7 @@ impl TerminalExecution<'_> {
             && path.is_empty()
             && let Some(terminal_psi::StructuralTypeDeclaration {
                 shape:
-                    StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                        capacity,
-                    }),
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }),
                 ..
             }) = self.structural_types().get(&result.structural_type)
         {
@@ -1528,9 +1505,7 @@ impl TerminalExecution<'_> {
             );
             self.byte_sequence_values.insert(
                 result.place,
-                crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                    bytes.owned_snapshot(),
-                ),
+                ByteSequenceBinding::Immutable(bytes.owned_snapshot()),
             )?;
             self.structural_values.insert(result.place, copied)?;
             return Ok(OperationFlow::Advance);
@@ -1538,10 +1513,8 @@ impl TerminalExecution<'_> {
         // A shared descriptor may carry affine disposal metadata even though
         // copying its permission is admitted. Its cells retain the captured
         // backing below; no referent snapshot or parent reborrow is created.
-        let shared_descriptor = terminal_semantics::is_copyable_carrier(
-            self.structural_types().values(),
-            result.structural_type,
-        );
+        let shared_descriptor =
+            is_copyable_carrier(self.structural_types().values(), result.structural_type);
         // Other affine payloads still need their owned frontier publication.
         if matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. })
             && result.multiplicity != StructuralMultiplicity::Unrestricted
@@ -1558,11 +1531,9 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let scalar_array_result = terminal_semantics::scalar_array_leaf_shape(
-            self.structural_types().values(),
-            result.structural_type,
-        )
-        .is_some();
+        let scalar_array_result =
+            scalar_array_leaf_shape(self.structural_types().values(), result.structural_type)
+                .is_some();
         let primitive_result = self
             .structural_types()
             .get(&result.structural_type)
@@ -1653,9 +1624,7 @@ impl TerminalExecution<'_> {
                 // runtime cell namespace as an ordinary resolved projection.
                 let (leaf, projection) = self.case_payload_projection(*source, path)?;
                 let field = match path.last() {
-                    Some(semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)) => {
-                        Some(*field)
-                    }
+                    Some(CanonicalStructuralPathSegment::Field(field)) => Some(*field),
                     _ => None,
                 };
                 (leaf, *source, field, projection)
@@ -1706,11 +1675,8 @@ impl TerminalExecution<'_> {
         // Qualified arrays retain their membership metadata in placed storage;
         // the detached primitive payload representation carries no domains.
         if result.is_unrestricted_plain()
-            && terminal_semantics::scalar_array_leaf_shape(
-                self.structural_types().values(),
-                result.structural_type,
-            )
-            .is_some()
+            && scalar_array_leaf_shape(self.structural_types().values(), result.structural_type)
+                .is_some()
         {
             return self.copy_scalar_array_payload(
                 &StructuralArgument {
@@ -1884,11 +1850,9 @@ impl TerminalExecution<'_> {
             path: parent_path.to_vec(),
         };
         let bytes = self.structural_byte_storage.require(&array)?;
-        let layout = terminal_semantics::byte_carrier_scalar_layout(
-            self.structural_types().values(),
-            result.structural_type,
-        )
-        .ok_or_else(malformed)?;
+        let layout =
+            byte_carrier_scalar_layout(self.structural_types().values(), result.structural_type)
+                .ok_or_else(malformed)?;
         let index = usize::try_from(*index).map_err(|_| malformed())?;
         let mut leaves = Vec::with_capacity(layout.leaves.len());
         for member in &layout.leaves {
@@ -1911,7 +1875,7 @@ impl TerminalExecution<'_> {
                 ScalarType::Boolean => crate::primitive_storage::encoding::boolean_bits(value)?,
                 ScalarType::Integer(scalar_type) => {
                     let value = match scalar_type.sign() {
-                        semantic_vocabulary::IntegerSign::Signed => {
+                        IntegerSign::Signed => {
                             let bits = u32::from(scalar_type.bits());
                             let signed = if bits < 128 && (value >> (bits - 1)) & 1 == 1 {
                                 (value | (!0u128 << bits)) as i128
@@ -1920,7 +1884,7 @@ impl TerminalExecution<'_> {
                             };
                             IntegerValue::Signed(signed)
                         }
-                        semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(value),
+                        IntegerSign::Unsigned => IntegerValue::Unsigned(value),
                     };
                     TerminalScalarValue::Integer { scalar_type, value }
                 }
@@ -1963,7 +1927,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn observed_field_cell(
         &self,
         source: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[CanonicalStructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         let (structural_value, view) = self.observation_view_root(source)?;
@@ -1976,8 +1940,8 @@ impl TerminalExecution<'_> {
     pub(crate) fn observed_field_cell_in(
         &self,
         structural_value: &crate::values::TerminalStructuralValue,
-        view: Option<crate::reference::AggregateViewTip>,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        view: Option<AggregateViewTip>,
+        path: &[CanonicalStructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         // An observation through an aggregate re-view names the view's
@@ -1985,7 +1949,7 @@ impl TerminalExecution<'_> {
         let translated;
         let (path, field) = match view {
             None => (path, field),
-            Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
+            Some(AggregateViewTip::Aggregate { view, backing })
                 if backing == structural_value.structural_type =>
             {
                 let (backing_path, backing_field) =
@@ -2015,7 +1979,7 @@ impl TerminalExecution<'_> {
             }
             return Ok(StructuralScalarRuntimeField::case_payload(parent, field));
         }
-        let carrier = terminal_semantics::record_field_carrier(
+        let carrier = record_field_carrier(
             self.structural_types().values(),
             structural_value.structural_type,
             path,
@@ -2051,22 +2015,19 @@ impl TerminalExecution<'_> {
     fn read_observed_field(
         &self,
         source: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[CanonicalStructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
         let (structural_value, view) = self.observation_view_root(source)?;
         let declared_root = match view {
-            Some(crate::reference::AggregateViewTip::Aggregate { view, .. }) => {
-                view.structural_type
+            Some(AggregateViewTip::Aggregate { view, .. }) => view.structural_type,
+            Some(AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. }) => {
+                return Err(malformed());
             }
-            Some(
-                crate::reference::AggregateViewTip::Scalar { .. }
-                | crate::reference::AggregateViewTip::ScalarRegion { .. },
-            ) => return Err(malformed()),
             None => structural_value.structural_type,
         };
-        let declaration = terminal_semantics::observed_field_declaration(
+        let declaration = observed_field_declaration(
             self.structural_types().values(),
             declared_root,
             path,
@@ -2076,11 +2037,9 @@ impl TerminalExecution<'_> {
         if declaration.field_type.scalar_type() != Some(scalar_type) {
             return Err(malformed());
         }
-        if path.contains(&semantic_vocabulary::CanonicalStructuralPathSegment::Referent) {
+        if path.contains(&CanonicalStructuralPathSegment::Referent) {
             let mut selected = path.to_vec();
-            selected.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                field,
-            ));
+            selected.push(CanonicalStructuralPathSegment::Field(field));
             let physical = terminal_semantics::canonical_structural_storage_path(
                 self.structural_types().values(),
                 declared_root,
@@ -2091,12 +2050,9 @@ impl TerminalExecution<'_> {
             return self.read_primitive_storage(source, storage, actual, scalar_type, shared);
         }
         if let Some(view) = view {
-            let carrier = terminal_semantics::record_field_carrier(
-                self.structural_types().values(),
-                declared_root,
-                path,
-            )
-            .ok_or_else(malformed)?;
+            let carrier =
+                record_field_carrier(self.structural_types().values(), declared_root, path)
+                    .ok_or_else(malformed)?;
             let mut logical = carrier.path;
             logical.push(StructuralPathSegment::Field(declaration.identity));
             let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
@@ -2159,10 +2115,8 @@ impl TerminalExecution<'_> {
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => ByteSequenceRead { source, index, length, .. });
         let result = operation.result.expect_scalar();
-        let byte_type =
-            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).expect("u8 is valid");
-        let count_type =
-            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).expect("u64 is valid");
+        let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
         if result.scalar_type != ScalarType::Integer(byte_type) {
             return Err(malformed());
         }
@@ -2205,8 +2159,7 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_byte_sequence_length")
         };
         let result = operation.result.expect_scalar();
-        let integer_type =
-            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).expect("u64 is valid");
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
         if result.scalar_type != ScalarType::Integer(integer_type) {
             return Err(malformed());
         }

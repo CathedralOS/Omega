@@ -2,20 +2,24 @@
 //! steps authenticate an overlay; runtime storage omits that step only after
 //! choosing the nominal case. Common and payload fields keep distinct keys.
 
+use crate::effects::scalar_loans::{satisfies_source_restriction, scalar_qualification_owner};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint};
+use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint, scalar_fits_storage};
+use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
     TerminalStructuralValue,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Path, PlaceId, ScalarType, StructuralCaseId, StructuralTypeId,
+    AuthoredFieldStorage, CanonicalStructuralPathSegment as Path, PlaceId, ScalarType,
+    StructuralCaseId, StructuralTypeId,
 };
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeShape,
 };
+use terminal_semantics::scalar_array_leaf_shape;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalStorageContents {
@@ -70,14 +74,10 @@ impl StorageLeaf {
                     stored_scalar: actual,
                 },
             ) => {
-                if value.scalar_type() != *scalar
-                    || !crate::scalar_operations::terminal_scalar_belongs_to_type(value)
-                {
+                if value.scalar_type() != *scalar || !terminal_scalar_belongs_to_type(value) {
                     return Err("scalar contents differ from the declared logical carrier");
                 }
-                if actual != *stored_scalar
-                    || !crate::primitive_storage::scalar_fits_storage(actual, value)
-                {
+                if actual != *stored_scalar || !scalar_fits_storage(actual, value) {
                     return Err("scalar contents differ from the declared stored carrier");
                 }
                 if restriction
@@ -232,11 +232,8 @@ fn collect(
             // subtree only after its complete path has been consumed; selecting
             // inside it still checks every declared index on the route.
             if selected_path.is_none_or(|selected| selected == path.as_slice())
-                && terminal_semantics::scalar_array_leaf_shape(
-                    execution.structural_types().values(),
-                    root,
-                )
-                .is_some_and(|(_, count)| count == 0)
+                && scalar_array_leaf_shape(execution.structural_types().values(), root)
+                    .is_some_and(|(_, count)| count == 0)
             {
                 leaves.leaves.push(StorageLeaf {
                     path: path.clone(),
@@ -382,10 +379,7 @@ fn collect_fields(
         }
         path.push(Path::Field(field.id));
         if let Some(scalar) = field.field_type.scalar_type() {
-            if matches!(
-                field.storage,
-                Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
-            ) {
+            if matches!(field.storage, Some(AuthoredFieldStorage::Fragmented(_))) {
                 return Err(malformed());
             }
             let destination = if payload {
@@ -540,9 +534,7 @@ pub(crate) fn capture(
                 // incidental path. The captured endpoint/region still bounds
                 // access; this ancestor scope grants no additional cells.
                 let restoration_owner = aggregate
-                    .and_then(|_| {
-                        crate::effects::scalar_loans::scalar_qualification_owner(&storage)
-                    })
+                    .and_then(|_| scalar_qualification_owner(&storage))
                     .cloned()
                     .unwrap_or_else(|| StructuralRuntimePlace::from(referent));
                 // Owned payload snapshots publish no replacement or loan. Their
@@ -575,11 +567,7 @@ pub(crate) fn capture(
                 let original_restriction =
                     execution.captured_scalar_restriction(&storage, access)?;
                 if original_restriction.as_ref().is_some_and(|field| {
-                    !crate::effects::scalar_loans::satisfies_source_restriction(
-                        value,
-                        field,
-                        storage.encoding,
-                    )
+                    !satisfies_source_restriction(value, field, storage.encoding)
                 }) {
                     return Err(malformed());
                 }

@@ -9,12 +9,13 @@
 //! using the same original-endpoint and restriction queries below. It does not
 //! expose aggregate leaves as independent replaceable argument buffers.
 
+use std::iter::once;
 use std::sync::Arc;
 
 use semantic_vocabulary::{CanonicalStructuralPathSegment, PlaceId, ScalarType};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeShape,
+    StructuralParameterDeclaration, StructuralTypeShape, reading_borrow_pair_pattern,
 };
 
 use crate::effects::TerminalEffectRejection;
@@ -160,10 +161,7 @@ impl BoundaryScalarLoans {
             return Err(malformed());
         };
         if parameter.access != argument.access
-            || !matches!(
-                parameter.access,
-                terminal_psi::reading_borrow_pair_pattern!()
-            )
+            || !matches!(parameter.access, reading_borrow_pair_pattern!())
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || (parameter.access == StructuralAccess::MutableBorrow
                 && (!parameter.qualifications.is_empty()
@@ -403,13 +401,11 @@ impl TerminalExecution<'_> {
                 "mutable host storage has an uncovered original qualification or owner",
             )
         };
-        for (machine_id, values) in std::iter::once((self.current_machine, &self.structural_values))
-            .chain(
-                self.call_stack
-                    .iter()
-                    .map(|frame| (frame.current_machine, &frame.structural_values)),
-            )
-        {
+        for (machine_id, values) in once((self.current_machine, &self.structural_values)).chain(
+            self.call_stack
+                .iter()
+                .map(|frame| (frame.current_machine, &frame.structural_values)),
+        ) {
             let machine = self.program.machine(machine_id)?;
             for (place, value) in values.iter().filter(|(_, value)| owns_target(value)) {
                 if !covered(
