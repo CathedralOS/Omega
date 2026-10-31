@@ -261,8 +261,9 @@ pub(crate) fn validate_callback_requirement_report_collision(
 
 /// Close outbound registrar policies over the target's native layout catalog
 /// before provider schemas and provenance capture the calling commitment.
-/// Layout consumes typed structure, not a language judgment. This produces ABI
-/// geometry only; checked callback authority is bound separately after Psi.
+/// Layout consumes typed structure; the checked owner binds it to the policy
+/// catalog, without rechecking source. This produces ABI geometry only;
+/// checked callback authority is bound separately after Psi.
 pub fn close_outbound_callback_materializations(
     checked: &checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
