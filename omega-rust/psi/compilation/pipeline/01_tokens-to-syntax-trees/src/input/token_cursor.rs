@@ -283,7 +283,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if is_identifier_token_for_parser(token) {
-            Ok((self.identifier_from_token(token), rest))
+            let span = self.source_span(token);
+            Ok((Identifier::source_backed(self.source_owner, span), rest))
         } else {
             Err(diagnostics::expected(self, token, "identifier"))
         }
@@ -530,11 +531,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
 
         false
-    }
-
-    fn identifier_from_token(&self, token: &Token) -> Identifier {
-        let source_span = self.source_span(token);
-        Identifier::source_backed(self.source_owner, source_span)
     }
 
     pub(crate) fn split_at_top_level_punctuation(
