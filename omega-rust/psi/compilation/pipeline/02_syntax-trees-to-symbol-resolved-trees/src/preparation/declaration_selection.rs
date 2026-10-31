@@ -728,6 +728,57 @@ impl<'base> ConstantSelection<'base> {
         self.data_declaration(syntax, name, selected)
     }
 
+    /// The selected data declaration's name span. A declaration the cohort no
+    /// longer parses may still be selected through the retained predecessor's
+    /// forest: the same span and name identify the same declaration, and the
+    /// ordinary package-visibility rule still applies to it.
+    pub(crate) fn data_span(
+        &self,
+        syntax: &SyntaxTrees,
+        retained: Option<&SyntaxTrees>,
+        name: &Identifier,
+    ) -> Result<source::SourceSpan, String> {
+        let error = match self.data(syntax, name) {
+            Ok(data) => return Ok(data.name.source_span()),
+            Err(error) => error,
+        };
+        let Some(retained) = retained else {
+            return Err(error);
+        };
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                name.as_str(syntax),
+                &[SymbolKind::Data],
+                name.source_span(),
+            )
+            .ok_or_else(|| error.clone())?;
+        let span = self
+            .symbols
+            .symbol_source_span(selected)
+            .ok_or_else(|| error.clone())?;
+        let selected_name = self.symbols.name(selected);
+        let mut matches = retained.root_items().filter_map(|item| match item {
+            Item::Data(data)
+                if data.name.source_span() == span
+                    && data.name.as_str(retained) == selected_name =>
+            {
+                Some(data.is_public)
+            }
+            _ => None,
+        });
+        let (Some(is_public), None) = (matches.next(), matches.next()) else {
+            return Err(error);
+        };
+        if !is_public && !self.symbols.same_source_package(name.source_span(), span) {
+            return Err(format!(
+                "canonical declaration `{}` is private in another package",
+                name.as_str(syntax)
+            ));
+        }
+        Ok(span)
+    }
+
     /// Recognize the already selected representation constructor, never an
     /// authored type with the same spelling. Its immutable source also owns
     /// the semantic-type and explicitly selected policy parameter contract.
@@ -1376,15 +1427,34 @@ pub fn select_data_declarations(
     references: &[Identifier],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
+    select_data_declarations_with_retained(
+        syntax,
+        None,
+        sources,
+        bindings,
+        references,
+        retained_base,
+    )
+}
+
+/// Like [`select_data_declarations`], but a declaration that ordinary selection
+/// resolves into the retained predecessor's parsed forest (a unit this cohort
+/// imports without parsing again, such as `core::layout`) is accepted by its
+/// exact span and name instead of being reported as lost custody. The forest
+/// supplies no authority: selection still ran through the receiving namespace.
+pub fn select_data_declarations_with_retained(
+    syntax: &SyntaxTrees,
+    retained: Option<&SyntaxTrees>,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<SourceScopedTopLevelBinding>,
+    references: &[Identifier],
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
     let selection =
         ConstantSelection::with_retained_base(syntax, sources, bindings, retained_base)?;
     Ok(references
         .iter()
-        .map(|reference| {
-            selection
-                .data(syntax, reference)
-                .map(|data| data.name.source_span())
-        })
+        .map(|reference| selection.data_span(syntax, retained, reference))
         .collect())
 }
 

@@ -68,7 +68,9 @@ pub mod pre_resolution {
     };
     pub use crate::constant::initializer_normalization::InitializerCustodyPurpose;
     pub use crate::constant::requires_const_initializer_evaluation;
-    pub use crate::preparation::declaration_selection::select_data_declarations;
+    pub use crate::preparation::declaration_selection::{
+        select_data_declarations, select_data_declarations_with_retained,
+    };
     pub use crate::preparation::generic_data::{
         ClosedConstArguments, GenericDataRequest, canonicalize_declared_const_definition,
         closed_array_extent_expressions, closed_const_arguments,
