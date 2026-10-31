@@ -20,15 +20,16 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageS
 use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
+    AcceptedSemanticBinding, IndependentComponentDescription, PackageCompilationInputError,
+    PackageCompilationInputs, derive_source_consumption_commitment,
 };
 use package_evidence::record::PackageReviewEvidence;
 use package_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 
-use super::super::review_cache::PackageReviewCacheWrite;
+use super::super::review_cache::{PackageReviewCacheWrite, compiled_review_key};
 use super::PackageSourceBindings;
-use super::policy::reserve;
+use super::policy::{MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES, projection_failure, reserve};
 use std::collections::BTreeSet;
 use std::iter::empty;
 
@@ -113,10 +114,8 @@ impl OccurrenceCompile {
         match self {
             Self::Live(_) => Ok(()),
             Self::Cached(facts) => {
-                let commitment = package_compilation::derive_source_consumption_commitment(
-                    &facts.consumed_units,
-                    inputs,
-                )?;
+                let commitment =
+                    derive_source_consumption_commitment(&facts.consumed_units, inputs)?;
                 if commitment != facts.source_consumption_commitment {
                     return Err(vec![Diagnostic::error(
                         "a persisted review's retained source-consumption commitment does not re-derive over its retained consumed units and the live inputs",
@@ -390,7 +389,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 closure: self.closure,
                 execution_profile: self.execution_profile,
             },
-            maximum_policy_canonical_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
+            maximum_policy_canonical_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
                 .saturating_sub(self.retained_policy_canonical_total),
         }))
     }
@@ -667,7 +666,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 }
                 let directory = custody.compiled_review_cache_dir()?;
                 let cache = super::super::review_cache::CompiledReviewCache::open(directory)?;
-                let record = cache.lookup(&super::super::review_cache::compiled_review_key(
+                let record = cache.lookup(&compiled_review_key(
                     key.identity(),
                     purpose,
                     checked_target,
@@ -696,7 +695,7 @@ impl<'pass> PackageReviewRound<'pass> {
             reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
                 || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
                     package: key.clone(),
-                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                 },
             )?;
         // Consumers need the same entry-schema offer whether this
@@ -823,7 +822,7 @@ impl<'pass> PackageReviewRound<'pass> {
             reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
                 || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
                     package: key.clone(),
-                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                 },
             )?;
         let mut semantic_binding_candidates = service_binding_candidates;
@@ -896,7 +895,7 @@ impl<'pass> PackageReviewRound<'pass> {
                     target_entry_candidate,
                 },
                 policy_canonical_bytes,
-            ) && let Some(cache_key) = super::super::review_cache::compiled_review_key(
+            ) && let Some(cache_key) = compiled_review_key(
                 key.identity(),
                 purpose,
                 checked_target,
@@ -967,7 +966,7 @@ impl<'pass> PackageReviewRound<'pass> {
             total = reserve(total, length).ok_or_else(|| {
                 CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
                     package: review.key.clone(),
-                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                 }
             })?;
             occurrence.policy_canonical_bytes = length;
@@ -1057,7 +1056,7 @@ impl PackageReviewCompletion<'_> {
                 self.compilation_failure(failure)
             }
             compiler::PackageReviewFailure::Projection(failure) => {
-                super::policy::projection_failure(self.occurrence.key, failure)
+                projection_failure(self.occurrence.key, failure)
             }
         }
     }
@@ -1065,5 +1064,5 @@ impl PackageReviewCompletion<'_> {
 
 pub enum PackageReviewComponent {
     Source(compiler::PackageReviewSource),
-    Description(package_compilation::IndependentComponentDescription),
+    Description(IndependentComponentDescription),
 }
