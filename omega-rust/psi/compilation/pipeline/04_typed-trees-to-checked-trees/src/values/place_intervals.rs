@@ -27,6 +27,7 @@ pub(crate) struct LivePlaceIntervals<'a> {
     /// The state whose declarations own `symbols`; used to recover the declared
     /// type of nonlocal storage reads (owned formals and mutable locals).
     pub state: SymbolHandle,
+    pub contents: super::CurrentIntegerBounds<'a>,
 }
 
 impl LivePlaceIntervals<'_> {
@@ -54,7 +55,12 @@ impl LivePlaceIntervals<'_> {
             }
             _ => validation::carrier_integer_range(primitive_type),
         };
-        match (self.snapshot(place), standing) {
+        match (
+            self.contents
+                .at_place(place, primitive_type)
+                .or_else(|| self.snapshot(place)),
+            standing,
+        ) {
             (Some(snapshot), Some(standing)) => {
                 let minimum = snapshot.minimum.max(standing.minimum);
                 let maximum = snapshot.maximum.min(standing.maximum);
@@ -162,7 +168,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
         let (place, reference, frozen) = self.field(position, path)?;
-        self.snapshot(&place).or_else(|| {
+        let declared = (|| {
             // A constant index below a byte carrier is the same read the
             // dynamic indexed plan serves: when no snapshot sits at the
             // indexed place itself, a live whole-carrier literal supplies the
@@ -174,7 +180,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
                     minimum: BigInt::from_u64(*index),
                     maximum: BigInt::from_u64(*index),
                 };
-                if let Some(bounds) = self.indexed_field(position, parent, Some(&index)) {
+                if let Some(bounds) = self.literal_indexed_field(position, parent, Some(&index)) {
                     return Some(bounds);
                 }
             }
@@ -191,7 +197,17 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
                 None
             }
             .or_else(|| validation::carrier_integer_range(primitive_type))
-        })
+        })();
+        let primitive = self.program.primitive_type_reference(reference)?;
+        let current = self.contents.at_place(&place, primitive);
+        match (current, declared) {
+            (Some(current), Some(declared)) => {
+                let minimum = current.minimum.max(declared.minimum);
+                let maximum = current.maximum.min(declared.maximum);
+                (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
+            }
+            (current, declared) => current.or(declared),
+        }
     }
 
     fn byte_length(
@@ -223,7 +239,74 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
             .or_else(|| validation::carrier_integer_range(PrimitiveType::U64))
     }
 
-    fn indexed_field(
+    fn indexed_read(
+        &mut self,
+        root: checked_trees::CheckedStorageRoot,
+        path: &[CheckedStructuralPredicatePathSegment],
+        index: &checked_trees::CheckedScalarSelector,
+        element_path: &[checked_trees::CheckedScalarReadProjection],
+        primitive: PrimitiveType,
+    ) -> Option<IntegerRange> {
+        use super::current_integer_bounds::IntegerReadStep;
+        let first = validation::selected_scalar_interval(&index.expression, self);
+        let mut steps = path
+            .iter()
+            .cloned()
+            .map(IntegerReadStep::Static)
+            .collect::<Vec<_>>();
+        steps.push(IntegerReadStep::Index(first.clone()));
+        for step in element_path {
+            steps.push(match step {
+                checked_trees::CheckedScalarReadProjection::Static(step) => {
+                    IntegerReadStep::Static(step.clone())
+                }
+                checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                    IntegerReadStep::Index(validation::selected_scalar_interval(
+                        &selector.expression,
+                        self,
+                    ))
+                }
+            });
+        }
+        let (symbol, reference, mutable) = match root {
+            checked_trees::CheckedStorageRoot::Parameter { index } => {
+                let parameter = self.parameters.get(usize::try_from(index).ok()?)?;
+                (
+                    parameter.symbol,
+                    parameter.type_reference,
+                    parameter.is_mutable,
+                )
+            }
+            checked_trees::CheckedStorageRoot::ViewLocal { symbol }
+            | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
+                let state = self.program.state_by_symbol(self.state)?;
+                let (_, local) = self.program.state_local_declaration(state, symbol)?;
+                (symbol, local.type_reference, local.is_mutable)
+            }
+        };
+        let current = self
+            .contents
+            .selected_read(symbol, reference, mutable, &steps, primitive)
+            .or_else(|| validation::carrier_integer_range(primitive))?;
+        // Whole byte literals remain a completed-content producer. They refine
+        // the same general read, rather than selecting a parameter-only meaning.
+        let literal = root
+            .parameter()
+            .filter(|_| element_path.is_empty() && primitive == PrimitiveType::U8)
+            .and_then(|position| self.literal_indexed_field(position, path, first.as_ref()));
+        match literal {
+            Some(literal) => {
+                let minimum = current.minimum.max(literal.minimum);
+                let maximum = current.maximum.min(literal.maximum);
+                (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
+            }
+            None => Some(current),
+        }
+    }
+}
+
+impl LivePlaceIntervals<'_> {
+    fn literal_indexed_field(
         &mut self,
         position: u32,
         path: &[CheckedStructuralPredicatePathSegment],

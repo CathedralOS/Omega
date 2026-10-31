@@ -17,7 +17,144 @@ pub(crate) struct CurrentIntegerBounds<'a> {
     predicates: Vec<BoundPredicate>,
 }
 
+pub(crate) enum IntegerReadStep {
+    Static(checked_trees::CheckedStructuralPredicatePathSegment),
+    Index(Option<IntegerRange>),
+}
+
 impl<'a> CurrentIntegerBounds<'a> {
+    pub(crate) fn at_statement(
+        program: &'a dyn validation::CheckingInput,
+        operators: &checked_trees::CheckedOperatorFacts,
+        semantic: &'a FactPlan,
+        contexts: &'a [FactContextHandle],
+        state: SymbolHandle,
+        statement_index: usize,
+    ) -> Option<Self> {
+        let (machine, _) = validation::find_state(program, state)?;
+        Some(Self::new(
+            program,
+            operators,
+            semantic,
+            contexts,
+            state,
+            ProgramPoint::Statement {
+                machine_symbol: machine.symbol,
+                state_symbol: state,
+                statement_index,
+            },
+        ))
+    }
+    pub(crate) fn selected_read(
+        &self,
+        root: SymbolHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+        mutable: bool,
+        steps: &[IntegerReadStep],
+        primitive: PrimitiveType,
+    ) -> Option<IntegerRange> {
+        self.selected_path(
+            root,
+            reference,
+            mutable,
+            steps,
+            &mut Vec::new(),
+            primitive,
+            &mut 4096,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn selected_path(
+        &self,
+        root: SymbolHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+        mutable: bool,
+        steps: &[IntegerReadStep],
+        path: &mut Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        primitive: PrimitiveType,
+        budget: &mut usize,
+    ) -> Option<IntegerRange> {
+        *budget = budget.checked_sub(1)?;
+        let Some((step, tail)) = steps.split_first() else {
+            let (segments, selected, _) =
+                super::scalar::structural_fields::resolve_structural_path(
+                    self.program,
+                    reference,
+                    mutable,
+                    path,
+                    &mut |_, _| Some(()),
+                )?;
+            if self.program.primitive_type_reference(selected) != Some(primitive) {
+                return None;
+            }
+            return self.exact(
+                &CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    segments,
+                },
+                primitive,
+            );
+        };
+        match step {
+            IntegerReadStep::Static(step) => {
+                path.push(step.clone());
+                let result =
+                    self.selected_path(root, reference, mutable, tail, path, primitive, budget);
+                path.pop();
+                result
+            }
+            IntegerReadStep::Index(selector) => {
+                let (segments, _, _) = super::scalar::structural_fields::resolve_structural_path(
+                    self.program,
+                    reference,
+                    mutable,
+                    path,
+                    &mut |_, _| Some(()),
+                )?;
+                let collection = CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    segments,
+                };
+                let extent = validation::closed_collection_length_at_place(
+                    self.program,
+                    self.state,
+                    &collection,
+                )?;
+                let last = extent.checked_sub(1)?;
+                let zero = numerics::bignum::BigInt::from_u64(0);
+                let last_value = numerics::bignum::BigInt::from_u64(last);
+                let (first, last) = match selector {
+                    Some(selector) => (
+                        selector.minimum.clone().max(zero).to_u64()?,
+                        selector.maximum.clone().min(last_value).to_u64()?,
+                    ),
+                    None => (0, last),
+                };
+                if first > last || usize::try_from(last - first + 1).ok()? > *budget {
+                    return None;
+                }
+                let mut hull: Option<IntegerRange> = None;
+                for index in first..=last {
+                    path.push(
+                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index),
+                    );
+                    let bounds =
+                        self.selected_path(root, reference, mutable, tail, path, primitive, budget);
+                    path.pop();
+                    let bounds = bounds?;
+                    hull = Some(match hull {
+                        Some(previous) => IntegerRange {
+                            minimum: previous.minimum.min(bounds.minimum),
+                            maximum: previous.maximum.max(bounds.maximum),
+                        },
+                        None => bounds,
+                    });
+                }
+                hull
+            }
+        }
+    }
     pub(crate) fn new(
         program: &'a dyn validation::CheckingInput,
         operators: &checked_trees::CheckedOperatorFacts,

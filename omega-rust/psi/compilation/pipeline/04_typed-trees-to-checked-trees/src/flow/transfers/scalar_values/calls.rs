@@ -123,6 +123,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
         semantic,
         context,
         state: caller_state,
+        statement_index,
         active,
     };
     let call_ordinal = u32::try_from(occurrence.call_ordinal).ok()?;

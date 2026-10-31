@@ -96,6 +96,19 @@ impl ExitScalars<'_, '_> {
             parameters,
             symbols: &symbols,
             state: entry.symbol,
+            contents: crate::values::CurrentIntegerBounds::new(
+                self.program,
+                &self.facts.operators,
+                &self.facts.semantic,
+                self.contexts,
+                self.exit.state_symbol,
+                facts::ProgramPoint::Exit {
+                    machine_symbol: self.exit.machine_symbol,
+                    state_symbol: self.exit.state_symbol,
+                    statement_index: self.exit.statement_index,
+                    transition_target: self.exit.transition_target,
+                },
+            ),
         };
         let left = validation::selected_scalar_interval(&left, &mut values)?;
         let right = validation::selected_scalar_interval(&right, &mut values)?;

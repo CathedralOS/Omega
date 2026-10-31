@@ -20,6 +20,7 @@ pub(super) struct LiveValues<'a, 'plans> {
     pub semantic: &'a FactPlan,
     pub context: &'a FlowBuildContext<'plans>,
     pub state: SymbolHandle,
+    pub statement_index: usize,
     pub active: HandleSpan<FlowSemanticContextRef>,
 }
 
@@ -226,6 +227,14 @@ impl CapturedValue for IntegerRange {
                     .state_parameters(live.program.state_by_symbol(live.state)?),
                 symbols,
                 state: live.state,
+                contents: crate::values::CurrentIntegerBounds::at_statement(
+                    live.program,
+                    live.context.operators,
+                    live.semantic,
+                    &contexts,
+                    live.state,
+                    live.statement_index,
+                )?,
             },
         )
     }
@@ -293,6 +302,14 @@ impl CapturedValue for IntegerRange {
             parameters: program.state_parameters(program.state_by_symbol(live.state)?),
             symbols: &[],
             state: live.state,
+            contents: crate::values::CurrentIntegerBounds::at_statement(
+                program,
+                live.context.operators,
+                live.semantic,
+                &contexts,
+                live.state,
+                statement_index,
+            )?,
         }
         .interval_at_place(&place, primitive)
     }
@@ -348,11 +365,13 @@ impl validation::SelectedScalarIntervalSource for CallValues<IntegerRange> {
             .map(|(_, _, bounds)| bounds.clone())
     }
 
-    fn indexed_field(
+    fn indexed_read(
         &mut self,
-        _: u32,
+        _: checked_trees::CheckedStorageRoot,
         _: &[CheckedStructuralPredicatePathSegment],
-        _: Option<&IntegerRange>,
+        _: &checked_trees::CheckedScalarSelector,
+        _: &[checked_trees::CheckedScalarReadProjection],
+        _: typed_trees::types::PrimitiveType,
     ) -> Option<IntegerRange> {
         None
     }
