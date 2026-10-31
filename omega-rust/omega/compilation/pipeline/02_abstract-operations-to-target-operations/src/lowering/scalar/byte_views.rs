@@ -10,6 +10,7 @@ use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use calling_conventions::ValueShape;
+use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::{
     IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
@@ -254,9 +255,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
                 result.value,
                 KnownScalar::Integer {
                     scalar_type,
-                    value: KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(
-                        u128::from(length),
-                    )),
+                    value: KnownInteger::Immediate(IntegerValue::Unsigned(u128::from(length))),
                 },
             )?;
             provenance.push(*psi_operation);
@@ -271,9 +270,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         };
         let value = match carrier {
             terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
-                KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                    *capacity,
-                )))
+                KnownInteger::Immediate(IntegerValue::Unsigned(u128::from(*capacity)))
             }
             _ => KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
                 psi_operation: *psi_operation,

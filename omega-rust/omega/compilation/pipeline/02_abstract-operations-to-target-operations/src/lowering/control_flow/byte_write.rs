@@ -9,6 +9,7 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::TargetUnitOperation;
+use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 /// Keep replacement as one ordered operation. Capacity is a destination bound,
@@ -346,9 +347,7 @@ fn writable_byte_field(
         (home.qualifications(), home.projected_qualifications())
     };
     let mut written = path.to_vec();
-    written.push(terminal_psi::StructuralPathSegment::Field(
-        selected.identity,
-    ));
+    written.push(StructuralPathSegment::Field(selected.identity));
     if !terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written) {
         return Err(LoweringError::InvalidStructuralValueInput {
             machine: function.machine,

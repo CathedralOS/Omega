@@ -8,6 +8,7 @@ use crate::LoweringError;
 use abstract_operations::AbstractOperation;
 use std::collections::BTreeSet;
 use target_operations::TargetUnitOperation;
+use terminal_psi::StructuralPathSegment;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,
@@ -132,9 +133,7 @@ pub(super) fn establish(
             if let Some(case) = case {
                 destination.push(terminal_psi::StructuralPathSegment::Case(case));
             }
-            destination.push(terminal_psi::StructuralPathSegment::Field(
-                declaration.identity.clone(),
-            ));
+            destination.push(StructuralPathSegment::Field(declaration.identity.clone()));
             Ok((
                 &declaration.field_type,
                 destination,
@@ -151,9 +150,7 @@ pub(super) fn establish(
                         element_type
                             .as_ref()
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
-                        vec![terminal_psi::StructuralPathSegment::FixedIndex(
-                            index as u64,
-                        )],
+                        vec![StructuralPathSegment::FixedIndex(index as u64)],
                         Input::Element(argument),
                     ))
                 }),

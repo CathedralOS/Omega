@@ -28,6 +28,7 @@ use semantic_vocabulary::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
+use target_operations::TargetStructuralResultContract;
 use target_operations::{
     ScalarAbiValue, ScalarFunctionAbi, TargetCallResult, TargetStructuralArgument,
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
@@ -444,9 +445,7 @@ fn land_result(
                         .result
                         .structural()
                         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                    target_operations::TargetStructuralResultContract::Machine(
-                        result_declaration.clone(),
-                    )
+                    TargetStructuralResultContract::Machine(result_declaration.clone())
                 }
                 AbstractCallSignature::Requirement(requirement) => {
                     let terminal_psi::BoundaryMachineResult::Structural(result_declaration) =
@@ -454,9 +453,7 @@ fn land_result(
                     else {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     };
-                    target_operations::TargetStructuralResultContract::Requirement(
-                        result_declaration.clone(),
-                    )
+                    TargetStructuralResultContract::Requirement(result_declaration.clone())
                 }
             };
             // Reference results own an address payload home, not referent

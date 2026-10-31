@@ -7,6 +7,7 @@ use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
@@ -15,6 +16,7 @@ use target_operations::{
     TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::StructuralTypeShape;
+use terminal_semantics::ScalarRepresentationViewPair;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
@@ -76,11 +78,8 @@ pub(super) fn lower_operation(
             let committed = super::scalar_sources::source(*committed, function, site.live)?;
             if committed.scalar_type()
                 != ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
+                    IntegerType::new(IntegerSign::Unsigned, 64)
+                        .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
                 )
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -308,11 +307,7 @@ pub(super) fn lower_operation(
         } => {
             let operand = super::scalar_sources::source(*operand, function, site.live)?;
             if operand.scalar_type() != *source_type
-                || terminal_semantics::ScalarRepresentationViewPair::classify(
-                    *source_type,
-                    *target_type,
-                )
-                .is_none()
+                || ScalarRepresentationViewPair::classify(*source_type, *target_type).is_none()
             {
                 return Err(LoweringError::ValueTypeMismatch(*result));
             }

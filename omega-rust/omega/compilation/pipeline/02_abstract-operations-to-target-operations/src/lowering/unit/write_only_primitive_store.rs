@@ -18,6 +18,7 @@ use calling_conventions::ValueShape;
 use semantic_vocabulary::IeeeFloatValue;
 use semantic_vocabulary::{IeeeFloatFormat, OperationId, PlaceId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::TargetStructuralArgumentSource;
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarHomeRequirement,
@@ -109,9 +110,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                             && target.placement.shape == expected_shape
                     })
                     .ok_or_else(invalid)?;
-                target_operations::TargetStructuralArgumentSource::Placement(
-                    target_parameter.placement.clone(),
-                )
+                TargetStructuralArgumentSource::Placement(target_parameter.placement.clone())
             }
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {

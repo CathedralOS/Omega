@@ -14,9 +14,11 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use optimization_unit_semantics::access_references::validate_backing;
 use optimization_unit_semantics::descriptor_results::access_results::agree;
+use optimization_unit_semantics::descriptor_results::access_results::reconcile;
 use optimization_unit_semantics::structural_borrowed_storage_projection;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::TargetAccessInterpretation;
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
@@ -1154,9 +1156,7 @@ pub(super) fn establish_access(
             root,
             carrier_type: result.structural_type,
             referent: carrier,
-            placed: Some(target_operations::TargetAccessInterpretation::Captured(
-                correspondence.clone(),
-            )),
+            placed: Some(TargetAccessInterpretation::Captured(correspondence.clone())),
         },
     );
     live.structural_homes
@@ -1193,9 +1193,7 @@ pub(super) fn retain_access_result(
                 root,
                 carrier_type,
                 referent: backing.carrier(),
-                placed: Some(target_operations::TargetAccessInterpretation::Captured(
-                    backing,
-                )),
+                placed: Some(TargetAccessInterpretation::Captured(backing)),
             },
         )
         .is_some()
@@ -1612,21 +1610,14 @@ pub(super) fn call_results(
                         }
                         access_source(function, live, types, &actual)
                     },
-                    |correspondence| {
-                        target_operations::TargetAccessInterpretation::Captured(
-                            correspondence.clone(),
-                        )
-                    },
+                    |correspondence| TargetAccessInterpretation::Captured(correspondence.clone()),
                 )
             });
-            let association =
-                optimization_unit_semantics::descriptor_results::access_results::reconcile(
-                    agree(public_interpretations),
-                    private,
-                )
-                .ok_or(LoweringError::AccessReturnRequiresWholeView {
+            let association = reconcile(agree(public_interpretations), private).ok_or(
+                LoweringError::AccessReturnRequiresWholeView {
                     machine: function.machine,
-                })?;
+                },
+            )?;
             leaf.placed = Some(association);
         }
         reference_results.push(target_operations::TargetReferenceResult {

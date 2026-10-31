@@ -11,6 +11,7 @@ use target_operations::{
     NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, TargetBoundaryResult,
 };
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::{
     BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
     StructuralAccess, StructuralTypeDeclaration,
@@ -254,9 +255,7 @@ fn scalar_prefix(
                             declaration.shape,
                             terminal_psi::StructuralTypeShape::PrimitiveScalar(
                                 ScalarType::Integer(_)
-                            ) | terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                                ScalarType::IeeeFloat(_)
-                            )
+                            ) | StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(_))
                         )
                 },
             )
