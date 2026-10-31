@@ -1,5 +1,6 @@
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
+use numerics::arithmetic::ArithmeticDomain;
 
 pub(crate) fn encode_compiler_intrinsic_execution(
     encoder: &mut Encoder,
@@ -170,10 +171,7 @@ fn encode_compiler_numeric_type(
     };
 }
 
-fn encode_compiler_arithmetic_domain(
-    encoder: &mut Encoder,
-    domain: numerics::arithmetic::ArithmeticDomain,
-) {
+fn encode_compiler_arithmetic_domain(encoder: &mut Encoder, domain: ArithmeticDomain) {
     use numerics::arithmetic::ArithmeticDomain;
 
     match domain {

@@ -7,7 +7,9 @@ use crate::capture::{
 use crate::record::{PackagePolicyExternalRequirement, PackageReviewExternalBinding};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};
+use typed_trees::machine::{
+    Machine, SatisfiedDeclaration, TraitConformance, resolve_satisfied_declaration,
+};
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -17,12 +19,9 @@ pub(super) fn project(
     lifetime_parameters: &[typed_trees::name::Identifier],
     binding: &PackageReviewExternalBinding,
 ) -> Result<PackagePolicyExternalRequirement, Vec<Diagnostic>> {
-    let declaration = typed_trees::machine::resolve_satisfied_declaration(
-        compilation.checking_input,
-        machine,
-        conformance,
-    )
-    .ok_or_else(|| rejected("external realization has no unique exact requirement"))?;
+    let declaration =
+        resolve_satisfied_declaration(compilation.checking_input, machine, conformance)
+            .ok_or_else(|| rejected("external realization has no unique exact requirement"))?;
     if declaration.symbol() != conformance.requirement_symbol {
         return Err(rejected(
             "external realization changed its retained requirement",

@@ -12,6 +12,7 @@ use crate::record::{
     PackageReviewResultCaseIdentity,
 };
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::{JoinedPath, SymbolHandle};
 
@@ -28,8 +29,7 @@ pub(crate) struct ContractProjectionContext<'a> {
     /// shadow earlier ones; checked expression and evidence handles stay intact.
     pub(crate) lifetime_substitutions:
         &'a [(typed_trees::name::Identifier, typed_trees::name::Identifier)],
-    pub(crate) selection_exposure:
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    pub(crate) selection_exposure: AuthoredDeclarationSelectionExposure,
 }
 
 impl ContractProjectionContext<'_> {
@@ -44,8 +44,7 @@ impl ContractProjectionContext<'_> {
     }
 
     pub(crate) fn requires_public_nominals(&self) -> bool {
-        self.selection_exposure
-            == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        self.selection_exposure == AuthoredDeclarationSelectionExposure::PublicInterface
     }
 }
 
@@ -54,7 +53,7 @@ impl ContractProjectionContext<'_> {
 /// external boundary keeps its exported contract despite ExternalRealization.
 pub(crate) fn callable_contract_exposure(
     machine: &typed_trees::machine::Machine,
-) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+) -> AuthoredDeclarationSelectionExposure {
     machine.interface_exposure
 }
 
@@ -62,7 +61,7 @@ pub(crate) fn callable_contract_exposure(
 /// Private boundary traits remain audited without acquiring public visibility.
 pub(crate) fn trait_contract_exposure(
     declaration: &typed_trees::trait_definition::TraitDefinition,
-) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+) -> AuthoredDeclarationSelectionExposure {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
     if declaration.is_public {
         AuthoredDeclarationSelectionExposure::PublicInterface

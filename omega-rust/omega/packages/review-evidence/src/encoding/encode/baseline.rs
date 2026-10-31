@@ -17,6 +17,7 @@ use crate::encoding::{
     PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackagePolicyRecoveryLimits,
     PackageReviewEncodingError,
 };
+use values::identity::encode_nominal;
 
 impl PackagePolicyBaseline {
     /// Deterministic comparison payload. These bytes grant no acceptance or
@@ -92,7 +93,7 @@ pub(in crate::encoding) fn policy(
         encoder.sequence(&value.assumed_bindings, |encoder, row| encoder.string(row))
     })?;
     encoder.field("service_audits", |encoder| {
-        encoder.sequence(&value.service_audits, values::identity::encode_nominal)
+        encoder.sequence(&value.service_audits, encode_nominal)
     })
 }
 
@@ -104,7 +105,7 @@ pub(super) fn semantic_dependency(
         match &dependency.consumer {
             PackagePolicySemanticDependencyConsumer::Callable(identity) => {
                 encoder.tag("callable", 0);
-                encoder.field_by("identity", identity, values::identity::encode_nominal)?;
+                encoder.field_by("identity", identity, encode_nominal)?;
             }
             PackagePolicySemanticDependencyConsumer::PackageImplementation => {
                 encoder.tag("package_implementation", 1)
@@ -112,11 +113,7 @@ pub(super) fn semantic_dependency(
         }
         Ok(())
     })?;
-    encoder.field_by(
-        "dependency",
-        &dependency.dependency,
-        values::identity::encode_nominal,
-    )?;
+    encoder.field_by("dependency", &dependency.dependency, encode_nominal)?;
     encoder.field("kind", |encoder| {
         let name = match dependency.kind {
             PackageReviewSemanticDependencyKind::NominalIdentity => "nominal_identity",

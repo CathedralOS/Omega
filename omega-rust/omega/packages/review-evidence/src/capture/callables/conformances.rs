@@ -11,6 +11,7 @@ use crate::record::{PackagePolicyCallableConformance, PackageReviewOperatorReali
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
+use typed_trees::machine::resolve_satisfied_declaration;
 
 /// Project the trait, operator and top-level requirement realizations of one
 /// non-external callable. External callables are projected by
@@ -82,11 +83,8 @@ pub(super) fn project_callable_conformances(
             };
             if let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                 requirement,
-            )) = typed_trees::machine::resolve_satisfied_declaration(
-                compilation.checking_input,
-                machine,
-                conformance,
-            ) {
+            )) = resolve_satisfied_declaration(compilation.checking_input, machine, conformance)
+            {
                 requirement_realizations.push(project_checked_requirement_realization(
                     compilation,
                     machine,
@@ -243,11 +241,7 @@ pub(super) fn project_callable_conformances(
         let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
             definition: resolved_trait,
             requirement,
-        }) = typed_trees::machine::resolve_satisfied_declaration(
-            compilation.checking_input,
-            machine,
-            conformance,
-        )
+        }) = resolve_satisfied_declaration(compilation.checking_input, machine, conformance)
         else {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed callable `{}` trait realization `{}::{}` does not resolve to one exact retained requirement overload",

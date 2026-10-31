@@ -8,6 +8,7 @@ use crate::capture::semantics::declarations::{
 };
 use crate::record::PackagePolicyProviderRow;
 use diagnostics::Diagnostic;
+use language_semantics::type_identity::normalize_requirement_lifetime_partition;
 use provider_planning::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
 use symbols::SymbolHandle;
 use target::TargetProfile;
@@ -149,10 +150,7 @@ fn validate_lifetime_partition(
         requirement,
     )
     .ok_or_else(|| rejected("lifetime partition has no exact selected provider application"))?;
-    if language_semantics::type_identity::normalize_requirement_lifetime_partition(
-        application.lifetime_arguments(),
-    ) != retained
-    {
+    if normalize_requirement_lifetime_partition(application.lifetime_arguments()) != retained {
         return Err(rejected(
             "row lifetime partition differs from its declaring-trait application",
         ));

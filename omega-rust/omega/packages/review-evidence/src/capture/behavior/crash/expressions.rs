@@ -14,6 +14,9 @@ use crate::record::{
     PackageReviewRuntimeIndex, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
+use numerics::arithmetic::ArithmeticDomain;
+use numerics::literals::LandedIntegerType;
+use typed_trees::types::PrimitiveType;
 
 pub(in crate::capture::behavior) fn project_boolean_expression(
     expression: &checked_trees::CheckedBooleanExpression,
@@ -360,9 +363,7 @@ fn project_runtime_index(
     })
 }
 
-const fn project_primitive_type(
-    primitive_type: typed_trees::types::PrimitiveType,
-) -> PackageReviewPrimitiveType {
+const fn project_primitive_type(primitive_type: PrimitiveType) -> PackageReviewPrimitiveType {
     use typed_trees::types::PrimitiveType;
     match primitive_type {
         PrimitiveType::Bool => PackageReviewPrimitiveType::Bool,
@@ -381,9 +382,7 @@ const fn project_primitive_type(
     }
 }
 
-const fn project_landed_integer_type(
-    landed_type: numerics::literals::LandedIntegerType,
-) -> PackageReviewPrimitiveType {
+const fn project_landed_integer_type(landed_type: LandedIntegerType) -> PackageReviewPrimitiveType {
     use numerics::literals::LandedIntegerType;
     match landed_type {
         LandedIntegerType::I8 => PackageReviewPrimitiveType::I8,
@@ -398,9 +397,7 @@ const fn project_landed_integer_type(
     }
 }
 
-const fn project_arithmetic_domain(
-    domain: numerics::arithmetic::ArithmeticDomain,
-) -> PackageReviewArithmeticDomain {
+const fn project_arithmetic_domain(domain: ArithmeticDomain) -> PackageReviewArithmeticDomain {
     use numerics::arithmetic::ArithmeticDomain;
     match domain {
         ArithmeticDomain::Exact => PackageReviewArithmeticDomain::Exact,

@@ -3,7 +3,10 @@ use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionNode;
 
 mod aliases;
 mod points;
@@ -33,9 +36,7 @@ impl CollectionMeasure {
         }
     }
 
-    fn intrinsic(
-        self,
-    ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic {
+    fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
         use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
         match self {
             Self::Length => AuthoredDeclarationSelectionIntrinsic::CollectionLength,
@@ -102,10 +103,7 @@ pub(crate) fn exact_checked_contract_nominal_member(
     if selection.exposure() != context.selection_exposure {
         return Err(context.rejected("nominal member has the wrong retained selection exposure"));
     }
-    let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
-        target,
-    ) = selection.target()
-    else {
+    let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
         return Err(context.rejected("nominal member does not retain one exact declaration target"));
     };
     Ok(target.selected_symbol())
@@ -249,9 +247,7 @@ pub(crate) fn contract_member_path_root(
         })
         .then_some(facts::PlaceRoot::Expression(expression));
     }
-    let typed_trees::expression::ExpressionNode::Name(path) =
-        compilation.expression_table.expression(expression)
-    else {
+    let ExpressionNode::Name(path) = compilation.expression_table.expression(expression) else {
         return None;
     };
     if context.data_symbol.is_some_and(|data_symbol| {
@@ -300,9 +296,7 @@ pub(crate) fn is_data_subject_field_expression(
     data_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let typed_trees::expression::ExpressionNode::Name(path) =
-        compilation.expression_table.expression(expression)
-    else {
+    let ExpressionNode::Name(path) = compilation.expression_table.expression(expression) else {
         return false;
     };
     let [name] = compilation.expression_table.name_path_members(path.members) else {
@@ -359,9 +353,7 @@ pub(crate) fn data_subject_binder_position(
     expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<usize> {
-    let typed_trees::expression::ExpressionNode::Name(path) =
-        compilation.expression_table.expression(expression)
-    else {
+    let ExpressionNode::Name(path) = compilation.expression_table.expression(expression) else {
         return None;
     };
     let [name] = compilation.expression_table.name_path_members(path.members) else {

@@ -15,6 +15,7 @@ use super::targets::contract_call_target_telescopes;
 use conformance::project_contract_conformance_application;
 pub(crate) use conformance::require_exact_conformance_static_argument_selections;
 use const_values::project_named_const_static_argument;
+use typed_trees::data::TypeParameterKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ContractCallStaticParameterKind {
@@ -29,20 +30,13 @@ pub(crate) fn contract_call_static_parameter_kind(
     parameter: &typed_trees::data::TypeParameter,
 ) -> ContractCallStaticParameterKind {
     match parameter.kind {
-        typed_trees::data::TypeParameterKind::Type => ContractCallStaticParameterKind::Type,
-        typed_trees::data::TypeParameterKind::Implementation => {
-            ContractCallStaticParameterKind::Conformance
-        }
-        typed_trees::data::TypeParameterKind::Const { .. }
-        | typed_trees::data::TypeParameterKind::Value { .. } => {
+        TypeParameterKind::Type => ContractCallStaticParameterKind::Type,
+        TypeParameterKind::Implementation => ContractCallStaticParameterKind::Conformance,
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
             ContractCallStaticParameterKind::Const
         }
-        typed_trees::data::TypeParameterKind::Machine { .. } => {
-            ContractCallStaticParameterKind::Machine
-        }
-        typed_trees::data::TypeParameterKind::Proposition { .. } => {
-            ContractCallStaticParameterKind::Proposition
-        }
+        TypeParameterKind::Machine { .. } => ContractCallStaticParameterKind::Machine,
+        TypeParameterKind::Proposition { .. } => ContractCallStaticParameterKind::Proposition,
     }
 }
 
@@ -330,18 +324,14 @@ pub(crate) fn project_static_argument(
                     ));
                 };
                 match (&parameter.kind, parameter_kind) {
-                    (
-                        typed_trees::data::TypeParameterKind::Type,
-                        ContractCallStaticParameterKind::Type,
-                    ) => Ok(PackageReviewContractStaticArgument::GenericTypeBinder(
-                        position,
-                    )),
-                    (
-                        typed_trees::data::TypeParameterKind::Const { .. },
-                        ContractCallStaticParameterKind::Const,
-                    ) => Ok(PackageReviewContractStaticArgument::GenericConstBinder(
-                        position,
-                    )),
+                    (TypeParameterKind::Type, ContractCallStaticParameterKind::Type) => Ok(
+                        PackageReviewContractStaticArgument::GenericTypeBinder(position),
+                    ),
+                    (TypeParameterKind::Const { .. }, ContractCallStaticParameterKind::Const) => {
+                        Ok(PackageReviewContractStaticArgument::GenericConstBinder(
+                            position,
+                        ))
+                    }
                     _ => Err(rejected(
                         "whose category differs from its checked caller and callee telescope slots",
                     )),

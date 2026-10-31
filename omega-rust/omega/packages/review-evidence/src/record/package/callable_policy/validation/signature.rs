@@ -11,6 +11,7 @@ use crate::record::{
     PackageReviewPropositionParameterSignature, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
+use language_semantics::type_identity::normalize_requirement_lifetime_partition;
 
 pub(in crate::record) type Result = std::result::Result<(), &'static str>;
 
@@ -148,9 +149,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
         }
         lifetimes(&conformance.trait_lifetime_arguments, &scope)?;
         if conformance.requirement_lifetime_partition
-            != language_semantics::type_identity::normalize_requirement_lifetime_partition(
-                &conformance.trait_lifetime_arguments,
-            )
+            != normalize_requirement_lifetime_partition(&conformance.trait_lifetime_arguments)
         {
             return Err(
                 "requirement lifetime partition differs from its actual selected lifetimes",

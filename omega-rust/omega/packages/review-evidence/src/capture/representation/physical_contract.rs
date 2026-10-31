@@ -15,6 +15,7 @@ use crate::record::{
     PackageReviewRepresentationTargetProfile, PackageReviewSystemVEightbyteClass,
 };
 use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::BoundaryValueClass;
 
 pub(crate) fn project_representation_origin(
     origin: representation_planning::OpaqueRepresentationApplicationOrigin,
@@ -131,20 +132,13 @@ pub(crate) fn project_boundary_shape_graph(
             .iter()
             .map(|shape| PackageReviewBoundaryShape {
                 class: match shape.class() {
-                    provider_planning::calling_policy_plans::BoundaryValueClass::Integer => {
-                        PackageReviewBoundaryShapeClass::Integer
+                    BoundaryValueClass::Integer => PackageReviewBoundaryShapeClass::Integer,
+                    BoundaryValueClass::Float => PackageReviewBoundaryShapeClass::Float,
+                    BoundaryValueClass::Reference => PackageReviewBoundaryShapeClass::Reference,
+                    BoundaryValueClass::FixedArray { element, length } => {
+                        PackageReviewBoundaryShapeClass::FixedArray { element, length }
                     }
-                    provider_planning::calling_policy_plans::BoundaryValueClass::Float => {
-                        PackageReviewBoundaryShapeClass::Float
-                    }
-                    provider_planning::calling_policy_plans::BoundaryValueClass::Reference => {
-                        PackageReviewBoundaryShapeClass::Reference
-                    }
-                    provider_planning::calling_policy_plans::BoundaryValueClass::FixedArray {
-                        element,
-                        length,
-                    } => PackageReviewBoundaryShapeClass::FixedArray { element, length },
-                    provider_planning::calling_policy_plans::BoundaryValueClass::Record {
+                    BoundaryValueClass::Record {
                         first_field,
                         field_count,
                     } => PackageReviewBoundaryShapeClass::Record {

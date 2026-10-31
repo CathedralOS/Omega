@@ -3,6 +3,7 @@ use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
 use crate::record::package::callable_policy::validation::nominal_set;
 use crate::record::validation::{ordered, ordered_by};
+use language_semantics::type_identity::normalize_requirement_lifetime_partition;
 use std::cmp::Ordering;
 
 impl PackagePolicyProviderPlan {
@@ -115,9 +116,7 @@ impl PackagePolicySelectedProviders {
                     }
                 }
                 if row.requirement_lifetime_partition
-                    != language_semantics::type_identity::normalize_requirement_lifetime_partition(
-                        &row.requirement_lifetime_partition,
-                    )
+                    != normalize_requirement_lifetime_partition(&row.requirement_lifetime_partition)
                 {
                     return Err("provider lifetime partition is not canonical");
                 }

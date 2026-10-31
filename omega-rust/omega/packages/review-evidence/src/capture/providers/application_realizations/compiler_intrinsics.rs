@@ -12,6 +12,7 @@ use crate::record::{
     PackageReviewSourceLocationRole,
 };
 use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderBinding;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
@@ -274,10 +275,7 @@ pub(super) fn project(
                 application.requirement_symbol,
             ))]);
         };
-        if !matches!(
-            row.binding,
-            effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-        ) {
+        if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
             if implicit_source_span.is_some() {
                 return Err(vec![Diagnostic::error(
                     "implicit Match application has no supported intrinsic review realization",

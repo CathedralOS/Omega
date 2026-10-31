@@ -8,6 +8,7 @@ use super::ContractCallStaticParameterKind;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractStaticArgument;
+use validation::conformance_applications::close_conformance_application;
 
 pub(crate) fn require_exact_conformance_static_argument_selections(
     compilation: &PackageReviewInput<'_>,
@@ -102,11 +103,8 @@ pub(super) fn project_contract_conformance_application(
             matching.len()
         )));
     };
-    let closed = validation::conformance_applications::close_conformance_application(
-        compilation.checking_input,
-        argument,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = close_conformance_application(compilation.checking_input, argument)
+        .map_err(|diagnostic| vec![diagnostic])?;
     if checked.application != closed {
         return Err(rejected(
             "whose retained checked occurrence disagrees with the authored application",

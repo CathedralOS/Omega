@@ -14,6 +14,7 @@ use crate::record::{
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
     PackageReviewPropositionBinderValue, PackageReviewTypeIdentity,
 };
+use typed_trees::proposition::PropositionBinderArgumentKind;
 
 pub(crate) fn project_proposition_binder_argument(
     compilation: &PackageReviewInput<'_>,
@@ -23,13 +24,9 @@ pub(crate) fn project_proposition_binder_argument(
     substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
 ) -> Result<PackageReviewPropositionBinderArgument, Vec<Diagnostic>> {
     let kind = match argument.kind {
-        typed_trees::proposition::PropositionBinderArgumentKind::Type => {
-            PackageReviewPropositionBinderArgumentKind::Type
-        }
-        typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-            PackageReviewPropositionBinderArgumentKind::Const
-        }
-        typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+        PropositionBinderArgumentKind::Type => PackageReviewPropositionBinderArgumentKind::Type,
+        PropositionBinderArgumentKind::Const => PackageReviewPropositionBinderArgumentKind::Const,
+        PropositionBinderArgumentKind::Machine => {
             PackageReviewPropositionBinderArgumentKind::Machine
         }
     };
@@ -54,7 +51,7 @@ pub(crate) fn project_proposition_binder_argument(
         PackageReviewPropositionBinderValue::GenericBinder(portable_ordinal(position)?)
     } else if argument.symbol.is_valid() {
         match argument.kind {
-            typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+            PropositionBinderArgumentKind::Type => {
                 let identity = compilation
                     .exact_owner_nominal_identity(
                         argument.symbol,
@@ -69,13 +66,10 @@ pub(crate) fn project_proposition_binder_argument(
                         .unwrap_or_default(),
                 })
             }
-            typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
-                PackageReviewPropositionBinderValue::Machine(nominal_identity(
-                    compilation,
-                    argument.symbol,
-                )?)
-            }
-            typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+            PropositionBinderArgumentKind::Machine => PackageReviewPropositionBinderValue::Machine(
+                nominal_identity(compilation, argument.symbol)?,
+            ),
+            PropositionBinderArgumentKind::Const => {
                 return Err(context.rejected(
                     "proposition contains a non-literal const binder argument without an exact caller binder",
                 ));
