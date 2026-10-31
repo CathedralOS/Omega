@@ -8,6 +8,7 @@
 //! bounds remain available to declaration checking and application custody.
 
 use crate::build_time_evaluation::{expression_table, type_reference_table, type_references};
+use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
 use crate::const_evaluation::const_generic_expressions::lexical_selection::retain;
 use crate::const_evaluation::const_generic_expressions::{append_probe, expression_custody};
 use crate::machine_execution::admission::expression_children;
@@ -270,10 +271,8 @@ pub(crate) fn evaluate(
             shells.push(base);
             base = base_type;
         }
-        if !crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-            &typed, base,
-        )
-        .is_some_and(|primitive| primitive.accepts_integer_literal())
+        if !exact_probe_destination(&typed, base)
+            .is_some_and(|primitive| primitive.accepts_integer_literal())
         {
             continue;
         }
