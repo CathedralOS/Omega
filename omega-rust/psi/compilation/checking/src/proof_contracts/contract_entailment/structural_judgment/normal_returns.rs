@@ -1553,8 +1553,9 @@ impl<'program> StructuralJudge<'program> {
                     && let Some(source) = crate::expression_result_type_reference(
                         program, scope.0, scope.1, cast.value,
                     )
-                    && program.primitive_type_reference(source)
-                        .is_some_and(|primitive| primitive.is_fixed_integer())
+                    && crate::reference_shell(program, source).is_none()
+                    && let Some(source_primitive) = program.primitive_type_reference(source)
+                    && source_primitive.is_fixed_integer()
                     && program.primitive_type_reference(cast.target_type)
                         .is_some_and(|primitive| primitive.is_fixed_integer())
                     && super::super::structural_terms::denotation_preserving_conversion(
@@ -1564,7 +1565,20 @@ impl<'program> StructuralJudge<'program> {
                     let operand = inputs.iter()
                         .find(|(input, _)| *input == cast.value)
                         .and_then(|(_, path)| path.observed_value())?.clone();
-                    let range = judge.completed_integer_range_recipe(&operand);
+                    let observed_range = judge.completed_integer_range_recipe(&operand);
+                    // The completed source's physical carrier is independent of
+                    // the receiving declaration and of conversion success. Keep
+                    // it when a formal has no narrower occurrence recipe.
+                    let carrier_range = source_primitive.integer_bounds().map(|(low, high)| {
+                        checked_trees::IntegerRangeRecipe::bounds(
+                            numerics::bignum::BigInt::from_i128(low),
+                            numerics::bignum::BigInt::from_i128(high),
+                        )
+                    });
+                    let range = match (observed_range, carrier_range) {
+                        (Some(observed), Some(carrier)) => Some(observed.intersect(&carrier)),
+                        (observed, carrier) => observed.or(carrier),
+                    };
                     let mut converted = judge.capture_unknown_value(expression, scope)?;
                     if let Some(range) = range
                         && let StructuralTerm::CapturedValue { integer_range, .. } = &mut converted
