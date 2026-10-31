@@ -17,10 +17,22 @@ use super::super::stored_views::capture_at_snapshot;
 use super::Execution;
 use crate::places::place_at;
 use arena::{Handle, HandleSpan};
-use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
-use facts::{PlaceRoot, PlaceSegment};
-use typed_trees::expression::ExpressionHandle;
-use validation::CanonicalPlace;
+use checked_trees::{
+    BorrowLoanOwnerSegment, FlowOperandAlternative, FlowOperandCompletion, FlowOperandFact,
+    FlowOperandLifetimeContract, FlowOperandReferent, FlowOperandRetainedLeaf,
+    FlowOperandRetainedSupplier, FlowOperandRetention, FlowStorageSnapshot,
+};
+use facts::{PlaceRoot, PlaceSegment, payload_variant_for_field};
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use typed_trees::types::TypeReferenceHandle;
+use validation::borrow_contracts::ViewReturnInputSource;
+use validation::borrow_contracts::borrow_carrying_owner_paths;
+use validation::reference_result_custody::input_carrier_type;
+use validation::reference_result_custody::loan_place_segments;
+use validation::{
+    CanonicalPlace, call_target_entry_symbol, call_target_return_type, call_target_symbol,
+    effective_member_symbol, value_element_has_builtin_coordinate,
+};
 
 impl Execution<'_, '_, '_> {
     /// A reference value retains both its actual storage lifetime and the
@@ -42,13 +54,8 @@ impl Execution<'_, '_, '_> {
                     capture.statement_index,
                     capture.expression,
                 )?;
-                let carrier = validation::reference_result_custody::input_carrier_type(
-                    self.program,
-                    capture.type_reference,
-                )?;
-                if validation::borrow_contracts::borrow_carrying_owner_paths(self.program, carrier)?
-                    .is_empty()
-                {
+                let carrier = input_carrier_type(self.program, capture.type_reference)?;
+                if borrow_carrying_owner_paths(self.program, carrier)?.is_empty() {
                     return None;
                 }
                 let retention = self.incoming_value_retention(&source, capture.storage_snapshot)?;
@@ -213,7 +220,7 @@ impl Execution<'_, '_, '_> {
     pub(super) fn capture_alternative_retention(
         &mut self,
         expression: ExpressionHandle,
-        alternatives: HandleSpan<checked_trees::FlowOperandAlternative>,
+        alternatives: HandleSpan<FlowOperandAlternative>,
     ) -> Handle<FlowOperandRetention> {
         let Some(reference) = self.context.expression_result_type_at(
             self.program,
@@ -245,12 +252,10 @@ impl Execution<'_, '_, '_> {
     /// not in the requirement that every candidate cover each retained leaf.
     fn capture_retention_join(
         &mut self,
-        reference: typed_trees::types::TypeReferenceHandle,
+        reference: TypeReferenceHandle,
         selections: &[(FlowOperandFact, Vec<PlaceSegment>)],
     ) -> Handle<FlowOperandRetention> {
-        let Some(paths) =
-            validation::borrow_contracts::borrow_carrying_owner_paths(self.program, reference)
-        else {
+        let Some(paths) = borrow_carrying_owner_paths(self.program, reference) else {
             return Handle::invalid();
         };
         if selections.is_empty() {
@@ -278,7 +283,7 @@ impl Execution<'_, '_, '_> {
                 .control
                 .operand_retained_paths
                 .insert_many(path);
-            leaves.push(checked_trees::FlowOperandRetainedLeaf { path, retention });
+            leaves.push(FlowOperandRetainedLeaf { path, retention });
         }
         let leaves = self
             .context
@@ -420,7 +425,7 @@ impl Execution<'_, '_, '_> {
     fn incoming_value_retention(
         &mut self,
         source: &CanonicalPlace,
-        snapshot: Handle<checked_trees::FlowStorageSnapshot>,
+        snapshot: Handle<FlowStorageSnapshot>,
     ) -> Option<Handle<FlowOperandRetention>> {
         let parameter = self
             .program
@@ -430,12 +435,8 @@ impl Execution<'_, '_, '_> {
         // contents have their own complete carried-reference frontier. Using
         // the outer reference here records only the empty owner path and
         // loses every stored descriptor when a call or field read selects it.
-        let carrier = validation::reference_result_custody::input_carrier_type(
-            self.program,
-            parameter.type_reference,
-        )?;
-        let paths =
-            validation::borrow_contracts::borrow_carrying_owner_paths(self.program, carrier)?;
+        let carrier = input_carrier_type(self.program, parameter.type_reference)?;
+        let paths = borrow_carrying_owner_paths(self.program, carrier)?;
         let mut leaves = Vec::new();
         for path in paths {
             let path = crate::borrow::owner_place_segments(&path);
@@ -481,7 +482,7 @@ impl Execution<'_, '_, '_> {
                 .control
                 .operand_retained_paths
                 .insert_many(remaining.iter().copied());
-            leaves.push(checked_trees::FlowOperandRetainedLeaf { path, retention });
+            leaves.push(FlowOperandRetainedLeaf { path, retention });
         }
         if leaves.is_empty() {
             return None;
@@ -526,11 +527,8 @@ impl Execution<'_, '_, '_> {
         let storage_retention = backing_fact
             .map(|fact| fact.retention)
             .unwrap_or(capture.retention);
-        let reference_free = validation::borrow_contracts::borrow_carrying_owner_paths(
-            self.program,
-            capture.type_reference,
-        )
-        .is_some_and(|paths| paths.is_empty());
+        let reference_free = borrow_carrying_owner_paths(self.program, capture.type_reference)
+            .is_some_and(|paths| paths.is_empty());
         // A projected view keeps its denoted storage on the lifetime walk.
         // `retained_roots` stops at that projection, but a reference-free
         // field of the referent still occupies the same caller storage.
@@ -564,12 +562,7 @@ impl Execution<'_, '_, '_> {
         } else {
             return Handle::invalid();
         };
-        if reference_free
-            && matches!(
-                capture.completion,
-                checked_trees::FlowOperandCompletion::Observation
-            )
-        {
+        if reference_free && matches!(capture.completion, FlowOperandCompletion::Observation) {
             // The parent supplies storage roots, never the contents of the
             // selected slot. Only an observation can use this reference-free
             // shortcut; completed products retain their full value graph below.
@@ -593,10 +586,8 @@ impl Execution<'_, '_, '_> {
         // A just-completed value profile is authoritative, including an
         // explicit unknown. Reaching-store lookup describes resident storage;
         // it cannot replace this evaluation's result after its own writes.
-        if matches!(
-            capture.completion,
-            checked_trees::FlowOperandCompletion::Observation
-        ) && value_retention.is_none()
+        if matches!(capture.completion, FlowOperandCompletion::Observation)
+            && value_retention.is_none()
             && let Some(source) = place_at(
                 self.program,
                 self.state.symbol,
@@ -641,10 +632,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         capture: &FlowOperandFact,
     ) -> Handle<FlowOperandRetention> {
-        let Some(paths) = validation::borrow_contracts::borrow_carrying_owner_paths(
-            self.program,
-            capture.type_reference,
-        ) else {
+        let Some(paths) = borrow_carrying_owner_paths(self.program, capture.type_reference) else {
             return Handle::invalid();
         };
         if paths.is_empty() {
@@ -724,7 +712,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         source: &CanonicalPlace,
         capture: &FlowOperandFact,
-        paths: &[Vec<checked_trees::BorrowLoanOwnerSegment>],
+        paths: &[Vec<BorrowLoanOwnerSegment>],
     ) -> Handle<FlowOperandRetention> {
         let mut leaves = Vec::new();
         for path in paths {
@@ -752,7 +740,7 @@ impl Execution<'_, '_, '_> {
                 .control
                 .operand_retained_paths
                 .insert_many(path);
-            leaves.push(checked_trees::FlowOperandRetainedLeaf { path, retention });
+            leaves.push(FlowOperandRetainedLeaf { path, retention });
         }
         let leaves = self
             .context
@@ -783,10 +771,7 @@ impl Execution<'_, '_, '_> {
         if expression == self.reference_slot_target
             || receiver.state_symbol != self.state.symbol
             || receiver.statement_index != self.statement_index
-            || !matches!(
-                receiver.completion,
-                checked_trees::FlowOperandCompletion::Observation
-            )
+            || !matches!(receiver.completion, FlowOperandCompletion::Observation)
             || !receiver.reference_leaves.is_empty()
             || !self
                 .context
@@ -823,12 +808,12 @@ impl Execution<'_, '_, '_> {
         receiver: &FlowOperandFact,
     ) -> Option<Handle<FlowOperandRetention>> {
         let member = self.program.expression_table.member_node(expression)?;
-        let symbol = validation::effective_member_symbol(self.program, member.receiver, member);
+        let symbol = effective_member_symbol(self.program, member.receiver, member);
         if !symbol.is_valid() {
             return Some(Handle::invalid());
         }
         let mut path = Vec::new();
-        if let Some(variant) = facts::payload_variant_for_field(self.program, symbol) {
+        if let Some(variant) = payload_variant_for_field(self.program, symbol) {
             path.push(PlaceSegment::Case { variant });
         }
         path.push(PlaceSegment::Field { symbol });
@@ -906,10 +891,10 @@ impl Execution<'_, '_, '_> {
     fn returned_input_retention(
         &mut self,
         actual: &FlowOperandFact,
-        source: validation::borrow_contracts::ViewReturnInputSource,
+        source: ViewReturnInputSource,
         path: &[PlaceSegment],
     ) -> Option<Vec<PlaceRoot>> {
-        let stored = source == validation::borrow_contracts::ViewReturnInputSource::Stored;
+        let stored = source == ViewReturnInputSource::Stored;
         if stored && self.is_view_type(actual.type_reference) {
             if !self
                 .context
@@ -956,7 +941,7 @@ impl Execution<'_, '_, '_> {
         index: &FlowOperandFact,
         selector_writes_start: usize,
     ) -> Handle<FlowOperandRetention> {
-        if !validation::value_element_has_builtin_coordinate(
+        if !value_element_has_builtin_coordinate(
             self.program,
             self.machine,
             Some(self.state),
@@ -1019,10 +1004,8 @@ impl Execution<'_, '_, '_> {
                     profile = self.context.control.operands.get(stored);
                 }
             }
-            let Some(leaves) = validation::borrow_contracts::borrow_carrying_owner_paths(
-                self.program,
-                profile.type_reference,
-            ) else {
+            let Some(leaves) = borrow_carrying_owner_paths(self.program, profile.type_reference)
+            else {
                 return Handle::invalid();
             };
             for leaf in leaves {
@@ -1073,11 +1056,11 @@ impl Execution<'_, '_, '_> {
     pub(super) fn capture_returned_retention(
         &mut self,
         expression: ExpressionHandle,
-        destination: typed_trees::types::TypeReferenceHandle,
-        call: &typed_trees::expression::TableCallExpression,
+        destination: TypeReferenceHandle,
+        call: &TableCallExpression,
         inputs: &[(ExpressionHandle, FlowOperandFact)],
         retention: &mut Option<Handle<FlowOperandRetention>>,
-        source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
+        source_snapshot: Handle<FlowStorageSnapshot>,
     ) {
         // All result consumers share the formal argument roster. The
         // separately evaluated namespace/receiver has no parameter position.
@@ -1085,7 +1068,7 @@ impl Execution<'_, '_, '_> {
             *retention = Some(Handle::invalid());
             return;
         };
-        let target = validation::call_target_symbol(self.program, call);
+        let target = call_target_symbol(self.program, call);
         let call_ordinal =
             self.borrow
                 .with_state_borrows(self.machine.symbol, self.state.symbol, |rows| {
@@ -1101,7 +1084,7 @@ impl Execution<'_, '_, '_> {
                             recorded.statement_index == self.statement_index
                                 && recorded.authored_expression == expression
                                 && recorded.target_symbol
-                                    == validation::call_target_entry_symbol(self.program, target)
+                                    == call_target_entry_symbol(self.program, target)
                         });
                     let ordinal = calls.next()?.call_ordinal;
                     calls.next().is_none().then_some(ordinal)
@@ -1117,7 +1100,7 @@ impl Execution<'_, '_, '_> {
                     expression,
                 )
             })
-            .or_else(|| validation::call_target_return_type(self.program, target))
+            .or_else(|| call_target_return_type(self.program, target))
         else {
             return;
         };
@@ -1133,7 +1116,7 @@ impl Execution<'_, '_, '_> {
             Vec<PlaceSegment>,
             Vec<PlaceRoot>,
             bool,
-            Option<Vec<checked_trees::FlowOperandRetainedSupplier>>,
+            Option<Vec<FlowOperandRetainedSupplier>>,
         )> = Vec::new();
         for source in sources {
             // The declaration supplies the lifetime relation, but the completed
@@ -1142,13 +1125,7 @@ impl Execution<'_, '_, '_> {
             // their declaration selectors once, just as returned loans do;
             // raw symbol equality would discard a valid leaf after storage.
             let Some(path) = crate::borrow::structural_owner_path(self.program, &source.owner_path)
-                .and_then(|path| {
-                    validation::reference_result_custody::loan_place_segments(
-                        self.program,
-                        returned,
-                        &path,
-                    )
-                })
+                .and_then(|path| loan_place_segments(self.program, returned, &path))
             else {
                 *retention = Some(Handle::invalid());
                 return;
@@ -1176,8 +1153,7 @@ impl Execution<'_, '_, '_> {
             // Retain the contextual actual separately from an older stored
             // capture. The latter proves supply, never the receiving contract.
             let input = self.context.control.operands.insert(*actual);
-            let supplier = if source.source
-                == validation::borrow_contracts::ViewReturnInputSource::Stored
+            let supplier = if source.source == ViewReturnInputSource::Stored
                 && self.is_view_type(actual.type_reference)
             {
                 self.context
@@ -1229,10 +1205,10 @@ impl Execution<'_, '_, '_> {
                     .control
                     .operand_retained_paths
                     .insert_many(crate::borrow::owner_place_segments(&source.owner_path));
-                suppliers.push(checked_trees::FlowOperandRetainedSupplier {
+                suppliers.push(FlowOperandRetainedSupplier {
                     operand,
                     projection,
-                    contract: Some(checked_trees::FlowOperandLifetimeContract {
+                    contract: Some(FlowOperandLifetimeContract {
                         state_symbol: self.state.symbol,
                         statement_index: self.statement_index,
                         invocation: expression,
@@ -1307,7 +1283,7 @@ impl Execution<'_, '_, '_> {
                     .control
                     .operand_retained_paths
                     .insert_many(path);
-                leaves.push(checked_trees::FlowOperandRetainedLeaf {
+                leaves.push(FlowOperandRetainedLeaf {
                     path,
                     retention: captured,
                 });

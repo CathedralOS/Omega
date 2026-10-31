@@ -5,9 +5,21 @@
 
 use super::FlowBuildContext;
 use super::reference_spans::appended_span_since;
+use arena::Handle;
+use arena::HandleSpan;
+use checked_trees::FlowOperandReferent;
+use checked_trees::FlowValueObservationFact;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
-use validation::CanonicalPlace;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::type_identity::applied_type_identity;
+use validation::expression_traversal::visit_pre_order;
+use validation::field_domains::readable_type_reference;
+use validation::{
+    CanonicalPlace, CheckingInput, DispatchExtraction, applied_case_membership_variant,
+    canonical_place_type_reference,
+};
 
 mod captured_subject;
 mod current_values;
@@ -23,19 +35,18 @@ pub(super) use dispatch_copies::completed_copy_read_place;
 pub(crate) use dispatch_copies::copied_payload_at;
 
 pub(crate) fn completed_dispatch_extraction(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: CapturedSubjectFacts<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
-) -> Option<validation::DispatchExtraction> {
+) -> Option<DispatchExtraction> {
     let state_flow = facts
         .flow
         .control
         .unique_state(machine.symbol, state.symbol)?;
     let statement = facts.flow.state_statement(state_flow, statement_index)?;
-    let mut extraction =
-        validation::DispatchExtraction::of_transition_arm(program, state, statement_index);
+    let mut extraction = DispatchExtraction::of_transition_arm(program, state, statement_index);
     let mut completed = false;
     for observation in facts
         .flow
@@ -63,16 +74,16 @@ pub(crate) fn completed_dispatch_extraction(
 
 pub(super) struct CaseObservation {
     pub(super) subject: CanonicalPlace,
-    pub(super) descriptor: arena::Handle<checked_trees::FlowValueObservationFact>,
+    pub(super) descriptor: Handle<FlowValueObservationFact>,
     /// A selected descriptor namespace depends on its exact current binding
     /// and every possible pointee; it asserts no tag on those other pointees.
     pub(super) dependencies: Vec<CanonicalPlace>,
-    pub(super) origin_writes: arena::HandleSpan<checked_trees::FlowOperandReferent>,
+    pub(super) origin_writes: HandleSpan<FlowOperandReferent>,
     pub(super) origin_unknown_write: bool,
 }
 
 pub(super) fn case_observation(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     build: &mut FlowBuildContext<'_>,
     state: SymbolHandle,
     statement_index: usize,
@@ -106,7 +117,7 @@ pub(super) fn case_observation(
         return None;
     }
     let referents = build.control.operand_referents.span(receiver.referents)?;
-    let canonical = |referent: &checked_trees::FlowOperandReferent| {
+    let canonical = |referent: &FlowOperandReferent| {
         Some(CanonicalPlace {
             root: referent.root,
             segments: build
@@ -118,7 +129,7 @@ pub(super) fn case_observation(
     };
     let (place, dependencies, descriptor) = match referents {
         [] => return None,
-        [referent] => (canonical(referent)?, Vec::new(), arena::Handle::invalid()),
+        [referent] => (canonical(referent)?, Vec::new(), Handle::invalid()),
         _ => {
             // One actual descriptor load selects one pointee. Its tag is not
             // a proposition about every possible origin. Retain the exact
@@ -146,28 +157,16 @@ pub(super) fn case_observation(
     }) {
         return None;
     }
-    let observed_type =
-        validation::field_domains::readable_type_reference(program, receiver.type_reference)?;
-    let source_type =
-        validation::canonical_place_type_reference(program, state, statement_index, &place)?;
-    let source_type = validation::field_domains::readable_type_reference(program, source_type)?;
+    let observed_type = readable_type_reference(program, receiver.type_reference)?;
+    let source_type = canonical_place_type_reference(program, state, statement_index, &place)?;
+    let source_type = readable_type_reference(program, source_type)?;
     if observed_type != source_type {
         // A readable recast may expose another nominal interpretation of the
         // same bytes. Its tag cannot become evidence for the original carrier.
         // Compare complete applications, including dependent/region operands.
         let owner = program.machine_holding_state(state)?.symbol;
-        let observed = typed_trees::type_identity::applied_type_identity(
-            program.typed_program(),
-            observed_type,
-            owner,
-            &[],
-        )?;
-        let source = typed_trees::type_identity::applied_type_identity(
-            program.typed_program(),
-            source_type,
-            owner,
-            &[],
-        )?;
+        let observed = applied_type_identity(program.typed_program(), observed_type, owner, &[])?;
+        let source = applied_type_identity(program.typed_program(), source_type, owner, &[])?;
         if observed != source {
             return None;
         }
@@ -186,11 +185,11 @@ pub(super) fn case_observation(
 /// authorize a new assertion about evaluating that predicate again.
 pub(super) struct PredicateCaseDependencies {
     pub(super) places: Vec<CanonicalPlace>,
-    pub(super) descriptors: Vec<arena::Handle<checked_trees::FlowValueObservationFact>>,
+    pub(super) descriptors: Vec<Handle<FlowValueObservationFact>>,
 }
 
 pub(super) fn predicate_case_dependencies(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     build: &mut FlowBuildContext<'_>,
     state: SymbolHandle,
     statement_index: usize,
@@ -199,25 +198,21 @@ pub(super) fn predicate_case_dependencies(
     let machine = program.machine_holding_state(state)?;
     let state_definition = program.state_in_machine(machine, state)?;
     let mut observations = Vec::new();
-    validation::expression_traversal::visit_pre_order(
-        program,
-        vec![expression],
-        |expression, node| {
-            if let typed_trees::expression::ExpressionNode::Binary(binary) = node
-                && validation::applied_case_membership_variant(
-                    program,
-                    machine,
-                    Some(state_definition),
-                    expression,
-                    binary,
-                )
-                .is_some()
-            {
-                observations.push((expression, binary.left));
-            }
-            false
-        },
-    );
+    visit_pre_order(program, vec![expression], |expression, node| {
+        if let ExpressionNode::Binary(binary) = node
+            && applied_case_membership_variant(
+                program,
+                machine,
+                Some(state_definition),
+                expression,
+                binary,
+            )
+            .is_some()
+        {
+            observations.push((expression, binary.left));
+        }
+        false
+    });
     let mut dependencies = Vec::new();
     let mut descriptors = Vec::new();
     for (observation, subject) in observations {

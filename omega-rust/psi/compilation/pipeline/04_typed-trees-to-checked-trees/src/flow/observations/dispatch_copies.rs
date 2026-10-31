@@ -8,19 +8,28 @@ use super::super::canonical_place_segments_equal;
 use super::super::operand_binds_live_view;
 use super::super::project_captured_view_place;
 use crate::places::place_at;
-use arena::Handle;
-use checked_trees::{FlowOperandFact, FlowPermissionEvaluation};
+use arena::{Handle, HandleSpan};
+use checked_trees::{
+    FlowControlFacts, FlowFacts, FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation,
+};
+use facts::PlaceRoot;
+use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use validation::CanonicalPlace;
+use validation::CheckingInput;
+use validation::DispatchExtraction;
+use validation::owned_projection_type_reference;
+use validation::project_type_reference_from_segments;
 
 /// The selected target's completed copy actually consumed by this occurrence.
 /// Readable reference crossings are geometry here, not snapshots of referees.
 /// The flow operand/observation graph independently authenticates the use;
 /// source spelling alone never redirects a guard or an address-forming loan.
 pub(crate) fn copied_payload_at<'facts>(
-    program: &dyn validation::CheckingInput,
-    flow: &'facts checked_trees::FlowFacts,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
+    program: &dyn CheckingInput,
+    flow: &'facts FlowFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
     statement: usize,
     evaluation: FlowPermissionEvaluation,
     expression: ExpressionHandle,
@@ -41,11 +50,7 @@ pub(crate) fn copied_payload_at<'facts>(
         .flat_map(|outgoing| outgoing.copied_payloads.handles())
         .filter_map(|handle| {
             let copy = flow.control.operands.get(handle);
-            if !validation::DispatchExtraction::reads_payload_binding(
-                program,
-                expression,
-                copy.expression,
-            ) {
+            if !DispatchExtraction::reads_payload_binding(program, expression, copy.expression) {
                 return None;
             }
             let prefix = place_at(program, state, statement, copy.expression)?;
@@ -59,14 +64,12 @@ pub(crate) fn copied_payload_at<'facts>(
             {
                 return None;
             }
-            validation::project_type_reference_from_segments(
+            project_type_reference_from_segments(
                 program,
                 copy.type_reference,
                 &place.segments[prefix.segments.len()..],
             )?;
-            let checked_trees::FlowOperandCompletion::Copied { copy: identity, .. } =
-                copy.completion
-            else {
+            let FlowOperandCompletion::Copied { copy: identity, .. } = copy.completion else {
                 return None;
             };
             if !flow
@@ -88,21 +91,17 @@ pub(crate) fn copied_payload_at<'facts>(
 /// place keeps its ordinary identity; an unresolved copied reference never
 /// falls back to a newer descriptor at the old source coordinate.
 pub(in crate::flow) fn completed_copy_read_place(
-    program: &dyn validation::CheckingInput,
-    control: &checked_trees::FlowControlFacts,
-    copies: arena::HandleSpan<FlowOperandFact>,
-    state: symbols::SymbolHandle,
+    program: &dyn CheckingInput,
+    control: &FlowControlFacts,
+    copies: HandleSpan<FlowOperandFact>,
+    state: SymbolHandle,
     statement: usize,
     expression: ExpressionHandle,
-    place: &validation::CanonicalPlace,
-) -> Option<validation::CanonicalPlace> {
+    place: &CanonicalPlace,
+) -> Option<CanonicalPlace> {
     let mut matching = Vec::new();
     for copy in control.operands.span_or_empty(copies) {
-        if !validation::DispatchExtraction::reads_payload_binding(
-            program,
-            expression,
-            copy.expression,
-        ) {
+        if !DispatchExtraction::reads_payload_binding(program, expression, copy.expression) {
             continue;
         }
         let prefix = place_at(program, state, statement, copy.expression)?;
@@ -117,8 +116,7 @@ pub(in crate::flow) fn completed_copy_read_place(
             continue;
         }
         let path = &place.segments[prefix.segments.len()..];
-        let checked_trees::FlowOperandCompletion::Copied { copy: identity, .. } = copy.completion
-        else {
+        let FlowOperandCompletion::Copied { copy: identity, .. } = copy.completion else {
             return None;
         };
         let record = control.copied_values.get(identity);
@@ -134,7 +132,7 @@ pub(in crate::flow) fn completed_copy_read_place(
             let [referent] = control.operand_referents.span_or_empty(leaf.referents) else {
                 return None;
             };
-            let place = validation::CanonicalPlace {
+            let place = CanonicalPlace {
                 root: referent.root,
                 segments: control
                     .operand_referent_segments
@@ -143,13 +141,12 @@ pub(in crate::flow) fn completed_copy_read_place(
             };
             project_captured_view_place(place, &path[leaf.path.count() as usize..])?
         } else {
-            let projected =
-                validation::owned_projection_type_reference(program, copy.type_reference, path)?;
+            let projected = owned_projection_type_reference(program, copy.type_reference, path)?;
             if operand_binds_live_view(program, projected) {
                 return None;
             }
-            validation::CanonicalPlace {
-                root: facts::PlaceRoot::Expression(copy.expression),
+            CanonicalPlace {
+                root: PlaceRoot::Expression(copy.expression),
                 segments: path.to_vec(),
             }
         };

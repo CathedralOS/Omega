@@ -19,12 +19,25 @@ use super::summary::captured_argument_write_regions;
 use crate::collections::push_unique;
 use crate::flow::{expressions, literal_expression_projections, shared_call_frames_or};
 use crate::places::place_at;
-use validation::CanonicalPlace;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use validation::expression_owners::expression_contains;
+use validation::field_domains::declared_owned_field_obligations;
+use validation::{
+    CallFrameResolver, CallSite, CanonicalPlace, ContentsRequirement, ResidentOwnerQualifications,
+    call_site_argument_expressions, canonical_place_type_reference, find_call_site, has_contents,
+    project_type_reference_from_segments, reference_shell, resident_owner_qualifications,
+};
 
 use super::StorageRegion;
-use checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment as OwnerSegment};
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, BorrowLoanLineage, BorrowLoanOwnerSegment as OwnerSegment,
+};
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn signature_ceiling_places(
     program: &dyn ::validation::CheckingInput,
@@ -32,7 +45,7 @@ pub(crate) fn signature_ceiling_places(
     caller_state_symbol: SymbolHandle,
     borrow: Option<&BorrowFacts>,
     borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     StorageRegion::declared_places(signature_ceiling_regions(
         program,
@@ -50,7 +63,7 @@ pub(crate) fn signature_ceiling_regions(
     caller_state_symbol: SymbolHandle,
     borrow: Option<&BorrowFacts>,
     borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let state = program.state_by_symbol(caller_state_symbol)?;
@@ -64,7 +77,7 @@ pub(crate) fn signature_ceiling_regions(
     {
         return Some(Vec::new());
     }
-    let site = validation::find_call_site(
+    let site = find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -72,7 +85,7 @@ pub(crate) fn signature_ceiling_regions(
         borrow_call.call_ordinal,
     )?;
     let parameters = site.parameters(program, machine.symbol)?;
-    let arguments = validation::call_site_argument_expressions(program, &site);
+    let arguments = call_site_argument_expressions(program, &site);
     if parameters.iter().count() != arguments.len() {
         return None;
     }
@@ -205,21 +218,21 @@ pub(crate) fn signature_ceiling_regions(
 /// the same content as a root resident. Shared ingress grants no write reach.
 fn resident_parameter_regions(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     call: &BorrowCallFact,
-    site: &validation::CallSite<'_>,
+    site: &CallSite<'_>,
     position: usize,
-    reference: typed_trees::types::TypeReferenceHandle,
-    frames: Option<&validation::CallFrameResolver<'_>>,
+    reference: TypeReferenceHandle,
+    frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     let mut regions = Vec::new();
     let inventory = resident_owners_in_type(program, reference)?;
     for path in inventory.unresolved {
-        let actual = *validation::call_site_argument_expressions(program, site).get(position)?;
+        let actual = *call_site_argument_expressions(program, site).get(position)?;
         let mut carrier = place_at(program, state.symbol, call.statement_index, actual)
             .unwrap_or_else(|| CanonicalPlace {
-                root: facts::PlaceRoot::Expression(actual),
+                root: PlaceRoot::Expression(actual),
                 segments: Vec::new(),
             });
         carrier.segments.extend(path);
@@ -240,14 +253,13 @@ fn resident_parameter_regions(
             frames,
         )
         .or_else(|| {
-            let actual =
-                *validation::call_site_argument_expressions(program, site).get(position)?;
+            let actual = *call_site_argument_expressions(program, site).get(position)?;
             let mut place = place_at(program, state.symbol, call.statement_index, actual)?;
             place.segments.extend_from_slice(&path);
             rebase_local_write_regions(program, state.symbol, call.statement_index, place, frames)
         });
         let Some(captured) = captured else {
-            if validation::reference_shell(program, reference).is_some() {
+            if reference_shell(program, reference).is_some() {
                 // An exclusive reference also lends declared replacement
                 // authority, which still needs its actual storage origin.
                 return None;
@@ -255,11 +267,10 @@ fn resident_parameter_regions(
             // A computed owned value supplies capability content, not a
             // caller-owned descriptor home. Unknown content must invalidate
             // observations without fabricating a replaceable declaration.
-            let actual =
-                *validation::call_site_argument_expressions(program, site).get(position)?;
+            let actual = *call_site_argument_expressions(program, site).get(position)?;
             regions.push(StorageRegion::UnresolvedContent {
                 carrier: CanonicalPlace {
-                    root: facts::PlaceRoot::Expression(actual),
+                    root: PlaceRoot::Expression(actual),
                     segments: path,
                 },
             });
@@ -281,36 +292,26 @@ fn resident_parameter_regions(
 
 #[derive(Default)]
 struct ResidentAuthorityInventory {
-    owners: Vec<(
-        Vec<facts::PlaceSegment>,
-        validation::ResidentOwnerQualifications,
-    )>,
-    unresolved: Vec<Vec<facts::PlaceSegment>>,
+    owners: Vec<(Vec<PlaceSegment>, ResidentOwnerQualifications)>,
+    unresolved: Vec<Vec<PlaceSegment>>,
 }
 
 fn resident_owners_in_type(
     program: &dyn ::validation::CheckingInput,
-    mut reference: typed_trees::types::TypeReferenceHandle,
+    mut reference: TypeReferenceHandle,
 ) -> Option<ResidentAuthorityInventory> {
-    if let Some(shell) = validation::reference_shell(program, reference) {
+    if let Some(shell) = reference_shell(program, reference) {
         if !shell.access.is_exclusive() {
             return Some(ResidentAuthorityInventory::default());
         }
         reference = shell.referee;
     }
-    let roster = validation::field_domains::declared_owned_field_obligations(program, reference);
+    let roster = declared_owned_field_obligations(program, reference);
     let mut inventory = ResidentAuthorityInventory::default();
     for path in &roster.unresolved {
-        let unresolved =
-            validation::project_type_reference_from_segments(program, reference, path)?;
-        let plain = |reference| {
-            validation::has_contents(
-                program,
-                reference,
-                &[],
-                validation::ContentsRequirement::NumericOwned,
-            )
-        };
+        let unresolved = project_type_reference_from_segments(program, reference, path)?;
+        let plain =
+            |reference| has_contents(program, reference, &[], ContentsRequirement::NumericOwned);
         // A sealed accessor is an operation token for its retained
         // value type, not an arbitrary opaque capability. Its admitted scalar
         // contents cannot hide another resident owner. Other unresolved
@@ -335,9 +336,8 @@ fn resident_owners_in_type(
         push_unique(&mut paths, path);
     }
     for path in paths {
-        let projected =
-            validation::project_type_reference_from_segments(program, reference, &path)?;
-        if let Some(owner) = validation::resident_owner_qualifications(program, projected) {
+        let projected = project_type_reference_from_segments(program, reference, &path)?;
+        if let Some(owner) = resident_owner_qualifications(program, projected) {
             inventory.owners.push((path, owner));
         }
     }
@@ -346,7 +346,7 @@ fn resident_owners_in_type(
 
 pub(super) fn is_exclusive_reference(
     program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> bool {
     let mut reference = type_reference;
     while reference.is_valid() {
@@ -367,18 +367,18 @@ pub(super) fn is_exclusive_reference(
 /// inside the consumed value reaches no writable caller place.
 struct CarriedStorage {
     region: StorageRegion,
-    reference: typed_trees::types::TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 }
 
 fn carried_exclusive_referents(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
-    argument: typed_trees::expression::ExpressionHandle,
-    reference: typed_trees::types::TypeReferenceHandle,
-    resolver: &validation::CallFrameResolver<'_>,
+    argument: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    resolver: &CallFrameResolver<'_>,
 ) -> Option<Vec<CarriedStorage>> {
     let (_, caller_state) = borrow
         .states
@@ -390,12 +390,9 @@ fn carried_exclusive_referents(
     // owner handles fields, cases and elements for both, without turning an
     // inline constructor into a fictitious named storage allocation.
     for projection in literal_expression_projections(program, argument, reference, &[], true)? {
-        let projected = validation::project_type_reference_from_segments(
-            program,
-            reference,
-            &projection.destination,
-        )?;
-        if let Some(shell) = validation::reference_shell(program, projected) {
+        let projected =
+            project_type_reference_from_segments(program, reference, &projection.destination)?;
+        if let Some(shell) = reference_shell(program, projected) {
             if !shell.access.is_exclusive() {
                 continue;
             }
@@ -444,16 +441,12 @@ fn carried_exclusive_referents(
                     .loan_owner_path(loan)
                     .iter()
                     .map(|segment| match segment {
-                        OwnerSegment::Field(symbol) => {
-                            facts::PlaceSegment::Field { symbol: *symbol }
-                        }
-                        OwnerSegment::Case(variant) => {
-                            facts::PlaceSegment::Case { variant: *variant }
-                        }
+                        OwnerSegment::Field(symbol) => PlaceSegment::Field { symbol: *symbol },
+                        OwnerSegment::Case(variant) => PlaceSegment::Case { variant: *variant },
                         OwnerSegment::FixedIndex(index) => {
-                            facts::PlaceSegment::FixedIndex { index: *index }
+                            PlaceSegment::FixedIndex { index: *index }
                         }
-                        OwnerSegment::DynamicIndex => facts::PlaceSegment::Index {
+                        OwnerSegment::DynamicIndex => PlaceSegment::Index {
                             expression: Default::default(),
                         },
                     })
@@ -467,7 +460,7 @@ fn carried_exclusive_referents(
                 // The carried descriptor supplies its qualification contract,
                 // even when its referent's declaration is less refined and
                 // the actual membership was established by flow.
-                reference: validation::canonical_place_type_reference(
+                reference: canonical_place_type_reference(
                     program,
                     state.symbol,
                     statement_index,
@@ -498,17 +491,17 @@ pub(super) fn retained_loan_write_regions(
         .states
         .iter()
         .find(|(_, row)| row.state_symbol == state_symbol)?;
-    let site = validation::find_call_site(
+    let site = find_call_site(
         program,
         machine_symbol,
         state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let arguments = validation::call_site_argument_expressions(program, &site);
+    let arguments = call_site_argument_expressions(program, &site);
     let mut regions = Vec::new();
     for (_, loan) in borrow.state_loans(state) {
-        if loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+        if loan.lineage != BorrowLoanLineage::LifetimeDependency
             || !loan.kind.is_exclusive()
             || loan.last_use_statement_index != call.statement_index
         {
@@ -520,11 +513,7 @@ pub(super) fn retained_loan_write_regions(
         let formed = order.precedes(loan.statement_index, call.statement_index)
             || (loan.formation_expression.is_valid()
                 && arguments.iter().any(|argument| {
-                    validation::expression_owners::expression_contains(
-                        program,
-                        *argument,
-                        loan.formation_expression,
-                    )
+                    expression_contains(program, *argument, loan.formation_expression)
                 }));
         if !formed {
             continue;
@@ -544,7 +533,7 @@ pub(super) fn retained_loan_write_regions(
 /// A checked provider-output loan retains its performed identity but names no
 /// declaration-relative backing. It cannot restore a caller ownership home.
 fn loan_write_region(place: CanonicalPlace) -> StorageRegion {
-    if matches!(place.root, facts::PlaceRoot::InvocationOutput(_)) {
+    if matches!(place.root, PlaceRoot::InvocationOutput(_)) {
         StorageRegion::UnresolvedContent { carrier: place }
     } else {
         StorageRegion::Declared(place)
@@ -557,7 +546,7 @@ fn loan_write_region(place: CanonicalPlace) -> StorageRegion {
 fn owner_path_overlaps(
     program: &dyn ::validation::CheckingInput,
     owner_path: &[OwnerSegment],
-    place_segments: &[facts::PlaceSegment],
+    place_segments: &[PlaceSegment],
 ) -> bool {
     owner_path
         .iter()
@@ -565,21 +554,21 @@ fn owner_path_overlaps(
         .all(|(owner, place)| match (owner, place) {
             (
                 OwnerSegment::Field(owner_symbol),
-                facts::PlaceSegment::Field {
+                PlaceSegment::Field {
                     symbol: place_symbol,
                 },
             ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
             (
                 OwnerSegment::Case(owner_variant),
-                facts::PlaceSegment::Case {
+                PlaceSegment::Case {
                     variant: place_variant,
                 },
             ) => owner_variant == place_variant,
             (
                 OwnerSegment::FixedIndex(owner_index),
-                facts::PlaceSegment::FixedIndex { index: place_index },
+                PlaceSegment::FixedIndex { index: place_index },
             ) => owner_index == place_index,
-            (OwnerSegment::FixedIndex(owner_index), facts::PlaceSegment::Index { expression }) => {
+            (OwnerSegment::FixedIndex(owner_index), PlaceSegment::Index { expression }) => {
                 expressions(program)
                     .constant_integer_value(*expression)
                     .and_then(|value| usize::try_from(value).ok())
@@ -587,7 +576,7 @@ fn owner_path_overlaps(
             }
             (
                 OwnerSegment::DynamicIndex,
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
+                PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. },
             ) => true,
             _ => false,
         })

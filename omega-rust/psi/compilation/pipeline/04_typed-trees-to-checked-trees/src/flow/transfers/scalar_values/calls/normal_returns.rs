@@ -20,6 +20,7 @@ use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
+use validation::activation_target_state_index;
 
 enum CapturedReturns<Value> {
     NoNormalValue,
@@ -280,11 +281,8 @@ impl NormalReturnCapture<'_, '_> {
                 if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
                     return None;
                 }
-                let target_index = validation::activation_target_state_index(
-                    self.program,
-                    self.machine,
-                    path.symbol,
-                )?;
+                let target_index =
+                    activation_target_state_index(self.program, self.machine, path.symbol)?;
                 let target_state = self
                     .program
                     .machine_states(self.machine)
