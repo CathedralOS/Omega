@@ -1,1 +1,1 @@
-index
+cannot prove index `4` is within length 4
