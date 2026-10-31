@@ -184,6 +184,14 @@ impl TypeReferenceTable {
             copied.arena_index(),
             copied.generation(),
         )) = source.operand_lifetime_owner(type_reference);
+        let lifetimes = source.operand_lifetimes(type_reference);
+        let span = self
+            .operand_lifetimes
+            .insert_many(lifetimes.iter().copied());
+        *self.operand_lifetime_spans.get_mut(Handle::from_parts(
+            copied.arena_index(),
+            copied.generation(),
+        )) = span;
         self.set_operand_origin(copied, source.operand_origin(type_reference));
         copied
     }
@@ -200,6 +208,9 @@ impl TypeReferenceTable {
         if !type_reference.is_valid() {
             return;
         }
+        // Resolved regions, like operand_lifetime_owner, name the supplying
+        // authored declaration. Remapping executable locals does not mint new
+        // lifetime binders or turn captures into the generated callee's regions.
         let node = self.type_reference(type_reference).clone();
         match node {
             TypeReferenceNode::Reference { referee, .. } => {

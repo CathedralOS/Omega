@@ -38,8 +38,9 @@ pub use language_semantics::type_identity::{
 };
 pub use lifetime_parameters::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity,
-    applied_lifetime_parameter_identity_with_supplier, lifetime_parameter_identity,
-    lifetime_parameter_name, portable_lifetime_parameter_identity,
+    applied_lifetime_parameter_identity_with_supplier, apply_resolved_lifetime_parameter_identity,
+    declaration_lifetime_parameters, lifetime_parameter_identity, lifetime_parameter_name,
+    portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
