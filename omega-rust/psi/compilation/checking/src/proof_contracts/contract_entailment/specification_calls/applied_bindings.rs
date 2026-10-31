@@ -303,6 +303,24 @@ impl AppliedProofBindings {
                 );
             }
             if application.lexical_owner != caller {
+                // A machine-parameter signature is checked under its own
+                // symbol, while the premise call is authored on the enclosing
+                // machine. The application header may still be a registration
+                // shell. The call's static arguments are the exact actuals;
+                // realization correspondence belongs to the executable caller
+                // and is not required to project those actuals.
+                if signature_declared_by_machine(program, caller, application.lexical_owner)
+                    && let SelectedCallContract::Concrete(machine, _) = owner
+                    && let Some(bindings) = exact_parameter_bindings(
+                        program,
+                        machine,
+                        application.lexical_owner,
+                        caller,
+                        arguments,
+                    )
+                {
+                    return Some(bindings);
+                }
                 if super::super::struct_trace() {
                     eprintln!(
                         "STRUCT application refused caller={caller:?} lexical={:?} handle={handle:?} stage=lexical-owner",
@@ -1338,6 +1356,118 @@ impl AppliedProofBindings {
         };
         integer(value)
     }
+}
+
+/// Project one concrete callee's declared telescope from the call's exact
+/// static arguments. Type formals receive the argument's type reference.
+/// Other kinds stay closed here; their application header owns them.
+fn exact_parameter_bindings(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    lexical_owner: SymbolHandle,
+    caller: SymbolHandle,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+) -> Option<AppliedProofBindings> {
+    let parameters = program.machine_type_parameters(machine);
+    if parameters.len() != arguments.len() || !machine.conformance_bounds.is_empty() {
+        return None;
+    }
+    let mut types = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let TypeParameterKind::Type = parameter.kind else {
+            return None;
+        };
+        let actual = if argument.type_reference.is_valid()
+            && super::exact_type_selection(program, argument)
+        {
+            argument.type_reference
+        } else if argument.symbol.is_valid()
+            && argument.application.is_none()
+            && argument.evidence_projection.is_none()
+            && argument.const_literal.is_none()
+        {
+            program
+                .type_reference_table
+                .find_named_type_reference(argument.symbol)?
+        } else if argument.application.is_none()
+            && argument.evidence_projection.is_none()
+            && argument.const_literal.is_none()
+            && argument.path.len() == 1
+        {
+            enclosing_type_reference(program, lexical_owner, caller, argument.path[0].as_str())?
+        } else {
+            return None;
+        };
+        types.push((parameter.symbol, actual));
+    }
+    Some(AppliedProofBindings {
+        types,
+        ..AppliedProofBindings::default()
+    })
+}
+
+/// The single path segment names one type binder of the enclosing machine or
+/// of this signature. Spelling is only the lookup key inside that telescope.
+fn enclosing_type_reference(
+    program: &dyn crate::CheckingInput,
+    lexical_owner: SymbolHandle,
+    caller: SymbolHandle,
+    name: &str,
+) -> Option<TypeReferenceHandle> {
+    let machine = program.machine_by_symbol(lexical_owner)?;
+    for parameter in program.machine_type_parameters(machine) {
+        if parameter.name.as_str() == name && matches!(parameter.kind, TypeParameterKind::Type) {
+            if let Some(reference) = program
+                .type_reference_table
+                .find_named_type_reference(parameter.symbol)
+            {
+                return Some(reference);
+            }
+        }
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        let Some(view) = program.machine_parameter_contract_view(contract) else {
+            continue;
+        };
+        if view.signature().symbol != caller {
+            continue;
+        }
+        for binder in program.state_signature_type_parameters(view.signature()) {
+            if binder.name.as_str() == name && matches!(binder.kind, TypeParameterKind::Type) {
+                if let Some(reference) = program
+                    .type_reference_table
+                    .find_named_type_reference(binder.symbol)
+                {
+                    return Some(reference);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// `caller` is a machine-parameter signature declared directly by `machine`.
+/// Nested signature parameters stay with their own owner.
+fn signature_declared_by_machine(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    machine: SymbolHandle,
+) -> bool {
+    let Some(machine) = program.machine_by_symbol(machine) else {
+        return false;
+    };
+    program
+        .machine_type_parameters(machine)
+        .iter()
+        .any(|parameter| {
+            let TypeParameterKind::Machine { contract } = &parameter.kind else {
+                return false;
+            };
+            program
+                .machine_parameter_contract_view(contract)
+                .is_some_and(|view| view.signature().symbol == caller)
+        })
 }
 
 /// Read an erased selection without deriving a fact from its implementation.

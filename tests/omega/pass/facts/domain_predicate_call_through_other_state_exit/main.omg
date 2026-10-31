@@ -1,0 +1,30 @@
+// A call inside a domain predicate is the declaration's body under the
+// subject. The predicate records that result, and the caller reads the record.
+// Place: other_state.
+// Expected exit: 0
+machine premise(kept: bool) -> bool {
+    kept
+}
+
+domain bool::Held
+requires premise(self);
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+machine main() crashes Trap {
+    let kept: bool = true;
+    transition { _ -> check(kept) }
+    machine check(kept: bool) crashes Trap {
+        let direct: bool in Held = kept;
+        transition hold(direct) {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

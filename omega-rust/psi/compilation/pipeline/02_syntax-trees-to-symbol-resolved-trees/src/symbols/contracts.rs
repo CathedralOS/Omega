@@ -211,10 +211,26 @@ pub(super) fn assign_contract_reference_symbols(
             None,
             &[],
         );
+        // The signature's own binders shadow the enclosing telescope. Unshadowed
+        // owner type parameters stay in scope, so a premise call `premise<T>`
+        // names that exact binder rather than an unresolved spelling.
+        let owner_parameters = roots
+            .machines
+            .iter()
+            .find_map(|machine| {
+                let parameters = data_type_parameters.span_or_empty(machine.type_parameters);
+                parameters
+                    .iter()
+                    .any(|candidate| {
+                        candidate.symbol.is_valid() && candidate.symbol == parameter.symbol
+                    })
+                    .then(|| parameters.to_vec())
+            })
+            .unwrap_or_default();
         assign_callable_value_symbols(
             symbols,
             &scope,
-            &[],
+            &owner_parameters,
             state_parameters.span_or_empty(signature.parameters),
             signature.return_type.as_ref(),
             signature.symbol,

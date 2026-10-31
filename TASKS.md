@@ -424,8 +424,6 @@ retired-syntax deletions to completion.
   - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
-  - Complete generic abstract-signature premise substitution under exact actuals in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs` and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`.
-  - Complete declaration-owned call formation in domain/default predicates.
   - Complete declaration-owned call formation for receiver/projection terms.
   - Complete citation/induction call guarantees with their transitive assumptions.
   - Extend `OpenIndexOperationSelection` in

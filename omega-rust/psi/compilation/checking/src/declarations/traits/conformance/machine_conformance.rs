@@ -418,6 +418,7 @@ fn validate_machine_top_level_requirement_conformance(
             actual_parameters,
             requirement.symbol,
             machine.symbol,
+            &[],
             diagnostics,
         );
     }
