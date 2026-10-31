@@ -12,6 +12,8 @@ fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expec
 	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @89d5d2d7655c
+	cannot prove requires contract for specification call `only_nonzero` in data `Gated` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
 	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
@@ -43,6 +45,37 @@ fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected r
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/array_element_default_domain/call_result rejected 2228ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/const_name rejected 2183ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/field rejected 4669ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/local rejected 3112ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/match_join rejected 2266ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/other_machine rejected 2366ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/other_state rejected 3399ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/parameter rejected 3155ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/predicate_index_formation rejected 1833ms expected @89d5d2d7655c
+	cannot form specification index in data `Tallies` default-domain predicate: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in data `Tallies` default-domain predicate: independent collection bounds are not established by preceding formed facts
+fail/facts/array_element_default_domain/saved_read rejected 3460ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 5: result >= 0 && result < 16
+fail/facts/array_element_default_domain/selected_index_operator rejected 1387ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/signed_floor rejected 1661ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/target_body rejected 2055ms expected @89d5d2d7655c
+	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
+fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d2d7655c
+	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
+	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -2162,6 +2195,7 @@ pass/dependent/data_where_u64_equality_fields_compile checked 2964ms @ccdb99ca22
 pass/dependent/data_where_u8_bound_compile checked 2231ms @ccdb99ca2214
 pass/dependent/data_where_u8_equality_compile checked 2031ms @ccdb99ca2214
 pass/dependent/data_where_zero_equality_compile checked 2374ms @ccdb99ca2214
+pass/dependent/declaration_predicate_requires_proved checked 4733ms @89d5d2d7655c
 pass/dependent/domain_member_with_where_compile checked 2714ms @ccdb99ca2214
 pass/dependent/generic_data_where_field_bound_compile checked 2478ms @ccdb99ca2214
 pass/dependent/invariant_field_store_compile checked 2612ms @ccdb99ca2214
@@ -2794,6 +2828,18 @@ pass/facts/applied_zero_establishment_through_other_machine_exit checked 3840ms 
 pass/facts/applied_zero_establishment_through_other_state_exit checked 3901ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/applied_zero_establishment_through_parameter_exit checked 4111ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/applied_zero_establishment_through_target_body_exit checked 4169ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/array_element_default_domain/call_result checked 3620ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/const_name checked 3155ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/field checked 5219ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/local checked 4137ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/match_join checked 5175ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/other_machine checked 7264ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/other_state checked 3588ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/parameter checked 7262ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/saved_read checked 5531ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/target_body checked 4046ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/writeback checked 2185ms check-target:macos_arm64 @89d5d2d7655c
+pass/facts/array_element_default_domain/zero_owner checked 2855ms check-target:macos_arm64 @89d5d2d7655c
 pass/facts/as_slice_views_generic_offset_selector_exit checked 4244ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_root_exit checked 3662ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_shadowed_extent_exit checked 4306ms check-target:macos_arm64 @ccdb99ca2214
@@ -12091,7 +12137,7 @@ pass/providers/unused_named_provider_candidates checked 3791ms check-target:maco
 pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.i` is within length 2 in add::entry
 pass/range/runtime_funnel_guard_agreement_exit checked 11294ms check-target:macos_arm64 @ccdb99ca2214
-pass/range/runtime_guarded_runtime_index_increment_exit checked 12636ms check-target:macos_arm64 @ccdb99ca2214
+pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
 pass/ranges/loop_saved_guard_disjoint_write_exit rejected 2618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.index` is within length 3 in body::entry
 pass/ranges/runtime_array_element_full_width_receiving_exit checked 4151ms check-target:macos_arm64 @ccdb99ca2214
@@ -37370,9 +37416,9 @@ fail/range/funnel_guard_one_edge_unguarded rejected 13167ms expected @ccdb99ca22
 	cannot prove requires contract for call push from other: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/range/guarded_copy_stale_after_write rejected 10865ms expected @ccdb99ca2214
 	cannot prove requires contract for call store from stale: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/range/guarded_runtime_index_collection_write rejected 12262ms expected @ccdb99ca2214
-	cannot prove requires contract for call bump from interpose: u < 16 (needs fact `v < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/range/indexed_field_range_runtime_write_rejected rejected 12886ms expected @ccdb99ca2214
+fail/range/guarded_runtime_index_collection_write rejected 959ms expected @89d5d2d7655c
+	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/range/indexed_field_range_runtime_write_rejected rejected 6767ms expected @89d5d2d7655c
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/indexed_field_window_different_positions rejected 820ms expected @ccdb99ca2214
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
