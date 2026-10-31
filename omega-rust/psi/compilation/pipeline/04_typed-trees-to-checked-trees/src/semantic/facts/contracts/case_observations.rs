@@ -8,6 +8,8 @@
 //! contexts keep payload promises and whole-value snapshots from extending or
 //! shortening the discriminator lifetime; dynamic selectors remain dependencies.
 
+use crate::semantic::facts::append_observation_context;
+use crate::semantic::places::instantiate_call_contract_expression_place;
 use checked_trees::{
     ContractCallFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
 };
@@ -56,25 +58,20 @@ pub(super) fn append_result(
         {
             continue;
         }
-        let Some(place) = crate::semantic::places::instantiate_call_contract_expression_place(
-            program,
-            facts,
-            call,
-            subject_expression,
-        ) else {
+        let Some(place) =
+            instantiate_call_contract_expression_place(program, facts, call, subject_expression)
+        else {
             continue;
         };
         let dependencies: Vec<_> = selector_occurrences(program, subject_expression)
             .into_iter()
             .map(|expression| {
-                crate::semantic::places::instantiate_call_contract_expression_place(
-                    program, facts, call, expression,
-                )
-                .map(FactPlace::Place)
-                .unwrap_or(FactPlace::Unknown)
+                instantiate_call_contract_expression_place(program, facts, call, expression)
+                    .map(FactPlace::Place)
+                    .unwrap_or(FactPlace::Unknown)
             })
             .collect();
-        crate::semantic::facts::append_observation_context(
+        append_observation_context(
             facts,
             Fact {
                 place: FactPlace::Place(place),
@@ -152,7 +149,7 @@ pub(super) fn append_requirement(
                 .unwrap_or(FactPlace::Unknown)
             })
             .collect();
-        crate::semantic::facts::append_observation_context(
+        append_observation_context(
             facts,
             Fact {
                 place: FactPlace::Place(place),
