@@ -5,6 +5,8 @@
 //! rejects the argument at the first row that reads it, never earlier, so a
 //! row deciding without it keeps its outcome and its caller's trace phase.
 
+use super::argument_paths::borrowed_argument_endpoint;
+use super::argument_presentation::classify;
 use crate::execution::terminal_unit::calls::argument_paths::{
     fixed_byte_array_range_path, open_byte_range_path, projected_argument_path,
     projected_borrowed_path, projected_evaluated_path,
@@ -307,7 +309,7 @@ impl ParameterArgument<'_> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> bool {
         source.plan.type_identity == self.target_identity
-            || super::argument_presentation::classify(
+            || classify(
                 self.program,
                 source.declaration.type_reference,
                 self.target,
@@ -352,12 +354,8 @@ impl ParameterArgument<'_> {
             self.place,
             self.selectors,
         )?;
-        let (selected, path) = super::argument_paths::borrowed_argument_endpoint(
-            self.program,
-            selected,
-            path,
-            self.target,
-        )?;
+        let (selected, path) =
+            borrowed_argument_endpoint(self.program, selected, path, self.target)?;
         (base_type_identity(self.program, selected, &[], &[])? == self.target_identity)
             .then_some(path)
     }
@@ -373,15 +371,8 @@ impl ParameterArgument<'_> {
             self.statement_index,
             self.place,
         )?;
-        let (projected, path) =
-            super::argument_paths::borrowed_argument_endpoint(program, projected, path, target)?;
-        let presentation = super::argument_presentation::classify(
-            program,
-            projected,
-            target,
-            self.target_identity,
-            &[],
-        )?;
+        let (projected, path) = borrowed_argument_endpoint(program, projected, path, target)?;
+        let presentation = classify(program, projected, target, self.target_identity, &[])?;
         (presentation != ArgumentPresentation::ByteSequence).then_some(path)
     }
 
@@ -401,9 +392,8 @@ impl ParameterArgument<'_> {
             None,
             None,
         )?;
-        let (projected, path) =
-            super::argument_paths::borrowed_argument_endpoint(program, projected, path, target)?;
-        super::argument_presentation::classify(
+        let (projected, path) = borrowed_argument_endpoint(program, projected, path, target)?;
+        classify(
             program,
             projected,
             target,
@@ -443,21 +433,10 @@ impl ParameterArgument<'_> {
             place,
             self.selectors,
         )?;
-        let (projected, path) = super::argument_paths::borrowed_argument_endpoint(
-            program,
-            projected,
-            path,
-            self.target,
-        )?;
+        let (projected, path) = borrowed_argument_endpoint(program, projected, path, self.target)?;
         // A captured selector changes storage coordinates, not the formal's
         // presentation. Static and evaluated projections share this relation.
-        let presentation = super::argument_presentation::classify(
-            program,
-            projected,
-            self.target,
-            self.target_identity,
-            &[],
-        )?;
+        let presentation = classify(program, projected, self.target, self.target_identity, &[])?;
         (presentation != ArgumentPresentation::FixedArraySlice
             || custody.lends_unrestricted_borrow())
         .then_some(path)

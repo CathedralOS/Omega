@@ -24,6 +24,10 @@
 //! value together with that exit's exact disposition. A consuming alternative
 //! cannot stand in for cleanup on a sibling, and terminal local aliases name
 //! only the current occupant after any body-level replacement.
+use super::super::local_storage::occupant;
+use super::super::storage_transfers::has_computation_transfer;
+use super::super::types::borrowed_slice_result;
+use super::guards::retained_guard;
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan as TerminatorPlan,
     CheckedStructuralAccess as StructuralAccess, CheckedStructuralControlSuccessorPlan,
@@ -133,9 +137,7 @@ pub(super) fn account<'calls>(
         // producer of a rebound home. Explicit production identities remain
         // available after that named alias ceases to belong to this value.
         let terminal_local =
-            if super::super::local_storage::occupant(program, state, operations, result_local)
-                == Some(result.binding_ordinal)
-            {
+            if occupant(program, state, operations, result_local) == Some(result.binding_ordinal) {
                 result_local
             } else {
                 Default::default()
@@ -369,10 +371,7 @@ pub(super) fn account<'calls>(
                         source, ..
                     }
                     | checked_trees::CheckedStructuralValueKind::Reference { source, .. }
-                        if super::super::types::borrowed_slice_result(
-                            program,
-                            node.type_reference,
-                        ) =>
+                        if borrowed_slice_result(program, node.type_reference) =>
                     {
                         // Formation and transport share the captured view's
                         // lifetime owner, not a producer-specific disposition.
@@ -459,7 +458,7 @@ pub(super) fn account<'calls>(
             OperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. }
             ) if facts.values.structural_values.nodes.is_valid(*value)
-                && super::super::types::borrowed_slice_result(
+                && borrowed_slice_result(
                     program,
                     facts.values.structural_values.nodes.get(*value).type_reference,
                 ));
@@ -536,7 +535,7 @@ pub(super) fn account<'calls>(
                 .as_ref()
                 .is_some_and(|transfers| transfers.possible.is_empty())
             && matches!(
-                super::super::storage_transfers::has_computation_transfer(
+                has_computation_transfer(
                     program,
                     facts,
                     state.symbol,
@@ -762,7 +761,7 @@ pub(super) fn account<'calls>(
                     .zip(&guarded_return_construction_uses)
                 {
                     if let Some(guard) = guard {
-                        prefix_transfers += super::guards::retained_guard(
+                        prefix_transfers += retained_guard(
                             facts,
                             machine.symbol,
                             state.symbol,

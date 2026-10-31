@@ -7,10 +7,14 @@
 //! plans, settle the sources those calls evaluate under the statement's
 //! owned-selection policy, and adopt the anonymous producers they consume.
 
+use super::super::super::borrowed_windows::OpenWindows;
+use super::super::super::local_storage::occupant;
+use super::super::super::reference_results::release_boundary;
 use super::super::super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
 };
+use super::super::structural_operands::value_calls;
 use super::super::{
     CheckFacts, CheckedStructuralAccess as StructuralAccess,
     CheckedUnitEffectOperationPlan as OperationPlan,
@@ -18,6 +22,15 @@ use super::super::{
     CheckedUnitStructuralResultBindingPlan as BindingPlan, Multiplicity, PermissionEventSource,
     StatementNode, SymbolHandle,
 };
+use super::reference_retirement::OwnerCandidates;
+use super::reference_retirement::Retirement;
+use super::reference_retirement::carrier_loans;
+use super::reference_retirement::local_reference_loans;
+use super::reference_retirement::prepare_case_conditions;
+use super::reference_retirement::prepare_owner_cleanups;
+use super::reference_retirement::returned_reference_binding;
+use super::reference_retirement::selections::complement_completions;
+use super::reference_retirement::unique_borrow_state;
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::ShapeCollector;
@@ -309,10 +322,8 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
 ) -> Option<CapturedReferenceResult<'operation>> {
     let direct = match operation {
         OperationPlan::EstablishReference { result, .. } => {
-            super::reference_retirement::local_reference_loans(
-                facts, machine, state, result, results,
-            )
-            .map(|loans| (result, loans))
+            local_reference_loans(facts, machine, state, result, results)
+                .map(|loans| (result, loans))
         }
         OperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
@@ -331,10 +342,8 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             // A transported bare descriptor has its own captured occurrence,
             // just like an explicitly formed one. Releasing it cannot consume
             // the supplying holder or wait for a copy as though it reborrowed.
-            super::reference_retirement::local_reference_loans(
-                facts, machine, state, result, results,
-            )
-            .map(|loans| (result, loans))
+            local_reference_loans(facts, machine, state, result, results)
+                .map(|loans| (result, loans))
         }
         _ => operation.call().and_then(|call| {
             let custody = call.structural_custody()?;
@@ -371,7 +380,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         });
     }
     let (result, _) = operation.discardable_structural_result()?;
-    let loans = super::reference_retirement::carrier_loans(facts, machine, state, result, results)?;
+    let loans = carrier_loans(facts, machine, state, result, results)?;
     if loans.is_empty() {
         return None;
     }
@@ -400,19 +409,17 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             operations,
         )?
         .is_empty()
-        || super::reference_retirement::unique_borrow_state(facts, machine, state)?.is_some_and(
-            |borrowing| {
-                facts
-                    .borrow
-                    .loan_group(borrowing.loans)
-                    .is_some_and(|mut loans| {
-                        loans.any(|(_, loan)| {
-                            loan.storage_owner == facts::PlaceRoot::Symbol(*owner)
-                                && loan.statement_index != formation
-                        })
+        || unique_borrow_state(facts, machine, state)?.is_some_and(|borrowing| {
+            facts
+                .borrow
+                .loan_group(borrowing.loans)
+                .is_some_and(|mut loans| {
+                    loans.any(|(_, loan)| {
+                        loan.storage_owner == facts::PlaceRoot::Symbol(*owner)
+                            && loan.statement_index != formation
                     })
-            },
-        )
+                })
+        })
     {
         return None;
     }
@@ -444,7 +451,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
 /// closes descendants before earlier parent carriers at a shared boundary.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_reference_releases(
-    owner_candidates: &super::reference_retirement::OwnerCandidates,
+    owner_candidates: &OwnerCandidates,
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
@@ -459,7 +466,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
 ) -> Option<()> {
     trace.phase("reference retirement: transport");
     let authored_state = program.state_by_symbol(state)?;
-    let borrowing = super::reference_retirement::unique_borrow_state(facts, machine, state)?;
+    let borrowing = unique_borrow_state(facts, machine, state)?;
     if borrowing.is_none_or(|borrowing| borrowing.loans.is_empty())
         && !operations
             .iter()
@@ -495,7 +502,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     // pending set, the exit flag and the returned holder distinguish them.
     // The pending set starts empty because it accumulates between queries, so
     // each query re-borrows the live accumulator instead of the base.
-    let statement_retirement = super::reference_retirement::Retirement {
+    let statement_retirement = Retirement {
         program,
         facts,
         prepared_calls,
@@ -521,12 +528,10 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         .flat_map(OperationPlan::with_value_calls)
     {
         trace.phase("reference retirement: selected complements");
-        let complements = super::reference_retirement::selections::complement_completions(
-            &super::reference_retirement::Retirement {
-                pending: &pending,
-                ..statement_retirement
-            },
-        )?;
+        let complements = complement_completions(&Retirement {
+            pending: &pending,
+            ..statement_retirement
+        })?;
         for (position, complement) in complements {
             trace.phase("reference retirement: complement receiver");
             let OperationPlan::ReleaseReference {
@@ -540,7 +545,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         }
         trace.phase("reference retirement: stored occurrences");
         let stored_releases = super::reference_retirement::stores::releases(
-            &super::reference_retirement::Retirement {
+            &Retirement {
                 pending: &pending,
                 ..statement_retirement
             },
@@ -589,9 +594,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             // early or emit one destructive operation per possible referent.
             trace.phase("reference retirement: captured loan boundary");
             let boundary = latest_loan_release_boundary(&order, facts, loans, |loan| {
-                super::super::super::reference_results::release_boundary(
-                    program, facts, machine, state, loan,
-                )
+                release_boundary(program, facts, machine, state, loan)
             })?;
             trace.phase("reference retirement: captured storage boundary");
             let boundary = order.latest(
@@ -601,7 +604,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             let boundary =
                 u32::try_from(order.latest(boundary, captured.whole_storage_boundary as usize)?)
                     .ok()?;
-            let retirement = super::reference_retirement::Retirement {
+            let retirement = Retirement {
                 pending: &pending,
                 ..statement_retirement
             };
@@ -678,12 +681,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // This inventory describes a production, not every later value stored
         // in its named home. Replacement cleanup owns the old occurrence;
         // an initializer cannot acquire a second retirement after rebinding.
-        if super::super::super::local_storage::occupant(
-            program,
-            authored_state,
-            operations,
-            local.symbol,
-        ) != Some(result.binding_ordinal)
+        if occupant(program, authored_state, operations, local.symbol)
+            != Some(result.binding_ordinal)
         {
             continue;
         }
@@ -753,7 +752,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         };
         let retains_siblings = order.precedes(statement_index as usize, boundary as usize)
             || !transferred_paths.is_empty();
-        let retirement = super::reference_retirement::Retirement {
+        let retirement = Retirement {
             pending: &pending,
             ..statement_retirement
         };
@@ -876,7 +875,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     // storage dependency frontier stops changing, without re-evaluating values.
     loop {
         trace.phase("reference retirement: backing occurrences");
-        let releases = super::reference_retirement::Retirement {
+        let releases = Retirement {
             pending: &pending,
             ..statement_retirement
         }
@@ -894,7 +893,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         *discard_on_return = false;
     }
     trace.phase("reference retirement: case conditions");
-    super::reference_retirement::prepare_owner_cleanups(
+    prepare_owner_cleanups(
         owner_candidates,
         program,
         facts,
@@ -910,7 +909,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         operations.len(),
         &mut pending,
     )?;
-    super::reference_retirement::prepare_case_conditions(
+    prepare_case_conditions(
         program,
         facts,
         shapes,
@@ -944,7 +943,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
 // one past the last ordinary statement). The completion still needs the
 // `ReleaseReference` op so the result-binding cleanup sees the disposal.
 pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
-    owner_candidates: &super::reference_retirement::OwnerCandidates,
+    owner_candidates: &OwnerCandidates,
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
@@ -958,7 +957,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     trace: &super::super::LocalConstructionTrace,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
-    let borrowing = super::reference_retirement::unique_borrow_state(facts, machine, state)?;
+    let borrowing = unique_borrow_state(facts, machine, state)?;
     if borrowing.is_none_or(|borrowing| borrowing.loans.is_empty())
         && !operations
             .iter()
@@ -1018,19 +1017,16 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             // rather than releasing it before the return. Earlier weakening
             // still belongs to statement scheduling; only a loan live through
             // this state's final statement can cross its result boundary.
-            if returned.is_some_and(|returned| {
-                super::reference_retirement::returned_reference_binding(&order, returned, result)
-            }) {
+            if returned.is_some_and(|returned| returned_reference_binding(&order, returned, result))
+            {
                 trace.phase("statement sequence: returned carrier loan boundary");
                 trace.statement(Some(result.statement_index));
                 let authored = program.state_by_symbol(state)?;
                 let statement_count =
                     crate::flow::state_statements(program, authored.statement_nodes).len();
                 if !facts.borrow.loan_group(loans)?.all(|(loan, _)| {
-                    super::super::super::reference_results::release_boundary(
-                        program, facts, machine, state, loan,
-                    )
-                    .is_some_and(|boundary| boundary as usize == statement_count)
+                    release_boundary(program, facts, machine, state, loan)
+                        .is_some_and(|boundary| boundary as usize == statement_count)
                 }) {
                     return None;
                 }
@@ -1097,7 +1093,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     )?;
     // The completion shares statement retirement's registry and roster; only
     // the completed prefix, the scheduled set and the returned holder vary.
-    let statement_retirement = super::reference_retirement::Retirement {
+    let statement_retirement = Retirement {
         program,
         facts,
         prepared_calls,
@@ -1122,14 +1118,13 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     trace.phase("statement sequence: completion carrier retirement order");
     let mut scheduled = Vec::new();
     loop {
-        let retirement = super::reference_retirement::Retirement {
+        let retirement = Retirement {
             pending: &scheduled,
             at_exit: true,
             returned,
             ..statement_retirement
         };
-        let complements =
-            super::reference_retirement::selections::complement_completions(&retirement)?;
+        let complements = complement_completions(&retirement)?;
         if !complements.is_empty() {
             for (position, complement) in complements {
                 let OperationPlan::ReleaseReference {
@@ -1230,7 +1225,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             // dispositions before moving this descriptor ahead of owner hooks.
             // The existing child-first order makes earlier promotions visible;
             // a deferred descendant or returned holder cannot justify one.
-            let retirement = super::reference_retirement::Retirement {
+            let retirement = Retirement {
                 completed_operations: insertion,
                 pending: &scheduled[..index],
                 ..statement_retirement
@@ -1265,7 +1260,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             *discard = false;
         }
     }
-    super::reference_retirement::prepare_owner_cleanups(
+    prepare_owner_cleanups(
         owner_candidates,
         program,
         facts,
@@ -1282,7 +1277,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         &mut scheduled,
     )?;
     trace.phase("statement sequence: completion carrier case conditions");
-    super::reference_retirement::prepare_case_conditions(
+    prepare_case_conditions(
         program,
         facts,
         shapes,
@@ -1646,12 +1641,12 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
     structural_count: &mut usize,
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
-    windows: &mut super::super::super::borrowed_windows::OpenWindows,
+    windows: &mut OpenWindows,
 ) -> Option<(
     Vec<checked_trees::CheckedStructuralValueCall>,
     checked_trees::CheckedValueCompletion,
 )> {
-    let (calls, completion) = super::super::structural_operands::value_calls(
+    let (calls, completion) = value_calls(
         program,
         facts,
         scalar_callees,

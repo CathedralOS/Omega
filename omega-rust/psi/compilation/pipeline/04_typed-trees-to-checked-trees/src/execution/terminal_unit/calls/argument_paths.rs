@@ -1,6 +1,9 @@
 //! Checked scalar arguments and projected argument paths: field and index
 //! paths, projected call support, contract mentions and crash expressions.
 
+use super::super::types::parameter_is_root;
+use super::boundary_admission::fixed_byte_array_view_is_admitted;
+use super::view_subslice::is_view_subslice;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_type_identity, dense_scalar_parameter_index,
@@ -588,7 +591,7 @@ pub(crate) fn projected_argument_path(
         && program
             .state_parameters(state)
             .iter()
-            .any(|parameter| super::super::types::parameter_is_root(parameter, symbol))
+            .any(|parameter| parameter_is_root(parameter, symbol))
     {
         projected = validation::structural_storage_type(program, projected, &[]);
         if !projected.is_valid() {
@@ -976,11 +979,7 @@ fn byte_array_range_path(
     if extent == 0
         || start > end
         || end > extent
-        || !super::boundary_admission::fixed_byte_array_view_is_admitted(
-            program,
-            backing_type,
-            target,
-        )
+        || !fixed_byte_array_view_is_admitted(program, backing_type, target)
     {
         return None;
     }
@@ -1005,9 +1004,8 @@ pub(crate) fn projected_call_contracts_are_represented(
     target_state: &typed_trees::state::State,
     arguments: &[ArgumentPlan],
 ) -> bool {
-    let projected = |argument: &ArgumentPlan| {
-        !argument.path.is_empty() && !super::view_subslice::is_view_subslice(argument)
-    };
+    let projected =
+        |argument: &ArgumentPlan| !argument.path.is_empty() && !is_view_subslice(argument);
     if !arguments.iter().any(projected) {
         return true;
     }

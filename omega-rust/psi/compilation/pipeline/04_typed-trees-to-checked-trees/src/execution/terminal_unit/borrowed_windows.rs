@@ -25,6 +25,13 @@
 //! pre-RHS assignment captures. Mutable selector spelling alone cannot prove
 //! agreement with an earlier captured selection.
 
+use super::calls::projected_evaluated_path;
+use super::calls::value_index_segment;
+use super::control::LocalConstructionTrace;
+use super::control::statement_sequence::consume_result;
+use super::structural_scalar_store::scalar_capture_destination;
+use super::types::byte_sequence_carrier;
+use super::types::machine_binders;
 use crate::checks;
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::flow::reference_route_source;
@@ -85,7 +92,7 @@ fn assignment_path(
 ) -> Option<Vec<PathSegment>> {
     let selectors =
         TargetSelectors::resolve(program, facts, machine, state, statement_index, target)?;
-    super::calls::projected_evaluated_path(
+    projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
@@ -286,7 +293,7 @@ pub(super) fn capture_assignment_destination(
     binders: &[(SymbolHandle, String)],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
-    trace: &super::control::LocalConstructionTrace,
+    trace: &LocalConstructionTrace,
 ) -> Option<OperationPlan> {
     let ordinal = usize::try_from(statement_index).ok()?;
     // A region captures its collection prefix. Selected element coordinates
@@ -325,7 +332,7 @@ pub(super) fn capture_assignment_destination(
         return None;
     }
     if collection.is_none()
-        && let Some(destination) = super::structural_scalar_store::scalar_capture_destination(
+        && let Some(destination) = scalar_capture_destination(
             program,
             facts,
             shapes,
@@ -408,7 +415,7 @@ pub(super) fn capture_assignment_destination(
     if access.segments.is_empty()
         && collection.is_none()
         && (program.primitive_type_reference(declared).is_some()
-            || super::types::byte_sequence_carrier(program, declared, &[]).is_some())
+            || byte_sequence_carrier(program, declared, &[]).is_some())
     {
         return None;
     }
@@ -547,7 +554,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
         SourcePlan::StructuralLocal { symbol } => PlaceRoot::Symbol(symbol),
         _ => storage.root,
     };
-    let (_, path) = super::calls::projected_evaluated_path(
+    let (_, path) = projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
@@ -680,15 +687,7 @@ impl OpenWindows {
             structural_parameters,
             &place,
             language_semantics::ReferenceAccess::Mutable,
-            &|expression| {
-                super::calls::value_index_segment(
-                    program,
-                    &facts.operators,
-                    state,
-                    index,
-                    expression,
-                )
-            },
+            &|expression| value_index_segment(program, &facts.operators, state, index, expression),
         )?;
         let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
         let result = BindingPlan {
@@ -729,22 +728,14 @@ impl OpenWindows {
             structural_parameters,
             &place,
             language_semantics::ReferenceAccess::Mutable,
-            &|selector| {
-                super::calls::value_index_segment(
-                    program,
-                    &facts.operators,
-                    state,
-                    ordinal,
-                    selector,
-                )
-            },
+            &|selector| value_index_segment(program, &facts.operators, state, ordinal, selector),
         )?;
         let result = BindingPlan {
             statement_index,
             binding_ordinal,
             type_identity: shapes.add_type(
                 type_reference,
-                &super::types::machine_binders(program, machine),
+                &machine_binders(program, machine),
                 &[],
             )?,
             multiplicity: program.type_multiplicity(type_reference),
@@ -818,7 +809,7 @@ impl OpenWindows {
         produced: &BindingPlan,
         displaced_ordinal: u32,
         value: ArgumentPlan,
-        trace: &super::control::LocalConstructionTrace,
+        trace: &LocalConstructionTrace,
     ) -> Option<ValueReplacement> {
         trace.phase("structural replacement: destination identity");
         let ordinal = usize::try_from(statement_index).ok()?;
@@ -957,7 +948,7 @@ impl OpenWindows {
         displaced_ordinal: u32,
         value: ArgumentPlan,
         receiver_path: Vec<PathSegment>,
-        trace: &super::control::LocalConstructionTrace,
+        trace: &LocalConstructionTrace,
     ) -> Option<FieldReplacement> {
         trace.phase("structural replacement: owned destination");
         let index = usize::try_from(statement_index).ok()?;
@@ -1307,12 +1298,7 @@ impl ValueReplacement {
         if let Some(source) = &self.source
             && let Some(binding) = source.source_structural_result_binding_ordinal()
         {
-            super::control::statement_sequence::consume_result(
-                operations,
-                binding,
-                source.access,
-                !source.path.is_empty(),
-            )?;
+            consume_result(operations, binding, source.access, !source.path.is_empty())?;
         }
         Some(())
     }

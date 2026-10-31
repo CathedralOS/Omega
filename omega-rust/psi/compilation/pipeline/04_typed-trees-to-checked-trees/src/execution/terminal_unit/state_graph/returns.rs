@@ -2,6 +2,10 @@
 //! primitive scalar result completes each returning state with the same
 //! binding or exit roster an ordinary single-state body retains.
 use super::super::CheckedUnitEntryClaimPlan;
+use super::super::calls::structural_result_owner;
+use super::super::types::state_flow;
+use super::fused::FusedStates;
+use super::fused::fused_target_index;
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan,
     CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitStructuralParameterPlan,
@@ -23,7 +27,7 @@ use crate::execution::terminal_unit::PrimitiveType;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn scalar_completion(
     program: &dyn ::validation::CheckingInput,
-    fused: &super::fused::FusedStates<'_>,
+    fused: &FusedStates<'_>,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -39,9 +43,7 @@ pub(super) fn scalar_completion(
         .any(|statement| match statement {
             StatementNode::Transition(transition) => transition.targets().any(|target| {
                 validation::completing_transition_transfer(program, target).is_some_and(
-                    |transfer| {
-                        super::fused::fused_target_index(program, fused, transfer.target).is_some()
-                    },
+                    |transfer| fused_target_index(program, fused, transfer.target).is_some(),
                 )
             }),
             _ => false,
@@ -75,7 +77,7 @@ pub(super) fn scalar_completion(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn guarded(
     program: &dyn ::validation::CheckingInput,
-    fused: &super::fused::FusedStates<'_>,
+    fused: &FusedStates<'_>,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
@@ -144,9 +146,9 @@ pub(super) fn guarded(
             }
             _ => return None,
         };
-        if validation::completing_call_transfer(program, expression).is_some_and(|transfer| {
-            super::fused::fused_target_index(program, fused, transfer.target).is_some()
-        }) {
+        if validation::completing_call_transfer(program, expression)
+            .is_some_and(|transfer| fused_target_index(program, fused, transfer.target).is_some())
+        {
             return None;
         }
         let (operation, operand_calls) = return_value_operation(
@@ -235,19 +237,14 @@ pub(super) fn return_value_operation(
         return None;
     }
     trace.phase("state graph: structural return value: operand calls");
-    let flow = super::super::types::state_flow(facts, machine.symbol, state.symbol)?;
+    let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let source_calls = facts.flow.control.calls.span(flow.calls)?;
     let results = preamble
         .iter()
         .filter_map(|operation| {
             let result = operation.structural_result_binding()?;
-            let owner = super::super::calls::structural_result_owner(
-                program,
-                facts,
-                state.symbol,
-                source_calls,
-                operation,
-            )?;
+            let owner =
+                structural_result_owner(program, facts, state.symbol, source_calls, operation)?;
             Some((result.clone(), owner))
         })
         .collect::<Vec<_>>();

@@ -1,6 +1,7 @@
 //! Which boundary scalar targets, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
+use super::argument_paths::projected_argument_path;
 use crate::checks::type_multiplicity;
 use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use crate::execution::terminal_unit::{
@@ -180,15 +181,9 @@ fn resolve_parameter_binding_receiver_sources<'program>(
                 .iter()
                 .find(|parameter| parameter.symbol == root && !parameter.relevance.is_erased())
                 .ok_or("boundary authority: origin is not a retained caller parameter")?;
-            let (reference, _) = super::argument_paths::projected_argument_path(
-                program,
-                state.symbol,
-                statement_index,
-                &place,
-                None,
-                None,
-            )
-            .ok_or("boundary authority: origin projection is not representable")?;
+            let (reference, _) =
+                projected_argument_path(program, state.symbol, statement_index, &place, None, None)
+                    .ok_or("boundary authority: origin projection is not representable")?;
             // A Binding member identifies the requirement through its own carrier.
             // Provider selection and entry establishment are realization obligations.
             let target = match call_site {

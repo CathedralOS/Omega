@@ -12,8 +12,11 @@
 //! one catalogue and one root builder. Rejected bodies discard their schedules;
 //! final retention publishes surviving schedules without rebuilding calls.
 
+use super::calls::structural_result_owner;
+use super::control::statement_sequence::consume_retained_results;
 use super::control::{LocalConstructionTrace, structural_operands};
 use super::types::ShapeCollector;
+use super::types::state_flow;
 use super::{CheckFacts, ScalarCalleeClosure};
 use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan as OperationPlan};
 
@@ -314,10 +317,7 @@ pub(super) fn consume_caller_results<'a>(
                         call.coordinate.call_ordinal as usize,
                     )?;
                 }
-                super::control::statement_sequence::consume_retained_results(
-                    &mut earlier,
-                    operation,
-                )?;
+                consume_retained_results(&mut earlier, operation)?;
                 for producer in earlier {
                     let binding = producer.structural_result_binding()?;
                     let mut targets = operations.iter_mut().filter(|operation| {
@@ -431,7 +431,7 @@ pub(super) fn prepare_root(
     let mut preceding = Vec::new();
     let mut results = Vec::new();
     let mut count = 0;
-    let source_flow = super::types::state_flow(facts, machine.symbol, state.symbol)?;
+    let source_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let source_calls = facts.flow.control.calls.span(source_flow.calls)?;
     for operation in operations {
         let Some(result) = operation.structural_result_binding() else {
@@ -450,13 +450,9 @@ pub(super) fn prepare_root(
             continue;
         }
         count = count.max(result.binding_ordinal as usize + 1);
-        if let Some(owner) = super::calls::structural_result_owner(
-            program,
-            facts,
-            state.symbol,
-            source_calls,
-            operation,
-        ) {
+        if let Some(owner) =
+            structural_result_owner(program, facts, state.symbol, source_calls, operation)
+        {
             results.push((result.clone(), owner));
         }
         preceding.push(operation.clone());

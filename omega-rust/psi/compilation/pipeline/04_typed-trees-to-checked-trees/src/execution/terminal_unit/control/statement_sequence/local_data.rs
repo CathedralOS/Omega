@@ -19,6 +19,14 @@
 //! ordinary representation-view replay.
 //! Passing such an alias onward still requires its backing storage to be
 //! established by lowering; admitting the read does not fabricate that home.
+use super::super::super::atomic_operations::once_event;
+use super::super::super::atomic_operations::result_placeholder;
+use super::super::super::cleanup::anonymous::insert_continuation;
+use super::super::super::reference_results::local_owes_record_loans;
+use super::super::super::reference_results::local_record_loans;
+use super::super::super::reference_results::mutable_borrowed_parts;
+use super::super::super::reference_results::shared_place_borrowed_parts;
+use super::bounded_byte_values::value_plan;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
@@ -221,13 +229,7 @@ fn plan_inner(
         return Some(LocalPlan::Planned);
     }
     // A bounded owner snapshots its initializer's bytes and live length.
-    if let Some(value) = super::bounded_byte_values::value_plan(
-        program,
-        &facts.operators,
-        state,
-        statement_index,
-        local,
-    ) {
+    if let Some(value) = value_plan(program, &facts.operators, state, statement_index, local) {
         local_phase("statement sequence: local data: bounded byte literal");
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
@@ -260,7 +262,7 @@ fn plan_inner(
         result.statement_index = statement_index;
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
         result.local = initialized_local(program, machine, state, local);
-        let access = super::super::super::atomic_operations::once_event(
+        let access = once_event(
             program,
             facts,
             machine,
@@ -278,7 +280,7 @@ fn plan_inner(
         return Some(LocalPlan::Planned);
     }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
-        && super::super::super::atomic_operations::result_placeholder(program, state, index, local)
+        && result_placeholder(program, state, index, local)
     {
         local_phase("statement sequence: local data: atomic result placeholder");
         *atomic_result = Some(CheckedUnitScalarResultBindingPlan {
@@ -468,17 +470,8 @@ fn plan_inner(
     // local directly; argument roots stay with the ordinary call planner.
     if let Some(root) = structural_root {
         local_phase("statement sequence: local data: structural value: reference record loans");
-        if super::super::super::reference_results::local_owes_record_loans(
-            program,
-            local.type_reference,
-        ) {
-            super::super::super::reference_results::local_record_loans(
-                program,
-                facts,
-                machine.symbol,
-                state,
-                statement_index,
-            )?;
+        if local_owes_record_loans(program, local.type_reference) {
+            local_record_loans(program, facts, machine.symbol, state, statement_index)?;
         }
         local_phase("statement sequence: local data: structural value: root identity");
         if root.machine != machine.symbol
@@ -560,7 +553,7 @@ fn plan_inner(
             // A call-valued local owns the same normal operand continuation
             // as a statement call. The result remains with the local; only
             // the exact anonymous argument owners retire here.
-            super::super::super::cleanup::anonymous::insert_continuation(
+            insert_continuation(
                 program,
                 facts,
                 shapes,
@@ -794,19 +787,13 @@ fn place_loan(
             if formation.access != language_core::ReferenceAccess::Shared {
                 return None;
             }
-            super::super::super::reference_results::shared_place_borrowed_parts(
-                program,
-                local.type_reference,
-            )?
+            shared_place_borrowed_parts(program, local.type_reference)?
         }
         CheckedStructuralAccess::MutableBorrow => {
             if formation.access != language_core::ReferenceAccess::Mutable {
                 return None;
             }
-            super::super::super::reference_results::mutable_borrowed_parts(
-                program,
-                local.type_reference,
-            )?
+            mutable_borrowed_parts(program, local.type_reference)?
         }
         CheckedStructuralAccess::Owned | CheckedStructuralAccess::WriteOnlyBorrow => return None,
     };

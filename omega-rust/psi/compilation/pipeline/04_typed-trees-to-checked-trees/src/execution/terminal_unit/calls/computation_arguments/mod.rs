@@ -3,6 +3,12 @@
 //! for parameters and locals. Their call occurrence retains identity until
 //! checked ownership supplies copy or transfer authority; a nominal hook changes
 //! the receiving owner's cleanup, not the argument's storage representation.
+use super::super::structural_scalar_store::primitive_local_before;
+use super::super::types::byte_sequence_carrier;
+use super::super::types::parameter_is_root;
+use super::argument_paths::borrowed_argument_endpoint;
+use super::argument_presentation::classify;
+use super::view_subslice::admit_resolved;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
@@ -67,13 +73,7 @@ pub(crate) fn structural_computation_argument(
     // replacement mutability selects its existing value/storage carrier,
     // never the access that the exact borrow occurrence may lend.
     if let Some(symbol) = place.root.as_symbol()
-        && super::super::structural_scalar_store::primitive_local_before(
-            program,
-            state,
-            call.statement_index,
-            symbol,
-        )
-        .is_some()
+        && primitive_local_before(program, state, call.statement_index, symbol).is_some()
     {
         return primitive_local_argument(
             program,
@@ -221,7 +221,7 @@ pub(crate) fn subslice_computation_argument(
     } else {
         super::free_structural_scalar_signature(program, shapes, state, &[])?.0
     };
-    let subslice = super::view_subslice::admit_resolved(
+    let subslice = admit_resolved(
         program,
         operators,
         expressions,
@@ -451,12 +451,8 @@ pub(crate) fn borrowed_storage_argument(
             selectors,
         )?
     };
-    let (reference, path) = super::argument_paths::borrowed_argument_endpoint(
-        program,
-        reference,
-        path,
-        target.type_reference,
-    )?;
+    let (reference, path) =
+        borrowed_argument_endpoint(program, reference, path, target.type_reference)?;
     let identity = if reference == whole_storage_type && whole_storage_identity.is_valid() {
         whole_storage_identity
     } else {
@@ -518,7 +514,7 @@ pub(crate) fn borrowed_storage_argument(
     // Calls share representation admission for every selected endpoint,
     // including a case payload. This preserves the exact root and path; it
     // grants no access or predicate evidence.
-    super::argument_presentation::classify(
+    classify(
         program,
         reference,
         target.type_reference,
@@ -591,7 +587,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let symbol = place.root.as_symbol()?;
-    let kind = if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
+    let kind = if byte_sequence_carrier(program, target.type_reference, &[])
         .is_some_and(|carrier| carrier.is_borrowed_view())
     {
         ViewKind::Bytes
@@ -607,7 +603,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     }
     let is_view = |type_reference| match kind {
         ViewKind::Elements => borrowed_slice_view_element(program, type_reference, &[]).is_some(),
-        ViewKind::Bytes => super::super::types::byte_sequence_carrier(program, type_reference, &[])
+        ViewKind::Bytes => byte_sequence_carrier(program, type_reference, &[])
             .is_some_and(|carrier| carrier.is_borrowed_view()),
     };
     if !is_view(target.type_reference) {
@@ -617,7 +613,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     let parameters = program.state_parameters(state);
     let (source, source_type) = if let Some(position) = parameters
         .iter()
-        .position(|parameter| super::super::types::parameter_is_root(parameter, symbol))
+        .position(|parameter| parameter_is_root(parameter, symbol))
     {
         let parameter = &parameters[position];
         if parameter.is_const {
@@ -859,12 +855,7 @@ pub(super) fn primitive_local_argument(
     target_type: TypeReferenceHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let symbol = storage.root.as_symbol()?;
-    let local = super::super::structural_scalar_store::primitive_local_before(
-        program,
-        state,
-        call.statement_index,
-        symbol,
-    )?;
+    let local = primitive_local_before(program, state, call.statement_index, symbol)?;
     let target_access = structural_access_for_type_reference(program, target_type)?;
     let access = exact_structural_borrow_access(
         program,

@@ -24,6 +24,11 @@
 //! neither the generated update model nor a separate statement call executes.
 //! Both forms bind the decoder's exact authored expression and cell value type.
 
+use super::calls::projected_observed_path;
+use super::receiver_aliases::aliases;
+use super::structural_scalar_store::scalar_custody_is_exact;
+use super::types::ShapeCollector;
+use super::types::machine_binders;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralPathSegment as PathSegment, PrimitiveType,
@@ -65,7 +70,7 @@ pub(super) fn writing_event(
     assignment: &typed_trees::statement::TableAssignment,
     reserved: Option<CheckedUnitScalarResultBindingPlan>,
     trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Option<AccessPlan> {
     let carrier = validation::atomic_assignment_carrier(program, assignment)?;
     trace.phase("atomic access: writing place");
@@ -177,7 +182,7 @@ pub(super) fn once_event(
     local: &typed_trees::statement::TableLocalData,
     result: checked_trees::CheckedUnitStructuralResultBindingPlan,
     trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Option<AccessPlan> {
     let carrier = validation::atomic_once_carrier(program, local.initial_value)?;
     let AtomicAccessOperation::CompareExchangeOnce { success, failure } = carrier.operation else {
@@ -279,14 +284,7 @@ fn operand_row(
             .bound_expression_at(state.symbol, statement_index, role)?;
     (binding.expression == operand
         && crate::values::scalar_expression_type(value) == Some(primitive_type)
-        && super::structural_scalar_store::scalar_custody_is_exact(
-            program,
-            facts,
-            state,
-            binding,
-            value,
-            primitive_type,
-        ))
+        && scalar_custody_is_exact(program, facts, state, binding, value, primitive_type))
     .then(|| ScalarArgument::Pure(value.clone()))
 }
 
@@ -310,7 +308,7 @@ fn place(
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
     trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Option<AtomicPlace> {
     trace.phase("atomic access: place: atomic storage");
     if !validation::place_is_atomic_storage(program, machine, Some(state), expression) {
@@ -323,7 +321,7 @@ fn place(
     let canonical = place_at(program, state.symbol, ordinal, expression)?;
     let symbol = canonical.root.as_symbol()?;
     // An erased borrow carrier names its captured referent's storage.
-    let (symbol, segments) = match super::receiver_aliases::aliases(program, facts, machine, state)
+    let (symbol, segments) = match aliases(program, facts, machine, state)
         .unwrap_or_default()
         .iter()
         .find(|alias| alias.owner == symbol)
@@ -388,7 +386,7 @@ fn place(
     // Only the concrete storage crossed by this performed operation is a
     // demand. Stored pointer declarations remain identity-only, including
     // recursive generic families that have no runtime dereference here.
-    let binders = super::types::machine_binders(program, machine);
+    let binders = machine_binders(program, machine);
     let mut root_identity = None;
     for position in 0..=carrier.segments.len() {
         let reference = validation::canonical_place_type_reference(
@@ -416,7 +414,7 @@ fn place(
     // cell. Reuse the ordinary observation path to retain its containing
     // record, including stored descriptors, rather than substituting their
     // initializer's backing or requiring a parameter-shaped spelling.
-    let (reference, path) = super::calls::projected_observed_path(
+    let (reference, path) = projected_observed_path(
         program,
         machine.symbol,
         state.symbol,

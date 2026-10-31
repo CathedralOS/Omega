@@ -35,6 +35,10 @@
 //! What remains refused is a custody or proof condition, not an arrangement:
 //! unsupported parameter custody, permission crossings, and fields
 //! whose declared domain the stored value carries no evidence for.
+use super::calls::projected_argument_path;
+use super::control::scalar_arrays::assignment_type;
+use super::types::ShapeCollector;
+use super::types::base_type_identity;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
@@ -95,7 +99,7 @@ struct Site<'a, 'program, 'destination> {
 pub(super) fn scalar_capture_destination(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    shapes: &mut super::types::ShapeCollector<'_>,
+    shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
@@ -200,9 +204,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         // Array construction must finish before its receiving storage changes,
         // including when an element reads that same storage. The statement
         // sequence establishes the whole value and performs the checked repair.
-        if super::control::scalar_arrays::assignment_type(program, machine, state, assignment)
-            .is_some()
-        {
+        if assignment_type(program, machine, state, assignment).is_some() {
             continue;
         }
         let statement_index = u32::try_from(statement_index).ok()?;
@@ -709,7 +711,7 @@ fn case_field_store(
         typed_trees::signature::state_parameter_position(source_parameters, value_root)?;
     let _value_state_parameter = source_parameters.get(value_position)?;
 
-    let (projected, value_path) = super::calls::projected_argument_path(
+    let (projected, value_path) = projected_argument_path(
         program,
         state.symbol,
         statement_index as usize,
@@ -760,7 +762,7 @@ fn case_field_store(
                 parameter_index: u32::try_from(value_index).ok()?,
             },
             path: value_path,
-            type_identity: super::types::base_type_identity(program, projected, &[], &[])?,
+            type_identity: base_type_identity(program, projected, &[], &[])?,
             access: value_plan.access,
         }),
     )
@@ -884,12 +886,7 @@ fn case_literal_field_store(
                 variant.identity,
                 variant.name.clone(),
             ),
-            type_identity: super::types::base_type_identity(
-                program,
-                field.type_reference,
-                &[],
-                &[],
-            )?,
+            type_identity: base_type_identity(program, field.type_reference, &[], &[])?,
             fields,
         }),
     )

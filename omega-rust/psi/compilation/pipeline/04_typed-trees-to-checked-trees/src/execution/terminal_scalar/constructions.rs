@@ -1,5 +1,8 @@
 //! Structural values retain a type namespace without inventing source parameters.
 
+use super::super::terminal_unit::reference_backing_shapes;
+use super::super::terminal_unit::scalar_case_value_shapes;
+use super::super::terminal_unit::scalar_operand_shapes;
 use checked_trees::{
     CheckedScalarComputationKind as ComputationKind, CheckedScalarComputationPlans,
     CheckedUnitStructuralTypePlan as TypePlan,
@@ -16,7 +19,7 @@ fn retain_case_subject_fields(
 ) -> Option<()> {
     retain_declarations(
         shapes,
-        super::super::terminal_unit::scalar_case_value_shapes(program, subject.type_reference)?,
+        scalar_case_value_shapes(program, subject.type_reference)?,
     )?;
     pending.extend(
         plans
@@ -39,10 +42,7 @@ pub(crate) fn retain_shapes(
     let retained = (|| {
         macro_rules! retain_operand {
             ($type_reference:expr) => {
-                retain_declarations(
-                    shapes,
-                    super::super::terminal_unit::scalar_operand_shapes(program, $type_reference)?,
-                )
+                retain_declarations(shapes, scalar_operand_shapes(program, $type_reference)?)
             };
         }
         // A stored reference publishes only its pointer shape. Forming one also
@@ -97,11 +97,7 @@ pub(crate) fn retain_shapes(
                     retain_operand!(structural_values.nodes.get(value).type_reference)?;
                     retain_declarations(
                         shapes,
-                        super::super::terminal_unit::reference_backing_shapes(
-                            program,
-                            *backing_type,
-                            source.type_identity,
-                        )?,
+                        reference_backing_shapes(program, *backing_type, source.type_identity)?,
                     )?;
                     if source_value.is_valid() {
                         // A projected computed source also owns its complete

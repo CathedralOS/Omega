@@ -14,6 +14,11 @@
 //! Exit weakening follows final-value evaluation. Statement-boundary weakening
 //! still precedes that statement, so it restores parent access at exactly the
 //! checked boundary without ending a loan needed by the final expression.
+use super::super::super::borrowed_windows::OpenWindows;
+use super::super::super::reference_results::stored_loan_parts;
+use super::super::super::state_graph::returns::literal_result_operation;
+use super::super::call_results::checked_structural_result_type;
+use super::reference_retirement::OwnerCandidates;
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitEntryClaimPlan,
@@ -29,7 +34,7 @@ use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan as Retu
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) construction: Construction<'a, 'program, 'shapes>,
-    pub(super) owner_candidates: super::reference_retirement::OwnerCandidates,
+    pub(super) owner_candidates: OwnerCandidates,
     pub(super) prepared_calls:
         &'a mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
@@ -40,7 +45,7 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) scalar_count: usize,
     pub(super) structural_count: usize,
     pub(super) structural_local_symbols: Vec<SymbolHandle>,
-    pub(super) windows: super::super::super::borrowed_windows::OpenWindows,
+    pub(super) windows: OpenWindows,
     pub(super) returned_call: Option<BindingPlan>,
     pub(super) returned_scalar_call: Option<CheckedUnitScalarResultBindingPlan>,
     pub(super) structural_results: Vec<(BindingPlan, facts::PlaceRoot)>,
@@ -229,12 +234,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             // returning call, including reference shells and views. Argument
             // presentation (`add_type`) may name its referent and cannot
             // classify this value.
-            let mut result = super::super::call_results::checked_structural_result_type(
-                program,
-                shapes,
-                state.return_type,
-                binders,
-            )?;
+            let mut result =
+                checked_structural_result_type(program, shapes, state.return_type, binders)?;
             result.statement_index = root.statement_ordinal;
             result.binding_ordinal = u32::try_from(structural_count).ok()?;
             let establishment = structural_operands::establish_value(
@@ -250,7 +251,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             return_binding(result)
         }
     } else if let Some((ordinal, expression)) = tail
-        && let Some(operation) = super::super::super::state_graph::returns::literal_result_operation(
+        && let Some(operation) = literal_result_operation(
             program,
             shapes,
             state,
@@ -279,11 +280,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             {
                 if binding.multiplicity == Multiplicity::Affine
                     && !*discard_result_on_return
-                    && super::super::super::reference_results::stored_loan_parts(
-                        program,
-                        state.return_type,
-                    )
-                    .is_none()
+                    && stored_loan_parts(program, state.return_type).is_none()
                 {
                     return None;
                 }
