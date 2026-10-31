@@ -480,19 +480,19 @@ pub use proof_contracts::contract_entailment::proof_integer::{
     anonymous_integer_math_literal, proof_integer_expression,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
-    ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
-    RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
-    RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation, RankProtectedPath,
-    RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate, RankValueDerivation,
-    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
-    StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
+    ArithmeticCallObservation, CapturedRankEntry, RankArrivalCompatibility,
+    RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport,
+    RankLocalCapture, RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation,
+    RankProtectedPath, RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate,
+    RankValueDerivation, RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises,
+    RankingRangeState, StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
     discover_rank_arrival_correspondence, frame_preserves_rank_premises, protect_rank_premise,
     prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
-    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
-    rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
-    ranking_range_premise_symbols, ranking_range_required_coordinates,
-    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
-    select_rank_arrival_correspondence,
+    prove_captured_ranking_range_entry, prove_ranking_range_edge, prove_ranking_range_entry,
+    prove_ranking_range_transition, rank_protected_path, ranking_coordinate_type,
+    ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
+    ranking_range_required_coordinates, ranking_range_state_premise_coordinates,
+    ranking_slice_length_observation, select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
@@ -560,17 +560,15 @@ pub use frozen_program::{
 };
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
-pub(crate) use program_validation::{note_dependency_body_read, DependencyBodyRead};
 pub use program_validation::{
     DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, FrozenDependencyBody,
-    OpaquePropertyValidation,
-    ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
+    OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
     admit_prepared_program_effects, checking_thread_pool, dependency_body_read_totals,
-    dependency_entailment_totals,
-    expression_interval, prepare_specialized_program,
+    dependency_entailment_totals, expression_interval, prepare_specialized_program,
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
     validate_program,
 };
+pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
 

@@ -215,7 +215,17 @@ fn admit_complete(
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
-    if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
+    let entry_formed = super::super::super::rank_inputs::prove_integer_entry(
+        program,
+        machine,
+        range,
+        measure,
+        call_frames,
+    )
+    .unwrap_or_else(|| {
+        validation::prove_ranking_range_entry(program, machine, root, range, measure)
+    });
+    if !entry_formed {
         return None;
     }
     // The judgment reads only these entry formals' arrival values; every

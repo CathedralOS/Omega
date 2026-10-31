@@ -88,7 +88,7 @@ pub(super) fn prepare(
             return None;
         }
         selected_order = Some((order, carrier, view.declaration));
-        if let Err(reason) = ranges::entry(program, machine, view.measure) {
+        if let Err(reason) = ranges::entry(program, machine, view.measure, frames) {
             return Some(Err(reason));
         }
         let bound = if let Some(expression) = view.upper {

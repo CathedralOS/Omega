@@ -117,6 +117,13 @@ pub(crate) struct CurrentScalarValues<'program> {
 }
 
 impl<'program> CurrentScalarValues<'program> {
+    pub(crate) fn machine(&self) -> &Machine {
+        self.machine
+    }
+    pub(crate) fn state(&self) -> &State {
+        self.state
+    }
+
     pub(crate) fn program(&self) -> &'program dyn ::validation::CheckingInput {
         self.program
     }
@@ -1044,6 +1051,12 @@ impl<'program> CurrentScalarValues<'program> {
             values.push(value);
         }
         values
+    }
+
+    /// Facts already captured in their establishing rosters. Consumers must
+    /// preserve those rosters rather than reread the source predicates.
+    pub(crate) fn captured_hypotheses(&self) -> &[ScopedArithmeticHypothesis] {
+        &self.hypotheses
     }
 
     pub(crate) fn forms_declared_integer_application(

@@ -464,28 +464,16 @@ fn entry_parameter<'program>(
     entry: &'program State,
     subject: ExpressionHandle,
 ) -> Option<(usize, &'program StateParameter)> {
-    let mut cursor = unwrapped(program, subject);
-    let mut visited = Vec::new();
-    while let Some(member) = program.expression_table.member_node(cursor) {
-        if !member.member_symbol.is_valid()
-            || member.case_variant.is_some()
-            || visited.contains(&cursor)
-            || visited.len() >= 128
-        {
-            return None;
-        }
-        visited.push(cursor);
-        cursor = unwrapped(program, member.receiver);
-    }
-    let path = program.expression_table.name_path_node(cursor)?;
-    if !path.symbol.is_valid() {
-        return None;
-    }
+    // This is requirement discovery, not a load judgment. The observation
+    // owner independently proves selectors, access and value identity before
+    // a coordinate can become runtime evidence.
+    let place = crate::canonical_place_from_expression_in_state(program, entry.symbol, 0, subject)?;
+    let symbol = place.root.as_symbol()?;
     let mut parameters = program
         .state_parameters(entry)
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| parameter.symbol == path.symbol);
+        .filter(|(_, parameter)| parameter.symbol == symbol);
     let found = parameters.next()?;
     if parameters.next().is_some() {
         return None;
@@ -500,7 +488,7 @@ fn member_subject(program: &dyn crate::CheckingInput, subject: ExpressionHandle)
         program
             .expression_table
             .expression(unwrapped(program, subject)),
-        ExpressionNode::Member(_)
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
     )
 }
 

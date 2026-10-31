@@ -3,8 +3,10 @@
 //! authored/inferred witness policies and invariant regimes remain consumers.
 
 mod coordinates;
+mod entry;
 use crate::checks::current_scalar_values::CurrentScalarValues;
 pub(super) use coordinates::Coordinate;
+pub(super) use entry::prove as prove_integer_entry;
 use typed_trees::{machine::Machine, state::State};
 
 pub(super) struct EntryInputs<'program> {
@@ -22,7 +24,8 @@ pub(super) fn at_entry<'program>(
     let execution = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let first = *execution.indices().first()?;
+    // A declaration has an entry observation even when its body is empty.
+    let first = execution.indices().first().copied().unwrap_or(0);
     let values = CurrentScalarValues::at_observing_projections(
         program,
         machine,

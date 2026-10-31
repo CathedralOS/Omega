@@ -15,6 +15,7 @@ pub(super) fn entry(
     program: &dyn validation::CheckingInput,
     machine: &Machine,
     measure: validation::RankingRangeMeasure,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), &'static str> {
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return Ok(());
@@ -31,7 +32,12 @@ pub(super) fn entry(
         .machine_states(machine)
         .first()
         .ok_or("a ranged rank has no invocation entry")?;
-    if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
+    let entry_formed =
+        super::super::rank_inputs::prove_integer_entry(program, machine, range, measure, frames)
+            .unwrap_or_else(|| {
+                validation::prove_ranking_range_entry(program, machine, root, range, measure)
+            });
+    if !entry_formed {
         return Err("an authored natural rank range has no independent entry formation");
     }
     Ok(())

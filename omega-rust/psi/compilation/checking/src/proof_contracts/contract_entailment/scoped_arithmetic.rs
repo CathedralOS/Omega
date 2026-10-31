@@ -284,7 +284,7 @@ fn read_comparisons(
     Some(comparisons)
 }
 
-pub(super) fn install_hypotheses(
+pub(in crate::proof_contracts::contract_entailment) fn install_hypotheses(
     program: &dyn crate::CheckingInput,
     engine: &mut Engine<'_>,
     hypotheses: &[ScopedArithmeticHypothesis],
