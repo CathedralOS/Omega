@@ -352,6 +352,22 @@ impl SyntaxCopy<'_> {
                 })
             }
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
+            Item::TypeAlias(alias) => Item::TypeAlias(crate::item::TypeAliasDefinition {
+                name: alias.name.clone(),
+                is_public: alias.is_public,
+                lifetime_parameters: alias.lifetime_parameters.clone(),
+                type_parameters: self.copy_type_parameter_span(other, alias.type_parameters),
+                conformance_bounds: alias
+                    .conformance_bounds
+                    .iter()
+                    .map(|bound| crate::item::GenericConformanceBound {
+                        binder: bound.binder.clone(),
+                        trait_name: bound.trait_name.clone(),
+                        arguments: self.copy_type_reference_handle_span(other, bound.arguments),
+                    })
+                    .collect(),
+                expansion: self.copy_type_reference_handle(other, alias.expansion),
+            }),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
                 type_parameters: self.copy_type_parameter_span(other, domain.type_parameters),

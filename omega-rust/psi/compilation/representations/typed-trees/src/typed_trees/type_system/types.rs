@@ -56,6 +56,7 @@ pub struct TypeReferenceTable {
     operand_origins: Arena<TypeOperandOrigin>,
     named_rows: NamedRowIndex,
     arithmetic_rows: ArithmeticRowIndex,
+    type_alias_applications: Arena<crate::type_aliases::TypeAliasApplication>,
 }
 
 // Written out so the derived row index stays out of the table's rendering.
@@ -72,6 +73,7 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("operand_lifetime_spans", &self.operand_lifetime_spans)
             .field("operand_lifetimes", &self.operand_lifetimes)
             .field("operand_origins", &self.operand_origins)
+            .field("type_alias_applications", &self.type_alias_applications)
             .finish()
     }
 }
@@ -127,6 +129,7 @@ impl TypeReferenceTable {
             operand_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
             arithmetic_rows: ArithmeticRowIndex::default(),
+            type_alias_applications: Arena::new(),
         }
     }
 
@@ -143,6 +146,7 @@ impl TypeReferenceTable {
             .wrapping_add(self.operand_lifetime_spans.revision())
             .wrapping_add(self.operand_lifetimes.revision())
             .wrapping_add(self.operand_origins.revision())
+            .wrapping_add(self.type_alias_applications.revision())
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {

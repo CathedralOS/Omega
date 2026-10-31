@@ -17,7 +17,26 @@ paged_roster! {
         arena integer_range_normalizations: RetainedIntegerRangeNormalization,
         arena pending_const_arguments: PendingConstArgument,
         arena supplied_operand_owners: SuppliedOperandOwner,
+        arena type_alias_applications: TypeAliasApplicationOrigin,
     }
+}
+
+/// One source alias use and its independently retained argument obligations.
+/// `instance` is the expanded ordinary type; `application` is private source
+/// metadata and must never become that type's generic identity origin.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
+pub struct TypeAliasApplicationOrigin {
+    pub instance: TypeReferenceHandle,
+    pub application: TypeReferenceHandle,
+    pub declaration: source::SourceSpan,
 }
 
 /// The exact declaration supplying a substituted operand. This is syntax
@@ -145,6 +164,30 @@ impl TypeReferenceTable {
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    pub fn type_alias_applications(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> impl Iterator<Item = &TypeAliasApplicationOrigin> {
+        self.type_alias_applications
+            .iter()
+            .filter_map(move |(_, origin)| (origin.instance == reference).then_some(origin))
+    }
+
+    pub fn retain_type_alias_application(&mut self, origin: TypeAliasApplicationOrigin) {
+        assert!(
+            origin.instance.is_valid()
+                && origin.application.is_valid()
+                && origin.instance != origin.application
+        );
+        if !self
+            .type_alias_applications
+            .iter()
+            .any(|(_, row)| row == &origin)
+        {
+            self.type_alias_applications.insert(origin);
+        }
     }
 
     pub fn supplied_operand_owner(

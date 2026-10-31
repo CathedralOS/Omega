@@ -27,7 +27,7 @@ pub mod symbol_resolved_trees;
 pub use symbol_resolved_trees::calls::signature;
 pub use symbol_resolved_trees::control_flow::{machine, state, statement};
 pub use symbol_resolved_trees::declarations::{
-    constant, data, domain, measure, operator, trait_definition, wire,
+    constant, data, domain, measure, operator, trait_definition, type_aliases, wire,
 };
 pub use symbol_resolved_trees::evidence::{mathematical, proposition};
 pub use symbol_resolved_trees::lookup_indexes;

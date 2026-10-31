@@ -483,6 +483,16 @@ impl SyntaxCopy<'_> {
             self.type_references
                 .retain_generic_application_origin(copied, application);
         }
+        for origin in other.type_references.type_alias_applications(handle) {
+            let application = self.copy_type_reference_handle(other, origin.application);
+            self.type_references.retain_type_alias_application(
+                crate::types::TypeAliasApplicationOrigin {
+                    instance: copied,
+                    application,
+                    declaration: origin.declaration,
+                },
+            );
+        }
         copied
     }
 

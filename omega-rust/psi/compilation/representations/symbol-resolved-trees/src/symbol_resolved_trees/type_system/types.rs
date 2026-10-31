@@ -57,6 +57,14 @@ pub enum TypeReference {
     },
     #[default]
     Unit,
+    /// Source-only application custody around an already expanded type.
+    /// Typing erases this carrier into an ordinary type occurrence plus its
+    /// independent alias-argument obligations; it is never a nominal type.
+    AliasUse {
+        expansion: Box<TypeReference>,
+        application: Handle<crate::type_aliases::TypeAliasApplication>,
+        supplied_operand_owner: OperandLifetimeOwnerHandle,
+    },
 }
 
 /// A const recipe retains the source declaration that supplies its leaves.

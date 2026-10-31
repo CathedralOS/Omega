@@ -12,15 +12,15 @@ use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataVariant, ProofFact, QuotientDefinition,
-    QuotientEquivalenceSelection,
+    DataDefinition, DataField, DataMember, DataVariant, Item, ProofFact, QuotientDefinition,
+    QuotientEquivalenceSelection, TypeAliasDefinition,
 };
 use tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, DataDefinition> {
+) -> ParseResult<'tokens, 'source, Item> {
     let (name, mut input) = input.take_identifier()?;
     // `Slice` is reserved as a data-type name so the parser's `Slice<T>` -> slice
     // fold (type_reference.rs) never collides with a user generic; `Slice<T>` is
@@ -58,15 +58,36 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // normal type reference (including a bare generic family); `%` is the
     // quotient former here rather than the expression-level modulo operator.
     if input.at_punctuation(PunctuationKind::Equal) {
+        input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+        let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
+        if next.at_punctuation(PunctuationKind::Semicolon) {
+            if properties.multiplicity != language_core::Multiplicity::Affine
+                || properties.carry.is_some()
+                || cleanup_selection.is_some()
+            {
+                return Err(next.error_here(
+                    "a transparent type alias inherits its expansion's properties and cleanup; it cannot declare storage properties",
+                ));
+            }
+            return Ok((
+                Item::TypeAlias(TypeAliasDefinition {
+                    name,
+                    is_public: false,
+                    lifetime_parameters,
+                    type_parameters,
+                    conformance_bounds: generic_parameters.conformance_bounds,
+                    expansion: carrier,
+                }),
+                next.take_punctuation(PunctuationKind::Semicolon, ";")?,
+            ));
+        }
         if properties.multiplicity == language_core::Multiplicity::Linear
             || properties.carry.is_some()
         {
-            return Err(input.error_here(
+            return Err(next.error_here(
                 "a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody",
             ));
         }
-        input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
         input = next.take_punctuation(PunctuationKind::Percent, "%")?;
         let (relation, next) = parse_path_handle_span(input, |member| {
             items(syntax_trees).append_identifier_path_member(member)
@@ -102,7 +123,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         };
         input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
-            DataDefinition {
+            Item::Data(DataDefinition {
                 name,
                 is_public: false,
                 supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -119,7 +140,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 }),
                 where_facts: HandleSpan::empty(),
                 members: HandleSpan::empty(),
-            },
+            }),
             input,
         ));
     }
@@ -167,7 +188,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     project_case_predicate_facts(syntax_trees, &name, where_facts, members);
 
     Ok((
-        DataDefinition {
+        Item::Data(DataDefinition {
             name,
             is_public: false,
             supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -180,7 +201,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             quotient: None,
             where_facts,
             members,
-        },
+        }),
         input,
     ))
 }
