@@ -419,6 +419,12 @@ impl<'input> CheckingProjection<'input> {
             projected
         })
     }
+
+    /// Frozen memos describe only the input the checker was handed, never a
+    /// private mutation copy, so they answer while this view is unprojected.
+    fn memo_source(&self) -> Option<&'input dyn CheckingInput> {
+        self.projected.is_none().then_some(self.original)
+    }
 }
 
 impl Deref for CheckingProjection<'_> {
@@ -462,33 +468,21 @@ impl CheckingInput for CheckingProjection<'_> {
     }
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.checking_memos(),
-        }
+        self.memo_source()?.checking_memos()
     }
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.prepared_effect_plans(),
-        }
+        self.memo_source()?.prepared_effect_plans()
     }
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.call_frame_tables(),
-        }
+        self.memo_source()?.call_frame_tables()
     }
 
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.prepared_mathematics(),
-        }
+        self.memo_source()?.prepared_mathematics()
     }
 
     fn opaque_representation_selections(&self) -> &[OpaqueRepresentationSelection] {
