@@ -1628,6 +1628,7 @@ pass/domains/carried_runtime_index_payload_qualification built 2184ms exit:0 int
 pass/domains/case_payload_call_restore_exit built 9158ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/case_payload_guarded_domain_exit built 2846ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/case_payload_predicate_domain_member_exit built 7738ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/domains/case_payload_widened_call_result_exit built 6547ms exit:0 interpreter-exit:0 interpreter:agrees @34e2f4e01441+wt
 pass/domains/chained_tagged_reference_moves_exit built 2759ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/copied_array_domain_survives_original_mutation_exit built 2672ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/dependent_coordinate_sum_rational_bound checked 2174ms @5f668826adf3+wt
