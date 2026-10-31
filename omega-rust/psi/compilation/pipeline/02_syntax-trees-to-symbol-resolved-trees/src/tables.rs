@@ -14,6 +14,7 @@
 //! `set_source_span`, `attach_authored_selection_occurrences`, … — cannot go
 //! through one, so write sites keep the raw field.
 
+use symbol_resolved_trees::SymbolResolvedDeclarationStorage;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionTable;
 use symbol_resolved_trees::statement::StatementTable;
@@ -39,4 +40,11 @@ pub(crate) fn syntax_type_references(syntax: &SyntaxTrees) -> &TypeReferenceTabl
 /// The items a syntax forest parses.
 pub(crate) fn syntax_items(syntax: &SyntaxTrees) -> &ItemTable {
     &syntax.tables.items
+}
+
+/// The declarations a resolved forest owns.
+pub(crate) fn resolved_declarations(
+    program: &SymbolResolvedTrees,
+) -> &SymbolResolvedDeclarationStorage {
+    &program.tables.declarations
 }

@@ -11,6 +11,7 @@
 
 use super::{ConstantSelection, SourceLinks};
 use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
@@ -329,9 +330,7 @@ fn constraints(
     pending_diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle)> {
     let mut observations = Vec::new();
-    let Some((_, state)) = trees
-        .tables
-        .declarations
+    let Some((_, state)) = resolved_declarations(&trees)
         .machine_states
         .iter()
         .find(|(_, state)| state.symbol == target)

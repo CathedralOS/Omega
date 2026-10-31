@@ -7,6 +7,7 @@
 
 use crate::selection::call_identity::call_declaration_source;
 use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     ResolvedAuthoredCallBinding,
@@ -1273,9 +1274,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 .iter()
                 .copied(),
         );
-        for equation in program
-            .tables
-            .declarations
+        for equation in resolved_declarations(&program)
             .declared_type_equations
             .span_or_empty(machine.declared_type_equations)
         {
@@ -1412,9 +1411,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             match target {
                                 TransitionTarget::Value(value) => self.expressions.push(*value),
                                 TransitionTarget::Named(target) => {
-                                    let path = program
-                                        .tables
-                                        .declarations
+                                    let path = resolved_declarations(&program)
                                         .statement_path_members
                                         .span_or_empty(target.path);
                                     let name = path

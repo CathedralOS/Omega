@@ -6,6 +6,7 @@
 
 use crate::tables::body_expressions;
 use crate::tables::body_statements;
+use crate::tables::resolved_declarations;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbols::JoinedPath;
@@ -116,24 +117,18 @@ fn retarget_statement_span(
         match statement {
             symbol_resolved_trees::statement::StatementNode::Assembly(handle) => {
                 let graph = program.tables.declarations.assembly_graphs.get(handle);
-                let blocks = program
-                    .tables
-                    .declarations
+                let blocks = resolved_declarations(&program)
                     .assembly_blocks
                     .span_or_empty(graph.blocks)
                     .to_vec();
                 for block in blocks {
                     expressions.extend_from_slice(
-                        program
-                            .tables
-                            .declarations
+                        resolved_declarations(&program)
                             .assembly_expressions
                             .span_or_empty(block.requires),
                     );
                     expressions.extend_from_slice(
-                        program
-                            .tables
-                            .declarations
+                        resolved_declarations(&program)
                             .assembly_expressions
                             .span_or_empty(block.ensures),
                     );

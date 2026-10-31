@@ -1,3 +1,4 @@
+use crate::tables::resolved_declarations;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
@@ -18,18 +19,14 @@ pub(in crate::symbols) fn insert_mathematical_symbol_children(
     builder.insert_children(
         definition_symbol,
         type_parameter_seeds(
-            program
-                .tables
-                .declarations
+            resolved_declarations(&program)
                 .data_type_parameters
                 .span_or_empty(definition.binders),
             false,
             has_sources,
         )
         .chain(
-            program
-                .tables
-                .declarations
+            resolved_declarations(&program)
                 .mathematical_parameters
                 .span_or_empty(definition.parameters)
                 .iter()

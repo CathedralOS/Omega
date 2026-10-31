@@ -8,6 +8,7 @@
 
 use crate::resolution::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
 use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
@@ -224,9 +225,7 @@ pub(crate) fn finalize_authored_expression_selections(
         if membership.authored_domain_selection.is_some() {
             continue;
         }
-        let members = program
-            .tables
-            .declarations
+        let members = resolved_declarations(&program)
             .domain_path_members
             .span_or_empty(membership.domain);
         let source_span = path_span(members, SourceSpan::default());
@@ -251,11 +250,12 @@ pub(crate) fn finalize_authored_expression_selections(
                 ),
         }
         .map_err(record_diagnostic)?;
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) = program
-            .tables
-            .declarations
-            .proof_facts
-            .get_mut(pending.fact)
+        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+            program
+                .tables
+                .declarations
+                .proof_facts
+                .get_mut(pending.fact)
         else {
             unreachable!("validated authored proof-membership fact changed variant")
         };
@@ -1027,9 +1027,7 @@ fn contract_clause_expression_handles(
 ) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
     let mut handles = std::collections::HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
-        for fact in program
-            .tables
-            .declarations
+        for fact in resolved_declarations(&program)
             .proof_facts
             .span_or_empty(contract.facts)
         {
