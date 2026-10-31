@@ -1,0 +1,9 @@
+# Actual bounded-distance ranks — PR1075
+
+Submitted `562c0c5a5c1180e92bf4c03e115f65eeb59f923d`; published `92566dcd85cef6d5044d78f398d241a1dcf93873`. Required merge-queue compiler-check succeeded and fetched-main ancestry is verified.
+
+All nine moving-upper places execute with native/Terminal agreement on macOS ARM64. Their caller-owned record observes counter10, three climbing steps and four shrinking steps; idle preserves every field. Nine one-edit preserving-cycle twins reject. The final focused sample capture observes16agreements and14intendedrefusals; corpus acceptance observes12agreements and27source outcomes (12checked,15expectedrefusals) without wrong reasons or failed oracles. Independent exact-candidate semantic review accepts without blockers.
+
+Both actual endpoints retain their own carriers, coordinates, index receipts and expression scopes; formed upper-lower lowers through the common scalar DAG. IncreasingTo keeps its named-bound/clamp rules. The necessary shared predicate repair admits total widening and independently formed exact casts without allowing a requirement to establish its own partial operand.
+
+Original baselines, authoring corrections, earlier weaker scalar-counter observations and strengthened final oracles remain distinct. The first parameter source is byte-identical in the preserved probe. The clean tested producer is4c8e800a453c7e4a8374dfb754f2f32236a2baf2; submitted562c changes onlyREADME/corpus observations. This archive retains raw receipts, exact source patches, source bundle, canonical identities, review and publication. Baseline/current compiler snapshots remain runnable locally; two obsolete snapshots are hash-verified compressed backups. No other-host, Product/selfhost, full-suite, proof-kernel or additional WCSU qualification is claimed. Broader nested-machine requirements remain open.
