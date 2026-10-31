@@ -542,7 +542,8 @@ fn prove(
                             .map(|(_, identity)| Polynomial::atom(identity.clone()))
                     })
                 } else {
-                    calls::rank_coordinate(program, &mut source_engine, *measure)
+                    calls::rank_coordinate(program, caller, &mut source_engine, *measure)
+                        .map(|rank| rank.value)
                 }
             })
         };
