@@ -2010,6 +2010,21 @@ fn recognize_structural_state_leaves_from<'a>(
                             &branch_environment,
                             (invocation, state, state.return_type),
                         )?;
+                        if path_counting_enabled() {
+                            use std::hash::{Hash, Hasher};
+                            let mut env_hash = std::collections::hash_map::DefaultHasher::new();
+                            for (name, term) in &target_environment {
+                                name.hash(&mut env_hash);
+                                format!("{:?}", term.semantic_value()).hash(&mut env_hash);
+                            }
+                            eprintln!(
+                                "[envhash] depth={} state={:?} env={:016x} judge={:016x}",
+                                path.len(),
+                                target_state.symbol,
+                                env_hash.finish(),
+                                captured.path_fingerprint(),
+                            );
+                        }
                         if let Some(observer) = requirement.as_deref_mut() {
                             observer.entered_body(
                                 state.symbol,

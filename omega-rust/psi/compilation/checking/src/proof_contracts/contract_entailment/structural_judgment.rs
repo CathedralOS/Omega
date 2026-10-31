@@ -656,6 +656,37 @@ impl<'program> StructuralJudge<'program> {
         !self.resolve_applications
     }
 
+    /// Fingerprint of the effect-bearing term vectors, for the
+    /// OMEGA_PATH_COUNT re-traversal investigation only.
+    pub(super) fn path_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        self.capture_sequence.hash(&mut hash);
+        self.storage_write_sequence.hash(&mut hash);
+        for value in self.stored_values.iter() {
+            if let Some(term) = &value.current {
+                format!("{:?}", term.semantic_value()).hash(&mut hash);
+            }
+        }
+        for (_, term) in self.normal_results.iter() {
+            format!("{:?}", term.semantic_value()).hash(&mut hash);
+        }
+        for (left, right) in self.normal_guarantees.iter() {
+            format!("{:?}", left.semantic_value()).hash(&mut hash);
+            format!("{:?}", right.semantic_value()).hash(&mut hash);
+        }
+        for (name, term) in self.substitutions.iter() {
+            name.hash(&mut hash);
+            format!("{:?}", term.semantic_value()).hash(&mut hash);
+        }
+        for (left, right) in self.disequalities.iter() {
+            format!("{:?}", left.semantic_value()).hash(&mut hash);
+            format!("{:?}", right.semantic_value()).hash(&mut hash);
+        }
+        self.captured_result_equations.len().hash(&mut hash);
+        hash.finish()
+    }
+
     /// True when `self` has performed no storage writes and added no call
     /// guarantees, memberships, content equations, or case facts since `base`.
     pub(super) fn has_no_new_effects_or_guarantees_since(&self, base: &Self) -> bool {

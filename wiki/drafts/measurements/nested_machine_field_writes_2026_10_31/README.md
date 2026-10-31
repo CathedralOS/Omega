@@ -112,21 +112,25 @@ transport is NOT the cost.
 
 ## Next step
 
-Factor the transition-path traversal: `05.d.3.b.flow_fixed_point` already
-proves the dataflow-fixpoint pattern this stage needs (716ms for the same
-program). Two complementary repairs:
+The dedup surface is measured, not guessed (`OMEGA_PATH_COUNT=1` also
+prints `[envhash]` env/judge fingerprints at each `bind_invocation`):
 
-1. **Join sibling paths at callee entry.** Extend the `rejoin_pure_outcomes`
-   merge to paths whose effects differ only in occurrence-numbered
-   captured terms — i.e., widen `stored_values`/`normal_results` at
-   coordinates with differing `current` terms (the intersect loop at
-   structural_judgment.rs:771+ already reconciles matched entries; the
-   missing piece is a widened term for unmatched ones) — or memoize
-   `recognize_structural_state_leaves` on (state symbol,
-   occurrence-normalized environment).
-2. **Cap the judge's carried state.** The per-event cost is proportional
-   to accumulated write facts; a summary/demand view of `walk.environment`
-   at callee entry would linearize what each recursion must clone.
+- **93% of callee entries share one `target_environment`**
+  (13,104/14,132 at N=26): sibling paths bind byte-identical arguments.
+- **Every captured-judge fingerprint differs**: judges carry
+  `capture_sequence`/`storage_write_sequence` counters and
+  `CapturedValue.occurrence` stamps that are pure renaming differences —
+  semantically equal states never compare equal.
+
+The fix is an **occurrence-canonical memo** on the state-leaf check:
+normalize `CapturedValue` occurrence numbers to first-seen order over the
+judge's effect vectors, key `recognize_structural_state_leaves` on
+(state symbol, `target_environment`, normalized judge), and rebase the
+returned leaves' occurrences per caller (or prove the check
+renaming-invariant and share them). `05.d.3.b.flow_fixed_point` already
+proves the summary/fixpoint pattern (716ms for the same program); the
+simpler `rejoin_pure_outcomes` extension is unsound here because the
+paths carry real ordered writes, only stamp-equivalent.
 
 Probe N in {26, 28} reproduces the cliff in < 60 s without hitting swap;
 `OMEGA_PATH_COUNT=1` counts re-traversals directly.
