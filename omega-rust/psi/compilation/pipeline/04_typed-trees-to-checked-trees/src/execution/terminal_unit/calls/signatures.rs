@@ -456,22 +456,22 @@ pub(crate) fn entry_claims(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     source_parameters: &[StateParameter],
 ) -> Option<Vec<CheckedUnitEntryClaimPlan>> {
-    let events = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source == PermissionEventSource::StateEntry
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-        })
-        .map(|(_, event)| event)
-        .collect::<Vec<_>>();
+    let ownership = &facts.flow.ownership;
+    let events = ownership.with_state_permissions(state, |handles| {
+        handles
+            .iter()
+            .map(|handle| ownership.permissions.get(*handle))
+            .filter(|event| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state
+                    && event.source == PermissionEventSource::StateEntry
+                    && event.kind == PermissionEventKind::Establish
+                    && event.access == PermissionAccess::Owned
+                    && event.multiplicity == Multiplicity::Linear
+                    && event.obligation_live
+            })
+            .collect::<Vec<_>>()
+    });
     let mut output = Vec::new();
     for (parameter_index, parameter) in structural_parameters.iter().enumerate() {
         if parameter.multiplicity == Multiplicity::Unrestricted {
