@@ -340,6 +340,11 @@ const fn flag_custody(x86: bool, aarch64: FlagsCustody) -> FlagsCustody {
     if x86 { FlagsCustody::Clobber } else { aarch64 }
 }
 
+/// The value one ISA states where the two arms differ only in that value.
+fn either<T>(x86: bool, x86_value: T, aarch64_value: T) -> T {
+    if x86 { x86_value } else { aarch64_value }
+}
+
 /// The declared arithmetic contract one selected semantic must carry on each
 /// ISA. The two ISAs share operand shapes but own different flag custody:
 /// x86-64 realizes flag-writing forms as clobbers and pins the divide and
@@ -520,25 +525,13 @@ fn arithmetic_contract(
             | SaturatingCarrier::U32
             | SaturatingCarrier::U64,
         ) => ArithmeticContract {
-            fixed_views: if x86 {
-                &[(0, "rax"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
+            fixed_views: either(x86, &[(0, "rax"), (2, "rax"), (3, "rdx")], &[]),
             flags: flag_custody(x86, FlagsCustody::None),
             extra_clobbers: if x86 { &["rdx"] } else { &[] },
             faulting: x86,
-            alternatives: if x86 {
-                one(&[0, 1, 3], &[2])
-            } else {
-                one(&[0, 1], &[2])
-            },
+            alternatives: either(x86, one(&[0, 1, 3], &[2]), one(&[0, 1], &[2])),
             ..ArithmeticContract::plain(
-                if x86 {
-                    &[Use, Use, Def, Use]
-                } else {
-                    &[Use, Use, Def]
-                },
+                either(x86, &[Use, Use, Def, Use], &[Use, Use, Def]),
                 Vec::new(),
             )
         },
@@ -548,24 +541,12 @@ fn arithmetic_contract(
         // early clobber.
         WrappingRemainderI64 => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2] },
-            fixed_views: if x86 {
-                &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
+            fixed_views: either(x86, &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")], &[]),
             flags: flag_custody(x86, FlagsCustody::None),
             faulting: x86,
-            alternatives: if x86 {
-                one(&[0, 1], &[2, 3])
-            } else {
-                one(&[0, 1], &[2])
-            },
+            alternatives: either(x86, one(&[0, 1], &[2, 3]), one(&[0, 1], &[2])),
             ..ArithmeticContract::plain(
-                if x86 {
-                    &[Use, Use, Def, Def]
-                } else {
-                    &[Use, Use, Def]
-                },
+                either(x86, &[Use, Use, Def, Def], &[Use, Use, Def]),
                 Vec::new(),
             )
         },
@@ -575,24 +556,12 @@ fn arithmetic_contract(
         // early-clobber result.
         SaturatingRemainder(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2] },
-            fixed_views: if x86 {
-                &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
+            fixed_views: either(x86, &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")], &[]),
             flags: flag_custody(x86, FlagsCustody::None),
             faulting: x86,
-            alternatives: if x86 {
-                one(&[0, 1], &[2, 3])
-            } else {
-                one(&[0, 1], &[2])
-            },
+            alternatives: either(x86, one(&[0, 1], &[2, 3]), one(&[0, 1], &[2])),
             ..ArithmeticContract::plain(
-                if x86 {
-                    &[Use, Use, Def, Def]
-                } else {
-                    &[Use, Use, Def]
-                },
+                either(x86, &[Use, Use, Def, Def], &[Use, Use, Def]),
                 Vec::new(),
             )
         },
@@ -611,11 +580,7 @@ fn arithmetic_contract(
         // division; AArch64 clamps or guards through the bound scratch.
         SaturatingDivide(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2, 3] },
-            fixed_views: if x86 {
-                &[(0, "rax"), (2, "rax"), (3, "rdx")]
-            } else {
-                &[]
-            },
+            fixed_views: either(x86, &[(0, "rax"), (2, "rax"), (3, "rdx")], &[]),
             flags: flag_custody(x86, FlagsCustody::Def),
             extra_clobbers: if x86 { &["rdx"] } else { &[] },
             faulting: x86,
