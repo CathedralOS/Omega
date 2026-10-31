@@ -1,5 +1,6 @@
 //! Exact case custody and the physical transport of edge-produced payloads.
 use super::{LocalStorageSlotId, VirtualRegisterId};
+use crate::codec_bytes::push_encoded;
 use legalized_operations::{LegalizedStructuralCasePayload, encode_scalar_type};
 use optimization_unit::encode_value_definition_site_identity;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
@@ -90,24 +91,18 @@ impl SelectedStructuralCaseEdge {
                 byte_size,
             } => {
                 bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, pointer.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
+                push_encoded(bytes, place.get().to_le_bytes());
+                push_encoded(bytes, pointer.0.to_le_bytes());
+                push_encoded(bytes, byte_size.to_le_bytes());
             }
         }
-        crate::codec_bytes::push_encoded(bytes, self.case.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, self.case_tag.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, (self.payloads.len() as u64).to_le_bytes());
+        push_encoded(bytes, self.case.get().to_le_bytes());
+        push_encoded(bytes, self.case_tag.to_le_bytes());
+        push_encoded(bytes, (self.payloads.len() as u64).to_le_bytes());
         for payload in &self.payloads {
-            crate::codec_bytes::push_encoded(bytes, payload.semantic.field.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(
-                bytes,
-                payload.semantic.field_byte_offset.to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(
-                bytes,
-                payload.semantic.parameter.value.get().to_le_bytes(),
-            );
+            push_encoded(bytes, payload.semantic.field.get().to_le_bytes());
+            push_encoded(bytes, payload.semantic.field_byte_offset.to_le_bytes());
+            push_encoded(bytes, payload.semantic.parameter.value.get().to_le_bytes());
             encode_scalar_type(bytes, payload.semantic.parameter.scalar_type);
             encode_value_definition_site_identity(
                 bytes,
@@ -117,19 +112,19 @@ impl SelectedStructuralCaseEdge {
                 SelectedCasePayloadTransport::Unused => bytes.push(0),
                 SelectedCasePayloadTransport::Unmaterialized { parameter } => {
                     bytes.push(1);
-                    crate::codec_bytes::push_encoded(bytes, parameter.0.to_le_bytes());
+                    push_encoded(bytes, parameter.0.to_le_bytes());
                 }
                 SelectedCasePayloadTransport::Registers {
                     argument,
                     parameter,
                 } => {
                     bytes.push(2);
-                    crate::codec_bytes::push_encoded(bytes, argument.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, parameter.0.to_le_bytes());
+                    push_encoded(bytes, argument.0.to_le_bytes());
+                    push_encoded(bytes, parameter.0.to_le_bytes());
                 }
             }
         }
-        crate::codec_bytes::push_encoded(bytes, (self.cleanup_actions.len() as u64).to_le_bytes());
+        push_encoded(bytes, (self.cleanup_actions.len() as u64).to_le_bytes());
         for action in &self.cleanup_actions {
             super::effects::program::identity::encode_cleanup(bytes, action);
         }

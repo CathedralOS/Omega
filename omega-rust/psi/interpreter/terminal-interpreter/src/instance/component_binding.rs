@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use semantic_vocabulary::{BoundaryMachineId, OperationId};
 use terminal_fuel::TerminalFuelMeter;
-use terminal_installation::AdmittedComponentProvider;
+use terminal_installation::{AdmittedComponentProvider, AdmittedScalarApplications};
 
 use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
 use crate::program::TerminalProgram;
@@ -18,6 +18,7 @@ use crate::results::TerminalExecutionStatus;
 use crate::{
     TerminalImportAdapter, TerminalRuntimeSupplies, TerminalScalarValue, TerminalStructuralInputs,
 };
+use terminal_psi::BoundaryMachineDeclaration;
 
 /// One immutable checked import/export selection and its retained import era.
 /// Only completion of a real producing instance can create its owned return.
@@ -26,8 +27,7 @@ pub struct TerminalComponentBinding<'host, 'artifact> {
     selected: AdmittedComponentProvider,
     program: TerminalProgram<'artifact>,
     supplies: TerminalRuntimeSupplies,
-    scalar_admission:
-        Option<std::borrow::Cow<'artifact, terminal_installation::AdmittedScalarApplications>>,
+    scalar_admission: Option<std::borrow::Cow<'artifact, AdmittedScalarApplications>>,
     required_imports: Vec<BoundaryMachineId>,
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
     components: ComponentBindings<'host, 'artifact>,
@@ -53,9 +53,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         selected: AdmittedComponentProvider,
         program: TerminalProgram<'artifact>,
         supplies: TerminalRuntimeSupplies,
-        scalar_admission: Option<
-            std::borrow::Cow<'artifact, terminal_installation::AdmittedScalarApplications>,
-        >,
+        scalar_admission: Option<std::borrow::Cow<'artifact, AdmittedScalarApplications>>,
     ) -> Result<Self, String> {
         let provider_identity =
             terminal_codec::TerminalExecutionIdentity::portable(selected.provider());
@@ -103,10 +101,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         })
     }
 
-    pub fn import(
-        &self,
-        boundary: BoundaryMachineId,
-    ) -> Option<&terminal_psi::BoundaryMachineDeclaration> {
+    pub fn import(&self, boundary: BoundaryMachineId) -> Option<&BoundaryMachineDeclaration> {
         if !self.required_imports.contains(&boundary) {
             return None;
         }

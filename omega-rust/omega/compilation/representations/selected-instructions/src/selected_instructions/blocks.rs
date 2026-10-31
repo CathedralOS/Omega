@@ -14,11 +14,16 @@
 //! occupied roster, resolved every read through a span, and rebuilt the whole
 //! arena on `truncate` instead of dropping the tail.
 
+use super::CopyAffinity;
+use super::SelectedInstructionKind::{Load64, MaterializeI64};
+use super::SelectedStructuralTransport::ScalarReference;
 use super::plan_identity::{CachedBlockEncoding, selected_block_digest_with_encoding};
 use super::{
     SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
     VirtualRegisterId,
 };
+use register_model::RegisterOperandAccess::{Use, UseDef};
+use register_model::RegisterUnitId;
 use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
@@ -121,9 +126,9 @@ struct BlockLookup {
     unit_kills_mask: u64,
     fixed_views_mask: u64,
     has_high_units_or_views: bool,
-    implicit_use_units: Vec<register_model::RegisterUnitId>,
-    upward_unit_uses: Vec<register_model::RegisterUnitId>,
-    unit_kills: Vec<register_model::RegisterUnitId>,
+    implicit_use_units: Vec<RegisterUnitId>,
+    upward_unit_uses: Vec<RegisterUnitId>,
+    unit_kills: Vec<RegisterUnitId>,
     unit_writer_indices: Vec<usize>,
     fixed_views: Vec<register_model::RegisterViewId>,
     instruction_bits: Vec<u64>,
@@ -133,7 +138,7 @@ struct BlockLookup {
     virtual_kills_bits: Vec<u64>,
     has_constraint_operands: bool,
     register_instruction_spans: Vec<(u32, u32)>,
-    copy_affinities: Vec<super::CopyAffinity>,
+    copy_affinities: Vec<CopyAffinity>,
     has_malformed_copy: bool,
 }
 // Copy-on-write needs the block, not copies of memos that the mutable route
@@ -255,7 +260,7 @@ impl BlockEntry {
                 if instruction.kind == super::SelectedInstructionKind::CopyI64 {
                     if let [source, destination] = instruction.operands.as_slice() {
                         if source.virtual_register != destination.virtual_register {
-                            copy_affinities.push(super::CopyAffinity {
+                            copy_affinities.push(CopyAffinity {
                                 block: self.block.id,
                                 instruction: instruction.id,
                                 source: source.virtual_register,
@@ -266,21 +271,19 @@ impl BlockEntry {
                         has_malformed_copy = true;
                     }
                 }
-                if matches!(
-                    instruction.kind,
-                    super::SelectedInstructionKind::MaterializeI64 { .. }
-                ) && let [operand] = instruction.operands.as_slice()
+                if matches!(instruction.kind, MaterializeI64 { .. })
+                    && let [operand] = instruction.operands.as_slice()
                     && operand.access == register_model::RegisterOperandAccess::Def
                 {
                     set_register_bit(&mut materialize_definition_bits, operand.virtual_register);
                 }
                 for operand in &instruction.operands {
-                    if operand.access == register_model::RegisterOperandAccess::Use
+                    if operand.access == Use
                         && !test_register_bit(&virtual_kills_bits, operand.virtual_register)
                     {
                         set_register_bit(&mut upward_virtual_uses_bits, operand.virtual_register);
                     }
-                    if operand.access == register_model::RegisterOperandAccess::UseDef
+                    if operand.access == UseDef
                         || operand.early_clobber
                         || operand.tied_to.is_some()
                     {
@@ -313,7 +316,7 @@ impl BlockEntry {
                         } else {
                             fixed_views.push(view);
                         }
-                        if operand.access != register_model::RegisterOperandAccess::Use {
+                        if operand.access != Use {
                             set_register_bit(&mut fixed_definition_bits, operand.virtual_register);
                         }
                     }
@@ -346,15 +349,12 @@ impl BlockEntry {
                 }
             }
             for operand in &terminator.operands {
-                if operand.access == register_model::RegisterOperandAccess::Use
+                if operand.access == Use
                     && !test_register_bit(&virtual_kills_bits, operand.virtual_register)
                 {
                     set_register_bit(&mut upward_virtual_uses_bits, operand.virtual_register);
                 }
-                if operand.access == register_model::RegisterOperandAccess::UseDef
-                    || operand.early_clobber
-                    || operand.tied_to.is_some()
-                {
+                if operand.access == UseDef || operand.early_clobber || operand.tied_to.is_some() {
                     has_constraint_operands = true;
                 }
                 set_register_bit(&mut referenced_register_bits, operand.virtual_register);
@@ -403,7 +403,7 @@ impl BlockEntry {
                         super::SelectedStructuralTransport::WholeValue { argument, .. } => {
                             set_register_bit(&mut referenced_register_bits, argument);
                         }
-                        super::SelectedStructuralTransport::ScalarReference {
+                        ScalarReference {
                             base: super::SelectedAddressBase::Register(argument),
                             ..
                         }
@@ -449,7 +449,7 @@ impl BlockEntry {
             while m != 0 {
                 let bit = m.trailing_zeros() as u16;
                 m &= m - 1;
-                implicit_use_units.push(register_model::RegisterUnitId(bit));
+                implicit_use_units.push(RegisterUnitId(bit));
             }
             if implicit_use_units.len() > implicit_use_mask.count_ones() as usize {
                 implicit_use_units.sort_unstable();
@@ -459,13 +459,13 @@ impl BlockEntry {
             while m != 0 {
                 let bit = m.trailing_zeros() as u16;
                 m &= m - 1;
-                upward_unit_uses.push(register_model::RegisterUnitId(bit));
+                upward_unit_uses.push(RegisterUnitId(bit));
             }
             let mut m = unit_kills_mask;
             while m != 0 {
                 let bit = m.trailing_zeros() as u16;
                 m &= m - 1;
-                unit_kills.push(register_model::RegisterUnitId(bit));
+                unit_kills.push(RegisterUnitId(bit));
             }
             let mut m = fixed_views_mask;
             while m != 0 {
@@ -549,7 +549,7 @@ impl BlockEntry {
                             }
                         } else {
                             for operand in &instruction.operands {
-                                if operand.access != register_model::RegisterOperandAccess::Use {
+                                if operand.access != Use {
                                     slot_summary.events.push(BlockSlotEvent::FrameAddress {
                                         slot: target,
                                         register: operand.virtual_register,
@@ -573,9 +573,9 @@ impl BlockEntry {
                             );
                         }
                     }
-                    super::SelectedInstructionKind::Load64 { byte_offset: 0 } => {
+                    Load64 { byte_offset: 0 } => {
                         for operand in &instruction.operands {
-                            if operand.access == register_model::RegisterOperandAccess::Use {
+                            if operand.access == Use {
                                 slot_summary.loads.push((operand.virtual_register, index));
                                 set_register_bit(
                                     &mut slot_summary.loads_register_bits,
@@ -616,11 +616,7 @@ impl BlockEntry {
                 _ => {}
             }
             for operand in &terminator.operands {
-                if matches!(
-                    terminator.kind,
-                    super::SelectedInstructionKind::Load64 { byte_offset: 0 }
-                ) && operand.access == register_model::RegisterOperandAccess::Use
-                {
+                if matches!(terminator.kind, Load64 { byte_offset: 0 }) && operand.access == Use {
                     slot_summary
                         .loads
                         .push((operand.virtual_register, usize::MAX));
@@ -653,10 +649,8 @@ impl BlockEntry {
                             slot_summary.invalidate(destination);
                             set_register_bit(&mut slot_summary.non_load_register_bits, argument);
                         }
-                        super::SelectedStructuralTransport::ScalarReference {
-                            base,
-                            destination,
-                            ..
+                        ScalarReference {
+                            base, destination, ..
                         }
                         | super::SelectedStructuralTransport::Address {
                             base, destination, ..
@@ -870,10 +864,7 @@ impl SelectedBlocks {
     pub fn block_implicit_units_and_fixed_views(
         &self,
         block_index: usize,
-    ) -> Option<(
-        &[register_model::RegisterUnitId],
-        &[register_model::RegisterViewId],
-    )> {
+    ) -> Option<(&[RegisterUnitId], &[register_model::RegisterViewId])> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.implicit_use_units, &lookup.fixed_views))
     }
@@ -889,10 +880,7 @@ impl SelectedBlocks {
         ))
     }
     /// Memoized sorted `CopyAffinity` rows and whether any `CopyI64` in `block_index` has a malformed operand slice.
-    pub fn block_copy_affinities(
-        &self,
-        block_index: usize,
-    ) -> Option<(&[super::CopyAffinity], bool)> {
+    pub fn block_copy_affinities(&self, block_index: usize) -> Option<(&[CopyAffinity], bool)> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.copy_affinities, lookup.has_malformed_copy))
     }
@@ -900,10 +888,7 @@ impl SelectedBlocks {
     pub fn block_unit_transfer(
         &self,
         block_index: usize,
-    ) -> Option<(
-        &[register_model::RegisterUnitId],
-        &[register_model::RegisterUnitId],
-    )> {
+    ) -> Option<(&[RegisterUnitId], &[RegisterUnitId])> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.upward_unit_uses, &lookup.unit_kills))
     }

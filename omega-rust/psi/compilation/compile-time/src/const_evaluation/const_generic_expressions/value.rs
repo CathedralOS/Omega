@@ -59,6 +59,7 @@ use numerics::{
     literals::{FloatFormat, IntegerLiteral, LandedIntegerType},
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
@@ -66,6 +67,7 @@ use typed_trees::{
     state::State,
     types::PrimitiveType,
 };
+use validation::{evaluate_anonymous_numeric_comparison, evaluate_anonymous_numeric_expression};
 
 mod context;
 mod match_dispatch;
@@ -76,11 +78,8 @@ use context::EvaluationContext;
 pub(crate) trait ConstantCalls {
     /// A retained result type belongs to the same program passed to the scalar
     /// evaluator. Invalid means this caller carries no additional type shell.
-    fn result_type(
-        &self,
-        _expression: ExpressionHandle,
-    ) -> typed_trees::types::TypeReferenceHandle {
-        typed_trees::types::TypeReferenceHandle::invalid()
+    fn result_type(&self, _expression: ExpressionHandle) -> TypeReferenceHandle {
+        TypeReferenceHandle::invalid()
     }
 
     fn validate_call(
@@ -114,11 +113,7 @@ enum Shape {
     Anonymous(ExpressionHandle),
     Boolean,
     Float(FloatFormat),
-    Integer(
-        LandedIntegerType,
-        typed_trees::types::TypeReferenceHandle,
-        ArithmeticDomain,
-    ),
+    Integer(LandedIntegerType, TypeReferenceHandle, ArithmeticDomain),
 }
 
 #[derive(Clone, Copy)]
@@ -277,7 +272,7 @@ fn evaluate_scalar_in(
         Value::Anonymous(expression)
             if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
         {
-            let exact = validation::evaluate_anonymous_numeric_expression(
+            let exact = evaluate_anonymous_numeric_expression(
                 program,
                 expression,
                 &selected_arms,
@@ -905,7 +900,7 @@ fn validate_shapes(
                     };
                     shapes.push(Shape::Integer(
                         carrier,
-                        typed_trees::types::TypeReferenceHandle::invalid(),
+                        TypeReferenceHandle::invalid(),
                         policy,
                     ));
                 }
@@ -1049,7 +1044,7 @@ fn validate_shapes(
                     Shape::Integer(carrier, reference, policy),
                     Shape::Integer(
                         right_carrier,
-                        typed_trees::types::TypeReferenceHandle::invalid(),
+                        TypeReferenceHandle::invalid(),
                         if shift {
                             ArithmeticDomain::Exact
                         } else {
@@ -1070,11 +1065,7 @@ fn validate_shapes(
                     &mut warnings,
                 )?;
                 (
-                    Shape::Integer(
-                        carrier,
-                        typed_trees::types::TypeReferenceHandle::invalid(),
-                        policy,
-                    ),
+                    Shape::Integer(carrier, TypeReferenceHandle::invalid(), policy),
                     Shape::Integer(carrier, reference, policy),
                 )
             }
@@ -1210,7 +1201,7 @@ fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
                 .landed_landing_fixed()
                 .ok_or("constant call requires an exact integer or Boolean carrier")?,
         },
-        typed_trees::types::TypeReferenceHandle::invalid(),
+        TypeReferenceHandle::invalid(),
         ArithmeticDomain::Exact,
     ))
 }
@@ -1270,12 +1261,9 @@ fn compare_anonymous(
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
 ) -> Result<bool, String> {
-    validation::evaluate_anonymous_numeric_comparison(
-        program,
-        expression,
-        selected_arms,
-        |operand| context.has_builtin(program, operand),
-    )
+    evaluate_anonymous_numeric_comparison(program, expression, selected_arms, |operand| {
+        context.has_builtin(program, operand)
+    })
     .ok_or_else(|| {
         "anonymous comparison requires defined exact numeric operands and selected builtin meaning"
             .into()
@@ -1298,12 +1286,11 @@ fn land_anonymous(
         |expression| context.has_builtin(program, expression),
     )
     .ok_or_else(|| {
-        if let Some(value) = validation::evaluate_anonymous_numeric_expression(
-            program,
-            expression,
-            selected_arms,
-            |operand| context.has_builtin(program, operand),
-        ) && value.to_integer_exact().is_none()
+        if let Some(value) =
+            evaluate_anonymous_numeric_expression(program, expression, selected_arms, |operand| {
+                context.has_builtin(program, operand)
+            })
+            && value.to_integer_exact().is_none()
         {
             return format!(
                 "exact anonymous value `{value}` cannot land in an integer const argument"
@@ -1353,13 +1340,11 @@ fn land_anonymous_float(
     format: FloatFormat,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
 ) -> Result<u64, String> {
-    let exact = validation::evaluate_anonymous_numeric_expression(
-        program,
-        expression,
-        selected_arms,
-        |operand| context.has_builtin(program, operand),
-    )
-    .ok_or("floating operand requires a defined exact anonymous value")?;
+    let exact =
+        evaluate_anonymous_numeric_expression(program, expression, selected_arms, |operand| {
+            context.has_builtin(program, operand)
+        })
+        .ok_or("floating operand requires a defined exact anonymous value")?;
     Ok(match format {
         FloatFormat::F32 => u64::from(exact.to_f32().to_bits()),
         FloatFormat::F64 => exact.to_f64().to_bits(),
@@ -1565,7 +1550,7 @@ fn require_supported_policy(policy: ArithmeticDomain) -> Result<(), String> {
 /// arithmetic policy, rejecting ambiguity before a call snapshot can erase it.
 fn reference_policy(
     program: &TypedTrees,
-    mut reference: typed_trees::types::TypeReferenceHandle,
+    mut reference: TypeReferenceHandle,
 ) -> Result<ArithmeticDomain, String> {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
     if !reference.is_valid() {
@@ -1690,14 +1675,12 @@ pub(crate) fn evaluate_integer_endpoint(
     )?;
     let (integer, landing) = match value {
         Value::Anonymous(expression) => {
-            let exact = validation::evaluate_anonymous_numeric_expression(
-                program,
-                expression,
-                &selected_arms,
-                |_| true,
-            )
-            .and_then(|value| value.to_integer_exact())
-            .ok_or("range endpoint needs a defined exact integer")?;
+            let exact =
+                evaluate_anonymous_numeric_expression(program, expression, &selected_arms, |_| {
+                    true
+                })
+                .and_then(|value| value.to_integer_exact())
+                .ok_or("range endpoint needs a defined exact integer")?;
             (exact, None)
         }
         Value::Landed(carrier, value, policy) => {

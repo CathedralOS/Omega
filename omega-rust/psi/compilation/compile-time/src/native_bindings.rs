@@ -9,6 +9,7 @@ use language_semantics::declaration_selection::{
 };
 use semantic_vocabulary::{NativeBindingLocator, PackageKeyIdentity};
 use symbols::SymbolHandle;
+use typed_trees::product_operand::native_binding_formation;
 use typed_trees::{
     TypedTrees,
     product_operand::{resolve_build_request_author, resolve_product_path},
@@ -99,14 +100,9 @@ pub fn collect(
         }
         // Identical reached effects retain all actual source origins. Native
         // derivation may share their one row without erasing execution provenance.
-        let scope = typed_trees::product_operand::native_binding_formation(
-            typed,
-            author,
-            Some(root),
-            event.request.clone(),
-        )
-        .and_then(|formation| formation.seal(supplier_package))
-        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
+        let scope = native_binding_formation(typed, author, Some(root), event.request.clone())
+            .and_then(|formation| formation.seal(supplier_package))
+            .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
         selections.push(NativeBindingSelection {
             subject,
             requirement: selected,

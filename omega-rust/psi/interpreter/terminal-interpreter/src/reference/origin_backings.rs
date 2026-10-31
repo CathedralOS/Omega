@@ -5,6 +5,7 @@
 
 use super::*;
 use terminal_psi::ReferenceOriginProjection;
+use terminal_semantics::reference_storage_region;
 
 impl ReferenceBacking {
     /// Ingress already split fixed descriptor crossings from this suffix.
@@ -186,12 +187,8 @@ impl TerminalExecution<'_> {
         };
         if let Some(home) = &source.collection_home {
             let types = self.structural_types();
-            if terminal_semantics::reference_storage_region(
-                types.values(),
-                source.value.structural_type,
-                path,
-            )
-            .is_some()
+            if reference_storage_region(types.values(), source.value.structural_type, path)
+                .is_some()
             {
                 let mut selected_home = home.clone();
                 selected_home.path.extend_from_slice(path);
@@ -346,11 +343,9 @@ impl TerminalExecution<'_> {
         // These are physical owned coordinates. An implicit view index or a
         // stored descriptor crossing is not an inline storage projection.
         let types = self.structural_types();
-        let Some(selected) = terminal_semantics::reference_storage_region(
-            types.values(),
-            region.value.structural_type,
-            path,
-        ) else {
+        let Some(selected) =
+            reference_storage_region(types.values(), region.value.structural_type, path)
+        else {
             return Ok(None);
         };
         let allowed = match region.view_tip {

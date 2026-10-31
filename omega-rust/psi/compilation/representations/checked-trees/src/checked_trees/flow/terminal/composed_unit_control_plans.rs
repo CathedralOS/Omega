@@ -13,6 +13,7 @@ use crate::checked_trees::flow::terminal::{
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
+use semantic_vocabulary::BoundaryCompletion::External;
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
@@ -875,12 +876,7 @@ fn has_external_completion<'operation>(
     operations
         .into_iter()
         .filter_map(CheckedUnitEffectOperationPlan::call)
-        .any(|call| {
-            matches!(
-                call.completion(),
-                semantic_vocabulary::BoundaryCompletion::External(_)
-            )
-        })
+        .any(|call| matches!(call.completion(), External(_)))
 }
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar

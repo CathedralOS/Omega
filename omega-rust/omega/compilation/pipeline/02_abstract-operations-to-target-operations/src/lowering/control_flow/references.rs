@@ -12,13 +12,21 @@ use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
+use optimization_unit_semantics::access_references::validate_backing;
+use optimization_unit_semantics::descriptor_results::access_results::agree;
+use optimization_unit_semantics::descriptor_results::access_results::reconcile;
+use optimization_unit_semantics::structural_borrowed_storage_projection;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use target_operations::TargetAccessInterpretation;
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
+use terminal_semantics::primitive_projection_declaration;
+use terminal_semantics::reference_origin_type;
+use terminal_semantics::stored_descriptor_paths;
 
 mod borrowed_arrivals;
 pub(in crate::lowering) use borrowed_arrivals::{BorrowedSources, borrowed_source_catalog};
@@ -462,13 +470,7 @@ pub(super) fn leaf_type(
     // A re-view changes observation, never a carrier home or emitted pointer.
     terminal_semantics::runtime_structural_path_tip(types.values().copied(), current, fields)
         .map(|declaration| declaration.id)
-        .or_else(|| {
-            terminal_semantics::primitive_projection_declaration(
-                types.values().copied(),
-                current,
-                fields,
-            )
-        })
+        .or_else(|| primitive_projection_declaration(types.values().copied(), current, fields))
 }
 
 /// The structural contract a place currently carries: a signature parameter, a
@@ -626,12 +628,7 @@ fn storage_projection(
             source.path.as_slice(),
         )
     };
-    optimization_unit_semantics::structural_borrowed_storage_projection(
-        types.values().copied(),
-        carrier,
-        path,
-        source.access,
-    )
+    structural_borrowed_storage_projection(types.values().copied(), carrier, path, source.access)
 }
 
 fn reference_leaf<'live>(
@@ -677,9 +674,7 @@ pub(super) fn access_source(
 ) -> Option<target_operations::TargetAccessInterpretation> {
     if source.path.is_empty() {
         if let Some(origins) = live.borrowed_reference_sources.get(&source.place) {
-            return optimization_unit_semantics::descriptor_results::access_results::agree(
-                origins.as_ref()?.iter().map(|origin| origin.placed.clone()),
-            );
+            return agree(origins.as_ref()?.iter().map(|origin| origin.placed.clone()));
         }
         return live
             .access_formals
@@ -1128,7 +1123,7 @@ pub(super) fn establish_access(
     let (Some(plan), None) = (selected.next(), selected.next()) else {
         return Err(invalid());
     };
-    optimization_unit_semantics::access_references::validate_backing(
+    validate_backing(
         catalog.as_slice(),
         catalog.access_views(),
         plan,
@@ -1161,9 +1156,7 @@ pub(super) fn establish_access(
             root,
             carrier_type: result.structural_type,
             referent: carrier,
-            placed: Some(target_operations::TargetAccessInterpretation::Captured(
-                correspondence.clone(),
-            )),
+            placed: Some(TargetAccessInterpretation::Captured(correspondence.clone())),
         },
     );
     live.structural_homes
@@ -1200,9 +1193,7 @@ pub(super) fn retain_access_result(
                 root,
                 carrier_type,
                 referent: backing.carrier(),
-                placed: Some(target_operations::TargetAccessInterpretation::Captured(
-                    backing,
-                )),
+                placed: Some(TargetAccessInterpretation::Captured(backing)),
             },
         )
         .is_some()
@@ -1309,13 +1300,8 @@ pub(super) fn window_descriptors(
     let mut descriptors = Vec::new();
     for (carrier, prefix) in regions {
         let root = source_contract(function, live, carrier).ok_or_else(invalid)?;
-        let candidates = terminal_semantics::stored_descriptor_paths(
-            types.values().copied(),
-            root,
-            &prefix,
-            budget,
-        )
-        .ok_or_else(invalid)?;
+        let candidates = stored_descriptor_paths(types.values().copied(), root, &prefix, budget)
+            .ok_or_else(invalid)?;
         for candidate in candidates {
             let leaf = live
                 .references
@@ -1531,11 +1517,7 @@ pub(super) fn call_results(
             }
             if reference_source_type(function, live, types, source)
                 .and_then(|root| {
-                    terminal_semantics::reference_origin_type(
-                        types.values().copied(),
-                        root,
-                        &binding.suffix,
-                    )
+                    reference_origin_type(types.values().copied(), root, &binding.suffix)
                 })
                 .is_none_or(|endpoint| {
                     binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
@@ -1628,23 +1610,14 @@ pub(super) fn call_results(
                         }
                         access_source(function, live, types, &actual)
                     },
-                    |correspondence| {
-                        target_operations::TargetAccessInterpretation::Captured(
-                            correspondence.clone(),
-                        )
-                    },
+                    |correspondence| TargetAccessInterpretation::Captured(correspondence.clone()),
                 )
             });
-            let association =
-                optimization_unit_semantics::descriptor_results::access_results::reconcile(
-                    optimization_unit_semantics::descriptor_results::access_results::agree(
-                        public_interpretations,
-                    ),
-                    private,
-                )
-                .ok_or(LoweringError::AccessReturnRequiresWholeView {
+            let association = reconcile(agree(public_interpretations), private).ok_or(
+                LoweringError::AccessReturnRequiresWholeView {
                     machine: function.machine,
-                })?;
+                },
+            )?;
             leaf.placed = Some(association);
         }
         reference_results.push(target_operations::TargetReferenceResult {

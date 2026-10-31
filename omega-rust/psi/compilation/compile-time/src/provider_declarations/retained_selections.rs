@@ -12,6 +12,7 @@ use language_semantics::declaration_selection::{
     BuildSelectionOrigin, CompositionMode, ProductTarget,
 };
 use symbols::RetainedDeclaration;
+use typed_trees::TypedTrees;
 mod applications;
 pub use applications::RetainedProviderApplication;
 
@@ -29,10 +30,7 @@ pub struct RetainedProviderSelection {
 }
 
 impl RetainedProviderSelection {
-    pub fn capture(
-        typed: &typed_trees::TypedTrees,
-        selection: &ProviderSelection,
-    ) -> Result<Self, String> {
+    pub fn capture(typed: &TypedTrees, selection: &ProviderSelection) -> Result<Self, String> {
         let subject = match &selection.subject {
             ProviderSelectionSubject::BoundaryTrait(identity)
             | ProviderSelectionSubject::BoundaryRequirement(identity) => identity.symbol,
@@ -79,11 +77,11 @@ impl RetainedProviderSelection {
 
     pub fn rejoin(
         &self,
-        program: &mut typed_trees::TypedTrees,
+        program: &mut TypedTrees,
         scope: source::DependencyScope,
         previous: &[ProviderSelection],
     ) -> Result<ProviderSelection, diagnostics::Diagnostic> {
-        let identity = |program: &mut typed_trees::TypedTrees,
+        let identity = |program: &mut TypedTrees,
                         anchor: &RetainedDeclaration,
                         expected: &str,
                         retained: Option<&RetainedProviderApplication>,

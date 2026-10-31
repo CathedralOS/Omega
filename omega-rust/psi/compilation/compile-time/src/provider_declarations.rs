@@ -6,6 +6,11 @@
 //! independently rejoins retained choices without rerunning Build. Native schema,
 //! ABI and provider-plan construction belong to Omega and are not dependencies.
 
+use checked_trees::typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+use checked_trees::typed_trees::statement::StatementNode;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+use source::DependencyScope;
+
 mod admission;
 mod checking_applications;
 mod context;
@@ -59,7 +64,7 @@ pub fn retain_provider_defaults(
             // defaults row for their shared callable head.
             && !machine.target_family_interface
             && context.contains(machine.symbol)
-            && (context.scope == source::DependencyScope::Product || machine.target.is_none())
+            && (context.scope == DependencyScope::Product || machine.target.is_none())
     }) {
         let target = machine
             .authored_target
@@ -98,8 +103,8 @@ fn harvest_provider_selections(
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
-                checked_trees::typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let checked_trees::typed_trees::expression::ExpressionNode::Call(call) =
+                StatementNode::Expression(expression) => {
+                    if let ExpressionNode::Call(call) =
                         typed.expression_table.expression(*expression)
                         && !call.target_symbol.is_valid()
                     {
@@ -118,9 +123,7 @@ fn harvest_provider_selections(
                         });
                     }
                 }
-                checked_trees::typed_trees::statement::StatementNode::Call(call)
-                    if !call.target_symbol.is_valid() =>
-                {
+                StatementNode::Call(call) if !call.target_symbol.is_valid() => {
                     requests.push(ProviderSelectionCall {
                         target: call.target.as_str(),
                         arguments: &call.machine_arguments,
@@ -140,7 +143,7 @@ fn harvest_provider_selections(
 
 struct ProviderSelectionCall<'a> {
     target: &'a str,
-    arguments: &'a [checked_trees::typed_trees::expression::StaticMachineArgument],
+    arguments: &'a [StaticMachineArgument],
     value_arguments: &'a [checked_trees::typed_trees::expression::ExpressionHandle],
     source_span: source::SourceSpan,
     machine: SymbolHandle,
@@ -157,7 +160,7 @@ pub fn collect_executed_provider_selections(
     let typed = context.typed;
     // Executed Build operations select product descriptions. The selecting
     // machine remains Build-owned; only its designated operands use Product.
-    if context.scope != source::DependencyScope::Product {
+    if context.scope != DependencyScope::Product {
         return Err(vec![Diagnostic::error(
             "executed provider selections require the Product planning context",
         )]);
@@ -168,7 +171,7 @@ pub fn collect_executed_provider_selections(
         .map(|row| {
             let handle = row.expression;
             let request = match typed.expression_table.expression(handle) {
-                checked_trees::typed_trees::expression::ExpressionNode::Call(call)
+                ExpressionNode::Call(call)
                     if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
                         call.target.as_str(),
                         call.target_symbol,
@@ -194,10 +197,7 @@ pub fn collect_executed_provider_selections(
         })
         .collect::<Result<Vec<_>, _>>()?;
     collect_provider_selections(
-        ProviderPlanningContext::new(
-            typed.product_declarations(),
-            source::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(typed.product_declarations(), DependencyScope::Product),
         requests,
     )
 }
@@ -211,10 +211,7 @@ fn provider_selection_expression_source_span(
     expression_table(typed)
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| typed.authored_declaration_selections().get(occurrence))
-        .find(|selection| {
-            selection.kind()
-                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
-        })
+        .find(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
         .map_or_else(
             || typed.expression_table.source_span(expression),
             |selection| selection.source_span(),
@@ -247,34 +244,32 @@ fn collect_provider_selections<'a>(
             ));
             return;
         };
-        let project_identity =
-            |argument: &checked_trees::typed_trees::expression::StaticMachineArgument,
-             is_provider: bool| {
-                let authored_path = argument.path.joined_path();
-                let symbol = if product_operands {
-                    checked_trees::typed_trees::product_operand::resolve_product_operand(
-                        typed,
-                        argument,
-                        source_span,
-                        if is_provider {
-                            typed_trees::product_operand::ProductOperandKind::Provider
-                        } else {
-                            typed_trees::product_operand::ProductOperandKind::BoundarySubject
-                        },
-                    )
-                    .unwrap_or_else(SymbolHandle::invalid)
-                } else {
-                    argument.symbol
-                };
-                ProviderSelectionIdentity {
-                    application: Default::default(),
-                    application_identity: None,
-                    symbol,
-                    package: typed.symbols.symbol_package_identity(symbol),
-                    canonical_path: typed.symbols.display_path(symbol, "::"),
-                    authored_path,
-                }
+        let project_identity = |argument: &StaticMachineArgument, is_provider: bool| {
+            let authored_path = argument.path.joined_path();
+            let symbol = if product_operands {
+                checked_trees::typed_trees::product_operand::resolve_product_operand(
+                    typed,
+                    argument,
+                    source_span,
+                    if is_provider {
+                        typed_trees::product_operand::ProductOperandKind::Provider
+                    } else {
+                        typed_trees::product_operand::ProductOperandKind::BoundarySubject
+                    },
+                )
+                .unwrap_or_else(SymbolHandle::invalid)
+            } else {
+                argument.symbol
             };
+            ProviderSelectionIdentity {
+                application: Default::default(),
+                application_identity: None,
+                symbol,
+                package: typed.symbols.symbol_package_identity(symbol),
+                canonical_path: typed.symbols.display_path(symbol, "::"),
+                authored_path,
+            }
+        };
         let boundary_identity = project_identity(boundary_argument, false);
         let provider_type = project_identity(provider_argument, true);
         if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
@@ -417,13 +412,9 @@ fn exact_case_argument_symbol(
     argument: checked_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let symbol = match typed.expression_table.expression(argument) {
-        checked_trees::typed_trees::expression::ExpressionNode::Name(path) => Some(path.symbol),
-        checked_trees::typed_trees::expression::ExpressionNode::Member(member) => {
-            Some(member.member_symbol)
-        }
-        checked_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal)
-            if literal.fields.is_empty() =>
-        {
+        ExpressionNode::Name(path) => Some(path.symbol),
+        ExpressionNode::Member(member) => Some(member.member_symbol),
+        ExpressionNode::StructLiteral(literal) if literal.fields.is_empty() => {
             Some(literal.case_symbol.unwrap_or_else(SymbolHandle::invalid))
         }
         _ => None,

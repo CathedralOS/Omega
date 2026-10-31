@@ -8,6 +8,8 @@ use typed_trees::TypedTrees;
 use super::schema_reflection::{build_schema_value, schema_fields};
 use crate::BuildTimeAdmissionPlan;
 use crate::build_time_evaluation::type_reference_table;
+use symbols::SymbolKind;
+use typed_trees::expression::StaticMachineArgument;
 
 mod plan_validation;
 pub(crate) use plan_validation::validate_plan;
@@ -108,10 +110,7 @@ pub(crate) fn normalize_private_callback_demands(
     policy_machine: &typed_trees::machine::Machine,
     receipts: &[checked_interpreter::PrivateLayoutPlacementReceipt],
     policy_name: &str,
-    selected_implementation: Option<(
-        &typed_trees::expression::StaticMachineArgument,
-        symbols::SymbolHandle,
-    )>,
+    selected_implementation: Option<(&StaticMachineArgument, symbols::SymbolHandle)>,
 ) -> Result<Vec<PrivateCallbackLayoutDemandReport>, String> {
     let mut normalized = Vec::with_capacity(receipts.len());
     for receipt in receipts {
@@ -119,7 +118,7 @@ pub(crate) fn normalize_private_callback_demands(
         if selected.const_literal.is_some()
             || selected.evidence_projection.is_some()
             || !selected.symbol.is_valid()
-            || typed.symbols.get(selected.symbol).kind != symbols::SymbolKind::Conformance
+            || typed.symbols.get(selected.symbol).kind != SymbolKind::Conformance
         {
             return Err(format!(
                 "policy `{policy_name}` selected a private layout slot that is not one exact named conformance"
@@ -194,9 +193,7 @@ pub(crate) fn normalize_private_callback_demands(
                 selected.display_name()
             ));
         };
-        if !requirement.is_valid()
-            || typed.symbols.get(*requirement).kind != symbols::SymbolKind::State
-        {
+        if !requirement.is_valid() || typed.symbols.get(*requirement).kind != SymbolKind::State {
             return Err(format!(
                 "private layout conformance `{}` callback argument is not one exact trait requirement",
                 selected.display_name()
@@ -204,7 +201,7 @@ pub(crate) fn normalize_private_callback_demands(
         }
         let requirement_parent = typed.symbols.get(*requirement).parent;
         if !requirement_parent.is_valid()
-            || typed.symbols.get(requirement_parent).kind != symbols::SymbolKind::Trait
+            || typed.symbols.get(requirement_parent).kind != SymbolKind::Trait
             || !typed
                 .traits()
                 .iter()

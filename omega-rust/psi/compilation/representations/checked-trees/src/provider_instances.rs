@@ -4,6 +4,7 @@
 //! candidate groups and deferred failures so Omega owns counts and coverage.
 
 use crate::CheckFacts;
+use language_semantics::MachineSupplyMode::TopLevelRequirement;
 use language_semantics::provider_declarations::{
     ClosedProviderInstance, ProviderInstanceApplication,
 };
@@ -108,9 +109,7 @@ pub fn closed_requirements(typed: &TypedTrees, template: &Machine) -> Vec<Callab
         .iter()
         .filter(|receipt| receipt.template == template.symbol)
         .filter_map(|receipt| typed.machine(receipt.instance))
-        .filter(|instance| {
-            instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        })
+        .filter(|instance| instance.supply_mode == TopLevelRequirement)
         .map(|instance| typed.machine_callable_identity(instance))
         .filter(|identity| identity.is_valid())
         .collect()

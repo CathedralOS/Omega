@@ -2,6 +2,7 @@
 
 use crate::build_time_evaluation::type_references;
 use crate::unique::push_unique;
+use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 mod evaluation;
@@ -71,7 +72,7 @@ pub(crate) fn normalize_generic_data(
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<syntax_trees::SyntaxTrees, Vec<Diagnostic>> {
     let _profile = phase_profile::guard("pre_resolution.generic_data");
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
         normalization_request(
@@ -93,7 +94,7 @@ pub(crate) fn normalize_initializer_probe_data(
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
     declarations: &[syntax_trees::item::ItemHandle],
-) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
+) -> Result<syntax_trees::SyntaxTrees, Vec<Diagnostic>> {
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_initializer_probe_data(
         normalization_request(
             syntax_trees,
@@ -111,7 +112,7 @@ pub(crate) fn extend_normalization_owners(
     syntax: &syntax_trees::SyntaxTrees,
     declarations: &mut Vec<syntax_trees::item::ItemHandle>,
     owners: &[source::SourceSpan],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     let mut pending = syntax.root_item_handles().to_vec();
     let mut lexical_items = Vec::new();
     while let Some(item) = pending.pop() {
@@ -157,10 +158,8 @@ pub(crate) fn extend_normalization_owners(
             .collect::<Vec<_>>();
         let [item] = matches.as_slice() else {
             return Err(vec![
-                diagnostics::Diagnostic::error(
-                    "initializer normalization lost exact declaration ownership",
-                )
-                .with_source_span(*owner),
+                Diagnostic::error("initializer normalization lost exact declaration ownership")
+                    .with_source_span(*owner),
             ]);
         };
         push_unique(declarations, *item);

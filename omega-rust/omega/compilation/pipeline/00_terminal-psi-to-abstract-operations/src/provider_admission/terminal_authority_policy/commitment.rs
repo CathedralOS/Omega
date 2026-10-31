@@ -1,5 +1,6 @@
 //! Optimizer module role: identity leaf. Complete policy-table commitment.
 
+use crate::digest_encoder::DomainDigestEncoder;
 use effects::{
     TerminalAuthorityDisposition, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
@@ -14,7 +15,7 @@ use super::{
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
 
 pub(super) fn complete_policy_commitment(explicit_rows: &[TerminalAuthorityPolicyRow]) -> [u8; 32] {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(POLICY_COMMITMENT_DOMAIN);
+    let mut hasher = DomainDigestEncoder::new(POLICY_COMMITMENT_DOMAIN);
     hasher.raw(&TERMINAL_AUTHORITY_POLICY_VERSION.to_be_bytes());
     hasher.raw(
         &(CLOSED_POLICY_ROW_COUNT
@@ -35,7 +36,7 @@ pub(super) fn complete_policy_commitment(explicit_rows: &[TerminalAuthorityPolic
 }
 
 fn encode_disposition(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    hasher: &mut DomainDigestEncoder,
     disposition: &TerminalAuthorityDisposition,
 ) {
     hasher.raw(
@@ -48,10 +49,7 @@ fn encode_disposition(
     }
 }
 
-fn encode_mechanism(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    mechanism: TerminalMechanismIdentity,
-) {
+fn encode_mechanism(hasher: &mut DomainDigestEncoder, mechanism: TerminalMechanismIdentity) {
     let bytes = terminal_mechanism_identity_bytes(mechanism);
     hasher.raw(
         &u32::try_from(bytes.len())

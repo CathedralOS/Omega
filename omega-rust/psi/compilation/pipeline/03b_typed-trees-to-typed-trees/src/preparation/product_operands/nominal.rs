@@ -4,7 +4,9 @@ use super::*;
 use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::product_operand::{ProductApplicationDemand, ProductOperandApplication};
+use typed_trees::static_applications::StaticConformanceSelection;
 use typed_trees::trait_definition::TraitApplicationArguments;
+use validation::conformance_applications::close_conformance_application;
 
 #[derive(Clone, Copy)]
 enum NominalDeclaration {
@@ -267,11 +269,8 @@ fn prepare(
             )
         }
         ProductOperandRole::Provider => {
-            let application = validation::conformance_applications::close_conformance_application(
-                lower.program,
-                &closed,
-            )
-            .map_err(|diagnostic| vec![diagnostic.with_source_span(operand.source_span)])?;
+            let application = close_conformance_application(lower.program, &closed)
+                .map_err(|diagnostic| vec![diagnostic.with_source_span(operand.source_span)])?;
             let references = arguments
                 .arguments
                 .iter()
@@ -316,12 +315,10 @@ fn prepare(
     application.binding_declaration = declaration;
     application.lexical_owner = lexical_owner;
     if let Some(implementation) = &implementation {
-        application.conformance_selection = Some(Box::new(
-            typed_trees::static_applications::StaticConformanceSelection {
-                operand_ordinal: 0,
-                application: Some(Box::new(implementation.clone())),
-            },
-        ));
+        application.conformance_selection = Some(Box::new(StaticConformanceSelection {
+            operand_ordinal: 0,
+            application: Some(Box::new(implementation.clone())),
+        }));
     }
     let input_selections = lower
         .program

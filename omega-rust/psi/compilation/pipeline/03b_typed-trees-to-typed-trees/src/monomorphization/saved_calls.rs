@@ -4,6 +4,7 @@ use super::{CallSelection, CallSite, Candidate};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::typed_trees::MachineSpecialization;
+use validation::conformance_applications::close_conformance_application;
 use validation::expression_traversal::collect_expression_tree;
 
 pub(super) fn replay(
@@ -120,9 +121,7 @@ pub(super) fn candidate_instance<'program>(
         .collect::<Option<Vec<_>>>()?;
     let applications = evidence_arguments
         .iter()
-        .map(|binding| {
-            validation::conformance_applications::close_conformance_application(source, binding)
-        })
+        .map(|binding| close_conformance_application(source, binding))
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
     program.machine_specializations.iter().find(|instance| {

@@ -1,4 +1,5 @@
 use super::PreparedBuildMachineProgram;
+use crate::evaluation_accounting::EvaluationAccounting;
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 
@@ -59,7 +60,7 @@ fn checked_constant_runs_transitive_terminal_calls() {
             .expect("answer")
             .symbol;
         let entry = program.entry(symbol).expect("entry");
-        let accounting = crate::evaluation_accounting::EvaluationAccounting::recording();
+        let accounting = EvaluationAccounting::recording();
         let result = program
             .evaluate_checked_constant(&entry, &[], &accounting)
             .expect("Terminal execution");
@@ -113,11 +114,7 @@ fn checked_constant_rejects_another_preparations_entry() {
             .symbol;
         let entry = first.entry(symbol).expect("entry");
         let error = second
-            .evaluate_checked_constant(
-                &entry,
-                &[],
-                &crate::evaluation_accounting::EvaluationAccounting::default(),
-            )
+            .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
             .expect_err("foreign entry");
         assert!(error.contains("different prepared program"), "{error}");
     });
@@ -134,11 +131,7 @@ fn checked_constant_retains_unsigned_result_meaning() {
             .symbol;
         let entry = program.entry(symbol).expect("entry");
         let result = program
-            .evaluate_checked_constant(
-                &entry,
-                &[],
-                &crate::evaluation_accounting::EvaluationAccounting::default(),
-            )
+            .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
             .expect("Terminal execution");
         assert!(
             matches!(
@@ -167,11 +160,7 @@ fn checked_constant_does_not_install_boundary_imports() {
             .symbol;
         let entry = program.entry(symbol).expect("entry");
         let error = program
-            .evaluate_checked_constant(
-                &entry,
-                &[],
-                &crate::evaluation_accounting::EvaluationAccounting::default(),
-            )
+            .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
             .expect_err("no host authority");
         assert!(error.contains("UnboundImports"), "{error}");
     });

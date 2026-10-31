@@ -11,6 +11,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, PlaceId, ScalarTerm, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{CrashRouteGuard, TerminalAffineCleanupAction};
 
 /// Whether `picked`'s declared custody is restricted — an affine or linear
 /// result, or a trivial affine local — as opposed to the copyable
@@ -299,12 +300,9 @@ pub(crate) fn scalar_case_result_contained(
             // relocation refuses.
             if let abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) =
                 &node.operation
-                && cleanup_actions.iter().any(|action| {
-                    matches!(
-                        action,
-                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
-                    )
-                })
+                && cleanup_actions
+                    .iter()
+                    .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeNominal(_)))
             {
                 return false;
             }
@@ -318,10 +316,7 @@ pub(crate) fn scalar_case_result_contained(
                 // the discard refuses too.
                 if edge.cleanup_actions.iter().any(|action| {
                     action.place() == picked
-                        && !matches!(
-                            action,
-                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
-                        )
+                        && !matches!(action, TerminalAffineCleanupAction::DiscardRoot(_))
                 }) || edge
                     .structural_bindings
                     .iter()
@@ -463,11 +458,13 @@ fn rewrite_case_edge_discards(
     members: &BTreeSet<BlockId>,
     target: BlockId,
     case_results: &BTreeSet<PlaceId>,
-    discards: &mut Vec<terminal_psi::TerminalAffineCleanupAction>,
+    discards: &mut Vec<TerminalAffineCleanupAction>,
 ) {
     if members.contains(&target) {
-        discards.retain(|action| !matches!(action,
-            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if case_results.contains(place)));
+        discards.retain(|action| {
+            !matches!(action,
+            TerminalAffineCleanupAction::DiscardRoot(place) if case_results.contains(place))
+        });
     } else {
         for place in case_results {
             insert_case_cleanup_discard(structural_places, discards, *place);
@@ -485,13 +482,13 @@ fn rewrite_case_edge_discards(
 /// retain their relative order.
 fn insert_case_cleanup_discard(
     structural_places: &[terminal_psi::StructuralPlaceDeclaration],
-    actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>,
+    actions: &mut Vec<TerminalAffineCleanupAction>,
     place: PlaceId,
 ) {
     if actions.iter().any(|action| {
         matches!(
             action,
-            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(existing)
+            TerminalAffineCleanupAction::DiscardRoot(existing)
                 if *existing == place
         )
     }) {
@@ -507,10 +504,7 @@ fn insert_case_cleanup_discard(
                 .is_none_or(|existing_key| existing_key >= key)
         })
         .unwrap_or(actions.len());
-    actions.insert(
-        position,
-        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
-    );
+    actions.insert(position, TerminalAffineCleanupAction::DiscardRoot(place));
 }
 
 /// The schedule slot `expected_trivial_affine_discards` assigns a place:
@@ -819,10 +813,8 @@ pub(crate) fn structural_call_crash_continuations(
         .iter()
         .flat_map(|bucket| &bucket.alternatives)
         .all(|guard| match guard {
-            terminal_psi::CrashRouteGuard::Truth => true,
-            terminal_psi::CrashRouteGuard::Predicate(term) => {
-                term.proposition().visit_value_ids(|_| ())
-            }
+            CrashRouteGuard::Truth => true,
+            CrashRouteGuard::Predicate(term) => term.proposition().visit_value_ids(|_| ()),
         });
     if !scalar_only {
         return None;

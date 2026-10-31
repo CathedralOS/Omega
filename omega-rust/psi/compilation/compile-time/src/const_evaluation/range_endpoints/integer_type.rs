@@ -23,6 +23,9 @@ use typed_trees::{
 
 use crate::BuildTimeAdmissionPlan;
 use crate::build_time_evaluation::type_reference_table;
+use crate::const_evaluation::const_domain_facts::evaluate_closed_membership;
+use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
+use validation::closed_integer_range_maximum;
 
 /// A callee parameter, or an argument-position call result, is either an
 /// integer position or a bare Boolean. The range bound itself never takes
@@ -43,9 +46,7 @@ impl ScalarPosition {
         // A qualified Boolean (`bool in Domain`) has no closed proof route
         // here; only the bare builtin leaf is a Boolean position.
         if type_reference_table(program).contains_type_reference(reference)
-            && crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-                program, reference,
-            ) == Some(PrimitiveType::Bool)
+            && exact_probe_destination(program, reference) == Some(PrimitiveType::Bool)
         {
             return Ok(Self::Boolean);
         }
@@ -113,12 +114,9 @@ impl IntegerPosition {
                         }
                         let minimum = validation::closed_integer_range_bound(program, *minimum)
                             .ok_or("range endpoint type needs a closed minimum")?;
-                        let maximum = validation::closed_integer_range_maximum(
-                            program,
-                            *maximum,
-                            *end_inclusive,
-                        )
-                        .ok_or("range endpoint type needs a closed maximum")?;
+                        let maximum =
+                            closed_integer_range_maximum(program, *maximum, *end_inclusive)
+                                .ok_or("range endpoint type needs a closed maximum")?;
                         ranges.push((minimum, maximum));
                     }
                     // The typed lowering's carrier-aware normalization binds a
@@ -153,10 +151,7 @@ impl IntegerPosition {
             }
             reference = *base_type;
         }
-        let primitive =
-            crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-                program, reference,
-            )
+        let primitive = exact_probe_destination(program, reference)
             .filter(|primitive| primitive.accepts_integer_literal())
             .ok_or("range endpoint position requires an exact builtin integer carrier")?;
         Ok(Self {
@@ -187,9 +182,7 @@ impl IntegerPosition {
             }
         }
         for (symbol, name) in &self.domains {
-            match crate::const_evaluation::const_domain_facts::evaluate_closed_membership(
-                program, admission, *symbol, value,
-            )? {
+            match evaluate_closed_membership(program, admission, *symbol, value)? {
                 Some(true) => {}
                 Some(false) => {
                     return Err(format!(

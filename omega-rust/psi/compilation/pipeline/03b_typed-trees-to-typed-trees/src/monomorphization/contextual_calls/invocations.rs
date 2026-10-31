@@ -9,6 +9,8 @@ use crate::tables::expressions_of;
 use symbols::SymbolKind;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::signature::StateSignature;
+use validation::collect_statement_expression_trees;
+use validation::parameter_expression_result_type_reference;
 mod operands;
 
 pub(super) struct Invocation {
@@ -64,12 +66,9 @@ impl InvocationScope {
                     .find(|candidate| candidate.symbol == *state)?;
                 validation::expression_result_type_reference(program, machine, state, expression)
             }
-            Self::Declaration(owner) => validation::parameter_expression_result_type_reference(
-                program,
-                *owner,
-                &[],
-                expression,
-            ),
+            Self::Declaration(owner) => {
+                parameter_expression_result_type_reference(program, *owner, &[], expression)
+            }
         }
     }
 
@@ -145,11 +144,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
                     ));
                 }
                 let mut expressions = Vec::new();
-                validation::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
+                collect_statement_expression_trees(program, statement, &mut expressions);
                 for expression in expressions {
                     let site = CallSite::Expression(expression);
                     let ExpressionNode::Call(call) = expressions_of(program).expression(expression)

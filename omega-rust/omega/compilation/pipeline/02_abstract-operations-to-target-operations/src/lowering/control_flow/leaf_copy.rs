@@ -7,6 +7,7 @@
 use super::RowSite;
 use super::aggregate_results::established_home;
 use crate::LoweringError;
+use crate::lowering::structural_layout::structural_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{
@@ -116,12 +117,7 @@ pub(super) fn copy_extent(
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => (
             root_type,
-            crate::lowering::structural_layout::structural_shape(
-                root_type,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?,
+            structural_shape(root_type, types, &mut BTreeMap::new(), &mut BTreeSet::new())?,
             0,
             Vec::new(),
         ),

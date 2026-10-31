@@ -1,10 +1,11 @@
 //! Checked cross-instance calls. Host adapters never enter this result lane.
 
+use semantic_vocabulary::StructuralDomainId;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult};
 
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::{AdmittedBoundarySupply, TerminalEffectRejection};
+use crate::effects::{AdmittedBoundarySupply, TerminalEffect, TerminalEffectRejection};
 use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::instance::ComponentBindings;
@@ -211,21 +212,19 @@ impl<'artifact> TerminalExecution<'artifact> {
                 // unrelated membership and raw host assertions cannot enter
                 // this checked completion lane.
                 let domains = &self.program.catalogs.structural_domains;
-                let entails =
-                    |actual: &[semantic_vocabulary::StructuralDomainId],
-                     required: &[semantic_vocabulary::StructuralDomainId]| {
-                        required.iter().all(|identity| {
-                            domains
-                                .iter()
-                                .find(|domain| domain.id == *identity)
-                                .is_some_and(|domain| {
-                                    domain.carrier == left.structural_type
-                                        && domain
-                                            .missing_membership_requirements(domains, actual)
-                                            .is_some_and(|missing| missing.is_empty())
-                                })
-                        })
-                    };
+                let entails = |actual: &[StructuralDomainId], required: &[StructuralDomainId]| {
+                    required.iter().all(|identity| {
+                        domains
+                            .iter()
+                            .find(|domain| domain.id == *identity)
+                            .is_some_and(|domain| {
+                                domain.carrier == left.structural_type
+                                    && domain
+                                        .missing_membership_requirements(domains, actual)
+                                        .is_some_and(|missing| missing.is_empty())
+                            })
+                    })
+                };
                 if !entails(&value.qualifications, &left.qualifications)
                     || !entails(&left.qualifications, &value.qualifications)
                 {
@@ -298,15 +297,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         let instance_namespace = completed.instance_namespace();
         self.commit_boundary_result(&operation.result, &receiver, returned)?;
         self.live_claims = result_claims;
-        self.effects
-            .push(crate::effects::TerminalEffect::ComponentCall {
-                operation: operation.id,
-                boundary: *boundary,
-                provider,
-                candidate,
-                instance_namespace,
-                effects: binding.acknowledge(),
-            });
+        self.effects.push(TerminalEffect::ComponentCall {
+            operation: operation.id,
+            boundary: *boundary,
+            provider,
+            candidate,
+            instance_namespace,
+            effects: binding.acknowledge(),
+        });
         Ok(OperationFlow::Advance)
     }
 }

@@ -3,10 +3,13 @@
 //! neither private-name lookup nor a parser reconstructs the selected tuple.
 use super::*;
 use crate::build_time_evaluation::expression_table;
+use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     ProductDeclarationOperand, ProductOperandRole, product_operands::ProductStaticOperandGraph,
 };
 use std::sync::Arc;
+use typed_trees::product_operand::{ProductOperandApplication, capture_closed_operand};
+use typed_trees_to_typed_trees::prepare_retained_product_application;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedProviderApplication {
@@ -50,11 +53,7 @@ impl RetainedProviderApplication {
         else {
             return Err("selected nominal application lost its one whole operand".into());
         };
-        let graph = typed_trees::product_operand::capture_closed_operand(
-            program,
-            argument,
-            application.lexical_owner,
-        )?;
+        let graph = capture_closed_operand(program, argument, application.lexical_owner)?;
         Ok(Some(Self {
             graph,
             sources: program
@@ -80,13 +79,11 @@ impl RetainedProviderApplication {
         program: &mut typed_trees::TypedTrees,
         declaration: symbols::SymbolHandle,
         role: ProductOperandRole,
-    ) -> Result<
-        arena::Handle<typed_trees::product_operand::ProductOperandApplication>,
-        diagnostics::Diagnostic,
-    > {
-        let current = program.symbols.source_map().ok_or_else(|| {
-            diagnostics::Diagnostic::error("receiving Product has no source custody")
-        })?;
+    ) -> Result<arena::Handle<ProductOperandApplication>, Diagnostic> {
+        let current = program
+            .symbols
+            .source_map()
+            .ok_or_else(|| Diagnostic::error("receiving Product has no source custody"))?;
         let rejoin = |span: source::SourceSpan| -> Result<Option<source::SourceSpan>, String> {
             let original = self
                 .sources
@@ -112,11 +109,8 @@ impl RetainedProviderApplication {
             Ok(selected.map(|file| file.source_span(span.span)))
         };
         for span in self.declaration_spans() {
-            if rejoin(span)
-                .map_err(diagnostics::Diagnostic::error)?
-                .is_none()
-            {
-                return Err(diagnostics::Diagnostic::error(
+            if rejoin(span).map_err(Diagnostic::error)?.is_none() {
+                return Err(Diagnostic::error(
                     "retained application declaration is outside the admitted Product source closure",
                 ));
             }
@@ -134,7 +128,7 @@ impl RetainedProviderApplication {
             }
         });
         if let Some(reason) = failure {
-            return Err(diagnostics::Diagnostic::error(reason));
+            return Err(Diagnostic::error(reason));
         }
         let root = graph.operands.get(graph.root);
         let path = graph
@@ -150,33 +144,26 @@ impl RetainedProviderApplication {
                 .symbols
                 .symbol_provenance_source_span(declaration)
                 .ok_or_else(|| {
-                    diagnostics::Diagnostic::error(
-                        "retained Product declaration lost its source anchor",
-                    )
+                    Diagnostic::error("retained Product declaration lost its source anchor")
                 })?,
             application: Some(Arc::new(graph)),
         };
-        let handle = typed_trees_to_typed_trees::prepare_retained_product_application(
-            program,
-            &operand,
-            role,
-            declaration,
-        )
-        .map_err(|errors| {
-            diagnostics::Diagnostic::error(
-                errors
-                    .iter()
-                    .map(|error| error.message.as_str())
-                    .collect::<Vec<_>>()
-                    .join("; "),
-            )
-        })?;
+        let handle = prepare_retained_product_application(program, &operand, role, declaration)
+            .map_err(|errors| {
+                Diagnostic::error(
+                    errors
+                        .iter()
+                        .map(|error| error.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                )
+            })?;
         let actual = program
             .product_operand_application_identity(handle)
-            .map_err(diagnostics::Diagnostic::error)?
+            .map_err(Diagnostic::error)?
             .and_then(|identity| program.type_identity_text(identity));
         if actual.as_ref() != Some(&self.identity) {
-            return Err(diagnostics::Diagnostic::error(
+            return Err(Diagnostic::error(
                 "retained Product application changed its complete nominal or region identity during receiving formation",
             ));
         }

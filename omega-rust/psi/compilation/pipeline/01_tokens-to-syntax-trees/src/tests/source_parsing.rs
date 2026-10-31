@@ -1,4 +1,5 @@
-use crate::{parse, parse_sources};
+use crate::{parse, parse_source_units, parse_sources};
+use rayon::ThreadPoolBuilder;
 use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
 use source_files_to_tokens::{Lexer, lex_sources};
 use std::sync::Arc;
@@ -151,11 +152,8 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
         .iter()
         .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
         .collect::<Vec<_>>();
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(4)
-        .build()
-        .unwrap();
-    let parsed = pool.install(|| crate::parse_source_units(lexed)).unwrap();
+    let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
+    let parsed = pool.install(|| parse_source_units(lexed)).unwrap();
 
     assert_eq!(parsed.page_count(), 16);
     assert_eq!(parsed.sources().len(), 16);
@@ -233,8 +231,7 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
             .collect::<Vec<_>>();
         assert_eq!(actual, expected_ordinals);
 
-        let pages =
-            crate::parse_source_units(lexed_source(SourceId(27), "imports.omg", text)).unwrap();
+        let pages = parse_source_units(lexed_source(SourceId(27), "imports.omg", text)).unwrap();
         let source = pages.sources()[0].source();
         assert_eq!(source.import_root_range, expected_range);
         let actual = source.root_items[source.import_root_range.clone()]

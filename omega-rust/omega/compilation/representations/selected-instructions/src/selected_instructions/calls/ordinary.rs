@@ -1,7 +1,10 @@
 //! Semantic call and memory contracts attached to selected instructions.
 //! Calls retain their real operation owner or exact cleanup edge/action owner.
 use crate::{SelectedBlockId, SelectedInstructionId};
+use legalized_operations::encode_hosted_read_byte_identity;
+use legalized_operations::identity::encode_boundary_execution_identity;
 use optimization_unit::{EffectLink, OwnershipEvent};
+use semantic_vocabulary::InvocationSite::ExternalCompletion;
 use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId, PlaceId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -430,9 +433,7 @@ impl SelectedBoundarySettlementPayload {
             Self::HostedReadByte { operation, .. } | Self::HostedWriteByteI32 { operation, .. } => {
                 (*operation).into()
             }
-            Self::HostedExitProcessI32 { edge, .. } => {
-                semantic_vocabulary::InvocationSite::ExternalCompletion(*edge)
-            }
+            Self::HostedExitProcessI32 { edge, .. } => ExternalCompletion(*edge),
         }
     }
 
@@ -446,9 +447,7 @@ impl SelectedBoundarySettlementPayload {
                 layout,
             } => {
                 bytes.push(3);
-                legalized_operations::encode_hosted_read_byte_identity(
-                    &mut bytes, *operation, *boundary, result, layout,
-                );
+                encode_hosted_read_byte_identity(&mut bytes, *operation, *boundary, result, layout);
             }
             Self::ClaimCompletion(settlement) => {
                 bytes.push(0);
@@ -462,9 +461,7 @@ impl SelectedBoundarySettlementPayload {
             } => {
                 bytes.push(2);
                 crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
-                legalized_operations::identity::encode_boundary_execution_identity(
-                    &mut bytes, *execution,
-                );
+                encode_boundary_execution_identity(&mut bytes, *execution);
                 crate::codec_bytes::push_encoded(&mut bytes, boundary.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
             }

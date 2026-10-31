@@ -7,8 +7,10 @@
 
 use super::RowSite;
 use super::aggregate_results::publish_home;
+use super::references::retain_access_result;
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AccessLifecycleOperands};
+use optimization_unit_semantics::access_references::borrowed_view_formation;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeMap;
 use target_operations::{
@@ -104,19 +106,12 @@ pub(super) fn lower(
         let declaration = boundaries
             .get(boundary)
             .ok_or_else(|| invalid("borrowed View lost its exact boundary declaration"))?;
-        let (path, backing) =
-            optimization_unit_semantics::access_references::borrowed_view_formation(
-                types.catalog(),
-                declaration,
-                result,
-            )
+        let (path, backing) = borrowed_view_formation(types.catalog(), declaration, result)
             .ok_or_else(|| invalid("borrowed View lost its Ready interpretation"))?;
         let AccessLifecycleOperands::View { storage, .. } = &operands else {
             return Err(invalid("borrowed View lost its storage operand"));
         };
-        super::references::retain_access_result(
-            function, types, live, result, storage, path, backing,
-        )?;
+        retain_access_result(function, types, live, result, storage, path, backing)?;
     }
     let Some(result_home) = publish_home(live, *psi_operation, result, types)? else {
         return Err(invalid("native lifecycle replaces an existing result home"));

@@ -1,6 +1,9 @@
 //! Complete scope coverage and execution over canonical graph inputs.
 use super::*;
+use semantic_vocabulary::proof_applications::{ProofApplicationMachine, ProofCallMachine};
 use terminal_installation::{ScalarAddressModel, ScalarApplicationClosure};
+use terminal_interpreter::TerminalStructuralValue;
+use terminal_psi::{ProofScopeDeclaration, StructuralPlaceDeclaration};
 
 #[test]
 fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
@@ -113,16 +116,12 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
     scope.plan.obligation_owners = Default::default();
     scope
         .declarations
-        .insert(terminal_psi::ProofScopeDeclaration::Unavailable(
-            "shared helper".into(),
-        ));
-    scope.plan.machines.insert(
-        semantic_vocabulary::proof_applications::ProofApplicationMachine {
-            machine: terminal_psi::ProofDeclarationId(3),
-            product_selected: true,
-            ..Default::default()
-        },
-    );
+        .insert(ProofScopeDeclaration::Unavailable("shared helper".into()));
+    scope.plan.machines.insert(ProofApplicationMachine {
+        machine: terminal_psi::ProofDeclarationId(3),
+        product_selected: true,
+        ..Default::default()
+    });
     for caller in [1, 2] {
         let calls = scope.calls.calls.insert_many([
             semantic_vocabulary::proof_applications::ProofApplicationCall {
@@ -130,14 +129,11 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
                 ..Default::default()
             },
         ]);
-        scope
-            .calls
-            .machines
-            .insert(semantic_vocabulary::proof_applications::ProofCallMachine {
-                machine: terminal_psi::ProofDeclarationId(caller),
-                calls,
-                ..Default::default()
-            });
+        scope.calls.machines.insert(ProofCallMachine {
+            machine: terminal_psi::ProofDeclarationId(caller),
+            calls,
+            ..Default::default()
+        });
     }
     module
         .scalar_applications
@@ -199,12 +195,10 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
     entry
         .parameter_order
         .push(terminal_psi::BoundaryParameterKind::Structural);
-    entry
-        .structural_places
-        .push(terminal_psi::StructuralPlaceDeclaration {
-            id: semantic_vocabulary::PlaceId::new(1).unwrap(),
-            kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
-        });
+    entry.structural_places.push(StructuralPlaceDeclaration {
+        id: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+    });
     entry
         .structural_parameters
         .push(terminal_psi::StructuralParameterDeclaration {
@@ -262,11 +256,7 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
             memory_ordering: None,
         })
         .unwrap();
-    let arguments = [terminal_interpreter::TerminalStructuralValue::minted(
-        1,
-        type_id(3),
-        Vec::new(),
-    )];
+    let arguments = [TerminalStructuralValue::minted(1, type_id(3), Vec::new())];
     for count in [15, 16, 17] {
         let arrays = [terminal_interpreter::TerminalStructuralByteArrayValue {
             argument_index: 0,
@@ -406,18 +396,16 @@ fn scoped_graph(windows_value: u64) -> CanonicalTerminalArtifact {
     for (ordinal, target) in [(1, "macos_arm64"), (2, "windows_x86_64")] {
         scope
             .declarations
-            .insert(terminal_psi::ProofScopeDeclaration::Unavailable(format!(
+            .insert(ProofScopeDeclaration::Unavailable(format!(
                 "{target} owner"
             )));
-        scope.plan.machines.insert(
-            semantic_vocabulary::proof_applications::ProofApplicationMachine {
-                machine: terminal_psi::ProofDeclarationId(ordinal),
-                authored_target: Some(target.into()),
-                source_target: Some(target.into()),
-                product_selected: true,
-                ..Default::default()
-            },
-        );
+        scope.plan.machines.insert(ProofApplicationMachine {
+            machine: terminal_psi::ProofDeclarationId(ordinal),
+            authored_target: Some(target.into()),
+            source_target: Some(target.into()),
+            product_selected: true,
+            ..Default::default()
+        });
     }
     scope.plan.obligation_owners = scope.plan.symbols.insert_many([
         terminal_psi::ProofDeclarationId(1),

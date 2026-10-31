@@ -6,7 +6,7 @@
 
 use crate::AbstractOperation;
 use semantic_vocabulary::{PlaceId, StructuralFieldId};
-use terminal_psi::StructuralPathSegment;
+use terminal_psi::{StructuralPathSegment, exclusive_borrow_pair_pattern};
 
 /// One mutation inventory serves whole-root join pins and projected child
 /// freezes. A field id stays attached until its declaring record is resolved;
@@ -25,12 +25,7 @@ impl AbstractOperation {
         fn exclusive(arguments: &[terminal_psi::StructuralArgument]) -> Vec<StorageMutation<'_>> {
             arguments
                 .iter()
-                .filter(|argument| {
-                    matches!(
-                        argument.access,
-                        terminal_psi::exclusive_borrow_pair_pattern!()
-                    )
-                })
+                .filter(|argument| matches!(argument.access, exclusive_borrow_pair_pattern!()))
                 .map(|argument| StorageMutation {
                     place: argument.place,
                     path: argument.path.as_slice(),

@@ -2,6 +2,7 @@ use optimization_unit::{FuelSettlement, PsiProvenance, encode_value_definition_s
 use selected_instructions::{SelectedInstructionProvenance, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
+use crate::codec_bytes::{domain_identity, length, list, push_encoded};
 use crate::{
     NoAdmittedRecoveryReason, RecoveryClassification, RecoveryClassificationIdentity,
     RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryVictimRole,
@@ -10,7 +11,7 @@ use crate::{
 pub fn recovery_classification_identity(
     plan: &RecoveryClassificationPlan,
 ) -> RecoveryClassificationIdentity {
-    RecoveryClassificationIdentity(crate::codec_bytes::domain_identity(
+    RecoveryClassificationIdentity(domain_identity(
         b"omega.terminal-recovery-classification.v7\0",
         &encode_terminal_recovery_classification_content(plan),
     ))
@@ -27,24 +28,24 @@ pub(crate) fn encode_terminal_recovery_classification_content(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
+    push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1 => 0,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
-    crate::codec_bytes::length(
+    length(
         &mut bytes,
         plan.functions.len(),
         "recovery-classification identity",
     );
     for function in &plan.functions {
-        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
+        push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         bytes.push(u8::from(function.classification.is_some()));
         if let Some(row) = &function.classification {
-            crate::codec_bytes::push_encoded(&mut bytes, row.block.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, row.point.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, row.victim.0.to_le_bytes());
+            push_encoded(&mut bytes, row.block.0.to_le_bytes());
+            push_encoded(&mut bytes, row.point.0.to_le_bytes());
+            push_encoded(&mut bytes, row.victim.0.to_le_bytes());
             match row.role {
                 RecoveryVictimRole::Incoming => bytes.push(0),
                 RecoveryVictimRole::ActiveResident {
@@ -52,12 +53,12 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     reclaimed_view,
                 } => {
                     bytes.push(1);
-                    crate::codec_bytes::push_encoded(&mut bytes, current_view.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(&mut bytes, reclaimed_view.0.to_le_bytes());
+                    push_encoded(&mut bytes, current_view.0.to_le_bytes());
+                    push_encoded(&mut bytes, reclaimed_view.0.to_le_bytes());
                 }
             }
             encode_scalar_type(&mut bytes, row.scalar_type);
-            crate::codec_bytes::push_encoded(&mut bytes, row.class.0.to_le_bytes());
+            push_encoded(&mut bytes, row.class.0.to_le_bytes());
             encode_origin(&mut bytes, row.origin);
             match row.definition_site {
                 Some(site) => {
@@ -75,35 +76,20 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     future_uses,
                 } => {
                     bytes.push(0);
-                    crate::codec_bytes::push_encoded(
-                        &mut bytes,
-                        defining_instruction.0.to_le_bytes(),
-                    );
-                    crate::codec_bytes::push_encoded(&mut bytes, source_value.get().to_le_bytes());
+                    push_encoded(&mut bytes, defining_instruction.0.to_le_bytes());
+                    push_encoded(&mut bytes, source_value.get().to_le_bytes());
                     legalized_operations::encode_integer(&mut bytes, *value);
                     encode_provenance(&mut bytes, provenance);
-                    crate::codec_bytes::length(
+                    length(
                         &mut bytes,
                         future_uses.len(),
                         "recovery-classification identity",
                     );
                     for future_use in future_uses {
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            future_use.block.0.to_le_bytes(),
-                        );
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            future_use.point.0.to_le_bytes(),
-                        );
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            future_use.instruction.0.to_le_bytes(),
-                        );
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            future_use.operand.to_le_bytes(),
-                        );
+                        push_encoded(&mut bytes, future_use.block.0.to_le_bytes());
+                        push_encoded(&mut bytes, future_use.point.0.to_le_bytes());
+                        push_encoded(&mut bytes, future_use.instruction.0.to_le_bytes());
+                        push_encoded(&mut bytes, future_use.operand.to_le_bytes());
                     }
                 }
                 RecoveryClassification::NoAdmittedRecovery { reason } => {
@@ -129,14 +115,14 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) if integer.is_address() => {
             bytes.push(3);
-            crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
+            push_encoded(bytes, integer.bits().to_le_bytes());
         }
         ScalarType::Integer(integer) => {
             bytes.push(match integer.sign() {
                 IntegerSign::Signed => 1,
                 IntegerSign::Unsigned => 2,
             });
-            crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
+            push_encoded(bytes, integer.bits().to_le_bytes());
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(4);
@@ -154,24 +140,24 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
 
 fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
     const LABEL: &str = "recovery-classification identity";
-    crate::codec_bytes::list(bytes, &provenance.operations, LABEL, |bytes, operation| {
-        crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+    list(bytes, &provenance.operations, LABEL, |bytes, operation| {
+        push_encoded(bytes, operation.get().to_le_bytes());
     });
-    crate::codec_bytes::list(bytes, &provenance.values, LABEL, |bytes, value| {
-        crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
+    list(bytes, &provenance.values, LABEL, |bytes, value| {
+        push_encoded(bytes, value.get().to_le_bytes());
     });
-    crate::codec_bytes::list(bytes, &provenance.edges, LABEL, |bytes, edge| {
-        crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+    list(bytes, &provenance.edges, LABEL, |bytes, edge| {
+        push_encoded(bytes, edge.get().to_le_bytes());
     });
-    crate::codec_bytes::list(
+    list(
         bytes,
         &provenance.obligations,
         LABEL,
         |bytes, obligation| {
-            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+            push_encoded(bytes, obligation.get().to_le_bytes());
         },
     );
-    crate::codec_bytes::list(bytes, &provenance.fuel, LABEL, |bytes, settlement| {
+    list(bytes, &provenance.fuel, LABEL, |bytes, settlement| {
         encode_fuel(bytes, *settlement);
     });
 }
@@ -180,14 +166,14 @@ fn encode_fuel(bytes: &mut Vec<u8>, settlement: FuelSettlement) {
     match settlement.site {
         PsiProvenance::Operation(operation) => {
             bytes.push(0);
-            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+            push_encoded(bytes, operation.get().to_le_bytes());
         }
         PsiProvenance::Edge(edge) => {
             bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            push_encoded(bytes, edge.get().to_le_bytes());
         }
     }
-    crate::codec_bytes::push_encoded(bytes, settlement.units.to_le_bytes());
+    push_encoded(bytes, settlement.units.to_le_bytes());
 }
 
 #[cfg(test)]

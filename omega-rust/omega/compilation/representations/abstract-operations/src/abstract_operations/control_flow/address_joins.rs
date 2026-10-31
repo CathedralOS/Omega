@@ -27,7 +27,7 @@ use crate::abstract_operations::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralPathSegment as PathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Whether this block parameter is carried as the address of its referent.
@@ -62,13 +62,11 @@ pub fn is_address_join_in(
 /// root. Byte windows, runtime indexes and reference hops have no single
 /// address fixed by the path alone. Case selection fixes payload geometry,
 /// not membership: Terminal verification separately proves the case active.
-pub fn is_static_projection(path: &[StructuralPathSegment]) -> bool {
+pub fn is_static_projection(path: &[PathSegment]) -> bool {
     path.iter().all(|segment| {
         matches!(
             segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::Case(_)
-                | StructuralPathSegment::FixedIndex(_)
+            PathSegment::Field(_) | PathSegment::Case(_) | PathSegment::FixedIndex(_)
         )
     })
 }
@@ -76,15 +74,15 @@ pub fn is_static_projection(path: &[StructuralPathSegment]) -> bool {
 /// A retained-address projection permits typed reference crossings and already
 /// evaluated selectors. Each runtime selector carries its occurrence's bounds
 /// obligation; this vocabulary query grants neither that evidence nor custody.
-pub fn is_address_projection(path: &[StructuralPathSegment]) -> bool {
+pub fn is_address_projection(path: &[PathSegment]) -> bool {
     path.iter().all(|segment| {
         matches!(
             segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::Case(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::Referent
-                | StructuralPathSegment::RuntimeIndex { .. }
+            PathSegment::Field(_)
+                | PathSegment::Case(_)
+                | PathSegment::FixedIndex(_)
+                | PathSegment::Referent
+                | PathSegment::RuntimeIndex { .. }
         )
     })
 }
@@ -99,7 +97,7 @@ pub fn is_address_projection(path: &[StructuralPathSegment]) -> bool {
 pub fn loan_access_permitted<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
-    path: &[StructuralPathSegment],
+    path: &[PathSegment],
     source: StructuralAccess,
     destination: StructuralAccess,
 ) -> bool {
@@ -111,7 +109,7 @@ pub fn loan_access_permitted<'a>(
     }
     let mut ceiling = source;
     for (position, segment) in path.iter().enumerate() {
-        if *segment != StructuralPathSegment::Referent {
+        if *segment != PathSegment::Referent {
             continue;
         }
         if ceiling == WriteOnlyBorrow {
@@ -148,14 +146,14 @@ pub fn loan_access_permitted<'a>(
 pub fn borrowed_referent_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
-    path: &[StructuralPathSegment],
+    path: &[PathSegment],
     access: StructuralAccess,
 ) -> Option<StructuralTypeId> {
     if !is_address_projection(path) || access == StructuralAccess::Owned {
         return None;
     }
     for (position, segment) in path.iter().enumerate() {
-        if *segment != StructuralPathSegment::Referent {
+        if *segment != PathSegment::Referent {
             continue;
         }
         let reference = referent_type(declarations.clone(), root, &path[..position])?;
@@ -191,7 +189,7 @@ pub fn borrowed_referent_type<'a>(
 pub fn referent_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
-    path: &[StructuralPathSegment],
+    path: &[PathSegment],
 ) -> Option<StructuralTypeId> {
     let unique = |matches: &mut dyn Iterator<Item = &'a StructuralTypeDeclaration>| match (
         matches.next(),
@@ -207,7 +205,7 @@ pub fn referent_type<'a>(
     )?;
     let mut payload_fields = None;
     for segment in path {
-        if let StructuralPathSegment::Case(identity) = segment {
+        if let PathSegment::Case(identity) = segment {
             if payload_fields.is_some() {
                 return None;
             }
@@ -224,18 +222,16 @@ pub fn referent_type<'a>(
             payload_fields = Some(selected.fields.as_slice());
             continue;
         }
-        if payload_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+        if payload_fields.is_some() && !matches!(segment, PathSegment::Field(_)) {
             return None;
         }
         let next = match (segment, &current.shape) {
-            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
-                unique(
-                    &mut declarations
-                        .clone()
-                        .filter(|declaration| declaration.id == *referent),
-                )?
-            }
-            (StructuralPathSegment::Field(identity), shape) => {
+            (PathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => unique(
+                &mut declarations
+                    .clone()
+                    .filter(|declaration| declaration.id == *referent),
+            )?,
+            (PathSegment::Field(identity), shape) => {
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
@@ -268,7 +264,7 @@ pub fn referent_type<'a>(
                 }
             }
             (
-                StructuralPathSegment::FixedIndex(index),
+                PathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray {
                     element,
                     length: terminal_psi::ArrayExtent::Literal(length),
@@ -282,21 +278,20 @@ pub fn referent_type<'a>(
             // extent discharges the bound, and the path still names one
             // element's address.
             (
-                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
+                PathSegment::FixedIndex(_) | PathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::ElementView { element, .. },
             ) => unique(
                 &mut declarations
                     .clone()
                     .filter(|declaration| declaration.id == *element),
             )?,
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::FixedArray { element, .. },
-            ) => unique(
-                &mut declarations
-                    .clone()
-                    .filter(|declaration| declaration.id == *element),
-            )?,
+            (PathSegment::RuntimeIndex { .. }, StructuralTypeShape::FixedArray { element, .. }) => {
+                unique(
+                    &mut declarations
+                        .clone()
+                        .filter(|declaration| declaration.id == *element),
+                )?
+            }
             _ => return None,
         };
         current = next;

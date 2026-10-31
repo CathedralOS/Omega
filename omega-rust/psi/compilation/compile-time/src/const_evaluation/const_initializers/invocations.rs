@@ -37,18 +37,29 @@ use typed_trees::{
 };
 
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
+use crate::const_evaluation::const_generic_expressions::{call_expressions, leaf_call_custody};
 use crate::const_evaluation::const_generic_expressions::{
     scalar_probe_destination, value::ScalarValue,
 };
+use crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins;
+use crate::machine_execution::admission::require_call_expression_selection;
+use crate::machine_execution::selected_operators::prepare_selected_execution;
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use numerics::literals::{FloatFormat, FloatLiteral};
+use source::SourceSpan;
+use symbols::SymbolHandle;
 use typed_trees::constant_recipes::create_evaluation_entry;
+use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees_to_checked_trees::infer_checked_crash_causes;
+use validation::expression_result_type_reference;
 
 pub(crate) struct CheckedInitializers {
     typed: TypedTrees,
     admission: BuildTimeAdmissionPlan,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
-    probe_symbols: Vec<symbols::SymbolHandle>,
+    crash_causes: Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)>,
+    probe_symbols: Vec<SymbolHandle>,
     operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
 }
 
@@ -56,7 +67,7 @@ impl CheckedInitializers {
     pub(crate) fn prepare(
         prepared: &crate::PreparedBuildMachineProgram,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-        probe_symbols: &[symbols::SymbolHandle],
+        probe_symbols: &[SymbolHandle],
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -80,7 +91,7 @@ impl CheckedInitializers {
             .count();
         if probes != probe_symbols.len() {
             return Err(super::failure(
-                source::SourceSpan::default(),
+                SourceSpan::default(),
                 "initializer preparation lost an exact probe owner",
             ));
         }
@@ -96,25 +107,18 @@ impl CheckedInitializers {
             typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
         let checked =
             typed_trees_to_checked_trees::lower_typed_trees(bodies, preparation, &checking)?;
-        let crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
-            &checked.typed,
-            &checked.facts,
-        );
+        let crash_causes = infer_checked_crash_causes(&checked.typed, &checked.facts);
         let typed = projection.rejoin_unjudged(checked.typed.into_inner());
         // Checking may normalize boundary tokens into requirement calls.
         // Admission and interpretation consume the same validated selected
         // meaning on a private graph, never mutate the completed judgment.
-        let typed = crate::machine_execution::selected_operators::prepare_selected_execution(
-            &typed,
-            &[],
-            &operators,
-        )
-        .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
-        .unwrap_or(typed);
+        let typed = prepare_selected_execution(&typed, &[], &operators)
+            .map_err(|reason| super::failure(SourceSpan::default(), reason))?
+            .unwrap_or(typed);
         let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
             .with_accounting(accounting.clone())
             .with_selected_operators(&typed, &operators)
-            .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?;
+            .map_err(|reason| super::failure(SourceSpan::default(), reason))?;
         Ok(Self {
             typed,
             admission,
@@ -141,10 +145,7 @@ impl CheckedInitializers {
         }
     }
 
-    pub(crate) fn calls_for_source(
-        &self,
-        reference: source::SourceSpan,
-    ) -> Result<Invocation<'_>, String> {
+    pub(crate) fn calls_for_source(&self, reference: SourceSpan) -> Result<Invocation<'_>, String> {
         let typed = self.typed();
         let mut machines = typed
             .machines()
@@ -162,10 +163,7 @@ impl CheckedInitializers {
         Ok(self.calls(machine, state))
     }
 
-    pub(crate) fn calls_for_symbol(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Result<Invocation<'_>, String> {
+    pub(crate) fn calls_for_symbol(&self, symbol: SymbolHandle) -> Result<Invocation<'_>, String> {
         let typed = self.typed();
         let machine = typed
             .machine(symbol)
@@ -196,10 +194,10 @@ impl Invocation<'_> {
         &self,
         expression: ExpressionHandle,
         callee: String,
-        return_type: typed_trees::types::TypeReferenceHandle,
+        return_type: TypeReferenceHandle,
         snapshots: Vec<ArgumentSnapshot>,
     ) -> Result<(), String> {
-        let retained: Vec<symbols::SymbolHandle> = self
+        let retained: Vec<SymbolHandle> = self
             .program
             .typed()
             .machines()
@@ -218,9 +216,7 @@ impl Invocation<'_> {
             &callee,
             return_type,
             snapshots,
-            &crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins(
-                self.program.typed(),
-            ),
+            &deferred_endpoint_stand_ins(self.program.typed()),
         )
     }
 
@@ -284,10 +280,7 @@ impl Invocation<'_> {
             return Err("constant probe lost its exact scalar carrier".into());
         }
         let mut warnings = Vec::new();
-        for call in crate::const_evaluation::const_generic_expressions::call_expressions(
-            typed,
-            &body.roots,
-        )? {
+        for call in call_expressions(typed, &body.roots)? {
             extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = scalar_result(self.interpret(body.reference)?, destination)?;
@@ -305,11 +298,7 @@ impl Invocation<'_> {
     /// authored `requires` clause, discharged the same concrete way.
     fn selected(&self, expression: ExpressionHandle) -> Result<SelectedCall<'_>, String> {
         let typed = self.program.typed();
-        crate::machine_execution::admission::require_call_expression_selection(
-            typed,
-            expression,
-            self.program.authority.as_deref(),
-        )?;
+        require_call_expression_selection(typed, expression, self.program.authority.as_deref())?;
         let Some(call) = typed.expression_table.call_node(expression) else {
             return Err("initializer lost its selected call".into());
         };
@@ -389,7 +378,7 @@ enum SelectedCall<'program> {
 }
 
 impl SelectedCall<'_> {
-    fn return_type(&self) -> typed_trees::types::TypeReferenceHandle {
+    fn return_type(&self) -> TypeReferenceHandle {
         match self {
             Self::Entry { entry, .. } => entry.return_type,
             Self::Operator(operator) => operator.return_type,
@@ -411,40 +400,30 @@ impl ConstantCalls for Invocation<'_> {
         };
         let arguments = typed.expression_table.expression_handles(call.arguments);
         // Each explicit operand owes its exact carrier validation.
-        let operands: Vec<(ExpressionHandle, &typed_trees::signature::StateParameter)> =
-            match selected {
-                SelectedCall::Entry { entry, .. } => {
-                    let parameters = typed.state_parameters(entry);
-                    if arguments.len() != call.arguments.len()
-                        || arguments.len() != parameters.len()
-                    {
-                        return Err(
-                            "constant call argument count differs from its exact entry".into()
-                        );
-                    }
-                    arguments.iter().copied().zip(parameters.iter()).collect()
+        let operands: Vec<(ExpressionHandle, &StateParameter)> = match selected {
+            SelectedCall::Entry { entry, .. } => {
+                let parameters = typed.state_parameters(entry);
+                if arguments.len() != call.arguments.len() || arguments.len() != parameters.len() {
+                    return Err("constant call argument count differs from its exact entry".into());
                 }
-                SelectedCall::Operator(operator) => {
-                    let parameters = typed.operator_parameters(operator);
-                    let mut operands: Vec<(
-                        ExpressionHandle,
-                        &typed_trees::signature::StateParameter,
-                    )> = Vec::new();
-                    let mut argument = arguments.iter().copied();
-                    for parameter in parameters {
-                        let argument = argument.next().ok_or(
-                            "constant call argument count differs from its exact requirement",
-                        )?;
-                        operands.push((argument, parameter));
-                    }
-                    if argument.next().is_some() {
-                        return Err(
-                            "constant call argument count differs from its exact entry".into()
-                        );
-                    }
-                    operands
+                arguments.iter().copied().zip(parameters.iter()).collect()
+            }
+            SelectedCall::Operator(operator) => {
+                let parameters = typed.operator_parameters(operator);
+                let mut operands: Vec<(ExpressionHandle, &StateParameter)> = Vec::new();
+                let mut argument = arguments.iter().copied();
+                for parameter in parameters {
+                    let argument = argument
+                        .next()
+                        .ok_or("constant call argument count differs from its exact requirement")?;
+                    operands.push((argument, parameter));
                 }
-            };
+                if argument.next().is_some() {
+                    return Err("constant call argument count differs from its exact entry".into());
+                }
+                operands
+            }
+        };
         let mut warnings = Vec::new();
         for (argument, parameter) in operands {
             let carrier = scalar_probe_destination(typed, parameter.type_reference)
@@ -556,8 +535,7 @@ fn scalar_result(
         BuildTimeValue::UndeterminedNaN(format)
             if matches!(
                 (format, destination),
-                (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
-                    | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+                (FloatFormat::F32, PrimitiveType::F32) | (FloatFormat::F64, PrimitiveType::F64)
             ) =>
         {
             ScalarValue::UndeterminedNaN(format)
@@ -584,9 +562,9 @@ fn scalar_result(
             // Semantic arithmetic publishes UndeterminedNaN above. This
             // branch carries presented bits, including exact raw NaNs.
             let format = if destination == PrimitiveType::F32 {
-                numerics::literals::FloatFormat::F32
+                FloatFormat::F32
             } else {
-                numerics::literals::FloatFormat::F64
+                FloatFormat::F64
             };
             let bits = format
                 .capture_wide_representation(value)
@@ -635,50 +613,47 @@ impl Invocation<'_> {
                         .iter()
                         .any(|(symbol, causes)| *symbol == machine.symbol && causes.is_empty())
             }
-            SelectedCall::Operator(operator) => {
-                typed.operator_contracts(operator).iter().any(|contract| {
-                    contract.kind == typed_trees::signature::SignatureContractKind::Requires
-                })
-            }
+            SelectedCall::Operator(operator) => typed
+                .operator_contracts(operator)
+                .iter()
+                .any(|contract| contract.kind == SignatureContractKind::Requires),
         };
         let Some(call) = typed.expression_table.call_node(expression) else {
             return Err("constant execution lost its selected call".into());
         };
         // Pair each evaluated operand expression with its declared carrier.
-        let operands: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> =
-            match target {
-                SelectedCall::Entry { entry, .. } => expression_table(typed)
+        let operands: Vec<(ExpressionHandle, TypeReferenceHandle)> = match target {
+            SelectedCall::Entry { entry, .. } => expression_table(typed)
+                .expression_handles(call.arguments)
+                .iter()
+                .copied()
+                .zip(
+                    typed
+                        .state_parameters(entry)
+                        .iter()
+                        .map(|parameter| parameter.type_reference),
+                )
+                .collect(),
+            SelectedCall::Operator(operator) => {
+                let mut operands = Vec::new();
+                let mut arguments = expression_table(typed)
                     .expression_handles(call.arguments)
                     .iter()
-                    .copied()
-                    .zip(
-                        typed
-                            .state_parameters(entry)
-                            .iter()
-                            .map(|parameter| parameter.type_reference),
-                    )
-                    .collect(),
-                SelectedCall::Operator(operator) => {
-                    let mut operands = Vec::new();
-                    let mut arguments = expression_table(typed)
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .copied();
-                    for parameter in typed.operator_parameters(operator) {
-                        let argument = arguments.next().ok_or(
-                            "constant call argument count differs from its exact requirement",
-                        )?;
-                        operands.push((argument, parameter.type_reference));
-                    }
-                    if arguments.next().is_some() {
-                        return Err(
-                            "constant call argument count differs from its exact requirement"
-                                .into(),
-                        );
-                    }
-                    operands
+                    .copied();
+                for parameter in typed.operator_parameters(operator) {
+                    let argument = arguments
+                        .next()
+                        .ok_or("constant call argument count differs from its exact requirement")?;
+                    operands.push((argument, parameter.type_reference));
                 }
-            };
+                if arguments.next().is_some() {
+                    return Err(
+                        "constant call argument count differs from its exact requirement".into(),
+                    );
+                }
+                operands
+            }
+        };
         let mut arguments = Vec::new();
         let mut snapshots = Vec::new();
         let mut warnings = Vec::new();
@@ -777,7 +752,7 @@ impl Invocation<'_> {
         )
     }
 
-    fn probe_reference(&self) -> Result<source::SourceSpan, String> {
+    fn probe_reference(&self) -> Result<SourceSpan, String> {
         Ok(
             super::super::initializer_probe::value_probe_body(self.program.typed(), self.state)?
                 .reference,
@@ -834,7 +809,7 @@ impl Invocation<'_> {
     fn require_structured_expression_result(
         &self,
         expression: ExpressionHandle,
-        destination: typed_trees::types::TypeReferenceHandle,
+        destination: TypeReferenceHandle,
         statement_index: usize,
     ) -> Result<(), String> {
         let typed = self.program.typed();
@@ -881,12 +856,9 @@ impl Invocation<'_> {
             ExpressionNode::ArrayLiteral(elements) => {
                 // Substitution can retain a declared array's carrier on literal
                 // syntax. Keep that receipt before checking constructed children.
-                if let Some(actual) = validation::expression_result_type_reference(
-                    typed,
-                    self.machine,
-                    self.state,
-                    expression,
-                ) && !result_carriers_match(typed, actual, destination)
+                if let Some(actual) =
+                    expression_result_type_reference(typed, self.machine, self.state, expression)
+                    && !result_carriers_match(typed, actual, destination)
                 {
                     return Err(
                         "constant initializer result does not match its declared carrier".into(),
@@ -952,13 +924,8 @@ impl Invocation<'_> {
             }
             _ => {}
         }
-        let actual = validation::expression_result_type_reference(
-            typed,
-            self.machine,
-            self.state,
-            expression,
-        )
-        .ok_or("constant initializer lost its selected result carrier")?;
+        let actual = expression_result_type_reference(typed, self.machine, self.state, expression)
+            .ok_or("constant initializer lost its selected result carrier")?;
         if !result_carriers_match(typed, actual, destination) {
             return Err("constant initializer result does not match its declared carrier".into());
         }
@@ -969,7 +936,7 @@ impl Invocation<'_> {
     /// the probe's call closure carries an authored `requires` premise, the
     /// per-call concrete discharge evidence produced while admitting each
     /// authored call is what allows the premise-discharge entry point here.
-    fn interpret(&self, reference: source::SourceSpan) -> Result<BuildTimeValue, String> {
+    fn interpret(&self, reference: SourceSpan) -> Result<BuildTimeValue, String> {
         self.require_result_obligations()?;
         let typed = self.program.typed();
         let custody = BuildTimeInvocationCustody::Source(reference);
@@ -1004,7 +971,7 @@ impl Invocation<'_> {
     /// crosses the ordinary ConstEvaluable admission on the declared carrier.
     pub(super) fn evaluate_leaf(
         &self,
-        reference: source::SourceSpan,
+        reference: SourceSpan,
         authored: &crate::const_evaluation::const_generic_expressions::AuthoredProbeCustody,
         syntax: &syntax_trees::SyntaxTrees,
     ) -> Result<LeafEvaluation, String> {
@@ -1018,18 +985,9 @@ impl Invocation<'_> {
             self.program.authority.as_deref(),
         )?;
         let (origins, operators, calls) =
-            crate::const_evaluation::const_generic_expressions::leaf_call_custody(
-                typed,
-                self.machine,
-                self.state,
-                &roots,
-                false,
-                syntax,
-            )?;
+            leaf_call_custody(typed, self.machine, self.state, &roots, false, syntax)?;
         let mut warnings = Vec::new();
-        for call in
-            crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
-        {
+        for call in call_expressions(typed, &roots)? {
             extend_unique(&mut warnings, self.check_call(call)?);
         }
         let value = self.interpret(reference)?;
@@ -1052,7 +1010,7 @@ impl Invocation<'_> {
     /// and concrete premise/failure discharge as initializer invocations.
     pub(crate) fn evaluate_application_probe(
         &self,
-        reference: source::SourceSpan,
+        reference: SourceSpan,
         public: bool,
         syntax: &syntax_trees::SyntaxTrees,
         extent: bool,
@@ -1071,20 +1029,13 @@ impl Invocation<'_> {
         let destination = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
             typed,
             if extent {
-                validation::expression_result_type_reference(typed, self.machine, self.state, expression)
+                expression_result_type_reference(typed, self.machine, self.state, expression)
                     .unwrap_or(self.state.return_type)
             } else { self.state.return_type },
         )
         .ok_or("application probe destination requires an unconstrained exact builtin integer or Boolean carrier")?;
         let (origins, operators, calls) =
-            crate::const_evaluation::const_generic_expressions::leaf_call_custody(
-                typed,
-                self.machine,
-                self.state,
-                &roots,
-                public,
-                syntax,
-            )?;
+            leaf_call_custody(typed, self.machine, self.state, &roots, public, syntax)?;
         let (value, warnings) = self.evaluate(expression, destination)?;
         Ok(ApplicationProbeEvaluation {
             value,
@@ -1098,9 +1049,7 @@ impl Invocation<'_> {
     /// Interpret this retained probe's own transition and return the
     /// structured result with its declared carrier. Receiving-side replay uses
     /// the same checked admission as the original evaluation.
-    pub(super) fn evaluate_value(
-        &self,
-    ) -> Result<(BuildTimeValue, typed_trees::types::TypeReferenceHandle), String> {
+    pub(super) fn evaluate_value(&self) -> Result<(BuildTimeValue, TypeReferenceHandle), String> {
         let typed = self.program.typed();
         let roots = self.probe_roots()?;
         let reference = self.probe_reference()?;
@@ -1110,9 +1059,7 @@ impl Invocation<'_> {
             reference,
             self.program.authority.as_deref(),
         )?;
-        for call in
-            crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
-        {
+        for call in call_expressions(typed, &roots)? {
             self.check_call(call)?;
         }
         Ok((self.interpret(reference)?, self.state.return_type))
@@ -1126,8 +1073,8 @@ impl Invocation<'_> {
 /// owner check recursively. Qualification establishment remains independent.
 fn result_carriers_match(
     typed: &TypedTrees,
-    actual: typed_trees::types::TypeReferenceHandle,
-    destination: typed_trees::types::TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    destination: TypeReferenceHandle,
 ) -> bool {
     if let (Some(actual_primitive), Some(destination_primitive)) = (
         typed.primitive_type_reference(actual),
@@ -1174,8 +1121,8 @@ fn result_carriers_match(
 pub(crate) struct ApplicationProbeEvaluation {
     pub(crate) value: CanonicalConstValue,
     pub(crate) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
-    pub(crate) operators: Vec<source::SourceSpan>,
-    pub(crate) calls: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub(crate) operators: Vec<SourceSpan>,
+    pub(crate) calls: Vec<(SourceSpan, SourceSpan)>,
     pub(crate) warnings: Vec<Diagnostic>,
 }
 
@@ -1184,10 +1131,10 @@ pub(crate) struct ApplicationProbeEvaluation {
 /// custody receipts the scalar leaf path collects.
 pub(super) struct LeafEvaluation {
     pub(super) value: BuildTimeValue,
-    pub(super) destination: typed_trees::types::TypeReferenceHandle,
+    pub(super) destination: TypeReferenceHandle,
     pub(super) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
-    pub(super) operators: Vec<source::SourceSpan>,
-    pub(super) calls: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub(super) operators: Vec<SourceSpan>,
+    pub(super) calls: Vec<(SourceSpan, SourceSpan)>,
     pub(super) warnings: Vec<Diagnostic>,
 }
 
@@ -1204,14 +1151,12 @@ pub(super) fn scalar_snapshot(
         ScalarValue::Float { format, bits } => {
             if !matches!(
                 (format, carrier),
-                (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
-                    | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+                (FloatFormat::F32, PrimitiveType::F32) | (FloatFormat::F64, PrimitiveType::F64)
             ) {
                 return Err("constant argument lost its exact floating carrier".into());
             }
             return Ok(ExpressionNode::Float(
-                numerics::literals::FloatLiteral::from_bits(*format, *bits)
-                    .ok_or("invalid floating snapshot")?,
+                FloatLiteral::from_bits(*format, *bits).ok_or("invalid floating snapshot")?,
             ));
         }
     };
@@ -1240,11 +1185,11 @@ pub(super) fn scalar_snapshot(
 /// concrete admission and receiving replay; they never become source declarations.
 pub(super) fn append_probe(
     program: &mut TypedTrees,
-    owner: symbols::SymbolHandle,
+    owner: SymbolHandle,
     name: String,
     expression: ExpressionHandle,
-    destination: typed_trees::types::TypeReferenceHandle,
-) -> symbols::SymbolHandle {
+    destination: TypeReferenceHandle,
+) -> SymbolHandle {
     let machine = create_evaluation_entry(program, owner, name, expression, destination);
     let symbol = machine.symbol;
     program.push_machine(machine);

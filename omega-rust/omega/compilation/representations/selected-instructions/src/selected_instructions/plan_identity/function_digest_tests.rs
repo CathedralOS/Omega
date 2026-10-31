@@ -4,6 +4,7 @@
 //! memoized identity always equals the identity of an identical plan built
 //! afresh.
 
+use crate::SelectedBlockOrigin::Source;
 use crate::{
     SelectedBlockId, SelectedFunction, SelectedFunctions, SelectedInstructionPlan,
     selected_instruction_plan_identity,
@@ -145,9 +146,7 @@ fn the_identity_binds_roster_order_count_and_roots() {
 fn block(identifier: u32) -> crate::SelectedBlock {
     crate::SelectedBlock {
         id: SelectedBlockId(identifier),
-        origin: crate::SelectedBlockOrigin::Source(
-            semantic_vocabulary::BlockId::new(u64::from(identifier) + 1).unwrap(),
-        ),
+        origin: Source(semantic_vocabulary::BlockId::new(u64::from(identifier) + 1).unwrap()),
         instructions: Vec::new(),
         terminator: crate::SelectedTerminator::Return {
             instruction: crate::SelectedInstruction {

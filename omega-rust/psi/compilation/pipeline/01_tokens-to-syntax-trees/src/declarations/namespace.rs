@@ -1,5 +1,6 @@
 use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ModuleDeclaration, PackageDeclaration};
 use tokens::PunctuationKind;
 
@@ -29,10 +30,8 @@ pub(super) fn parse_package_declaration<'tokens, 'source>(
 
 fn parse_dot_or_colon_path<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-    mut append_member: impl FnMut(
-        syntax_trees::identifier::Identifier,
-    ) -> arena::Handle<syntax_trees::identifier::Identifier>,
-) -> ParseResult<'tokens, 'source, arena::HandleSpan<syntax_trees::identifier::Identifier>> {
+    mut append_member: impl FnMut(Identifier) -> arena::Handle<Identifier>,
+) -> ParseResult<'tokens, 'source, arena::HandleSpan<Identifier>> {
     let (first, mut rest) = input.take_identifier()?;
     let mut path = crate::handle_spans::HandleSpanBuilder::new();
     path.push(append_member(first));

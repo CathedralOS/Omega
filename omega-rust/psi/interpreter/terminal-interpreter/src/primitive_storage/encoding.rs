@@ -5,6 +5,7 @@
 //! projected logical type cannot recover the ancestor's authored field storage.
 
 use super::{PrimitiveLoan, PrimitiveStorage, PrimitiveStorageEncoding, PrimitiveStorageEndpoint};
+use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -12,6 +13,7 @@ use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{
     IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, PlaceId, ScalarType,
 };
+use terminal_semantics::{reference_storage_byte_width, reference_storage_view_is_compatible};
 
 #[derive(PartialEq, Eq)]
 struct ReferenceByteRegionProjection {
@@ -41,7 +43,7 @@ impl ReferenceByteRegionProjection {
 
 /// A replacement must fit the retained codec before any boundary publication.
 pub(crate) fn scalar_fits_storage(stored: ScalarType, scalar: TerminalScalarValue) -> bool {
-    terminal_semantics::reference_storage_view_is_compatible(stored, scalar.scalar_type())
+    reference_storage_view_is_compatible(stored, scalar.scalar_type())
         && encode(stored, scalar).is_ok()
 }
 
@@ -134,12 +136,8 @@ impl TerminalExecution<'_> {
             let Some(path) = view.path.strip_prefix(anchor.path.as_slice()) else {
                 continue;
             };
-            if crate::custody::resolve_structural_path_type(
-                &self.structural_types(),
-                anchor.structural_type,
-                path,
-            )
-            .ok()
+            if resolve_structural_path_type(&self.structural_types(), anchor.structural_type, path)
+                .ok()
                 != Some(view.structural_type)
             {
                 continue;
@@ -192,18 +190,14 @@ impl TerminalExecution<'_> {
         stored_scalar: ScalarType,
         logical_scalar: ScalarType,
     ) -> Result<(), TerminalInterpretError> {
-        let width = usize::from(
-            terminal_semantics::reference_storage_byte_width(stored_scalar)
-                .ok_or_else(malformed)?,
-        );
-        if !terminal_semantics::reference_storage_view_is_compatible(stored_scalar, logical_scalar)
-        {
+        let width = usize::from(reference_storage_byte_width(stored_scalar).ok_or_else(malformed)?);
+        if !reference_storage_view_is_compatible(stored_scalar, logical_scalar) {
             return Err(malformed());
         }
         if let Some(captured) = &mut loan.storage.encoding {
             if byte_offset != 0
-                || terminal_semantics::reference_storage_byte_width(captured.source)
-                    != terminal_semantics::reference_storage_byte_width(stored_scalar)
+                || reference_storage_byte_width(captured.source)
+                    != reference_storage_byte_width(stored_scalar)
             {
                 return Err(malformed());
             }
@@ -246,10 +240,8 @@ impl TerminalExecution<'_> {
                 logical,
                 stored,
             } => {
-                let available = usize::from(
-                    terminal_semantics::reference_storage_byte_width(*stored)
-                        .ok_or_else(malformed)?,
-                );
+                let available =
+                    usize::from(reference_storage_byte_width(*stored).ok_or_else(malformed)?);
                 let end = byte_offset.checked_add(width).ok_or_else(malformed)?;
                 if end > available {
                     return Err(malformed());
@@ -328,8 +320,7 @@ impl TerminalExecution<'_> {
             }
             PrimitiveStorageEndpoint::Scalar(_) | PrimitiveStorageEndpoint::ScalarField(_) => {
                 let source_width = usize::from(
-                    terminal_semantics::reference_storage_byte_width(loan.scalar_type)
-                        .ok_or_else(malformed)?,
+                    reference_storage_byte_width(loan.scalar_type).ok_or_else(malformed)?,
                 );
                 if byte_offset != 0 || width > source_width {
                     return Err(malformed());
@@ -359,8 +350,7 @@ impl TerminalExecution<'_> {
                 decode(stored_scalar, bits)?
             }
             _ => {
-                let width = terminal_semantics::reference_storage_byte_width(stored_scalar)
-                    .ok_or_else(malformed)?;
+                let width = reference_storage_byte_width(stored_scalar).ok_or_else(malformed)?;
                 let mut bits = 0_u128;
                 for byte_index in 0..usize::from(width) {
                     let storage = shifted_byte_endpoint(endpoint, byte_index)?;
@@ -383,8 +373,7 @@ impl TerminalExecution<'_> {
                 decode(stored_scalar, bits)?
             }
         };
-        if !terminal_semantics::reference_storage_view_is_compatible(stored_scalar, logical_scalar)
-        {
+        if !reference_storage_view_is_compatible(stored_scalar, logical_scalar) {
             return Err(malformed());
         }
         convert_scalar(stored, logical_scalar)
@@ -398,10 +387,7 @@ impl TerminalExecution<'_> {
         stored_scalar: ScalarType,
         scalar: TerminalScalarValue,
     ) -> Result<(), TerminalInterpretError> {
-        if !terminal_semantics::reference_storage_view_is_compatible(
-            stored_scalar,
-            scalar.scalar_type(),
-        ) {
+        if !reference_storage_view_is_compatible(stored_scalar, scalar.scalar_type()) {
             return Err(malformed());
         }
         let bits = encode(stored_scalar, scalar)?;
@@ -422,8 +408,7 @@ impl TerminalExecution<'_> {
                 )
             }
             _ => {
-                let width = terminal_semantics::reference_storage_byte_width(stored_scalar)
-                    .ok_or_else(malformed)?;
+                let width = reference_storage_byte_width(stored_scalar).ok_or_else(malformed)?;
                 // Resolve every destination byte without reading its contents.
                 // The enclosing transaction publishes only after all endpoints
                 // and encodings have been prepared, including later leaves.
@@ -474,9 +459,7 @@ pub(crate) fn shifted_byte_endpoint(
         PrimitiveStorageEndpoint::Projection {
             fragments, stored, ..
         } => {
-            let width = usize::from(
-                terminal_semantics::reference_storage_byte_width(*stored).ok_or_else(malformed)?,
-            );
+            let width = usize::from(reference_storage_byte_width(*stored).ok_or_else(malformed)?);
             if byte_offset >= width {
                 return Err(malformed());
             }
@@ -604,7 +587,7 @@ pub(crate) fn encode(
     scalar: TerminalScalarValue,
 ) -> Result<u128, TerminalInterpretError> {
     let scalar = convert_scalar(scalar, stored)?;
-    let width = terminal_semantics::reference_storage_byte_width(stored).ok_or_else(malformed)?;
+    let width = reference_storage_byte_width(stored).ok_or_else(malformed)?;
     let bits = match scalar {
         TerminalScalarValue::Boolean(value) => u128::from(value),
         TerminalScalarValue::Integer {
@@ -630,7 +613,7 @@ pub(crate) fn decode(
     stored: ScalarType,
     bits: u128,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    let width = terminal_semantics::reference_storage_byte_width(stored).ok_or_else(malformed)?;
+    let width = reference_storage_byte_width(stored).ok_or_else(malformed)?;
     let result = match stored {
         ScalarType::Boolean => boolean_bits(bits)?,
         ScalarType::Integer(integer) => {

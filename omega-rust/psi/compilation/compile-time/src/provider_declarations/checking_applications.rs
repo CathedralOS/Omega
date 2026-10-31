@@ -6,6 +6,8 @@
 //! graph propagates those contexts to helpers and declaration/type dependencies.
 //! This census grants neither provider precedence nor ABI/install authority.
 
+use semantic_vocabulary::proof_applications::ProofApplications;
+
 mod calls;
 mod declarations;
 mod inventory;
@@ -41,8 +43,7 @@ pub(crate) fn source_checking_applications(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let applications =
-        semantic_vocabulary::proof_applications::ProofApplications::new(topology, operational);
+    let applications = ProofApplications::new(topology, operational);
     let mut work = prepared
         .iter()
         .map(|scope| scope.work(typed, &applications, &[]))
@@ -192,11 +193,7 @@ impl<'request> CheckingScope<'request> {
     fn work(
         &self,
         typed: &TypedTrees,
-        applications: &semantic_vocabulary::proof_applications::ProofApplications<
-            '_,
-            SymbolHandle,
-            flow_effects::OperationalPlan,
-        >,
+        applications: &ProofApplications<'_, SymbolHandle, flow_effects::OperationalPlan>,
         unscoped: &[SymbolHandle],
     ) -> DeclarationSelection {
         let mut roots = self.roots.clone();

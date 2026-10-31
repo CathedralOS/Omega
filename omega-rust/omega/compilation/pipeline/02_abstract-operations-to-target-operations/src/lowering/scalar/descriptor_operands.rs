@@ -2,6 +2,8 @@
 //! This owner supplies geometry, never liveness or permission certificates.
 use super::element_views::ElementViewBackings;
 use crate::LoweringError;
+use crate::lowering::control_flow::scalar_sources::runtime_indices;
+use crate::lowering::structural_layout::reference_projection_regions;
 use crate::lowering::structural_layout::runtime_descriptor_projection;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
@@ -12,6 +14,7 @@ use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeShape,
 };
+use terminal_semantics::collection_backing;
 
 /// A projected descriptor borrows its exact current carrier. Runtime selectors
 /// stay in operand custody on the side of each stored-reference crossing.
@@ -171,20 +174,12 @@ fn descriptor_projection_access(
     if !accessible {
         return Err(invalid());
     }
-    let regions = crate::lowering::structural_layout::reference_projection_regions(
-        root,
-        &source.path,
-        structural_types,
-    )
-    .ok_or_else(invalid)?;
+    let regions =
+        reference_projection_regions(root, &source.path, structural_types).ok_or_else(invalid)?;
     let (selected, _, _, leaf_indices) =
         runtime_descriptor_projection(regions.root, regions.path, structural_types)?;
     let indices = regions.selector_runs(leaf_indices);
-    let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
-        indices,
-        function,
-        &backings.selectors,
-    )?;
+    let indices = runtime_indices(indices, function, &backings.selectors)?;
     Ok((selected, indices))
 }
 
@@ -307,12 +302,8 @@ pub(in crate::lowering) fn storage_backs_view_parameter(
                     if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8)))
             .then_some(declaration.id)
             .filter(|element| {
-                terminal_semantics::collection_backing(
-                    structural_types.values().copied(),
-                    collection,
-                    *element,
-                )
-                .is_some()
+                collection_backing(structural_types.values().copied(), collection, *element)
+                    .is_some()
             })
         })
     });
