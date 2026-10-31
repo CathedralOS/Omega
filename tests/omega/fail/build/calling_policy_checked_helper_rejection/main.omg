@@ -4,7 +4,9 @@ use omega_language_std::calling;
 
 data LocalPolicy {}
 LocalCalling satisfies CallingPolicy {
-    CallingPolicy::plan = LocalPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        LocalPolicy::plan(signature)
+    }
 }
 
 machine LocalPolicy::bounded(value: u64) -> bool {
@@ -15,7 +17,9 @@ machine LocalPolicy::bounded(value: u64) -> bool {
     machine accept(value: u64) -> bool requires value <= 1 { true }
 }
 
-machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult 
+    satisfies CallingPolicy::plan
+{
     transition LocalPolicy::bounded(signature.parameter_count) {
         true -> observed()
         false -> unexpected()

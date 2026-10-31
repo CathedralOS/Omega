@@ -646,6 +646,11 @@ fn sole_static_call(
     if !call.target_is_static {
         return None;
     }
+    let target_name = call.target.as_str(syntax_trees).to_string();
+    let target_span = call.target.source_span();
+    if !call.receiver.is_valid() {
+        return Some((target_name, target_span));
+    }
     let syntax::expression::ExpressionNode::Name(path) =
         syntax_trees.expressions.expression(call.receiver)
     else {
@@ -657,13 +662,10 @@ fn sole_static_call(
         .iter()
         .map(|member| member.as_str(syntax_trees).to_string())
         .collect::<Vec<_>>();
-    names.push(call.target.as_str(syntax_trees).to_string());
+    names.push(target_name);
     let span = source::SourceSpan::new(
         first.source_span().source_id,
-        source::Span::new(
-            first.source_span().span.start,
-            call.target.source_span().span.end,
-        ),
+        source::Span::new(first.source_span().span.start, target_span.span.end),
     );
     Some((names.join("::"), span))
 }

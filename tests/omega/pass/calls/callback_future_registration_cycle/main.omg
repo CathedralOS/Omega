@@ -4,12 +4,18 @@ use omega::language::core::external_binding;
 
 public data CallbackPolicies { }
 public InitializerCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CallbackPolicies::initializer;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CallbackPolicies::initializer(signature)
+    }
 }
 public RegistrationCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CallbackPolicies::registration;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CallbackPolicies::registration(signature)
+    }
 }
 macos_arm64 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
+
+    satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 1 && !signature.has_result {
         true -> accept()
@@ -29,6 +35,8 @@ macos_arm64 machine CallbackPolicies::initializer(signature: BoundarySignature) 
 }
 
 macos_arm64 machine CallbackPolicies::registration(signature: BoundarySignature) -> BoundaryPlanResult
+
+    satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 1 && signature.has_result
         && (signature.native_parameter_count == 1 || signature.native_parameter_count == 2)

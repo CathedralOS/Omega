@@ -3,14 +3,18 @@ use omega_language_std::calling;
 
 data LocalPolicy {}
 LocalCalling satisfies CallingPolicy {
-    CallingPolicy::plan = LocalPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        LocalPolicy::plan(signature)
+    }
 }
 
 machine LocalPolicy::bounded(value: u64) -> bool
 requires value <= 1
 { true }
 
-machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult 
+    satisfies CallingPolicy::plan
+{
     let observed: bool = LocalPolicy::bounded(signature.parameter_count);
     BoundaryPlanResult::Rejected {
         reason: CallingPolicyRejection { reason: "unproved helper ran" },
