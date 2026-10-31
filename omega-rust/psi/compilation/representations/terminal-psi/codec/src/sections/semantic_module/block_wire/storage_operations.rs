@@ -4,6 +4,9 @@
 
 use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::super::structural_field_wire::{
+    decode_canonical_structural_field, encode_canonical_structural_field,
+};
 use super::super::wire::{Reader, Writer};
 use super::operation_tags;
 use super::{decode_scalar_field_path, encode_scalar_field_path};
@@ -247,19 +250,13 @@ pub(super) fn encode_structural_case_leaf_copy(
     path: &[CanonicalStructuralPathSegment],
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::STRUCTURAL_CASE_LEAF_COPY);
-    super::super::structural_field_wire::encode_canonical_structural_field(
-        writer,
-        source,
-        path,
-        "case leaf copy path",
-    )
+    encode_canonical_structural_field(writer, source, path, "case leaf copy path")
 }
 
 pub(super) fn decode_structural_case_leaf_copy(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
-    let (source, path) =
-        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
+    let (source, path) = decode_canonical_structural_field(reader)?;
     Ok(OperationKind::StructuralCaseLeafCopy { source, path })
 }
 
