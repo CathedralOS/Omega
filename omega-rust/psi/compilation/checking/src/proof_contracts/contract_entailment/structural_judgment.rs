@@ -1773,14 +1773,10 @@ impl<'program> StructuralJudge<'program> {
                     // the zero representation supplied by construction. Select
                     // only a closed in-bounds coordinate; neither the desired
                     // predicate nor an empty array can supply a missing cell.
-                    if let StructuralTerm::RepeatedArray {
-                        length,
-                        element: Some(element),
-                    } = &collection
-                        && let StructuralTerm::Integer(index) = &index
-                        && index.to_u64().is_some_and(|index| index < *length)
+                    if let Some(element) =
+                        super::observed_projections::uniform_element(&collection, &index)
                     {
-                        term = (**element).clone();
+                        term = element;
                         continue;
                     }
                     let resolved = StructuralTerm::IndexedValue {

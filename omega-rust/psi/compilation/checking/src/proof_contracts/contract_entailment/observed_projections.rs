@@ -8,6 +8,29 @@ use super::structural_judgment::StructuralTerm;
 use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Select from a complete uniform value without executing a machine or
+/// observing storage. Both restricted declaration substitution and runtime
+/// normalization use this same closed, independently in-bounds projection.
+pub(super) fn uniform_element(
+    collection: &StructuralTerm,
+    index: &StructuralTerm,
+) -> Option<StructuralTerm> {
+    let StructuralTerm::RepeatedArray {
+        length,
+        element: Some(element),
+    } = collection
+    else {
+        return None;
+    };
+    let StructuralTerm::Integer(index) = index else {
+        return None;
+    };
+    index
+        .to_u64()
+        .filter(|index| index < length)
+        .map(|_| (**element).clone())
+}
+
 pub(super) fn project_observed_value(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,

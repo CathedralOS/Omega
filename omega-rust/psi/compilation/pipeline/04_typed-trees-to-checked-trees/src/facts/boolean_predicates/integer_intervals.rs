@@ -20,6 +20,19 @@ impl BoundPredicate {
         mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
     ) -> Option<IntegerRange> {
         let carrier = validation::carrier_integer_range(primitive)?;
+        // Identical storage coordinates do not equate different numeric
+        // interpretations of those bits. Retained observation types remain
+        // part of the premise when a view or recast changes its carrier.
+        if self.bindings.iter().any(|binding| {
+            binding.place == *place
+                && binding
+                    .operand
+                    .scalar()
+                    .and_then(|operand| operand.primitive_type())
+                    != Some(primitive)
+        }) {
+            return Some(carrier);
+        }
         consequence(
             self,
             &self.expression,
