@@ -160,7 +160,7 @@ impl CallableApplication {
                                 }
                                 types::TypeReferenceNode::ConstExpression(expression) => {
                                     let expression::ExpressionNode::Integer(value) =
-                                        program.expression(*expression)
+                                        program.expression_table.expression(*expression)
                                     else {
                                         return Err(
                                             "nominal callable array extent application needs a normalized integer argument",
@@ -358,11 +358,12 @@ impl CallableApplication {
         // A private execution projection narrows iteration roots while keeping
         // backing handles stable. Only the backing arena's frontier separates
         // this copy from retained source predicates with larger handles.
-        let first = program.expression_count() + 1;
-        let copied = program.insert_copy(original);
+        let first = program.expression_table.expression_count() + 1;
+        let copied = program.expression_table.insert_copy(original);
         // Snapshot only this copy's rows. Applying a type payload can append
         // another expression graph; that graph is applied by its own invocation.
         let rows = program
+            .expression_table
             .iter_expressions()
             .filter(|(handle, _)| handle.arena_index() as usize >= first)
             .map(|(handle, _)| handle)
@@ -371,14 +372,15 @@ impl CallableApplication {
         // this copied graph against its declaration's lexical telescope,
         // before freshening or substitution; never search global spellings.
         for handle in &rows {
-            let expression::ExpressionNode::Name(mut path) = program.expression(*handle).clone()
+            let expression::ExpressionNode::Name(mut path) =
+                program.expression_table.expression(*handle).clone()
             else {
                 continue;
             };
             if path.head_symbol.is_valid() || path.symbol.is_valid() {
                 continue;
             }
-            let [member] = program.name_path_members(path.members) else {
+            let [member] = program.expression_table.name_path_members(path.members) else {
                 continue;
             };
             if let Some((_, symbol)) = self
@@ -392,18 +394,21 @@ impl CallableApplication {
                 // consumers authenticate the member roster as well as the
                 // head and leaf, so a partially resolved copy is unavailable.
                 let mut member_symbols = HandleSpan::empty();
-                program.push_name_path_member_symbol(&mut member_symbols, *symbol);
+                program
+                    .expression_table
+                    .push_name_path_member_symbol(&mut member_symbols, *symbol);
                 path.member_symbols = member_symbols;
                 path.head_symbol = *symbol;
                 path.symbol = *symbol;
-                *program.expression_mut(*handle) = expression::ExpressionNode::Name(path);
+                *program.expression_table.expression_mut(*handle) =
+                    expression::ExpressionNode::Name(path);
             }
         }
         program
             .expression_table
             .remap_symbols_in(copied, &self.symbols);
         for handle in rows {
-            let node = program.expression(handle).clone();
+            let node = program.expression_table.expression(handle).clone();
             let applied = match node {
                 expression::ExpressionNode::Name(path) => {
                     if self
@@ -443,7 +448,7 @@ impl CallableApplication {
                         };
                         let replacement =
                             Self::selected_value_expression(program, argument, carrier)?;
-                        Some(program.expression(replacement).clone())
+                        Some(program.expression_table.expression(replacement).clone())
                     } else {
                         None
                     }
@@ -496,6 +501,7 @@ impl CallableApplication {
                             .static_machine_application_arguments_mut(application)
                             .clone_from_slice(&arguments);
                         let mut selected = program
+                            .expression_table
                             .static_machine_application_selected_machines(application)
                             .to_vec();
                         self.static_arguments(program, &mut selected)?;
@@ -539,9 +545,13 @@ impl CallableApplication {
                 _ => None,
             };
             if let Some(applied) = applied {
-                *program.expression_mut(handle) = applied;
+                *program.expression_table.expression_mut(handle) = applied;
             }
-            if let Some(mut authority) = program.index_expression_authority(handle).cloned() {
+            if let Some(mut authority) = program
+                .expression_table
+                .index_expression_authority(handle)
+                .cloned()
+            {
                 if let Some(normalization) = &mut authority.normalization {
                     normalization.index_type =
                         self.type_reference(program, normalization.index_type)?;
@@ -574,7 +584,9 @@ impl CallableApplication {
                         operation.apply_provider(selected, &alias);
                     }
                 }
-                *program.index_expression_authority_mut(handle) = authority;
+                *program
+                    .expression_table
+                    .index_expression_authority_mut(handle) = authority;
             }
         }
         Ok(copied)

@@ -523,7 +523,7 @@ fn realize_capture(
                 conformance.symbol,
                 &lifetimes,
             );
-            expressions_of(program)
+            expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);
             candidate.binding_application = binding;
             let machine = &program.machines()[index];
