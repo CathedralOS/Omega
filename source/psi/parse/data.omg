@@ -9,7 +9,7 @@ use psi::tokens::tokens;
 
 // `[public] data Name [<generic parameters>] [properties] [where facts]
 // [requires facts] { members }`, entered at the `data` keyword. Members are
-// fields `[#N] name: Type;` and cases `case [#N] Name [(payload fields)];`,
+// fields `[#N] name: Type;` and cases `[#N] case Name [(payload fields)];`,
 // in any order; `case: Type;` is a field named `case`. A case has no
 // predicate clause. Payload
 // fields are `[#N] name: Type`. `#N` is a stable schema identity. Every
