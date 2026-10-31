@@ -1,5 +1,7 @@
 //! Catalog execution sources are recorded beside, never inside, Product routing.
 
+use super::validation::validate_package_navigation;
+use super::validation::validate_source_identity;
 use super::{
     CanonicalCatalogDependency, CanonicalDependencySourceRequest,
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
@@ -10,6 +12,7 @@ use crate::declarations::BuildDeclarationKind;
 #[cfg(test)]
 use crate::declarations::dependencies::read::DependencyPurpose;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
+use std::iter::once;
 
 pub(super) fn project(
     target: &ExactTargetPackageSourceClosure<'_>,
@@ -117,14 +120,8 @@ pub(super) fn validate(
             ));
         }
         previous = Some(dependency);
-        super::validation::validate_source_identity(
-            &dependency.observer,
-            limits.maximum_identity_bytes,
-        )?;
-        super::validation::validate_package_navigation(
-            &dependency.observer,
-            &dependency.navigation,
-        )?;
+        validate_source_identity(&dependency.observer, limits.maximum_identity_bytes)?;
+        validate_package_navigation(&dependency.observer, &dependency.navigation)?;
         super::validation::validate_dependency_request(
             Request::from(&dependency.request),
             limits.maximum_request_bytes,
@@ -142,9 +139,7 @@ pub(super) fn validate(
             alias,
             selected: selected.clone(),
         };
-        for graph in
-            std::iter::once(subject).chain(dependencies.iter().map(|entry| &entry.provider))
-        {
+        for graph in once(subject).chain(dependencies.iter().map(|entry| &entry.provider)) {
             if ResolvedSourceIdentity::index_in(&graph.packages, dependency.observer.key())
                 .is_some()
                 && !graph

@@ -2,6 +2,7 @@
 
 use super::{PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure};
 use crate::operations::{PackageFileTransaction, PackagePublicationError};
+use platform_custody::record_file::RecordFileError;
 use platform_custody::record_file::{RecordFileLimits, RecordFileRoot, RootRecordRead};
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
@@ -11,9 +12,7 @@ pub(super) const LIMITS: RecordFileLimits = RecordFileLimits {
     maximum_bytes: 128 * 1024 * 1024,
 };
 
-pub(super) fn file_failure(
-    error: platform_custody::record_file::RecordFileError,
-) -> PackageCommandError {
+pub(super) fn file_failure(error: RecordFileError) -> PackageCommandError {
     failure(PackagePublicationError::File(error))
 }
 

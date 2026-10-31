@@ -1,18 +1,19 @@
 //! Selected form encoding tests.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    SelectedInstructionKind, ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
-    encode_x86_64_selected_form, encode_x86_64_selected_i64_less_than_branch_form,
-    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
+    SelectedInstructionKind as Kind, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError, encode_x86_64_selected_form,
+    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, validate_x86_64_selected_form_encoding,
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use crate::selected_form_encoding::decoding::{DecodedInstruction, decode_one};
+use crate::selected_form_encoding::decoding::{DecodedInstruction as Decoded, decode_one};
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
 use crate::selected_form_encoding::trapping_forms::{TrappingRow, TrappingShape};
 use crate::x86_64_physical_register_model;
@@ -93,7 +94,7 @@ pub(crate) fn assert_byte_loop_catalog_contract(
 /// `validate`, so those two calls arrive as closures over the shared body.
 pub(crate) fn assert_loop_form_round_trips_and_rejects_every_changed_bit(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     rosters: &[&[&str]],
     encode: impl Fn(
@@ -128,12 +129,12 @@ pub(crate) fn assert_loop_form_round_trips_and_rejects_every_changed_bit(
     }
 }
 
-fn alternative(family: MachineAlternativeFamily, variant: u32) -> MachineAlternativeKey {
+fn alternative(family: Family, variant: u32) -> MachineAlternativeKey {
     MachineAlternativeKey { family, variant }
 }
 
-fn exact_add() -> SelectedInstructionKind {
-    SelectedInstructionKind::ExactAddI64 {
+fn exact_add() -> Kind {
+    Kind::ExactAddI64 {
         obligation: ObligationId::new(1).unwrap(),
         accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
     }
@@ -141,7 +142,7 @@ fn exact_add() -> SelectedInstructionKind {
 
 fn assert_every_byte_change_rejected(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     key: MachineAlternativeKey,
     operands: &[RegisterViewId],
     bytes: &[u8],
@@ -160,7 +161,7 @@ fn assert_every_byte_change_rejected(
 
 fn assert_every_bit_change_rejected(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     key: MachineAlternativeKey,
     operands: &[RegisterViewId],
     bytes: &[u8],
@@ -181,7 +182,7 @@ fn assert_every_bit_change_rejected(
 
 fn assert_every_operand_substitution_rejected(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     key: MachineAlternativeKey,
     operands: &[RegisterViewId],
     substitute: RegisterViewId,
@@ -201,13 +202,10 @@ fn assert_every_operand_substitution_rejected(
 #[test]
 fn saturating_subtract_binds_registers_condition_and_flag_effects() {
     assert_saturating_operation_binds_registers_condition_and_flag_effects(
-        SelectedInstructionKind::SaturatingSubtract {
+        Kind::SaturatingSubtract {
             carrier: SaturatingCarrier::U64,
         },
-        alternative(
-            MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-            0,
-        ),
+        alternative(Family::SaturatingSubtract(SaturatingCarrier::U64), 0),
         13,
     );
 }
@@ -215,13 +213,10 @@ fn saturating_subtract_binds_registers_condition_and_flag_effects() {
 #[test]
 fn saturating_add_binds_registers_condition_and_flag_effects() {
     assert_saturating_operation_binds_registers_condition_and_flag_effects(
-        SelectedInstructionKind::SaturatingAdd {
+        Kind::SaturatingAdd {
             carrier: SaturatingCarrier::U64,
         },
-        alternative(
-            MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-            0,
-        ),
+        alternative(Family::SaturatingAdd(SaturatingCarrier::U64), 0),
         19,
     );
 }
@@ -230,7 +225,7 @@ fn saturating_add_binds_registers_condition_and_flag_effects() {
 /// own length and decodes to the same read, write, and flag-effect surfaces;
 /// an output that overlaps either input is the early-clobber rejection.
 fn assert_saturating_operation_binds_registers_condition_and_flag_effects(
-    kind: SelectedInstructionKind,
+    kind: Kind,
     key: MachineAlternativeKey,
     encoded_length: usize,
 ) {
@@ -287,19 +282,19 @@ fn saturation_high_register_bytes_match_independent_assembler() {
     // Independently assembled with Apple clang; not derived from this encoder.
     for (kind, family, bytes) in [
         (
-            SelectedInstructionKind::SaturatingSubtract {
+            Kind::SaturatingSubtract {
                 carrier: SaturatingCarrier::U64,
             },
-            MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
+            Family::SaturatingSubtract(SaturatingCarrier::U64),
             vec![
                 0x4d, 0x39, 0xc8, 0x4d, 0x89, 0xc2, 0x4d, 0x0f, 0x42, 0xd1, 0x4d, 0x29, 0xca,
             ],
         ),
         (
-            SelectedInstructionKind::SaturatingAdd {
+            Kind::SaturatingAdd {
                 carrier: SaturatingCarrier::U64,
             },
-            MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
+            Family::SaturatingAdd(SaturatingCarrier::U64),
             vec![
                 0x4d, 0x89, 0xc2, 0x49, 0xf7, 0xd2, 0x4d, 0x39, 0xca, 0x4d, 0x0f, 0x42, 0xd1, 0x4d,
                 0x29, 0xca, 0x49, 0xf7, 0xd2,
@@ -328,18 +323,18 @@ fn variable_shift_bytes_match_independent_assembler() {
     let operands = ["r8", "rcx", "r10"].map(|name| physical.model().view_named(name).unwrap().id);
     for (kind, family, tail) in [
         (
-            SelectedInstructionKind::WrappingShiftLeftI64,
-            MachineAlternativeFamily::WrappingShiftLeftI64,
+            Kind::WrappingShiftLeftI64,
+            Family::WrappingShiftLeftI64,
             0xe2u8,
         ),
         (
-            SelectedInstructionKind::WrappingShiftRightU64,
-            MachineAlternativeFamily::WrappingShiftRightU64,
+            Kind::WrappingShiftRightU64,
+            Family::WrappingShiftRightU64,
             0xea,
         ),
         (
-            SelectedInstructionKind::WrappingShiftRightI64,
-            MachineAlternativeFamily::WrappingShiftRightI64,
+            Kind::WrappingShiftRightI64,
+            Family::WrappingShiftRightI64,
             0xfa,
         ),
     ] {
@@ -354,11 +349,11 @@ fn variable_shift_bytes_match_independent_assembler() {
 #[test]
 fn wrapping_remainder_binds_guard_signed_division_scratch_and_aliases() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::WrappingRemainderI64 {
+    let kind = Kind::WrappingRemainderI64 {
         obligation: ObligationId::new(1).unwrap(),
         accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
     };
-    let key = alternative(MachineAlternativeFamily::WrappingRemainderI64, 0);
+    let key = alternative(Family::WrappingRemainderI64, 0);
     for divisor in ["rax", "rcx", "r9", "r15"] {
         let operands = ["rax", divisor, "rax", "rdx"]
             .map(|name| physical.model().view_named(name).unwrap().id);
@@ -404,11 +399,11 @@ fn wrapping_remainder_binds_guard_signed_division_scratch_and_aliases() {
 #[test]
 fn wrapping_remainder_guard_skips_overflowing_quotient_and_keeps_dividend_sign() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::WrappingRemainderI64 {
+    let kind = Kind::WrappingRemainderI64 {
         obligation: ObligationId::new(1).unwrap(),
         accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
     };
-    let key = alternative(MachineAlternativeFamily::WrappingRemainderI64, 0);
+    let key = alternative(Family::WrappingRemainderI64, 0);
     let operands =
         ["rax", "r9", "rax", "rdx"].map(|name| physical.model().view_named(name).unwrap().id);
     let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
@@ -434,29 +429,29 @@ fn wrapping_remainder_guard_skips_overflowing_quotient_and_keeps_dividend_sign()
             let (instruction, length) = decode_one(&encoded.bytes()[byte_position..]).unwrap();
             byte_position += length;
             match instruction {
-                DecodedInstruction::Xor {
+                Decoded::Xor {
                     source,
                     destination,
                 } => {
                     registers[destination as usize] ^= registers[source as usize];
                 }
-                DecodedInstruction::CompareSignedImmediate8 {
+                Decoded::CompareSignedImmediate8 {
                     register,
                     immediate,
                 } => {
                     equal = registers[register as usize] == i64::from(immediate);
                 }
-                DecodedInstruction::JumpEqualShort { displacement } => {
+                Decoded::JumpEqualShort { displacement } => {
                     if equal {
                         byte_position = byte_position
                             .checked_add_signed(displacement as isize)
                             .unwrap();
                     }
                 }
-                DecodedInstruction::SignExtendDividend => {
+                Decoded::SignExtendDividend => {
                     registers[2] = registers[0] >> 63;
                 }
-                DecodedInstruction::SignedDivide { divisor } => {
+                Decoded::SignedDivide { divisor } => {
                     let dividend =
                         (i128::from(registers[2]) << 64) | i128::from(registers[0] as u64);
                     let divisor = i128::from(registers[divisor as usize]);
@@ -465,7 +460,7 @@ fn wrapping_remainder_guard_skips_overflowing_quotient_and_keeps_dividend_sign()
                     registers[2] = (dividend % divisor) as i64;
                     registers[0] = quotient;
                 }
-                DecodedInstruction::Move {
+                Decoded::Move {
                     source,
                     destination,
                 } => {
@@ -489,39 +484,34 @@ fn wrapping_divide_then_sign_extension_wraps_narrow_min_by_minus_one() {
     let view = |name: &str| physical.model().view_named(name).unwrap().id;
     let divide = encode_x86_64_selected_form(
         &physical,
-        SelectedInstructionKind::WrappingDivideI64 {
+        Kind::WrappingDivideI64 {
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
         },
-        alternative(MachineAlternativeFamily::WrappingDivideI64, 0),
+        alternative(Family::WrappingDivideI64, 0),
         &["rax", "r9", "rax", "rdx"].map(view),
     )
     .unwrap();
     for (extension, family, minimum, maximum) in [
         (
-            Some(SelectedInstructionKind::SignExtendI8),
-            MachineAlternativeFamily::SignExtendI8,
+            Some(Kind::SignExtendI8),
+            Family::SignExtendI8,
             i64::from(i8::MIN),
             i64::from(i8::MAX),
         ),
         (
-            Some(SelectedInstructionKind::SignExtendI16),
-            MachineAlternativeFamily::SignExtendI16,
+            Some(Kind::SignExtendI16),
+            Family::SignExtendI16,
             i64::from(i16::MIN),
             i64::from(i16::MAX),
         ),
         (
-            Some(SelectedInstructionKind::SignExtendI32),
-            MachineAlternativeFamily::SignExtendI32,
+            Some(Kind::SignExtendI32),
+            Family::SignExtendI32,
             i64::from(i32::MIN),
             i64::from(i32::MAX),
         ),
-        (
-            None,
-            MachineAlternativeFamily::SignExtendI32,
-            i64::MIN,
-            i64::MAX,
-        ),
+        (None, Family::SignExtendI32, i64::MIN, i64::MAX),
     ] {
         let mut bytes = divide.bytes().to_vec();
         if let Some(extension) = extension {
@@ -554,28 +544,28 @@ fn wrapping_divide_then_sign_extension_wraps_narrow_min_by_minus_one() {
                 let (instruction, length) = decode_one(&bytes[byte_position..]).unwrap();
                 byte_position += length;
                 match instruction {
-                    DecodedInstruction::CompareSignedImmediate8 {
+                    Decoded::CompareSignedImmediate8 {
                         register,
                         immediate,
                     } => equal = registers[register as usize] == i64::from(immediate),
-                    DecodedInstruction::JumpNotEqualShort { displacement } => {
+                    Decoded::JumpNotEqualShort { displacement } => {
                         if !equal {
                             byte_position = byte_position
                                 .checked_add_signed(displacement as isize)
                                 .unwrap();
                         }
                     }
-                    DecodedInstruction::JumpShort { displacement } => {
+                    Decoded::JumpShort { displacement } => {
                         byte_position = byte_position
                             .checked_add_signed(displacement as isize)
                             .unwrap();
                     }
-                    DecodedInstruction::Negate { destination } => {
+                    Decoded::Negate { destination } => {
                         registers[destination as usize] =
                             registers[destination as usize].wrapping_neg();
                     }
-                    DecodedInstruction::SignExtendDividend => registers[2] = registers[0] >> 63,
-                    DecodedInstruction::SignedDivide { divisor } => {
+                    Decoded::SignExtendDividend => registers[2] = registers[0] >> 63,
+                    Decoded::SignedDivide { divisor } => {
                         let dividend =
                             (i128::from(registers[2]) << 64) | i128::from(registers[0] as u64);
                         let divisor = i128::from(registers[divisor as usize]);
@@ -583,21 +573,21 @@ fn wrapping_divide_then_sign_extension_wraps_narrow_min_by_minus_one() {
                             .expect("a guarded IDIV never sees the faulting pair");
                         registers[2] = (dividend % divisor) as i64;
                     }
-                    DecodedInstruction::SignExtendI8 {
+                    Decoded::SignExtendI8 {
                         source,
                         destination,
                     } => {
                         registers[destination as usize] =
                             i64::from(registers[source as usize] as i8)
                     }
-                    DecodedInstruction::SignExtendI16 {
+                    Decoded::SignExtendI16 {
                         source,
                         destination,
                     } => {
                         registers[destination as usize] =
                             i64::from(registers[source as usize] as i16)
                     }
-                    DecodedInstruction::SignExtendI32 {
+                    Decoded::SignExtendI32 {
                         source,
                         destination,
                     } => {
@@ -616,11 +606,11 @@ fn wrapping_divide_then_sign_extension_wraps_narrow_min_by_minus_one() {
 #[test]
 fn exact_divide_binds_unsigned_opcode_and_registers() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::ExactDivideU64 {
+    let kind = Kind::ExactDivideU64 {
         obligation: ObligationId::new(1).unwrap(),
         accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
     };
-    let key = alternative(MachineAlternativeFamily::ExactDivideU64, 0);
+    let key = alternative(Family::ExactDivideU64, 0);
 
     let names = ["rax", "r9", "rax", "rdx"];
     let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
@@ -640,24 +630,21 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
     );
 }
 
-fn saturating_kind(
-    operation: SaturatingOperation,
-    carrier: SaturatingCarrier,
-) -> SelectedInstructionKind {
+fn saturating_kind(operation: SaturatingOperation, carrier: SaturatingCarrier) -> Kind {
     match operation {
-        SaturatingOperation::Add => SelectedInstructionKind::SaturatingAdd { carrier },
-        SaturatingOperation::Subtract => SelectedInstructionKind::SaturatingSubtract { carrier },
-        SaturatingOperation::Divide => SelectedInstructionKind::SaturatingDivide {
+        SaturatingOperation::Add => Kind::SaturatingAdd { carrier },
+        SaturatingOperation::Subtract => Kind::SaturatingSubtract { carrier },
+        SaturatingOperation::Divide => Kind::SaturatingDivide {
             carrier,
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
         },
-        SaturatingOperation::Remainder => SelectedInstructionKind::SaturatingRemainder {
+        SaturatingOperation::Remainder => Kind::SaturatingRemainder {
             carrier,
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
         },
-        SaturatingOperation::Multiply => SelectedInstructionKind::SaturatingMultiply { carrier },
+        SaturatingOperation::Multiply => Kind::SaturatingMultiply { carrier },
     }
 }
 
@@ -667,13 +654,11 @@ fn saturating_key(
 ) -> MachineAlternativeKey {
     alternative(
         match operation {
-            SaturatingOperation::Add => MachineAlternativeFamily::SaturatingAdd(carrier),
-            SaturatingOperation::Subtract => MachineAlternativeFamily::SaturatingSubtract(carrier),
-            SaturatingOperation::Divide => MachineAlternativeFamily::SaturatingDivide(carrier),
-            SaturatingOperation::Remainder => {
-                MachineAlternativeFamily::SaturatingRemainder(carrier)
-            }
-            SaturatingOperation::Multiply => MachineAlternativeFamily::SaturatingMultiply(carrier),
+            SaturatingOperation::Add => Family::SaturatingAdd(carrier),
+            SaturatingOperation::Subtract => Family::SaturatingSubtract(carrier),
+            SaturatingOperation::Divide => Family::SaturatingDivide(carrier),
+            SaturatingOperation::Remainder => Family::SaturatingRemainder(carrier),
+            SaturatingOperation::Multiply => Family::SaturatingMultiply(carrier),
         },
         0,
     )
@@ -784,15 +769,15 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
         let (instruction, length) = decode_one(&bytes[byte_position..]).unwrap();
         byte_position += length;
         match instruction {
-            DecodedInstruction::Crash => return DecodedOutcome::Trapped,
-            DecodedInstruction::Move {
+            Decoded::Crash => return DecodedOutcome::Trapped,
+            Decoded::Move {
                 source,
                 destination,
             } => registers[usize::from(destination)] = registers[usize::from(source)],
-            DecodedInstruction::Materialize { destination, value } => {
+            Decoded::Materialize { destination, value } => {
                 registers[usize::from(destination)] = value;
             }
-            DecodedInstruction::Add {
+            Decoded::Add {
                 source,
                 destination,
             } => {
@@ -808,7 +793,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     left.checked_add(right).is_none(),
                 );
             }
-            DecodedInstruction::Subtract {
+            Decoded::Subtract {
                 source,
                 destination,
             } => {
@@ -819,19 +804,19 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                 registers[usize::from(destination)] = left.wrapping_sub(right);
                 flags = subtract_flags(left, right);
             }
-            DecodedInstruction::Compare { left, right } => {
+            Decoded::Compare { left, right } => {
                 flags = subtract_flags(registers[usize::from(left)], registers[usize::from(right)]);
             }
-            DecodedInstruction::CompareSignedImmediate8 {
+            Decoded::CompareSignedImmediate8 {
                 register,
                 immediate,
             } => {
                 flags = subtract_flags(registers[usize::from(register)], immediate as i64 as u64);
             }
-            DecodedInstruction::CompareRaxImmediate32 { immediate } => {
+            Decoded::CompareRaxImmediate32 { immediate } => {
                 flags = subtract_flags(registers[0], immediate as i64 as u64);
             }
-            DecodedInstruction::Test { register } => {
+            Decoded::Test { register } => {
                 // TEST clears OF and CF and sets ZF and SF from the value.
                 flags = SaturatingFlags::arithmetic(
                     signed(registers[usize::from(register)]),
@@ -839,28 +824,28 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     false,
                 );
             }
-            DecodedInstruction::SignExtendI8 {
+            Decoded::SignExtendI8 {
                 source,
                 destination,
             } => {
                 registers[usize::from(destination)] =
                     i64::from(registers[usize::from(source)] as i8) as u64;
             }
-            DecodedInstruction::SignExtendI16 {
+            Decoded::SignExtendI16 {
                 source,
                 destination,
             } => {
                 registers[usize::from(destination)] =
                     i64::from(registers[usize::from(source)] as i16) as u64;
             }
-            DecodedInstruction::SignExtendI32 {
+            Decoded::SignExtendI32 {
                 source,
                 destination,
             } => {
                 registers[usize::from(destination)] =
                     i64::from(registers[usize::from(source)] as i32) as u64;
             }
-            DecodedInstruction::ShiftRightLogicalImmediate { destination, count } => {
+            Decoded::ShiftRightLogicalImmediate { destination, count } => {
                 // A nonzero immediate count defines ZF, SF, and CF from the
                 // result; OF is undefined for counts other than one.
                 let value = registers[usize::from(destination)];
@@ -872,48 +857,48 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     ..SaturatingFlags::undefined()
                 };
             }
-            DecodedInstruction::ShiftLeftByCl { destination }
-            | DecodedInstruction::ShiftRightLogicalByCl { destination }
-            | DecodedInstruction::ShiftRightArithmeticByCl { destination } => {
+            Decoded::ShiftLeftByCl { destination }
+            | Decoded::ShiftRightLogicalByCl { destination }
+            | Decoded::ShiftRightArithmeticByCl { destination } => {
                 // The 64-bit forms mask CL to six bits; a zero count leaves
                 // every flag unchanged, and no Trapping form reads the flags
                 // a nonzero count defines, so they are left undefined.
                 let count = registers[1] & 63;
                 let value = registers[usize::from(destination)];
                 registers[usize::from(destination)] = match instruction {
-                    DecodedInstruction::ShiftLeftByCl { .. } => value << count,
-                    DecodedInstruction::ShiftRightLogicalByCl { .. } => value >> count,
+                    Decoded::ShiftLeftByCl { .. } => value << count,
+                    Decoded::ShiftRightLogicalByCl { .. } => value >> count,
                     _ => ((value as i64) >> count) as u64,
                 };
                 if count != 0 {
                     flags = SaturatingFlags::undefined();
                 }
             }
-            DecodedInstruction::JumpNotEqualShort { displacement } => {
+            Decoded::JumpNotEqualShort { displacement } => {
                 let taken = !flags.zero.expect("JNE reads a defined ZF");
                 jump(&mut byte_position, displacement, taken);
             }
-            DecodedInstruction::JumpNoOverflowShort { displacement } => {
+            Decoded::JumpNoOverflowShort { displacement } => {
                 let taken = !flags.overflow.expect("JNO reads a defined OF");
                 jump(&mut byte_position, displacement, taken);
             }
-            DecodedInstruction::JumpBelowShort { displacement } => {
+            Decoded::JumpBelowShort { displacement } => {
                 let taken = flags.carry.expect("JB reads a defined CF");
                 jump(&mut byte_position, displacement, taken);
             }
-            DecodedInstruction::JumpAboveOrEqualShort { displacement } => {
+            Decoded::JumpAboveOrEqualShort { displacement } => {
                 let taken = !flags.carry.expect("JAE reads a defined CF");
                 jump(&mut byte_position, displacement, taken);
             }
-            DecodedInstruction::Complement { destination } => {
+            Decoded::Complement { destination } => {
                 registers[usize::from(destination)] = !registers[usize::from(destination)];
             }
-            DecodedInstruction::Negate { destination } => {
+            Decoded::Negate { destination } => {
                 let value = registers[usize::from(destination)];
                 registers[usize::from(destination)] = value.wrapping_neg();
                 flags = subtract_flags(0, value);
             }
-            DecodedInstruction::SubtractWithBorrow {
+            Decoded::SubtractWithBorrow {
                 source,
                 destination,
             } => {
@@ -930,7 +915,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     u128::from(left) < u128::from(right) + u128::from(borrow),
                 );
             }
-            DecodedInstruction::Or {
+            Decoded::Or {
                 source,
                 destination,
             } => {
@@ -941,7 +926,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     false,
                 );
             }
-            DecodedInstruction::ArithmeticShiftRight63 { destination } => {
+            Decoded::ArithmeticShiftRight63 { destination } => {
                 let value = registers[usize::from(destination)];
                 registers[usize::from(destination)] = ((value as i64) >> 63) as u64;
                 flags = SaturatingFlags {
@@ -949,7 +934,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     ..SaturatingFlags::undefined()
                 };
             }
-            DecodedInstruction::ComplementBit63 { destination } => {
+            Decoded::ComplementBit63 { destination } => {
                 let value = registers[usize::from(destination)];
                 registers[usize::from(destination)] = value ^ (1 << 63);
                 flags = SaturatingFlags {
@@ -957,7 +942,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     ..SaturatingFlags::undefined()
                 };
             }
-            DecodedInstruction::Lea {
+            Decoded::Lea {
                 destination,
                 base,
                 index: None,
@@ -966,7 +951,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                 registers[usize::from(destination)] =
                     registers[usize::from(base)].wrapping_add(displacement as i64 as u64);
             }
-            DecodedInstruction::MoveOnOverflow {
+            Decoded::MoveOnOverflow {
                 source,
                 destination,
             } => {
@@ -974,7 +959,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     registers[usize::from(destination)] = registers[usize::from(source)];
                 }
             }
-            DecodedInstruction::MoveOnBorrow {
+            Decoded::MoveOnBorrow {
                 source,
                 destination,
             } => {
@@ -982,7 +967,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     registers[usize::from(destination)] = registers[usize::from(source)];
                 }
             }
-            DecodedInstruction::MoveOnGreater {
+            Decoded::MoveOnGreater {
                 source,
                 destination,
             } => {
@@ -990,7 +975,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     registers[usize::from(destination)] = registers[usize::from(source)];
                 }
             }
-            DecodedInstruction::MoveOnLess {
+            Decoded::MoveOnLess {
                 source,
                 destination,
             } => {
@@ -998,7 +983,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     registers[usize::from(destination)] = registers[usize::from(source)];
                 }
             }
-            DecodedInstruction::MoveOnAbove {
+            Decoded::MoveOnAbove {
                 source,
                 destination,
             } => {
@@ -1011,7 +996,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     registers[usize::from(destination)] = registers[usize::from(source)];
                 }
             }
-            DecodedInstruction::Multiply {
+            Decoded::Multiply {
                 source,
                 destination,
             } => {
@@ -1030,7 +1015,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     ..SaturatingFlags::undefined()
                 };
             }
-            DecodedInstruction::UnsignedMultiply { multiplier } => {
+            Decoded::UnsignedMultiply { multiplier } => {
                 // MUL sets OF and CF when the RDX high half is nonzero.
                 let product =
                     u128::from(registers[0]) * u128::from(registers[usize::from(multiplier)]);
@@ -1043,10 +1028,10 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     ..SaturatingFlags::undefined()
                 };
             }
-            DecodedInstruction::SignExtendDividend => {
+            Decoded::SignExtendDividend => {
                 registers[2] = ((registers[0] as i64) >> 63) as u64;
             }
-            DecodedInstruction::SignedDivide { divisor } => {
+            Decoded::SignedDivide { divisor } => {
                 let dividend = (i128::from(registers[2] as i64) << 64) | i128::from(registers[0]);
                 let divisor = i128::from(registers[usize::from(divisor)] as i64);
                 assert_ne!(divisor, 0, "IDIV by zero faults");
@@ -1056,7 +1041,7 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                 registers[0] = quotient as u64;
                 flags = SaturatingFlags::undefined();
             }
-            DecodedInstruction::Xor {
+            Decoded::Xor {
                 source,
                 destination,
             } => {
@@ -1067,11 +1052,11 @@ fn execute_decoded(bytes: &[u8], mut registers: [u64; 16]) -> DecodedOutcome {
                     false,
                 );
             }
-            DecodedInstruction::JumpEqualShort { displacement } => {
+            Decoded::JumpEqualShort { displacement } => {
                 let taken = flags.zero.expect("JE reads a defined ZF");
                 jump(&mut byte_position, displacement, taken);
             }
-            DecodedInstruction::UnsignedDivide { divisor } => {
+            Decoded::UnsignedDivide { divisor } => {
                 let dividend = (u128::from(registers[2]) << 64) | u128::from(registers[0]);
                 let divisor = u128::from(registers[usize::from(divisor)]);
                 assert_ne!(divisor, 0, "DIV by zero faults");
