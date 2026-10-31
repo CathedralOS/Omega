@@ -21,10 +21,23 @@ macro_rules! bounded_limits {
 }
 pub(crate) use bounded_limits;
 
+/// `reserve!` folds the `try_reserve_exact(n).map_err(..)?` chain every text
+/// reader and projection writes by hand into one statement. `$error` is the
+/// caller's error type, whose `AllocationFailed` variant is the only value
+/// the chain ever produced.
+macro_rules! reserve {
+    ($items:expr, $additional:expr, $error:ty) => {
+        $items
+            .try_reserve_exact($additional)
+            .map_err(|_| <$error>::AllocationFailed)?
+    };
+}
+pub(crate) use reserve;
+
 pub(crate) use optimization_core::codec_bytes;
 mod build_session;
 mod hex;
-pub(crate) use hex::Hex;
+pub(crate) use hex::{Hex, hex_digest};
 pub mod declarations;
 pub(crate) use optimization_core::digest_encoder;
 pub mod lock;

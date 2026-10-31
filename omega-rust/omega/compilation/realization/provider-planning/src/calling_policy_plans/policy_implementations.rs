@@ -3,6 +3,7 @@
 //! CallingPolicy requirement row selects an invocation. Names are diagnostic
 //! payload; neither attached machine namespaces nor target defaults select code.
 
+use crate::provider_planning::entry_state;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 
@@ -149,11 +150,7 @@ pub(crate) fn selected_policy_machine<'program>(
     let machine = typed
         .machine(row.realization_machine)
         .ok_or_else(|| "calling policy row has no exact realization machine".to_owned())?;
-    if typed
-        .machine_states(machine)
-        .first()
-        .is_none_or(|state| state.symbol != row.realization_state)
-    {
+    if entry_state(typed, machine).is_none_or(|state| state.symbol != row.realization_state) {
         return Err(
             "calling policy row must select its realization machine's entry state".to_owned(),
         );
@@ -194,11 +191,7 @@ pub(crate) fn selected_policy_machine<'program>(
         let realized = typed
             .machine(capture.instance)
             .ok_or("calling policy capture has no executable body")?;
-        if typed
-            .machine_states(realized)
-            .first()
-            .is_none_or(|state| state.symbol != entry[0].instance)
-        {
+        if entry_state(typed, realized).is_none_or(|state| state.symbol != entry[0].instance) {
             return Err(
                 "calling policy capture does not select its checked entry state".to_owned(),
             );

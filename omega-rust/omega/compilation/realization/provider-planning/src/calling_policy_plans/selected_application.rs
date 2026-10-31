@@ -5,6 +5,7 @@
 //! their different provider owners. Default native plans are materialized only
 //! when an actual external or component boundary requests an ABI application.
 
+use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
@@ -25,9 +26,7 @@ pub(crate) fn selected_source_calling_application(
         ));
     }
     let provider_plan_name = plan.name.as_str();
-    let trait_name = plan
-        .schema
-        .identity_text(plan.schema.declaration.trait_name);
+    let trait_name = trait_name_text(&plan.schema);
     let row = plan
         .rows
         .get(row_index)
@@ -204,9 +203,7 @@ pub fn component_calling_applications(
             ) {
                 continue;
             }
-            let trait_name = plan
-                .schema
-                .identity_text(plan.schema.declaration.trait_name);
+            let trait_name = trait_name_text(&plan.schema);
             let requirement = plan.identities.text(row.requirement_identity);
             let application = selected_source_calling_application(
                 services,

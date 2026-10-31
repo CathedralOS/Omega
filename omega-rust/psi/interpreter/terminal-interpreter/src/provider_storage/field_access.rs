@@ -165,7 +165,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let StructuralTypeShape::Record { fields, .. } =
-            &self.program.structural_declaration(plan.schema)?.shape
+            &self.structural_declaration(plan.schema)?.shape
         else {
             return Err(malformed());
         };

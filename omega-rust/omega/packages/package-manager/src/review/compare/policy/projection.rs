@@ -29,18 +29,14 @@ pub(super) fn candidate<'a>(
         sources.source_closure().custodies().len(),
     )?;
     let mut reviews = Vec::new();
-    reviews
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    super::limits::reserve(&mut reviews, count)?;
     reviews.extend(candidate.reviews());
     reviews.sort_unstable_by(|left, right| {
         (left.key(), left.checked_context().purpose())
             .cmp(&(right.key(), right.checked_context().purpose()))
     });
     let mut custodies = Vec::new();
-    custodies
-        .try_reserve_exact(sources.source_closure().custodies().len())
-        .map_err(|_| Error::AllocationFailed)?;
+    super::limits::reserve(&mut custodies, sources.source_closure().custodies().len())?;
     custodies.extend(sources.source_closure().custodies());
     custodies.sort_unstable_by(|left, right| left.key().cmp(right.key()));
     if let Some(pair) = reviews.windows(2).find(|pair| {

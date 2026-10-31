@@ -288,7 +288,7 @@ impl TerminalExecution<'_> {
         qualifications: &[semantic_vocabulary::StructuralDomainId],
     ) -> Result<(), TerminalInterpretError> {
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             structural_type,
         )
         .ok_or_else(malformed)?;
@@ -320,7 +320,7 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             structural_type,
         )
         .ok_or_else(malformed)?;
@@ -356,7 +356,7 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         count: u64,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let root_type = self.live_structural_type(argument.place)?;
         if crate::custody::resolve_structural_path_type(&types, root_type, &argument.path)?
             != structural_type
@@ -431,7 +431,7 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
     ) -> Result<bool, TerminalInterpretError> {
         self.empty_array_storage.initialized(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_byte_storage,
             home,
             structural_type,
@@ -445,7 +445,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             result.structural_type,
         )
         .ok_or_else(malformed)?;

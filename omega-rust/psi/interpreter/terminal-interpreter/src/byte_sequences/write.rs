@@ -36,8 +36,7 @@ impl TerminalExecution<'_> {
             .map(|parameter| parameter.structural_type)
             .or_else(|| result.map(|(_, structural_type)| structural_type));
         if owned_type.is_some_and(|structural_type| {
-            self.program
-                .structural_types()
+            self.structural_types()
                 .get(&structural_type)
                 .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
         }) {
@@ -51,7 +50,7 @@ impl TerminalExecution<'_> {
                 // permission whether established here or returned by a call.
                 // Its exact live affine home and binding are still required.
                 if terminal_semantics::descriptor_results::result_access(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     result,
                 ) != Some(StructuralAccess::MutableBorrow)
                     || result.place != place
@@ -76,7 +75,7 @@ impl TerminalExecution<'_> {
                     || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         && !terminal_semantics::view_descriptor_parameter(
                             parameter,
-                            self.program.structural_types().values(),
+                            self.structural_types().values(),
                         ))
                 {
                     return Err(malformed());
@@ -88,7 +87,6 @@ impl TerminalExecution<'_> {
                 )
             };
         let bounded_owner = self
-            .program
             .structural_types()
             .get(&structural_type)
             .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
@@ -105,7 +103,7 @@ impl TerminalExecution<'_> {
         }
         let value = self.structural_value(place)?;
         if value.structural_type != structural_type
-            || !matches!(self.program.structural_types().get(&structural_type), Some(declaration)
+            || !matches!(self.structural_types().get(&structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
             return Err(malformed());
@@ -121,7 +119,7 @@ impl TerminalExecution<'_> {
         } = binding
         {
             let length = crate::structural_inputs::byte_arrays::byte_array_length(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 *array_type,
             )
             .ok_or_else(malformed)?;
@@ -217,7 +215,7 @@ impl TerminalExecution<'_> {
         }
         let terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-        ) = self.program.structural_declaration(structural_type)?.shape
+        ) = self.structural_declaration(structural_type)?.shape
         else {
             return Err(malformed());
         };

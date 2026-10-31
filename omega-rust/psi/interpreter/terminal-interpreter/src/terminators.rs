@@ -98,7 +98,7 @@ impl TerminalExecution<'_> {
         discard: &StructuralAffineDiscard,
     ) -> Option<semantic_vocabulary::StructuralCaseId> {
         crate::structural_inputs::case_membership::stored_case_at_projection(
-            &self.program.structural_types(),
+            &self.structural_types(),
             structural_values.get(&discard.place)?,
             self.structural_cases.as_map(),
             &discard.path,
@@ -114,7 +114,7 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
     ) -> Result<(), TerminalInterpretError> {
         consume_affine_projection(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             self.structural_cases.as_map(),
             frontier,

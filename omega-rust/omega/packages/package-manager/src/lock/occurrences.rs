@@ -80,9 +80,7 @@ impl PackageOccurrenceRoster {
     ) -> Result<Self, PackageOccurrenceRosterError> {
         let packages = source.packages();
         let mut purposes = Vec::new();
-        purposes
-            .try_reserve_exact(packages.len())
-            .map_err(|_| PackageOccurrenceRosterError::AllocationFailed)?;
+        crate::reserve!(purposes, packages.len(), PackageOccurrenceRosterError);
         purposes.resize(packages.len(), 0u8);
         let position = |key: &PackageKey| {
             packages
@@ -113,9 +111,7 @@ impl PackageOccurrenceRoster {
             }
         }
         let mut coverages = Vec::new();
-        coverages
-            .try_reserve_exact(packages.len())
-            .map_err(|_| PackageOccurrenceRosterError::AllocationFailed)?;
+        crate::reserve!(coverages, packages.len(), PackageOccurrenceRosterError);
         for (package, mask) in packages.iter().zip(purposes.iter()) {
             if *mask == 0 {
                 return Err(PackageOccurrenceRosterError::UnreachablePackage);

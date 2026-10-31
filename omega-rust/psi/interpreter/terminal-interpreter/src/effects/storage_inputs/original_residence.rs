@@ -34,7 +34,7 @@ fn capture_byte_view(
         // containing record. Each scalar below retains its exact original-root
         // path; only the native layout owner derives physical byte offsets.
         if crate::structural_inputs::byte_arrays::byte_array_length(
-            &execution.program.structural_types(),
+            &execution.structural_types(),
             window.array_type,
         )
         .is_none()
@@ -729,7 +729,7 @@ impl TerminalExecution<'_> {
                 ));
             }
             let path = terminal_semantics::scalar_array_leaf_path(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 structural_type,
                 u64::try_from(index).map_err(|_| malformed())?,
             )
@@ -877,7 +877,7 @@ fn capture_graph(
         let StorageLeafKind::Opaque { declaration, .. } = leaf.kind else {
             continue;
         };
-        let shape = &execution.program.structural_declaration(declaration)?.shape;
+        let shape = &execution.structural_declaration(declaration)?.shape;
         let StructuralTypeShape::Reference {
             referent: child_type,
             access: child_access,
@@ -897,7 +897,7 @@ fn capture_graph(
             return Err(malformed());
         }
         let relative = terminal_semantics::canonical_structural_storage_path(
-            execution.program.structural_types().values(),
+            execution.structural_types().values(),
             referent.structural_type,
             &leaf.path,
         )

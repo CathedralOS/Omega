@@ -159,7 +159,7 @@ impl TerminalExecution<'_> {
         bind_active_structural_arguments(
             &opaque_parameters,
             &opaque_values,
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.structural_cases.as_map(),
             self.account.as_ref(),
         )?;

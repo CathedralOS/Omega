@@ -474,7 +474,7 @@ impl ElementView {
         if !StructuralAccess::SharedBorrow.admits_referent(self.access) {
             return Err(malformed());
         }
-        let types = execution.program.structural_types();
+        let types = execution.structural_types();
         let (collection, projection) = if path.is_empty() {
             let ElementViewBacking::Structural { collection } = &self.backing else {
                 return Err(malformed());
@@ -550,7 +550,7 @@ impl ElementView {
             } else {
                 terminal_semantics::primitive_read_projection_type
             }(
-                execution.program.structural_types().values(),
+                execution.structural_types().values(),
                 collection.structural_type,
                 &selected,
             )
@@ -810,12 +810,12 @@ impl TerminalExecution<'_> {
             _ => declared_source.path.as_slice(),
         };
         let collection_shape = crate::custody::resolve_structural_path_shape(
-            &self.program.structural_types(),
+            &self.structural_types(),
             root_type,
             declared_backing_path,
         )?;
         let collection = terminal_semantics::element_view_shape_region_geometry(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             &collection_shape,
             element,
             ElementViewRegion::WholeCollection,
@@ -833,7 +833,7 @@ impl TerminalExecution<'_> {
             extent,
             region,
             formation_path,
-            self.program.structural_types().get(&element),
+            self.structural_types().get(&element),
         )
         .ok_or_else(malformed)?;
         if let Some(window) = &selected_window {
@@ -904,7 +904,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let collection_type = crate::custody::resolve_structural_path_type(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     root_type,
                     &source.path,
                 )?;
@@ -1072,7 +1072,7 @@ impl TerminalExecution<'_> {
                                 &mut RuntimeRows::new(self.account.as_ref()),
                             )?;
                             crate::custody::project_structural_value(
-                                &self.program.structural_types(),
+                                &self.structural_types(),
                                 &root,
                                 &source.path,
                             )?
@@ -1129,7 +1129,7 @@ impl TerminalExecution<'_> {
                     if !source.access.admits_referent(loan.access()) {
                         return Err(malformed());
                     }
-                    loan.captured_storage_home(&self.program.structural_types(), &[])
+                    loan.captured_storage_home(&self.structural_types(), &[])
                 })
                 .transpose()?
                 .flatten(),
@@ -1170,7 +1170,6 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
         if let Some(storage) = selected.primitive_storage {
             let StructuralTypeShape::PrimitiveScalar(logical) = self
-                .program
                 .structural_declaration(selected.value.structural_type)?
                 .shape
             else {
@@ -1183,7 +1182,7 @@ impl TerminalExecution<'_> {
         } else {
             terminal_semantics::canonical_primitive_path
         }(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             collection.structural_type,
             &path,
         )
@@ -1419,7 +1418,6 @@ impl TerminalExecution<'_> {
         // access without copying an exclusive descriptor.
         let selected = self.resolve_live_projection(source.place, &source.path, metadata_access)?;
         if !self
-            .program
             .structural_types()
             .get(&selected.structural_type)
             .is_some_and(|declaration| {
@@ -1510,7 +1508,7 @@ impl TerminalExecution<'_> {
         let source_value = self.resolve_live_projection(source.place, &source.path, access)?;
         let view = self.element_view_argument(source, &source_value)?.clone();
         let machine = self.program.verified_machine(self.current_machine)?;
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let same_element = types
             .get(&source_value.structural_type)
             .zip(types.get(&result.structural_type))
@@ -1545,7 +1543,6 @@ impl TerminalExecution<'_> {
                 .any(|row| !row.is_element_membership())
             || !result.qualification_establishments.is_empty()
             || !self
-                .program
                 .structural_types()
                 .get(&result.structural_type)
                 .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))

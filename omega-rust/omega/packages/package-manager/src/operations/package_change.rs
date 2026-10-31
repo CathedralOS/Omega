@@ -90,9 +90,7 @@ impl PackageChangeReview {
         )
         .map_err(PackageChangeError::Decisions)?;
         let mut policies = Vec::new();
-        policies
-            .try_reserve_exact(self.reviews.reviews().len())
-            .map_err(|_| PackageChangeError::AllocationFailed)?;
+        crate::reserve!(policies, self.reviews.reviews().len(), PackageChangeError);
         for package in source.packages() {
             for purpose in crate::declarations::DependencyPurpose::ALL {
                 if let Some(review) = self.reviews.review_occurrence(package.key(), purpose) {

@@ -171,7 +171,7 @@ impl ByteSequenceBinding {
         execution: &TerminalExecution,
         value: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        let structural_types = execution.program.structural_types();
+        let structural_types = execution.structural_types();
         if let Self::MutableArray {
             array,
             array_type,
@@ -389,7 +389,7 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
     ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
         let root = self.structural_value(argument.place)?;
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         if crate::custody::inline_structural_field(&types, root.structural_type, &argument.path)
             .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some())
         {
@@ -415,7 +415,6 @@ impl TerminalExecution<'_> {
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
         if argument.access == StructuralAccess::WriteOnlyBorrow
             || !self
-                .program
                 .structural_types()
                 .get(&selected.structural_type)
                 .is_some_and(|row| {
@@ -607,7 +606,6 @@ impl TerminalExecution<'_> {
             argument.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
         ) || !self
-            .program
             .structural_types()
             .get(&value.structural_type)
             .is_some_and(|row| row.shape.is_shared_readable_byte_view())
@@ -643,7 +641,6 @@ impl TerminalExecution<'_> {
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
         let Some(StructuralTypeShape::ByteSequence(carrier)) = self
-            .program
             .structural_types()
             .get(&parameter.structural_type)
             .map(|declaration| &declaration.shape)
@@ -736,10 +733,10 @@ impl TerminalExecution<'_> {
     {
         if terminal_semantics::borrowed_storage_parameter(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         ) && terminal_semantics::borrowed_storage_reference_ceiling(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         )
         .is_none()
         {
@@ -763,7 +760,6 @@ impl TerminalExecution<'_> {
             return Ok(None);
         };
         if !self
-            .program
             .structural_types()
             .get(&value.structural_type)
             .is_some_and(|row| row.shape.is_borrowed_byte_carrier())
@@ -780,11 +776,11 @@ impl TerminalExecution<'_> {
         // lifetimes without granting ownership or widening the source loan.
         let storage_ceiling = terminal_semantics::borrowed_storage_reference_ceiling(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         );
         if !(terminal_semantics::view_descriptor_parameter(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         ) || storage_ceiling.is_some())
             || argument.access != parameter.access
             || !parameter.projected_qualifications.is_empty()
@@ -796,7 +792,7 @@ impl TerminalExecution<'_> {
         let binding = self.byte_descriptor_binding(argument, &value)?;
         let requested_access = storage_ceiling.unwrap_or(parameter.access);
         if !terminal_semantics::descriptor_reborrow_matches(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             value.structural_type,
             parameter.access,
             Some(binding.access()),

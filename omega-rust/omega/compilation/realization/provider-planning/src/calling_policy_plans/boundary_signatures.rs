@@ -8,6 +8,7 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
+use crate::provider_planning::type_reference_node;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
@@ -492,7 +493,7 @@ pub(crate) fn exact_boundary_layout_root_symbol(
     mut type_reference: TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
     loop {
-        match typed.type_reference_table.type_reference(type_reference) {
+        match type_reference_node(typed, type_reference) {
             TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => return *symbol,

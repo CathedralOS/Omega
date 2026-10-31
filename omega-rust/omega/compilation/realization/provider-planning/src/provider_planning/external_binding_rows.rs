@@ -1,3 +1,4 @@
+use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
@@ -181,8 +182,7 @@ impl ExternalBindingContext<'_> {
                 crate::calling_policy_plans::evaluate_default_calling_application(
                     services,
                     layout_target,
-                    plan.schema
-                        .identity_text(plan.schema.declaration.trait_name),
+                    trait_name_text(&plan.schema),
                     plan.schema.declaration.trait_package_identity,
                     &row.method,
                     plan.identities.text(row.requirement_identity),
@@ -193,8 +193,7 @@ impl ExternalBindingContext<'_> {
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
                         "cannot evaluate default native calling application for `{}::{}`: {reason}",
-                        plan.schema
-                            .identity_text(plan.schema.declaration.trait_name),
+                        trait_name_text(&plan.schema),
                         row.method
                     ))]
                 })?
@@ -207,10 +206,7 @@ impl ExternalBindingContext<'_> {
             } else {
                 plan.target.clone()
             },
-            trait_name: plan
-                .schema
-                .identity_text(plan.schema.declaration.trait_name)
-                .to_owned(),
+            trait_name: trait_name_text(&plan.schema).to_owned(),
             method: row.method.clone(),
             requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
             table_type: plan.provider_type.clone(),
