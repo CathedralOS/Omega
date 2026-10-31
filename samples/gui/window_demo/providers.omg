@@ -1,6 +1,7 @@
 // The existing Window owner carries the platform resource set. Windows uses
 // only window (HWND); its unused Cocoa handles are zero, never invoked there.
 use omega_language_std::macos_gui;
+use omega_language_std::macos_image;
 use omega_language_std::windows_gui_host;
 
 public windows_x86_64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
@@ -177,7 +178,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC {
+    ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes MacosImageData + MacosImageObjects {
     macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
 }
 

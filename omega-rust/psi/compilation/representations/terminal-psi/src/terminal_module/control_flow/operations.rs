@@ -221,6 +221,9 @@ impl OperationResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ElementViewRegion {
     WholeCollection,
+    /// Re-view the captured collection window under an independently checked
+    /// total representation. Extents count source elements before regrouping.
+    WholeRepresentation,
     RepresentationBytes {
         start: ValueId,
         end: ValueId,

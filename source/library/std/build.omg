@@ -2,6 +2,7 @@ use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
+    configure_macos_image(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -87,4 +88,34 @@ machine configure_clock(builder: &mut Build) {
     Build::select_provider<Clock, LinuxArm64Clock>(builder, linux_arm64);
     Build::bind<LinuxArmClockWait::nanosleep>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 101 });
+}
+
+// Native object storage belongs to the image module; the original Build value
+// records its exact requirements and locators for the macOS deployment target.
+machine configure_macos_image(builder: &mut Build) {
+    Build::bind<MacosImageData::copy>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+            symbol: "_CFDataCreate"
+        } });
+    Build::bind<MacosImageObjects::provider>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGDataProviderCreateWithCFData"
+        } });
+    Build::bind<MacosImageObjects::release_data>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+            symbol: "_CFRelease"
+        } });
+    Build::bind<MacosImageObjects::release_provider>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGDataProviderRelease"
+        } });
+    Build::bind<MacosImageObjects::create>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGImageCreate"
+        } });
 }

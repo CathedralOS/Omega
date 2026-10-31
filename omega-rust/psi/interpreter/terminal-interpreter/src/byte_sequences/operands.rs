@@ -79,8 +79,7 @@ impl TerminalExecution<'_> {
                     &selected,
                     terminal_psi::StructuralAccess::SharedBorrow,
                 )?
-                .immutable()?
-                .clone()
+                .snapshot(self)?
             }
             ByteSequenceOperand::Field { source, field, .. } => {
                 let (key, capacity) =

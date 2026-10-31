@@ -177,7 +177,17 @@ impl BoundaryArguments {
                 {
                     StructuralAccess::Owned
                 }
-                ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
+                ByteSequenceBinding::Representation(view)
+                    if parameter.access == StructuralAccess::Owned
+                        && view.matches_descriptor_home(
+                            values.get(&parameter.place).ok_or_else(malformed)?,
+                        ) =>
+                {
+                    StructuralAccess::Owned
+                }
+                ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                    StructuralAccess::SharedBorrow
+                }
                 ByteSequenceBinding::MutableField { .. }
                 | ByteSequenceBinding::MutableOwner { .. }
                     if terminal_semantics::borrowed_storage_reference_ceiling(
@@ -204,7 +214,9 @@ impl BoundaryArguments {
                     | ByteSequenceBinding::MutableOwner { referent, .. } => {
                         referent.qualifications != parameter.qualifications
                     }
-                    ByteSequenceBinding::Immutable(_) => false,
+                    ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
+                        false
+                    }
                     ByteSequenceBinding::MutableArray { referent, .. } => {
                         referent.qualifications != parameter.qualifications
                     }
@@ -406,6 +418,13 @@ impl TerminalExecution<'_> {
                 None => resolved.bytes.push(None),
                 Some(ByteSequenceBinding::Immutable(view)) => {
                     resolved.bytes.push(Some(view.bytes().to_vec()));
+                }
+                Some(binding @ ByteSequenceBinding::Representation(_)) => {
+                    // The legacy host callback receives an explicit content copy;
+                    // the retained descriptor remains backed by the typed cells.
+                    resolved
+                        .bytes
+                        .push(Some(binding.snapshot(self)?.bytes().to_vec()));
                 }
                 Some(
                     binding @ (ByteSequenceBinding::MutableArray { .. }
@@ -624,12 +643,11 @@ impl TerminalExecution<'_> {
             // names (`text: &[u8] in Utf8` from `main.name`). As for a
             // whole shared descriptor, execution checks the bytes the
             // formal observes rather than the field's declaration.
-            if !terminal_semantics::byte_literal_qualifications_hold_in(
-                self.program.catalogs.structural_domains.iter(),
+            if !self.byte_binding_qualifications_hold(
+                &binding,
                 parameter.structural_type,
                 &parameter.qualifications,
-                binding.immutable()?.bytes(),
-            ) {
+            )? {
                 return Err(malformed());
             }
             return Ok(Some((referent, binding)));

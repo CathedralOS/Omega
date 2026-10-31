@@ -979,7 +979,7 @@ pub(crate) fn fixed_element_array_view(
 mod collection_views;
 pub(crate) use collection_views::{
     CollectionViewGeometry, collection_view_geometry, collection_view_region_geometry,
-    projected_collection,
+    projected_collection, whole_representation_length_scale,
 };
 
 /// Reconstruct a borrowed view presented from whole or inline bounded-owner

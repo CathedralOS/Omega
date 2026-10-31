@@ -130,7 +130,11 @@ impl Builder<'_, '_> {
             self.statement_index,
             &place,
         )?;
-        if validation::slice_view_shell(self.program, declared, &[]).is_some() {
+        let representation_view = authored_recast.is_some()
+            && validation::slice_view_shell(self.program, declared, &[]).is_some();
+        if !representation_view
+            && validation::slice_view_shell(self.program, declared, &[]).is_some()
+        {
             // Transport the current descriptor through the ordinary reference
             // join. Collection establishment would replace its captured extent
             // with backing geometry. Stored-leaf selection also retains every
@@ -235,6 +239,8 @@ impl Builder<'_, '_> {
                 start,
                 end: region.extent,
             }
+        } else if representation_view {
+            checked_trees::CheckedElementViewRegion::WholeRepresentation
         } else {
             checked_trees::CheckedElementViewRegion::WholeCollection
         };

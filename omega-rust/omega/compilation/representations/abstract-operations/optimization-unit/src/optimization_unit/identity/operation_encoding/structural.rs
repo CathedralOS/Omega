@@ -235,6 +235,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*element);
             match region {
                 terminal_psi::ElementViewRegion::WholeCollection => bytes.u8(0),
+                terminal_psi::ElementViewRegion::WholeRepresentation => bytes.u8(2),
                 terminal_psi::ElementViewRegion::RepresentationBytes {
                     start,
                     end,

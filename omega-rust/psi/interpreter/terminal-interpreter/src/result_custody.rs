@@ -78,8 +78,10 @@ impl<'storage> ResultCustody<'storage> {
         &mut self,
         binding: &'storage ByteSequenceBinding,
     ) -> Result<(), TerminalInterpretError> {
-        if let ByteSequenceBinding::Immutable(view) = binding {
-            self.bytes(view)?;
+        match binding {
+            ByteSequenceBinding::Immutable(view) => self.bytes(view)?,
+            ByteSequenceBinding::Representation(view) => self.element_view(view)?,
+            _ => {}
         }
         Ok(())
     }
@@ -118,6 +120,9 @@ impl<'storage> ResultCustody<'storage> {
         endpoint: &'storage crate::primitive_storage::PrimitiveStorageEndpoint,
     ) -> Result<(), TerminalInterpretError> {
         match endpoint {
+            crate::primitive_storage::PrimitiveStorageEndpoint::RepresentationByte(byte) => {
+                self.element_view(&byte.view)?
+            }
             crate::primitive_storage::PrimitiveStorageEndpoint::ViewByte { bytes, .. } => {
                 self.bytes(bytes)?
             }

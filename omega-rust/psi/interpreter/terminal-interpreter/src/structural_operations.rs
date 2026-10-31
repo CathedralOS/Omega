@@ -1784,20 +1784,19 @@ impl TerminalExecution<'_> {
             self.validate_descriptor_borrow(&argument, StructuralAccess::SharedBorrow)?;
             let binding = self.byte_descriptor_binding(&argument, &leaf)?;
             self.byte_descriptor_length(&binding, &leaf)?;
-            let bytes = self
-                .reborrow_byte_sequence_binding(&binding, &leaf, StructuralAccess::SharedBorrow)?
-                .immutable()?
-                .clone();
+            let bytes = self.reborrow_byte_sequence_binding(
+                &binding,
+                &leaf,
+                StructuralAccess::SharedBorrow,
+            )?;
             // ByteSequenceView clones its backing handle and exact window.
             // This copies the descriptor, not octets; replacing the source
             // slot cannot retarget this completed value's retained backing.
             if self.byte_sequence_values.contains_key(&result.place) {
                 return Err(malformed());
             }
-            self.byte_sequence_values.insert(
-                result.place,
-                ByteSequenceBinding::Immutable(bytes.detached_descriptor()),
-            )?;
+            self.byte_sequence_values
+                .insert(result.place, bytes.with_descriptor_home(copied.clone()))?;
         }
         if self
             .structural_types()

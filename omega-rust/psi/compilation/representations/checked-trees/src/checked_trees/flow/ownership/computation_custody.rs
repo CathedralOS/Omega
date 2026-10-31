@@ -781,6 +781,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 self.argument_evaluation(source)
                     + match region {
                         CheckedElementViewRegion::WholeCollection => 0,
+                        CheckedElementViewRegion::WholeRepresentation => 0,
                         CheckedElementViewRegion::RepresentationBytes { start, .. } => {
                             self.computation(*start)
                         }

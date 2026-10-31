@@ -16,6 +16,7 @@ use omega::language::core::filesystem_authority;
 use omega::language::core::process_authority;
 use omega::language::core::process_exit;
 use targets::macos_arm64::macos_gui_impl;
+use macos_image;
 
 public domain [u8]::CString
 requires
@@ -141,14 +142,8 @@ public boundary trait ObjectiveC {
 public boundary trait CoreGraphics {
     machine color_space_rgb() -> u64 reaches;
     machine color_space_release(space: u64) reaches;
-    // The native bitmap context takes writable backing. Keep its exclusive
-    // loan until the image snapshot is created and the context is released.
-    machine bitmap_context(data: &mut i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64 reaches;
-    machine bitmap_context_image(ctx: u64) -> u64 reaches;
-    // Create-rule drops for the per-frame context + CGImage snapshot (void C
-    // calls; the u64 results are scratch). Without them every blit leaks both.
-    machine context_release(ctx: u64) -> u64 reaches;
-    machine image_release(image: u64) -> u64 reaches;
+    // Drop the caller's Create-rule CGImage reference after handing it to Cocoa.
+    machine image_release(image: u64) reaches;
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
     machine event_source_key_state(state_id: u64, keycode: u64) -> u64
@@ -394,7 +389,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC
+invokes ObjectiveC + MacosImageData + MacosImageObjects
 {
     macos_window_present(window_state, source_width, source_height, &mut pixels[0..4096])
 }
@@ -407,7 +402,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC
+invokes ObjectiveC + MacosImageData + MacosImageObjects
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
     transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.len == count && pixels.len > 0 {
@@ -415,36 +410,58 @@ invokes ObjectiveC
         _ -> (0)
     }
     machine present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
-    requires pixels.len > 0 {
-    let source_width_wide: i64 = source_width as i64;
-    let source_height_wide: i64 = source_height as i64;
-    let fbw: i64 = source_width_wide;
-    let fbh: i64 = source_height_wide;
-    let stride: i64 = source_width_wide << 2;
-    let fbwf: f64 = F64::from_u32(source_width);
-    let fbhf: f64 = F64::from_u32(source_height);
-    let ctx: u64 = cg_bitmap_context(&mut pixels[0], fbw, fbh, 8, stride, window_state.space, 8198);
-    let cgimg: u64 = cg_bitmap_context_image(ctx);
-    let cbuf30: [u8; 8] = "NSImage\0";
-    let cls: u64 = ObjectiveC::get_class(&cbuf30);
-    let cbuf31: [u8; 6] = "alloc\0";
-    let mut sel: u64 = ObjectiveC::register_selector(&cbuf31);
-    let tmp: u64 = ObjectiveC::send(cls, sel);
-    let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
-    sel = ObjectiveC::register_selector(&cbuf32);
-    let nsimg: u64 = ObjectiveC::send_image_size(tmp, sel, cgimg, fbwf, fbhf);
-    let cbuf33: [u8; 10] = "setImage:\0";
-    sel = ObjectiveC::register_selector(&cbuf33);
-    let mut rc: u64 = ObjectiveC::send_scalar(window_state.view, sel, nsimg);
-    // Per-frame lifecycle: the context and CGImage are Create-rule owned, and
-    // setImage: retains the NSImage, so drop our +1 on all three — without
-    // these releases every presented frame leaked ~3 objects at ~60fps.
-    rc = cg_context_release(ctx);
-    rc = cg_image_release(cgimg);
-    rc = ObjectiveC::send(nsimg, window_state.relsel);
-    // The samples assert `blit == source_height` (every source scanline copied).
-    let r32: u32 = source_height;
-    r32
+    requires source_width > 0 && source_width <= 8192
+    requires source_height > 0 && source_height <= 8192
+    requires pixels.len == (source_width as u64) * (source_height as u64)
+    invokes ObjectiveC + MacosImageData + MacosImageObjects
+    {
+        let cgimg: u64 = macos_image_snapshot(source_width, source_height, pixels, window_state.space);
+        transition cgimg != 0 {
+            true -> image(window_state, source_width, source_height, cgimg)
+            _ -> (0)
+        }
+    }
+
+    machine image(window_state: &Window, source_width: u32, source_height: u32, cgimg: u64) -> u32
+    requires cgimg != 0
+    invokes ObjectiveC
+    {
+        let fbwf: f64 = F64::from_u32(source_width);
+        let fbhf: f64 = F64::from_u32(source_height);
+        let cbuf30: [u8; 8] = "NSImage\0";
+        let cls: u64 = ObjectiveC::get_class(&cbuf30);
+        let cbuf31: [u8; 6] = "alloc\0";
+        let mut sel: u64 = ObjectiveC::register_selector(&cbuf31);
+        let tmp: u64 = ObjectiveC::send(cls, sel);
+        let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
+        sel = ObjectiveC::register_selector(&cbuf32);
+        let nsimg: u64 = ObjectiveC::send_image_size(tmp, sel, cgimg, fbwf, fbhf);
+        transition nsimg != 0 {
+            true -> display(window_state, source_height, cgimg, nsimg)
+            _ -> failed_image(cgimg)
+        }
+    }
+
+    machine failed_image(cgimg: u64) -> u32
+    requires cgimg != 0
+    {
+        cg_image_release(cgimg);
+        0
+    }
+
+    machine display(window_state: &Window, source_height: u32, cgimg: u64, nsimg: u64) -> u32
+    requires cgimg != 0 && nsimg != 0
+    invokes ObjectiveC
+    {
+        let cbuf33: [u8; 10] = "setImage:\0";
+        let sel: u64 = ObjectiveC::register_selector(&cbuf33);
+        let rc: u64 = ObjectiveC::send_scalar(window_state.view, sel, nsimg);
+        // NSImage owns its image backing and setImage: retains the NSImage.
+        // Drop our native image and NSImage references; no pixel loan survives.
+        cg_image_release(cgimg);
+        let released: u64 = ObjectiveC::send(nsimg, window_state.relsel);
+        // Every source scanline was copied into the independent snapshot.
+        source_height
     }
 }
 

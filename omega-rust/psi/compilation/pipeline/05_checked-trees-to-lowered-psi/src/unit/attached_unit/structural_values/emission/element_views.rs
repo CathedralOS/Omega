@@ -185,7 +185,8 @@ impl Emission<'_, '_, '_> {
         // and state transfers keep this formed region; they never reread the
         // authored selector to reconstruct a different borrowed window.
         let endpoints = match region {
-            checked_trees::CheckedElementViewRegion::WholeCollection => None,
+            checked_trees::CheckedElementViewRegion::WholeCollection
+            | checked_trees::CheckedElementViewRegion::WholeRepresentation => None,
             checked_trees::CheckedElementViewRegion::RepresentationBytes { start, end } => {
                 let start = self.scalar(
                     identities,
@@ -221,6 +222,13 @@ impl Emission<'_, '_, '_> {
         };
         let id = self.operations.allocate();
         let region = match endpoints {
+            None if matches!(
+                region,
+                checked_trees::CheckedElementViewRegion::WholeRepresentation
+            ) =>
+            {
+                terminal_psi::ElementViewRegion::WholeRepresentation
+            }
             None => terminal_psi::ElementViewRegion::WholeCollection,
             Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {
                 start,

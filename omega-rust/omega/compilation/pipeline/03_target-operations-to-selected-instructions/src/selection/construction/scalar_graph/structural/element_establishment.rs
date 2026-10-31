@@ -1,4 +1,4 @@
-//! Establish an element-view descriptor over resolved fixed-array storage.
+//! Establish an element-view descriptor over resolved collection storage.
 use super::local_storage::{address, store};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -164,8 +164,11 @@ pub(super) fn establish(
     // stack slot. Read that exact captured window through the same owner as
     // descriptor operands; ordinary storage still follows its address path.
     let completed = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-    {
+        && matches!(
+            region,
+            terminal_psi::ElementViewRegion::WholeCollection
+                | terminal_psi::ElementViewRegion::WholeRepresentation
+        ) {
         None
     } else {
         super::descriptor_operands::completed_view_words(function, builder, row, source, indices)?
@@ -182,8 +185,11 @@ pub(super) fn establish(
     } else {
         let mut pointer_slots = geometry.pointer_slots.as_slice();
         let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-        {
+            && matches!(
+                region,
+                terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation
+            ) {
             constant(builder, row, 0, 0)?
         } else if !geometry.pointer_slots.is_empty() {
             let (base, slots) = super::runtime_address::projection_origin(
@@ -242,8 +248,11 @@ pub(super) fn establish(
             address(builder, row, home.id, 0, home.byte_size, false)?
         };
         let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-        {
+            && matches!(
+                region,
+                terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation
+            ) {
             base
         } else {
             let (base, leaf_index) = super::runtime_address::cross_references(
@@ -282,7 +291,11 @@ pub(super) fn establish(
     } else {
         let base = base.ok_or_else(invalid)?;
         if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+            && matches!(
+                region,
+                terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation
+            )
         {
             base
         } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
@@ -308,7 +321,8 @@ pub(super) fn establish(
         }
     };
     let (backing, length) = match region {
-        terminal_psi::ElementViewRegion::WholeCollection => {
+        terminal_psi::ElementViewRegion::WholeCollection
+        | terminal_psi::ElementViewRegion::WholeRepresentation => {
             if accepted_fact.is_some() {
                 return Err(invalid());
             }
@@ -355,6 +369,24 @@ pub(super) fn establish(
                         count
                     }
                 }
+            };
+            // A representation recast scales the captured source count, not
+            // its backing's original capacity. The same backing pointer already
+            // includes any narrowed window's offset. Valid backing storage fits
+            // count * source size in the address space; exact tiling into a
+            // nonzero target means count * (source size / target size) fits too.
+            let length = if geometry.length_scale == 1 {
+                length
+            } else {
+                let factor = constant(builder, row, 8, geometry.length_scale)?;
+                let scaled = transport_register(builder, *destination, 8)?;
+                builder.emit(
+                    SelectedInstructionKind::WrappingMultiplyI64,
+                    builder.constraints.keys.multiply_i64,
+                    &[length, factor, scaled],
+                    provenance(row),
+                )?;
+                scaled
             };
             (backing, length)
         }

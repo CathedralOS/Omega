@@ -47,7 +47,9 @@ impl Builder<'_, '_> {
                         view_subslice::view_identity(self.program, family, reference)?,
                     ))
                 };
-                if identity(declared)? != identity(expected)? {
+                if identity(declared)? != identity(expected)?
+                    && validation::slice_recast_source(self.program, expression).is_none()
+                {
                     return None;
                 }
                 Some(place)

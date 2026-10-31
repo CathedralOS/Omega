@@ -1,0 +1,128 @@
+// Expected exit: 0
+// The production snapshot owns a complete copy of a non-square pixel view.
+// Native readback happens only after mutation and the source activation ends.
+use omega_language_std::console;
+use omega::language::core::layout;
+use omega_language_std::macos_image;
+use omega_language_std::targets::macos_arm64::macos_gui_impl;
+
+public data DataRange {
+    location: i64;
+    length: i64;
+}
+// CFRange is two consecutive signed machine words in Apple's C ABI.
+DataRangeLayout satisfies FixedLayout<DataRange> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+public boundary trait ImageReadback {
+    machine provider(image: u64) -> u64 reaches;
+    machine width(image: u64) -> u64 reaches;
+    machine height(image: u64) -> u64 reaches;
+    machine copy_data(provider: u64) -> u64 reaches;
+    machine length(data: u64) -> i64 reaches;
+    // Exactly one whole output allocation is lent, never its first byte.
+    machine read(data: u64, range: DataRange, output: &mut [u8; 24])
+    requires range.location == 0, range.length == 24
+    reaches;
+    machine release(data: u64) reaches;
+    machine overwrite(pixels: &mut [i32; 6], value: i32, bytes: u64) -> u64
+    requires bytes == 24
+    reaches;
+}
+
+data Readback {
+    before: u64;
+    bytes: [u8; 24];
+    after: u64;
+}
+
+// The canaries immediately surround the entire native output allocation.
+ReadbackLayout satisfies FixedLayout<Readback> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
+        LayoutPlan { entries: entries, entry_count: 3, size_fixed: 40, size_is_dynamic: false, align: 8 }
+    }
+}
+
+machine snapshot(space: u64) -> u64 invokes ImageReadback + MacosImageData + MacosImageObjects {
+    let mut pixels: [i32; 6] = [0x00112233, 0x00223344, 0x00334455, 0x00445566, 0x00556677, 0x00667788];
+    let image: u64 = macos_image_snapshot(3, 2, &pixels[..], space);
+    // An actual foreign write prevents dead-store removal of the poison.
+    let cleared: u64 = ImageReadback::overwrite(&mut pixels, 0, 24);
+    transition pixels[0] == 0 && pixels[1] == 0 && pixels[2] == 0
+        && pixels[3] == 0 && pixels[4] == 0 && pixels[5] == 0 {
+        true -> image
+        _ -> failed_snapshot(image)
+    }
+    machine failed_snapshot(image: u64) -> u64 {
+        cg_image_release(image);
+        0
+    }
+}
+
+machine inspect(image: u64) -> bool invokes ImageReadback {
+    let provider: u64 = ImageReadback::provider(image);
+    let data: u64 = ImageReadback::copy_data(provider);
+    transition data != 0 {
+        true -> inspect_data(data)
+        _ -> false
+    }
+    machine inspect_data(data: u64) -> bool {
+        let length: i64 = ImageReadback::length(data);
+        transition length == 24 {
+            true -> read_data(data)
+            _ -> wrong_length(data)
+        }
+    }
+    machine read_data(data: u64) -> bool {
+        let mut output: Readback;
+        output.before = 0x1122334455667788;
+        output.after = 0x8877665544332211;
+        output.bytes = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+        ImageReadback::read(data, DataRange { location: 0, length: 24 }, &mut output.bytes);
+        ImageReadback::release(data);
+        output.before == 0x1122334455667788 && output.after == 0x8877665544332211
+            && output.bytes[0] == 0x33 && output.bytes[1] == 0x22 && output.bytes[2] == 0x11 && output.bytes[3] == 0x0
+            && output.bytes[4] == 0x44 && output.bytes[5] == 0x33 && output.bytes[6] == 0x22 && output.bytes[7] == 0x0
+            && output.bytes[8] == 0x55 && output.bytes[9] == 0x44 && output.bytes[10] == 0x33 && output.bytes[11] == 0x0
+            && output.bytes[12] == 0x66 && output.bytes[13] == 0x55 && output.bytes[14] == 0x44 && output.bytes[15] == 0x0
+            && output.bytes[16] == 0x77 && output.bytes[17] == 0x66 && output.bytes[18] == 0x55 && output.bytes[19] == 0x0
+            && output.bytes[20] == 0x88 && output.bytes[21] == 0x77 && output.bytes[22] == 0x66 && output.bytes[23] == 0x0
+    }
+    machine wrong_length(data: u64) -> bool {
+        ImageReadback::release(data);
+        false
+    }
+}
+
+machine main() reaches Console invokes ImageReadback + MacosImageData + MacosImageObjects {
+    let space: u64 = cg_color_space_rgb();
+    let image: u64 = snapshot(space);
+    cg_color_space_release(space);
+    transition image != 0 {
+        true -> inspect_image(image)
+        _ -> failed()
+    }
+    machine inspect_image(image: u64) {
+        let width: u64 = ImageReadback::width(image);
+        let height: u64 = ImageReadback::height(image);
+        let correct: bool = inspect(image);
+        cg_image_release(image);
+        transition correct && width == 3 && height == 2 {
+            true -> passed()
+            _ -> failed()
+        }
+    }
+    machine passed() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(1); }
+}

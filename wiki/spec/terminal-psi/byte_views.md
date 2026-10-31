@@ -275,6 +275,16 @@ that overlap the borrowed path unless their preservation is independently
 established; equal leaf layouts cannot preserve an arbitrary relational domain.
 No view formation grants new result qualifications.
 
+`WholeRepresentation` re-views an existing collection descriptor's complete
+captured window. Its source and target elements have independently reconstructed,
+total, padding-free representations; target elements must exactly tile each
+source element and require no stronger alignment. The shared result retains the
+original backing and has `source_length * source_stride / target_stride`
+elements. It never substitutes an allocation's capacity for a narrowed window.
+This region supplies no mutable access, qualifications, or retained foreign
+custody. Native realization validates both physical layouts against the portable
+geometry before scaling the descriptor count.
+
 A bounded byte-array reference is another presentation of that fixed backing:
 its carrier stores a pointer and its declaration supplies the exact extent.
 Establishment loads that backing pointer and forms the ordinary borrowed byte

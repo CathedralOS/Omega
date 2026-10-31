@@ -89,6 +89,11 @@ fn representation_shape_byte_extent<'a>(
 #[derive(Debug, Clone)]
 pub enum ElementViewRegionGeometry {
     WholeCollection(crate::CollectionBacking),
+    WholeRepresentation {
+        backing: crate::CollectionBacking,
+        source: RepresentationElementLayout,
+        target: RepresentationElementLayout,
+    },
     RepresentationBytes {
         byte_extent: u64,
         element: RepresentationElementLayout,
@@ -119,6 +124,61 @@ pub fn element_view_shape_region_geometry<'a>(
         ElementViewRegion::WholeCollection => {
             crate::collection_backing::collection_shape_view_backing(types, shape, element, access)
                 .map(ElementViewRegionGeometry::WholeCollection)
+        }
+        ElementViewRegion::WholeRepresentation => {
+            // The descriptor's captured window supplies the source count.
+            // Regroup complete source elements only: neither allocation tails
+            // nor unused capacity can enlarge that window. Shared observation
+            // of total, padding-free bits establishes no stronger predicates.
+            if access != terminal_psi::StructuralAccess::SharedBorrow {
+                return None;
+            }
+            let source_element = match shape {
+                StructuralTypeShape::ElementView { element, .. }
+                | StructuralTypeShape::FixedArray { element, .. } => *element,
+                _ => return None,
+            };
+            let backing = crate::collection_backing::collection_shape_view_backing(
+                types.clone(),
+                shape,
+                source_element,
+                access,
+            )?;
+            let source = representation_element_layout(types.clone(), source_element)?;
+            let target = representation_element_layout(types, element)?;
+            if source.size == 0
+                || target.size == 0
+                || !source.size.is_multiple_of(target.size)
+                || source.alignment < target.alignment
+                || !source.alignment.is_multiple_of(target.alignment)
+            {
+                return None;
+            }
+            let tiled = |layout: &RepresentationElementLayout| {
+                let mut end = 0;
+                for leaf in &layout.leaves {
+                    if leaf.offset != end {
+                        return false;
+                    }
+                    let Some(width) = crate::element_representation::scalar_size(leaf.scalar_type)
+                    else {
+                        return false;
+                    };
+                    let Some(next) = end.checked_add(width) else {
+                        return false;
+                    };
+                    end = next;
+                }
+                end == layout.size
+            };
+            if !tiled(&source) || !tiled(&target) {
+                return None;
+            }
+            Some(ElementViewRegionGeometry::WholeRepresentation {
+                backing,
+                source,
+                target,
+            })
         }
         ElementViewRegion::RepresentationBytes { .. } => {
             Some(ElementViewRegionGeometry::RepresentationBytes {

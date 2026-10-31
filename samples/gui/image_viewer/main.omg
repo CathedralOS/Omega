@@ -9,6 +9,7 @@ use omega::language::core::filesystem_authority;
 
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::macos_gui;
+use omega_language_std::macos_image;
 
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
@@ -42,7 +43,7 @@ public boundary trait Gui {
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches;
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32 invokes MacosImageData + MacosImageObjects; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -110,7 +111,7 @@ ViewerGuiProvider satisfies Gui {
     {
         macos_window_get_dc(window_state, window)
     }
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32 invokes MacosImageData + MacosImageObjects; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +

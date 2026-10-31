@@ -778,6 +778,33 @@ fn judge_slice_recast(
         ));
         return;
     };
+    if let Some(source_view) = crate::slice_view_shell(program, source_type, &[]) {
+        let source_representation = type_representation(program, source_view.element);
+        let compatible = source_representation.as_ref().is_some_and(|source| {
+            view_access == language_core::ReferenceAccess::Shared
+                && source_view.access != language_core::ReferenceAccess::WriteOnly
+                && source.size > 0
+                && element_representation.size > 0
+                && source.size.is_multiple_of(element_representation.size)
+                && source.align >= element_representation.align
+                && source.align.is_multiple_of(element_representation.align)
+                && representation_is_exactly_tiled(source)
+                && representation_is_exactly_tiled(&element_representation)
+                && !source.permits_shared_mutation()
+                && record_view_type_is_fact_free(program, source_view.element)
+                && record_view_type_is_fact_free(program, element_type)
+        });
+        if !compatible {
+            diagnostics.push(recast_refusal(
+                source_span,
+                format!(
+                    "{context}: a whole descriptor recast requires shared access and total, \
+                 padding-free elements that exactly tile each source element"
+                ),
+            ));
+        }
+        return;
+    }
     let Some(source_representation) = type_representation(program, source_type) else {
         diagnostics.push(recast_refusal(
             source_span,

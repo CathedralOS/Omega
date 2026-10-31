@@ -141,6 +141,7 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::MutableOwner { home, .. } => {
                 MutableByteSequenceStorage::Owned(home.clone())
             }
+            ByteSequenceBinding::Representation(_) => return Err(malformed()),
             ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
                 return Err(malformed());
             }
@@ -242,6 +243,9 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::Immutable(view) => {
                 u64::try_from(view.len()).map_err(|_| malformed())
             }
+            binding @ ByteSequenceBinding::Representation(_) => {
+                self.byte_descriptor_length(binding, self.structural_value(source)?)
+            }
             ByteSequenceBinding::MutableField { .. }
             | ByteSequenceBinding::MutableArray { .. }
             | ByteSequenceBinding::MutableOwner { .. } => self
@@ -257,6 +261,10 @@ impl TerminalExecution<'_> {
     ) -> Result<u8, TerminalInterpretError> {
         match self.byte_sequence_values.require(&source)? {
             ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(malformed),
+            binding @ ByteSequenceBinding::Representation(_) => {
+                self.byte_descriptor_length(binding, self.structural_value(source)?)?;
+                binding.read_view(self)?.read(index)
+            }
             ByteSequenceBinding::MutableArray { .. }
             | ByteSequenceBinding::MutableField { .. }
             | ByteSequenceBinding::MutableOwner { .. } => {

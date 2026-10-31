@@ -695,7 +695,8 @@ where
                 region,
             } => {
                 let accepted_fact = match region {
-                    terminal_psi::ElementViewRegion::WholeCollection => None,
+                    terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation => None,
                     terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
                         Some(accepted_fact(unit, optimized, *psi_operation, *obligation)?)
                     }

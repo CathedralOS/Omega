@@ -48,7 +48,8 @@ pub(super) fn types_match(
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
         }
         O::EstablishElementView { region, .. } => match region {
-            terminal_psi::ElementViewRegion::WholeCollection => true,
+            terminal_psi::ElementViewRegion::WholeCollection
+            | terminal_psi::ElementViewRegion::WholeRepresentation => true,
             terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } => {
                 u64_scalar(start) && u64_scalar(end)
             }

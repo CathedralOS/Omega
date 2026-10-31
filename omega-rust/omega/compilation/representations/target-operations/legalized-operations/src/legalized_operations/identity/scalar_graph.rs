@@ -872,6 +872,7 @@ pub(super) fn encode(
                     crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
                     match region {
                         terminal_psi::ElementViewRegion::WholeCollection => bytes.push(0),
+                        terminal_psi::ElementViewRegion::WholeRepresentation => bytes.push(2),
                         terminal_psi::ElementViewRegion::RepresentationBytes {
                             start,
                             end,
