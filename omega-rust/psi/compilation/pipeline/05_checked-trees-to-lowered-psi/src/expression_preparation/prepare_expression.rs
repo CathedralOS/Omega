@@ -9,6 +9,7 @@
 //! decision for the additional offsets it creates.
 
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment,
 };
@@ -18,8 +19,14 @@ use crate::emission::operation_emission::integer::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_value, terminal_scalar_type,
 };
+use crate::expression_preparation::bindings::StructuralFieldBindings;
+use crate::expression_preparation::bindings::primitive_reads::captured_observation;
+use crate::expression_preparation::bindings::primitive_storage_read;
+use crate::expression_preparation::bindings::structural_cases::resolve;
 use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
+use crate::expression_preparation::bindings::structural_fields::boolean_observation;
 use crate::expression_preparation::bindings::view_locals::{ViewCarrier, ViewLocalBinding};
+use crate::expression_preparation::representation_view::replay;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralTypeId,
@@ -34,8 +41,7 @@ pub(crate) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let structural_fields =
-        crate::expression_preparation::bindings::StructuralFieldBindings::default();
+    let structural_fields = StructuralFieldBindings::default();
     PreparedExpressionContext {
         structural_fields: &structural_fields,
         structural_cases: &[],
@@ -80,8 +86,7 @@ pub(crate) fn selector_bound_is_decided(
 /// observations and its runtime selector resolution in one place instead of at
 /// fifteen parameter lists re-spelled at each call.
 pub(crate) struct PreparedExpressionContext<'a> {
-    pub(crate) structural_fields:
-        &'a crate::expression_preparation::bindings::StructuralFieldBindings,
+    pub(crate) structural_fields: &'a StructuralFieldBindings,
     pub(crate) structural_cases:
         &'a [crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding],
     pub(crate) primitive_storage: &'a [(symbols::SymbolHandle, PlaceId, ScalarType)],
@@ -126,23 +131,17 @@ impl<'a> PreparedExpressionContext<'a> {
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 if let Some(bindings) = self.scalar_bindings
-                && let Some(observation) =
-                    crate::expression_preparation::bindings::primitive_reads::captured_observation(
-                        bindings,
-                        *symbol,
-                        scalar_type,
-                    )?
-            {
-                return Ok(observation);
-            }
-                let (source, path) =
-                    crate::expression_preparation::bindings::primitive_storage_read(
-                        self.primitive_storage,
-                        self.structural_locals,
-                        self.structural_fields.declarations(),
-                        *symbol,
-                        scalar_type,
-                    )?;
+                    && let Some(observation) = captured_observation(bindings, *symbol, scalar_type)?
+                {
+                    return Ok(observation);
+                }
+                let (source, path) = primitive_storage_read(
+                    self.primitive_storage,
+                    self.structural_locals,
+                    self.structural_fields.declarations(),
+                    *symbol,
+                    scalar_type,
+                )?;
                 Ok(LoweredDirectExpression::PrimitiveRead {
                     qualifications: Default::default(),
                     source: source.into(),
@@ -433,11 +432,9 @@ impl<'a> PreparedExpressionContext<'a> {
                             matches!(step, LoweredElementPathSegment::RuntimeIndex { .. })
                         })
                         .count();
-                if selectors
-                > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
-            {
-                return unsupported("indexed read exceeds its selector namespace");
-            }
+                if selectors > TERMINAL_NESTED_SELECTOR_LIMIT {
+                    return unsupported("indexed read exceeds its selector namespace");
+                }
                 Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                     qualifications: Default::default(),
                     source,
@@ -457,10 +454,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 operand,
             } => {
                 let operand = self.lower_scalar(identities, operand)?;
-                crate::expression_preparation::representation_view::replay(
-                    operand,
-                    terminal_scalar_type(*primitive_type)?,
-                )
+                replay(operand, terminal_scalar_type(*primitive_type)?)
             }
             CheckedScalarExpression::IntegerExactCast {
                 primitive_type,
@@ -497,25 +491,20 @@ impl<'a> PreparedExpressionContext<'a> {
             }
             CheckedBooleanExpression::StorageRead { symbol } => {
                 if let Some(bindings) = self.scalar_bindings
-                && let Some(observation) =
-                    crate::expression_preparation::bindings::primitive_reads::captured_observation(
-                        bindings,
-                        *symbol,
-                        ScalarType::Boolean,
-                    )?
-            {
-                return Ok(LoweredBooleanReturnExpression::ScalarObservation {
-                    operand: Box::new(observation),
-                });
-            }
-                let (source, path) =
-                    crate::expression_preparation::bindings::primitive_storage_read(
-                        self.primitive_storage,
-                        self.structural_locals,
-                        self.structural_fields.declarations(),
-                        *symbol,
-                        ScalarType::Boolean,
-                    )?;
+                    && let Some(observation) =
+                        captured_observation(bindings, *symbol, ScalarType::Boolean)?
+                {
+                    return Ok(LoweredBooleanReturnExpression::ScalarObservation {
+                        operand: Box::new(observation),
+                    });
+                }
+                let (source, path) = primitive_storage_read(
+                    self.primitive_storage,
+                    self.structural_locals,
+                    self.structural_fields.declarations(),
+                    *symbol,
+                    ScalarType::Boolean,
+                )?;
                 LoweredBooleanReturnExpression::PrimitiveRead {
                     qualifications: Default::default(),
                     source: source.into(),
@@ -538,7 +527,7 @@ impl<'a> PreparedExpressionContext<'a> {
                         semantic_vocabulary::ScalarType::Boolean,
                     )?
                 {
-                    return Ok(crate::expression_preparation::bindings::structural_fields::boolean_observation(observation));
+                    return Ok(boolean_observation(observation));
                 }
 
                 if !self.structural_fields.is_empty()
@@ -558,7 +547,7 @@ impl<'a> PreparedExpressionContext<'a> {
                         ScalarType::Boolean,
                     )? {
                         CasePayloadRead::Observation { expression } =>
-                            crate::expression_preparation::bindings::structural_fields::boolean_observation(
+                            boolean_observation(
             expression),
                         CasePayloadRead::Established { position } => {
                             LoweredBooleanReturnExpression::Parameter { position }
@@ -575,11 +564,7 @@ impl<'a> PreparedExpressionContext<'a> {
                             path,
                             ScalarType::Boolean,
                         )?;
-                    return Ok(
-                    crate::expression_preparation::bindings::structural_fields::boolean_observation(
-                        observation,
-                    ),
-                );
+                    return Ok(boolean_observation(observation));
                 }
                 let path = path
                     .iter()
@@ -658,12 +643,7 @@ impl<'a> PreparedExpressionContext<'a> {
                     "contract result cannot be used as an executable entry observation",
                 ))?;
                 let (source, path, case) =
-                    crate::expression_preparation::bindings::structural_cases::resolve(
-                        identities,
-                        self.structural_cases,
-                        &subject,
-                        case,
-                    )?;
+                    resolve(identities, self.structural_cases, &subject, case)?;
                 LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case }
             }
             CheckedBooleanExpression::IeeeFloatComparison { .. }
@@ -879,7 +859,7 @@ impl<'a> PreparedExpressionContext<'a> {
             .iter()
             .filter(|step| matches!(step, LoweredElementPathSegment::RuntimeIndex { .. }))
             .count()
-            > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
+            > TERMINAL_NESTED_SELECTOR_LIMIT
         {
             return unsupported("length observation exceeds its runtime selector namespace");
         }

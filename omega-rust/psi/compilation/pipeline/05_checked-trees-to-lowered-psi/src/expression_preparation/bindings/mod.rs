@@ -15,7 +15,10 @@ use super::{
 };
 use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::calls::PreparedStructuralArgument;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::PrimitiveReadSource;
+use crate::expression_preparation::bindings::place_observations::PlaceObservation;
 use terminal_psi::find_structural_type;
 
 mod published_types;
@@ -250,9 +253,7 @@ pub(crate) struct ScalarBindings {
     element_views: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     /// Established immutable view locals an observation may root at.
     view_locals: Vec<view_locals::ViewLocalBinding>,
-    place_observations: std::sync::Arc<
-        [crate::expression_preparation::bindings::place_observations::PlaceObservation],
-    >,
+    place_observations: std::sync::Arc<[PlaceObservation]>,
 }
 
 impl ScalarBindings {
@@ -497,8 +498,7 @@ impl ScalarBindings {
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         parameters: &[checked_trees::signature::StateParameter],
         types: &[StructuralTypeDeclaration],
-    ) -> Result<crate::emission::operation_emission::calls::PreparedStructuralArgument, LoweringError>
-    {
+    ) -> Result<PreparedStructuralArgument, LoweringError> {
         let mut argument = argument.clone();
         let mut captured = Vec::new();
         let mut visited = Vec::new();
@@ -588,15 +588,13 @@ impl ScalarBindings {
         if coordinates.next().is_some() {
             return unsupported("captured loan selectors exceed its checked prefix");
         }
-        Ok(
-            crate::emission::operation_emission::calls::PreparedStructuralArgument {
-                source: source.place.into(),
-                root_type: self.structural_place_type(source.place),
-                path,
-                selector_positions: Vec::new(),
-                access: structural_paths::terminal_access(argument.access),
-            },
-        )
+        Ok(PreparedStructuralArgument {
+            source: source.place.into(),
+            root_type: self.structural_place_type(source.place),
+            path,
+            selector_positions: Vec::new(),
+            access: structural_paths::terminal_access(argument.access),
+        })
     }
 
     /// Join a source observation's declared root to the storage actually
@@ -989,9 +987,7 @@ impl ScalarBindings {
         primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
         parameters: &[(u32, StructuralParameterDeclaration)],
         structural_types: &[StructuralTypeDeclaration],
-        place_observations: &std::sync::Arc<
-            [crate::expression_preparation::bindings::place_observations::PlaceObservation],
-        >,
+        place_observations: &std::sync::Arc<[PlaceObservation]>,
     ) -> Self {
         Self::new(formals)
             .with_primitive_storage(primitive_storage)
@@ -1065,9 +1061,7 @@ impl ScalarBindings {
 
     pub(crate) fn with_place_observations(
         mut self,
-        loans: &std::sync::Arc<
-            [crate::expression_preparation::bindings::place_observations::PlaceObservation],
-        >,
+        loans: &std::sync::Arc<[PlaceObservation]>,
     ) -> Self {
         self.place_observations = loans.clone();
         self
@@ -1094,9 +1088,7 @@ impl ScalarBindings {
         ))?;
         Ok(LoweredDirectExpression::PrimitiveRead {
             qualifications: Default::default(),
-            source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(
-                source,
-            ),
+            source: PrimitiveReadSource::Place(source),
             path: Vec::new(),
             scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
         })
@@ -1254,8 +1246,7 @@ impl ScalarBindings {
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
         parameters: &[checked_trees::signature::StateParameter],
-    ) -> Result<crate::emission::operation_emission::calls::PreparedStructuralArgument, LoweringError>
-    {
+    ) -> Result<PreparedStructuralArgument, LoweringError> {
         let access = structural_paths::terminal_access(argument.access);
         let permits = |granted, requested| {
             matches!(
@@ -1297,7 +1288,7 @@ impl ScalarBindings {
                 if !permits(*granted, access) {
                     return unsupported("computed primitive ingress widens original access");
                 }
-                crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
+                PreparedStructuralArgument::from_static(
                     StructuralArgument {
                         place,
                         path: Vec::new(),
@@ -1330,7 +1321,7 @@ impl ScalarBindings {
                 {
                     return unsupported("computed primitive local changes original ownership");
                 }
-                crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
+                PreparedStructuralArgument::from_static(
                     StructuralArgument {
                         place,
                         path,

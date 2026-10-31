@@ -8,6 +8,9 @@ use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use crate::machine_lowering::declarations::semantic_identity;
+use crate::proofs::evidence_lowering::checked_evidence_machine_identity;
+use crate::proofs::evidence_lowering::checked_evidence_requirement_identity;
 use checked_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
@@ -685,12 +688,9 @@ pub(crate) fn establishment_route(
     route: &DomainEstablishmentRoute,
 ) -> Result<ScalarDomainEstablishmentRoute, LoweringError> {
     let declaration = terminal_psi::NominalDeclarationIdentity::new(
-        crate::machine_lowering::declarations::semantic_identity(
-            identities,
-            checked,
-            route.established_declaration(),
-        )
-        .map_err(|_| LoweringError::Unsupported("domain issuer has no exact declaration owner"))?,
+        semantic_identity(identities, checked, route.established_declaration()).map_err(|_| {
+            LoweringError::Unsupported("domain issuer has no exact declaration owner")
+        })?,
     );
     Ok(match *route {
         DomainEstablishmentRoute::CheckedRequirement {
@@ -698,35 +698,28 @@ pub(crate) fn establishment_route(
             requirement,
         } => ScalarDomainEstablishmentRoute::CheckedRequirement {
             declaration,
-            requirement_identity: identities.intern(
-                &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
-                    checked,
-                    trait_definition,
-                    requirement,
-                )?,
-            ),
+            requirement_identity: identities.intern(&checked_evidence_requirement_identity(
+                checked,
+                trait_definition,
+                requirement,
+            )?),
         },
         DomainEstablishmentRoute::BoundaryRequirement {
             boundary_trait,
             requirement,
         } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
             declaration,
-            requirement_identity: identities.intern(
-                &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
-                    checked,
-                    boundary_trait,
-                    requirement,
-                )?,
-            ),
+            requirement_identity: identities.intern(&checked_evidence_requirement_identity(
+                checked,
+                boundary_trait,
+                requirement,
+            )?),
         },
         DomainEstablishmentRoute::ExactMachine { machine } => {
             ScalarDomainEstablishmentRoute::ExactMachine {
                 declaration,
-                machine_identity: identities.intern(
-                    &crate::proofs::evidence_lowering::checked_evidence_machine_identity(
-                        checked, machine,
-                    )?,
-                ),
+                machine_identity: identities
+                    .intern(&checked_evidence_machine_identity(checked, machine)?),
             }
         }
     })
