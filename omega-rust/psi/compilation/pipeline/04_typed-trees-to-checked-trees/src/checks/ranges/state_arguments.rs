@@ -35,7 +35,6 @@ mod expressions;
 mod statements;
 
 use super::expression_transfer::ExpressionTransfer;
-use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -342,8 +341,8 @@ fn state_has_internal_edge(
         let has_edge = match statement {
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
             StatementNode::Assignment(assignment) => {
-                expression_has_internal_call(program, non_entry_states, assignment.target, 0)
-                    || expression_has_internal_call(program, non_entry_states, assignment.value, 0)
+                expression_has_internal_call(program, non_entry_states, assignment.target)
+                    || expression_has_internal_call(program, non_entry_states, assignment.value)
             }
             StatementNode::Call(call) => {
                 is_internal(call.target_symbol)
@@ -351,17 +350,17 @@ fn state_has_internal_edge(
                         .statement_table
                         .expression_handles(call.arguments)
                         .iter()
-                        .any(|arg| expression_has_internal_call(program, non_entry_states, *arg, 0))
+                        .any(|arg| expression_has_internal_call(program, non_entry_states, *arg))
             }
             StatementNode::Expression(expression) => {
-                expression_has_internal_call(program, non_entry_states, *expression, 0)
+                expression_has_internal_call(program, non_entry_states, *expression)
             }
             StatementNode::LocalData(local) => {
-                expression_has_internal_call(program, non_entry_states, local.initial_value, 0)
+                expression_has_internal_call(program, non_entry_states, local.initial_value)
             }
             StatementNode::Transition(transition) => {
                 (if let TransitionGuardNode::When(guard) = transition.guard {
-                    expression_has_internal_call(program, non_entry_states, guard, 0)
+                    expression_has_internal_call(program, non_entry_states, guard)
                 } else {
                     false
                 }) || [transition.target, transition.continuation]
@@ -382,12 +381,11 @@ fn state_has_internal_edge(
                                                 program,
                                                 non_entry_states,
                                                 *arg,
-                                                0,
                                             )
                                         })
                             }
                             TransitionTargetNode::Value(value) => {
-                                expression_has_internal_call(program, non_entry_states, *value, 0)
+                                expression_has_internal_call(program, non_entry_states, *value)
                             }
                             TransitionTargetNode::Terminal => false,
                         },
@@ -405,77 +403,22 @@ fn expression_has_internal_call(
     program: &dyn ::validation::CheckingInput,
     non_entry_states: &[State],
     expression: typed_trees::expression::ExpressionHandle,
-    depth: usize,
 ) -> bool {
-    use typed_trees::expression::ExpressionNode;
-    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
-        return false;
-    };
-    let next = depth + 1;
-    match node {
-        ExpressionNode::SavedSubject(_) => false,
-        ExpressionNode::Call(call) => {
-            non_entry_states
-                .iter()
-                .any(|state| state.symbol == call.target_symbol)
-                || expression_has_internal_call(program, non_entry_states, call.receiver, next)
-                || expressions(program)
-                    .expression_handles(call.arguments)
+    validation::executable_subtree_any(
+        program,
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |_, node| match node {
+            typed_trees::expression::ExpressionNode::Call(call)
+                if non_entry_states
                     .iter()
-                    .any(|arg| expression_has_internal_call(program, non_entry_states, *arg, next))
-        }
-        ExpressionNode::Match(dispatch) => {
-            expression_has_internal_call(program, non_entry_states, dispatch.subject, next)
-                || crate::flow::match_arm_satisfies(program, dispatch.arms, |operand| {
-                    expression_has_internal_call(program, non_entry_states, operand, next)
-                })
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_has_internal_call(program, non_entry_states, binary.left, next)
-                || expression_has_internal_call(program, non_entry_states, binary.right, next)
-        }
-        ExpressionNode::Cast(cast) => {
-            expression_has_internal_call(program, non_entry_states, cast.value, next)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_has_internal_call(program, non_entry_states, indexed.collection, next)
-                || expression_has_internal_call(program, non_entry_states, indexed.index, next)
-        }
-        ExpressionNode::Atomic(atomic) => {
-            if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
-                expression_has_internal_call(program, non_entry_states, carrier.place, next)
-                    || carrier.operands.into_iter().any(|operand| {
-                        expression_has_internal_call(program, non_entry_states, operand, next)
-                    })
-            } else {
-                expression_has_internal_call(program, non_entry_states, atomic.value, next)
+                    .any(|state| state.symbol == call.target_symbol) =>
+            {
+                typed_trees::SubtreeVisit::Found
             }
-        }
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| expression_has_internal_call(program, non_entry_states, *value, next)),
-        ExpressionNode::Member(member) => {
-            expression_has_internal_call(program, non_entry_states, member.receiver, next)
-        }
-        ExpressionNode::Borrow(borrow) => {
-            expression_has_internal_call(program, non_entry_states, borrow.target, next)
-        }
-        ExpressionNode::Unary(unary) => {
-            expression_has_internal_call(program, non_entry_states, unary.operand, next)
-        }
-        ExpressionNode::Range(range) => {
-            expression_has_internal_call(program, non_entry_states, range.start, next)
-                || expression_has_internal_call(program, non_entry_states, range.end, next)
-        }
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| {
-                expression_has_internal_call(program, non_entry_states, field.value, next)
-            }),
-        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
-    }
+            _ => typed_trees::SubtreeVisit::Descend,
+        },
+    )
 }
 
 fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateArgumentFacts) {

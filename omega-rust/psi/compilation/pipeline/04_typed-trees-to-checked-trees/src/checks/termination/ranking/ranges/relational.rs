@@ -11,7 +11,6 @@ use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
-use crate::flow::expressions;
 use checked_trees::CheckedRankArrivalEdge;
 use symbols::SymbolHandle;
 use typed_trees::expression::TableCallExpression;
@@ -493,7 +492,7 @@ fn preserved_entry_prefix<'program>(
             return None;
         }
         let known_evaluation = |expression| {
-            pure_guard_or_calls(program, machine, state, expression, 0, &|call| {
+            pure_guard_or_calls(program, machine, state, expression, &|call| {
                 call.target_symbol.is_valid()
             })
         };
@@ -512,7 +511,7 @@ fn preserved_entry_prefix<'program>(
             }
             // Retain selected-operator custody without assuming the stored
             // expression establishes a new entry hypothesis.
-            if pure_guard(program, machine, state, assignment.value, 0) {
+            if pure_guard(program, machine, state, assignment.value) {
                 evaluated.push(assignment.value);
             }
             continue;
@@ -535,7 +534,7 @@ fn preserved_entry_prefix<'program>(
             if !preserved {
                 return None;
             }
-            if pure_guard(program, machine, state, local.initial_value, 0) {
+            if pure_guard(program, machine, state, local.initial_value) {
                 evaluated.push(local.initial_value);
             }
             continue;
@@ -568,7 +567,7 @@ fn preserved_entry_prefix<'program>(
                 if !known_evaluation(guard) {
                     return None;
                 }
-                if pure_guard(program, machine, state, guard, 0) {
+                if pure_guard(program, machine, state, guard) {
                     evaluated.push(guard);
                 }
             }
@@ -587,9 +586,8 @@ fn pure_guard(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    depth: usize,
 ) -> bool {
-    pure_guard_or_calls(program, machine, state, expression, depth, &|_| false)
+    pure_guard_or_calls(program, machine, state, expression, &|_| false)
 }
 
 /// The same inertness walk with value-position calls admitted per
@@ -602,83 +600,63 @@ fn pure_guard_or_calls(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    depth: usize,
     admit_call: &dyn Fn(&TableCallExpression) -> bool,
 ) -> bool {
-    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
-        return false;
+    use typed_trees::SubtreeVisit;
+    let edges = typed_trees::SubtreeEdges {
+        pattern_dependencies: true,
+        ..typed_trees::SubtreeEdges::VALUES
     };
-    let mut inert = |expression| {
-        pure_guard_or_calls(program, machine, state, expression, depth + 1, admit_call)
-    };
-    match node {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::Atomic(atomic) => inert(atomic.value),
-        ExpressionNode::Unary(unary) => inert(unary.operand),
-        ExpressionNode::Cast(cast) => inert(cast.value),
-        ExpressionNode::Member(member) => {
+    // Each visit names a node that is not pure; the walk owns the subterms.
+    program.expression_table.expression_is_valid(expression)
+        && !program.subtree_any(expression, edges, |handle, node| match node {
+            ExpressionNode::Name(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_)
+            | ExpressionNode::Atomic(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Match(_) => SubtreeVisit::Descend,
             // Projection identity and selected arithmetic meaning are checked
             // by the range owner. A member with a pure receiver performs no call.
-            inert(member.receiver)
-        }
-        ExpressionNode::Binary(binary) => {
-            // Only builtin operations and exact sealed IEEE comparisons
-            // establish inert evaluation here. Arbitrary selected operators
-            // can hide writes; admitting a float guard grants no integer fact.
-            (has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
-                || sealed_float_comparison(program, machine, Some(state), expression, binary))
-                && inert(binary.left)
-                && inert(binary.right)
-        }
-        ExpressionNode::Borrow(borrow) => {
+            ExpressionNode::Member(_) => SubtreeVisit::Descend,
             // Forming a reference writes nothing. A later store through the
             // alias is a separate statement whose write frame is closed over
             // the referent's origins by the frame owner.
-            inert(borrow.target)
-        }
-        ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Borrow(_) => SubtreeVisit::Descend,
+            // Only builtin operations and exact sealed IEEE comparisons
+            // establish inert evaluation here. Arbitrary selected operators
+            // can hide writes; admitting a float guard grants no integer fact.
+            ExpressionNode::Binary(binary)
+                if has_builtin_binary_expression_meaning(program, machine, Some(state), handle)
+                    || sealed_float_comparison(program, machine, Some(state), handle, binary) =>
+            {
+                SubtreeVisit::Descend
+            }
             // A builtin element read or subslice is a pure projection of its
             // collection. An authored `[]` selection can run arbitrary code,
-            // and the index operands must be inert as well.
-            let index_inert = match program.expression_table.expression(indexed.index) {
-                ExpressionNode::Range(range) => [range.start, range.end]
-                    .into_iter()
-                    .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
-                _ => inert(indexed.index),
-            };
-            index_inert
-                && inert(indexed.collection)
-                && (place_has_builtin_coordinates(program, machine, Some(state), expression)
-                    || has_builtin_subslice_meaning(program, machine, Some(state), expression))
-        }
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| inert(field.value)),
-        ExpressionNode::ArrayLiteral(items) => expressions(program)
-            .expression_handles(*items)
-            .iter()
-            .all(|item| inert(*item)),
-        ExpressionNode::Match(dispatch) => {
-            expressions(program).match_deep_all(dispatch, &mut inert)
-        }
-        ExpressionNode::Call(call) => {
+            // and the index operands must be pure as well.
+            ExpressionNode::Indexed(indexed)
+                if place_has_builtin_coordinates(program, machine, Some(state), handle)
+                    || has_builtin_subslice_meaning(program, machine, Some(state), handle) =>
+            {
+                let mut operands = vec![indexed.collection];
+                match program.expression_table.expression(indexed.index) {
+                    ExpressionNode::Range(range) => operands.extend([range.start, range.end]),
+                    _ => operands.push(indexed.index),
+                }
+                SubtreeVisit::InsteadEach(operands)
+            }
             // A call admitted by the caller's bar keeps every subterm pure
             // the way transition actuals are; the caller decides which
             // callees may appear and covers their writes in the aggregate
             // write frame separately.
-            admit_call(call)
-                && (!call.receiver.is_valid() || inert(call.receiver))
-                && expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| inert(*argument))
-        }
-        _ => false,
-    }
+            ExpressionNode::Call(call) if admit_call(call) => SubtreeVisit::Descend,
+            _ => SubtreeVisit::Found,
+        })
 }

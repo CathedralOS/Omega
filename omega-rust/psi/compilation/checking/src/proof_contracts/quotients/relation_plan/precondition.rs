@@ -362,96 +362,32 @@ fn proof_fact_depends_on_any(
     }
 }
 
+/// Every name and saved subject in the tree must resolve, even after a
+/// dependency is already found.
 fn expression_depends_on_any(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[SymbolHandle],
 ) -> Result<bool, RelationPlanError> {
-    let depends = |expression| expression_depends_on_any(program, expression, parameters);
-    match expression_table(program).expression(expression) {
-        ExpressionNode::SavedSubject(saved) => program
-            .saved_value_source(saved)
-            .ok_or(RelationPlanError::PreconditionDependencyUnresolved)
-            .and_then(depends),
-        ExpressionNode::Match(dispatch) => crate::expression_traversal::match_children(
-            program, *dispatch,
-        )
-        .try_fold(false, |found, child| {
-            let child_depends = depends(child)?;
-            Ok(found || child_depends)
-        }),
-        ExpressionNode::Atomic(atomic) => {
-            let value = depends(atomic.value)?;
-            let result = if atomic.result.is_valid() {
-                depends(atomic.result)?
-            } else {
-                false
-            };
-            Ok(value || result)
+    let edges = typed_trees::SubtreeEdges {
+        atomic_results: true,
+        ..typed_trees::SubtreeEdges::SAVED_SOURCES
+    };
+    let (mut depends, mut unresolved) = (false, false);
+    program.subtree_for_each(expression, edges, |_, node| match node {
+        ExpressionNode::SavedSubject(saved) => {
+            unresolved |= program.saved_value_source(saved).is_none();
         }
-        ExpressionNode::ArrayLiteral(values) => expression_table(program)
-            .expression_handles(*values)
-            .iter()
-            .try_fold(false, |found, expression| {
-                let expression_depends = depends(*expression)?;
-                Ok(found || expression_depends)
-            }),
-        ExpressionNode::Binary(binary) => {
-            let left = depends(binary.left)?;
-            let right = depends(binary.right)?;
-            Ok(left || right)
+        ExpressionNode::Name(path) if !path.symbol.is_valid() && !path.head_symbol.is_valid() => {
+            unresolved = true;
         }
-        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
-            Ok(false)
-        }
-        ExpressionNode::Cast(cast) => depends(cast.value),
-        ExpressionNode::Call(call) => {
-            let receiver_depends = if call.receiver.is_valid() {
-                depends(call.receiver)?
-            } else {
-                false
-            };
-            expression_table(program)
-                .expression_handles(call.arguments)
-                .iter()
-                .try_fold(receiver_depends, |found, expression| {
-                    let expression_depends = depends(*expression)?;
-                    Ok(found || expression_depends)
-                })
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let collection = depends(indexed.collection)?;
-            let index = depends(indexed.index)?;
-            Ok(collection || index)
-        }
-        ExpressionNode::Member(member) => depends(member.receiver),
-        ExpressionNode::Borrow(inner) => depends(inner.target),
-        ExpressionNode::Unary(unary) => depends(unary.operand),
         ExpressionNode::Name(path) => {
-            if !path.symbol.is_valid() && !path.head_symbol.is_valid() {
-                return Err(RelationPlanError::PreconditionDependencyUnresolved);
-            }
-            Ok(parameters.contains(&path.symbol) || parameters.contains(&path.head_symbol))
+            depends |= parameters.contains(&path.symbol) || parameters.contains(&path.head_symbol);
         }
-        ExpressionNode::Range(range) => {
-            let start = if range.start.is_valid() {
-                depends(range.start)?
-            } else {
-                false
-            };
-            let end = if range.end.is_valid() {
-                depends(range.end)?
-            } else {
-                false
-            };
-            Ok(start || end)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .try_fold(false, |found, field| {
-                let field_depends = depends(field.value)?;
-                Ok(found || field_depends)
-            }),
+        _ => {}
+    });
+    if unresolved {
+        return Err(RelationPlanError::PreconditionDependencyUnresolved);
     }
+    Ok(depends)
 }

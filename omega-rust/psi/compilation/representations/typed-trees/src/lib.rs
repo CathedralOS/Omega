@@ -37,6 +37,7 @@ pub use typed_trees::names::{identity, name};
 pub use typed_trees::type_system::{closed_numeric, type_identity, types};
 pub use typed_trees::values::const_integer;
 pub use typed_trees::values::expression;
+pub use typed_trees::values::subtrees::{SubtreeEdges, SubtreeVisit};
 
 pub use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,

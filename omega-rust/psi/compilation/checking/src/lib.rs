@@ -586,7 +586,7 @@ pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guar
 pub use expression_traversal::{
     append_fact_expression_roots, collect_contract_facts, collect_expression_tree,
     collect_statement_expression_trees, collect_transition_target_expression_trees,
-    is_single_segment_name_path, single_segment_name_symbol,
+    executable_subtree_any, is_single_segment_name_path, single_segment_name_symbol,
 };
 pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts, call_result_type,
