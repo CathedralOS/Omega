@@ -1930,9 +1930,17 @@ impl<'program> StructuralJudge<'program> {
         } else {
             value
         };
-        let call = self
-            .completed_integer_call(value)
-            .filter(|(_, _, observed)| *observed == primitive);
+        let call = self.completed_integer_call(value);
+        if let Some((_, _, observed)) = call.as_ref()
+            && *observed != primitive
+        {
+            // A denotation-preserving conversion keeps the completed source
+            // observation. Project it in its own carrier first so both its
+            // bounds and canonical occurrence survive in the receiving one.
+            // The receiving carrier still owes its own conversion formation;
+            // its interval cannot be donated to the original source atom.
+            return self.integer_value(value, *observed, observations, depth + 1);
+        }
         let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
         let completed = completed_before_resolution
             .or_else(|| self.completed_scalar_observation(value, primitive));
