@@ -1,0 +1,10 @@
+// A constructor predicate cannot assume its requested field range.
+// An unproved conversion also cannot obtain formation from its result.
+data ByteRead requires (self in ByteRead::Eof)
+    || ((self in ByteRead::Byte) && self.value >= 0 && self.value <= 255)
+{ case Eof; case Byte(value: i32); }
+machine make(value: i32) -> ByteRead {
+    let narrowed: u8 = value as u8;
+    ByteRead::Byte { value: narrowed as i32 }
+}
+machine main() { let invalid: ByteRead = make(-1); }
