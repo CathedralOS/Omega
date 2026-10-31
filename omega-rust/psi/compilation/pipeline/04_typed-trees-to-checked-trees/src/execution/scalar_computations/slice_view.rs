@@ -71,10 +71,34 @@ impl Builder<'_, '_> {
                     .flatten()
                 })?;
         let state = self.program.state_by_symbol(self.state)?;
-        let (mut place, access) = self.view_formation(expression, expected, view.access)?;
-
         let machine = self.program.machine_by_symbol(self.machine)?;
         let authored_recast = validation::slice_recast_source(self.program, expression);
+        if let Some(authored) = authored_recast
+            && let Some(declared) = validation::expression_result_type_reference(
+                self.program,
+                machine,
+                state,
+                authored.source,
+            )
+            && validation::slice_view_shell(self.program, declared, &[]).is_some()
+        {
+            // An existing descriptor already carries its captured loan/window.
+            // Read that checked value through the ordinary reference producer;
+            // demanding a new storage-loan birth would erase this producer.
+            if view.access != language_semantics::ReferenceAccess::Shared
+                || authored.access != view.access
+                || self.program.normalized_type_identity(authored.element)
+                    != self.program.normalized_type_identity(view.element)
+            {
+                return None;
+            }
+            let (source, _, _) = self.borrowed_leaf_argument(authored.source, declared)?;
+            return Some(CheckedStructuralValueKind::BorrowedSliceView {
+                source,
+                region: checked_trees::CheckedElementViewRegion::WholeRepresentation,
+            });
+        }
+        let (mut place, access) = self.view_formation(expression, expected, view.access)?;
         let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
         if let Some(authored) = authored_recast {
             if authored.access != view.access
@@ -130,11 +154,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             &place,
         )?;
-        let representation_view = authored_recast.is_some()
-            && validation::slice_view_shell(self.program, declared, &[]).is_some();
-        if !representation_view
-            && validation::slice_view_shell(self.program, declared, &[]).is_some()
-        {
+        if validation::slice_view_shell(self.program, declared, &[]).is_some() {
             // Transport the current descriptor through the ordinary reference
             // join. Collection establishment would replace its captured extent
             // with backing geometry. Stored-leaf selection also retains every
@@ -239,8 +259,6 @@ impl Builder<'_, '_> {
                 start,
                 end: region.extent,
             }
-        } else if representation_view {
-            checked_trees::CheckedElementViewRegion::WholeRepresentation
         } else {
             checked_trees::CheckedElementViewRegion::WholeCollection
         };
