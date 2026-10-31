@@ -7880,7 +7880,7 @@ pass/proofs/negative_disjunction_post_mutation_bound built 3231ms @5f668826adf3+
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 18240ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/proofs/normal_return_expression_statement_sequence_exit built 3869ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/proofs/numeric_state_contract checked 3419ms @5f668826adf3+wt
-pass/proofs/numeric_state_contract_exit built 3266ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/proofs/numeric_state_contract_exit built 2851ms exit:0 interpreter-exit:0 interpreter:agrees @9a91500d1caa
 pass/proofs/ordinary_denotational_requirement_published_termination_exit built 8017ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/proofs/piecewise_call_result_arithmetic checked 3881ms @5f668826adf3+wt
 pass/proofs/polynomial_expand_core_nat built 16188ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt

@@ -12861,12 +12861,7 @@ pass/proofs/nested_machine_rank_forwarding checked 1958ms @ccdb99ca2214
 pass/proofs/nested_machine_unrelated_selection_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/normal_return_expression_statement_sequence_exit checked 3275ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/numeric_state_contract checked 2613ms @ccdb99ca2214
-pass/proofs/numeric_state_contract_exit rejected 2681ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call loop from hundreds_emit: 0 <= 9 && embed(rest) + embed(0) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call digit from hundreds_digit: 48 <= code && code <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call loop from hundreds_digit: 0 <= 9 && embed(rest) + embed(0) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call digit from emit: 48 <= 48 + count && 48 + count <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call digit from emit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/proofs/numeric_state_contract_exit checked 3582ms check-target:macos_arm64 @9a91500d1caa
 pass/proofs/ordinary_denotational_requirement_published_termination_exit checked 6257ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/piecewise_call_result_arithmetic checked 2553ms @ccdb99ca2214
 pass/proofs/polynomial_expand_core_nat checked 17080ms check-target:macos_arm64 @ccdb99ca2214
