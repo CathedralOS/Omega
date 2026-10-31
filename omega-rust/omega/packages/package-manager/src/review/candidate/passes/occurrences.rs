@@ -29,6 +29,8 @@ use std::collections::BTreeMap;
 use super::super::review_cache::PackageReviewCacheWrite;
 use super::PackageSourceBindings;
 use super::policy::reserve;
+use std::collections::BTreeSet;
+use std::iter::empty;
 
 pub struct RetainedPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
@@ -264,7 +266,7 @@ impl<'pass> PackageReviewPass<'pass> {
     pub fn begin_round<'round>(
         &'round self,
         source_bindings: &'round mut PackageSourceBindings,
-        fresh_components: &'round std::collections::BTreeSet<(
+        fresh_components: &'round BTreeSet<(
             semantic_vocabulary::PackageKeyIdentity,
             DependencyPurpose,
         )>,
@@ -311,10 +313,7 @@ pub struct PackageReviewRound<'pass> {
     /// Dependency occurrences a consumer demanded a component description
     /// from that no carried record retained: they compile fresh and their
     /// replacement records carry the published description.
-    fresh_components: &'pass std::collections::BTreeSet<(
-        semantic_vocabulary::PackageKeyIdentity,
-        DependencyPurpose,
-    )>,
+    fresh_components: &'pass BTreeSet<(semantic_vocabulary::PackageKeyIdentity, DependencyPurpose)>,
     /// Completed work from interrupted attempts in this same pass. It remains
     /// usable only under the exact input comparisons of ordinary review reuse.
     recovered: &'pass [RetainedPackageReviews],
@@ -555,9 +554,7 @@ impl<'pass> PackageReviewRound<'pass> {
         } else {
             None
         }
-        .unwrap_or_else(|| {
-            build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
-        });
+        .unwrap_or_else(|| build_evaluation::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
         // Every package compiles as the root of its own component view, so
         // any of them — not only the graph root — may author `Independent`
         // selections over dependencies this loop already compiled. The
