@@ -46,20 +46,6 @@ pub(crate) fn indexed_theorems(
     for theorem in roots {
         // Source checking already decided both typing and complete closure.
         // Transfer the exact roots without replaying kernel conversion here.
-        if theorem
-            .assumption_closure
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-            || theorem.assumption_closure.iter().any(|position| {
-                !checked
-                    .facts
-                    .proof
-                    .mathematical_safety_assumptions
-                    .contains(position)
-            })
-        {
-            return unsupported("cited induction theorem changed its admitted assumption closure");
-        }
         let source_contract = crate::machine_lowering::declarations::identity(
             identities,
             checked,

@@ -1,3 +1,6 @@
+//! Closed applications retain the exact conformance roster. Project those
+//! rows directly, rather than reconstructing and comparing their selecting
+//! declarations from the earlier static binding syntax.
 //! Preserve closed substitution before the source companions are discarded.
 //!
 //! The original generic graph supplies the finite dependency; the selected
@@ -79,14 +82,11 @@ fn capture_view<'a>(
         let (Some(binding), None) = (matches.next(), matches.next()) else {
             return unsupported("closed capture has no unique exact parameter binding");
         };
-        match (&parameter.kind, &binding.value) {
-            (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference)) => {
+        match &binding.value {
+            StaticMachineBindingValue::Type(reference) => {
                 types.push(checked.normalized_type_identity_text(*reference));
             }
-            (
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
-                StaticMachineBindingValue::Const(reference),
-            ) => {
+            StaticMachineBindingValue::Const(reference) => {
                 constants.push(
                     checked
                         .static_const_type_reference_identity(*reference)
@@ -95,8 +95,13 @@ fn capture_view<'a>(
                         ))?,
                 );
             }
-            (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(_)) => {}
-            _ => return unsupported("closed capture argument differs from its declared kind"),
+            StaticMachineBindingValue::Machine(_) => {}
+            StaticMachineBindingValue::RuntimeValue { .. } => {
+                return unsupported("closed capture needs a static value operand");
+            }
+            StaticMachineBindingValue::Conformance(_) => {
+                return unsupported("closed capture has no conformance-parameter route");
+            }
         }
     }
     let identity = checked
@@ -206,7 +211,6 @@ fn closed_evidence_bindings(
     checked: &CheckedTrees,
     application: &typed_trees::typed_trees::MachineSpecialization,
 ) -> Result<Vec<(SymbolHandle, String)>, LoweringError> {
-    use typed_trees::static_applications::StaticMachineBindingValue;
     let template = checked
         .machine(application.template)
         .ok_or(LoweringError::Unsupported(
@@ -218,31 +222,12 @@ fn closed_evidence_bindings(
     {
         return unsupported("closed reach evidence lost its complete substitution");
     }
-    let bindings = checked
-        .expression_table
-        .static_machine_application_bindings(application.binding_application);
     bounds
         .iter()
         .enumerate()
         .map(|(position, bound)| {
-            let mut matches = bindings
-                .iter()
-                .filter(|binding| binding.parameter == bound.binder);
-            let (Some(binding), None) = (matches.next(), matches.next()) else {
-                return unsupported("closed reach evidence has no unique original binder operand");
-            };
-            let StaticMachineBindingValue::Conformance(selected) = &binding.value else {
-                return unsupported("closed reach evidence operand differs from its declared kind");
-            };
             let selected_application = &application.conformance_applications[position];
-            if selected.symbol != application.conformance_arguments[position]
-                || selected.symbol != selected_application.declaration
-            {
-                return unsupported(
-                    "closed reach evidence operand differs from its exact application",
-                );
-            }
-            let declaration = declaration_identity(checked, selected.symbol);
+            let declaration = declaration_identity(checked, selected_application.declaration);
             let commitment = hex_text(&selected_application.commitment.as_bytes());
             Ok((
                 bound.binder,

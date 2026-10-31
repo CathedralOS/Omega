@@ -14,7 +14,6 @@ use terminal_psi::{StructuralParameterDeclaration, ValueDeclaration};
 /// One private copy born on this selected target. Its exact value handle
 /// distinguishes the saved owner from every authored by-value read.
 pub(super) struct CompletedCopy {
-    value: checked_trees::CheckedStructuralValueHandle,
     binding: crate::emission::operation_emission::buffer::ComputedValueBinding,
 }
 
@@ -99,11 +98,6 @@ impl StateGraphEmission<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "selected structural payload has no checked copied-value root",
                 ))?;
-            if root.machine != owner || root.type_reference != copy.type_reference {
-                return unsupported(
-                    "selected structural payload root changed its completed carrier",
-                );
-            }
             if !validation::type_satisfies_declared_property(
                 &checked.typed,
                 &[],
@@ -167,10 +161,7 @@ impl StateGraphEmission<'_, '_> {
             {
                 return unsupported("selected copied value did not establish its own whole home");
             }
-            completed.push(CompletedCopy {
-                value: root.root,
-                binding,
-            });
+            completed.push(CompletedCopy { binding });
         }
         Ok(completed)
     }
@@ -188,12 +179,6 @@ impl StateGraphEmission<'_, '_> {
     ) -> Result<Vec<crate::unit::unit_cleanup::CleanupRegion>, LoweringError> {
         let mut regions = Vec::new();
         for copy in copies.iter().rev() {
-            let current = evaluation.saved_value_binding(copy.value, operations)?;
-            if current.argument != copy.binding.argument
-                || current.structural_type != copy.binding.structural_type
-            {
-                return unsupported("selected copied value changed its completed producer name");
-            }
             // Ordinary cleanup tracks the physical carrier's multiplicity and
             // selected residuals. Source Copy never grants disposal of another
             // root, a nominal hook, or a borrowed pointee.

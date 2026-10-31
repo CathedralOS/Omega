@@ -44,11 +44,6 @@ impl OperationFrame<'_, '_> {
                 "structural operand capture has no checked actual",
             ))?;
         let mut captured = if let Some(captured) = previous {
-            if captured.source != *source || captured.progress.is_none() {
-                return Err(LoweringError::Unsupported(
-                    "structural actual repeated or changed its source",
-                ));
-            }
             captured
         } else {
             self.evaluation.prepare_borrowed_argument(

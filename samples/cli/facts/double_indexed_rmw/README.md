@@ -1,5 +1,9 @@
 # Double-indexed read-modify-write
 
+This existing row also exercises `CHECKER-CARRIES-OPERATION-DECISIONS`: checking
+publishes the primitive store carrier and exact nested index/receiving
+obligations; lowering and native realization preserve the borrowed storage.
+
 A const write of 41 at `grid[1][2]` becomes 42 after `grid[i][j] = grid[i][j] + 1`
 with `i == 1` and `j == 2`, and `rows[2].data[1]` becomes 42 after the same
 increment while `rows[2].tag` stays 7.
@@ -13,9 +17,12 @@ depend on `source/library/std`.
 Every place copies that fact sentence and operation. Only the transport of the
 borrowed storage changes: a local, a record field, an explicit parameter, a
 call result, both match arms, the named bound, a successor machine, a forwarding
-machine, and per-target bodies. The twin of each place stores 40 instead of 41
-at `grid[1][2]`, so the cell observation is false; indices, increment, and the
-row store stay.
+machine, and per-target bodies. Each checking twin changes the inner index actual from 2 to 4 under the
+unchanged `j <= 3` contract; the constant-name twin changes only `J` from 2 to 4. The same
+read-modify-write must therefore reject during source checking. The original
+40-instead-of-41 runtime falsifiers remain under each place's `runtime_control/`
+folder and in the existing trap fixtures; their authored programs and oracles
+are unchanged.
 
 The corpus fixtures `runtime_double_indexed_rmw_exit`,
 `runtime_indexed_struct_field_rmw_exit`, and `runtime_hoisted_index_write_exit`
@@ -25,7 +32,7 @@ binding. That wall is not this operation.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) | the writing states borrow the entry machine's locals |
+| root | [`main.omg`](main.omg) | [runtime trap control](invalid/main.omg) | the writing states borrow the entry machine's locals |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | both arrays stay locals of the entry machine |
 | field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | both arrays live in one record field |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | one machine receives both arrays as parameters |
@@ -40,7 +47,8 @@ binding. That wall is not this operation.
 
 Every positive place and the root bind `ProgramEntry` for `windows_x86_64`,
 `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares
-`Expected exit: 0`. Each twin keeps the same bindings and declares the trap.
+`Expected exit: 0`. Each checking twin keeps the same bindings and rejects an
+unproved inner index. Runtime controls retain the trap oracle.
 
 ```sh
 omega run --both samples/cli/facts/double_indexed_rmw/main.omg
@@ -61,8 +69,10 @@ for the root and its twin at `ff5d57b7c845`.
 ## Pinned fixtures
 
 Pass fixtures `tests/omega/pass/facts/double_indexed_rmw_through_<place>_exit`
-copy the place program and record the native exit 0 oracle. Trap fixtures
-`tests/omega/run/facts/double_indexed_rmw_through_<place>_traps` copy the twin
+copy the place program and record the native exit 0 oracle. Checking fixtures
+`tests/omega/fail/facts/double_indexed_rmw_through_<place>_unproved_inner_bound`
+copy the fact-sensitive bound controls. Trap fixtures
+`tests/omega/run/facts/double_indexed_rmw_through_<place>_traps` retain the original runtime control
 and record the `trap` oracle, following
 `tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps`.
 
@@ -96,8 +106,9 @@ and the nine `built ... exit:signal signal:5` traps, and
    match arms, the named bound, a successor machine, a forwarding machine, and
    four target bodies. The observation after each transport is the consuming
    operation, and both engines agree on it.
-4. **Soundness boundaries:** the false store must not complete as exit 0. All
-   nine twins take their `crash Trap` route natively and in Terminal Psi
+4. **Soundness boundaries:** the checking twins remove the inner-index bound
+   and must reject before Terminal/native production. The separate runtime
+   falsifiers keep the false store and must take their `crash Trap` route
    instead of reporting exit 0.
 5. **Checked-to-Terminal Psi lowering:** the RMW, both runtime indices, the
    field-between-indices projection, and the exit choice lower into Terminal

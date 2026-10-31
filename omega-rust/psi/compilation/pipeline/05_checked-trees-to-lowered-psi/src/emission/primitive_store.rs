@@ -1,3 +1,6 @@
+//! The checked primitive leaf owns its exact carrier. Resolving a current
+//! home supplies its address and receiving declaration; it does not select or
+//! re-validate the scalar operation that source checking already admitted.
 //! Primitive-reference store emission shared by Unit and scalar-result bodies.
 //! A runtime element's bound travels from range checking through the shared
 //! destination path (`runtime_elements.rs`), as for every other store route.
@@ -38,6 +41,7 @@ pub(crate) fn parameter_destination(
     parameter: &StructuralParameterDeclaration,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
+    scalar_type: ScalarType,
 ) -> Result<Destination, LoweringError> {
     let writable = matches!(
         parameter.access,
@@ -49,8 +53,7 @@ pub(crate) fn parameter_destination(
     {
         return unsupported("primitive store parameter lost its exclusive custody");
     }
-    let (path, scalar_type) =
-        lower_destination_path(identities, parameter.structural_type, path, types)?;
+    let (path, _) = lower_destination_path(identities, parameter.structural_type, path, types)?;
     Ok(Destination {
         logical_receiving: None,
         root_type: parameter.structural_type,
@@ -226,11 +229,6 @@ pub(crate) fn emit_assignment(
     // integer decision was authenticated by OperationFrame before emission;
     // byte preservation is the exact checked target's independent judgment.
     // Physical goals use only the physical declaration and full root roster.
-    if receiving_scalar(logical, structural_types) != Some(destination.scalar_type)
-        || receiving_scalar(&physical, structural_types) != Some(destination.scalar_type)
-    {
-        return unsupported("captured primitive destination changed its scalar endpoint");
-    }
     let logical_proven = receiving_range
         .map(|range| StructuralFieldType::BoundedInteger(range.integer))
         .or_else(|| {
@@ -288,9 +286,6 @@ pub(crate) fn emit_completed_assignment(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<OperationKind, LoweringError> {
-    if value.scalar_type != scalar_type {
-        return unsupported("physical scalar store value changed its checked carrier");
-    }
     let physical = ReceivingPlace {
         root_type: destination.root_type,
         qualifications: destination.qualifications,

@@ -95,17 +95,11 @@ fn lower_custody(
         .type_reference_table
         .unconstrained_type_reference(parameter.type_reference);
     let TypeReferenceNode::Reference {
-        access,
-        lifetime: Some(_),
-        ..
+        lifetime: Some(_), ..
     } = checked.type_reference_table.type_reference(source_ty)
     else {
         return unsupported("retained-borrow source is not one explicit direct reference");
     };
-
-    if *access != fact.access {
-        return unsupported("retained-borrow source access differs from its checked loan");
-    }
 
     if fact.result.version != language_semantics::content::ContentPlaceVersion::Current
         || !matches!(

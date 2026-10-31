@@ -1,3 +1,6 @@
+//! A completed return binding is consumed once. Its constructor joins the
+//! checked exit decisions to the result; reading it cannot introduce a second
+//! source-type comparison or a new membership-establishment route.
 //! Close source-checked result memberships over emitted normal return edges.
 //! The checker proved every reachable source exit before this owner runs.
 //! Lowering may join several such exits into one return block; retain their
@@ -16,19 +19,12 @@ use terminal_psi::{
 /// Admission belongs to one fresh return-completion binding, never to its
 /// operand. Only this owner can construct it from exact source exit judgments.
 pub(crate) struct CheckedReturnCompletion {
-    source: semantic_vocabulary::QualifiedScalarType,
     result: semantic_vocabulary::QualifiedScalarType,
 }
 
 impl CheckedReturnCompletion {
-    pub(crate) fn destination(
-        self,
-        source: semantic_vocabulary::QualifiedScalarType,
-    ) -> Result<semantic_vocabulary::QualifiedScalarType, LoweringError> {
-        if source != self.source {
-            return unsupported("checked return completion changed its operand type");
-        }
-        Ok(self.result)
+    pub(crate) fn destination(self) -> semantic_vocabulary::QualifiedScalarType {
+        self.result
     }
 }
 
@@ -84,7 +80,7 @@ impl super::PreparedScalarQualifications {
             }
             checked_exit_decision(checked, machine, exit, domain.semantic_domain)?;
         }
-        Ok(CheckedReturnCompletion { source, result })
+        Ok(CheckedReturnCompletion { result })
     }
 }
 

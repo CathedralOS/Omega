@@ -40,7 +40,6 @@ pub enum AcceptedFactRoute {
         acceptance: CertificateAcceptance,
     },
     Admitted(AdmissionEvidence),
-    SourceChecked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,28 +127,6 @@ pub fn verify_obligation_with_machine_parameters(
     })
 }
 
-/// Accept an operation's formation goal on the producing checker's decision.
-/// The Terminal verifier calls this only for an obligation an operation owns;
-/// every other route goes through `verify_obligation_with_machine_parameters`,
-/// which refuses `SourceChecked`. An admission-authorized row is granted by
-/// its profile, never by checking.
-pub fn accept_source_checked_operation(
-    context: &PropositionContext,
-    obligation: &Obligation,
-) -> Result<AcceptedFact, EvidenceError> {
-    context
-        .validate(&obligation.proposition)
-        .map_err(EvidenceError::MalformedProposition)?;
-    if !matches!(obligation.class, ObligationClass::Derivable) {
-        return Err(EvidenceError::SourceCheckRequiresDerivation);
-    }
-    Ok(AcceptedFact {
-        obligation: obligation.id,
-        proposition: obligation.proposition.clone(),
-        route: AcceptedFactRoute::SourceChecked,
-    })
-}
-
 fn primitive_derivation(
     context: &PropositionContext,
     proposition: &Proposition,
@@ -172,7 +149,6 @@ pub enum EvidenceError {
     AdmissionCannotReplaceDerivation,
     AdmissionSiteMismatch,
     AdmissionNotAcceptedByProfile,
-    SourceCheckRequiresDerivation,
     SourceCheckedOutsideOperation,
 }
 

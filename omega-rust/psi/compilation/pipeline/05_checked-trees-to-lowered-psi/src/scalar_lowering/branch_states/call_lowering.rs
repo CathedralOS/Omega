@@ -181,9 +181,6 @@ pub(crate) fn lower_scalar_call(
                 caller_state,
             )
             .map_err(LoweringError::Unsupported)?;
-        if call.target_machine != target_machine || call.target_state != target_state {
-            return unsupported("scalar declaration invocation changed its selected callee");
-        }
         call.target_contract.ok_or(LoweringError::Unsupported(
             "scalar declaration invocation has no bound target contract",
         ))?

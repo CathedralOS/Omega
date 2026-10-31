@@ -112,7 +112,6 @@ pub fn lower_task_activation_demands(
             machine,
             entry,
             contract,
-            &typed.callable_identity_text(authored),
         )?;
         let mut crossings = graph
             .crossings

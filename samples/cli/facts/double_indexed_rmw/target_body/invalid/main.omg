@@ -10,7 +10,7 @@ linux_x86_64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 
     requires ri <= 2
     requires rj <= 1
     crashes Trap {
-    grid[1][2] = 40;
+    grid[1][2] = 41;
     grid[i][j] = grid[i][j] + 1;
     let grid_got: i32 in Wrapping = grid[1][2];
     rows[2].data[1] = 41;
@@ -29,7 +29,7 @@ linux_arm64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3
     requires ri <= 2
     requires rj <= 1
     crashes Trap {
-    grid[1][2] = 40;
+    grid[1][2] = 41;
     grid[i][j] = grid[i][j] + 1;
     let grid_got: i32 in Wrapping = grid[1][2];
     rows[2].data[1] = 41;
@@ -48,7 +48,7 @@ macos_arm64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3
     requires ri <= 2
     requires rj <= 1
     crashes Trap {
-    grid[1][2] = 40;
+    grid[1][2] = 41;
     grid[i][j] = grid[i][j] + 1;
     let grid_got: i32 in Wrapping = grid[1][2];
     rows[2].data[1] = 41;
@@ -67,7 +67,7 @@ windows_x86_64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row
     requires ri <= 2
     requires rj <= 1
     crashes Trap {
-    grid[1][2] = 40;
+    grid[1][2] = 41;
     grid[i][j] = grid[i][j] + 1;
     let grid_got: i32 in Wrapping = grid[1][2];
     rows[2].data[1] = 41;
@@ -82,5 +82,5 @@ windows_x86_64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row
 machine main() crashes Trap {
     let mut grid: [[i32 in Wrapping; 4]; 3];
     let mut rows: [Row; 3];
-    rmw(&mut grid, &mut rows, 1, 2, 2, 1)
+    rmw(&mut grid, &mut rows, 1, 4, 2, 1)
 }

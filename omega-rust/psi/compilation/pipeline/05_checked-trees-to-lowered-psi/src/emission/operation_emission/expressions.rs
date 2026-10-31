@@ -277,9 +277,6 @@ impl LoweredDirectExpression {
         value_type: QualifiedScalarType,
         parameters: &[QualifiedScalarType],
     ) -> Result<(), LoweringError> {
-        if self.scalar_type() != value_type.scalar_type {
-            return unsupported("storage observation changed its scalar carrier");
-        }
         match self {
             Self::PrimitiveRead { qualifications, .. }
             | Self::StructuralField { qualifications, .. }

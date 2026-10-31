@@ -54,7 +54,9 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         match &store.destination.leaf {
             CheckedStoreLeaf::Primitive {
-                receiving_range, ..
+                primitive_type,
+                receiving_range,
+                ..
             } => {
                 if let Some(range) = receiving_range
                     && !crate::emission::structural_scalar_store::source_range_decided(
@@ -66,7 +68,7 @@ impl OperationFrame<'_, '_> {
                 {
                     return unsupported("primitive store lost its receiving-range judgment");
                 }
-                self.primitive_store(identities, store)
+                self.primitive_store(identities, store, *primitive_type)
             }
             CheckedStoreLeaf::ScalarField {
                 primitive_type,
@@ -161,7 +163,9 @@ impl OperationFrame<'_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         store: &CheckedStorePlan,
+        primitive_type: checked_trees::types::PrimitiveType,
     ) -> Result<(), LoweringError> {
+        let scalar_type = terminal_scalar_type(primitive_type)?;
         let Some((role, value)) = store.value.scalar() else {
             return unsupported("primitive store holds no scalar value");
         };
@@ -219,6 +223,7 @@ impl OperationFrame<'_, '_> {
                     parameter,
                     path,
                     self.structural_types.declarations(),
+                    scalar_type,
                 )?
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
@@ -249,13 +254,12 @@ impl OperationFrame<'_, '_> {
                 }
                 let source = home.argument.clone();
                 let declared = home.structural_type;
-                let (steps, scalar_type) =
-                    crate::emission::primitive_store::lower_destination_path(
-                        identities,
-                        declared,
-                        path,
-                        self.structural_types.declarations(),
-                    )?;
+                let (steps, _) = crate::emission::primitive_store::lower_destination_path(
+                    identities,
+                    declared,
+                    path,
+                    self.structural_types.declarations(),
+                )?;
                 // A captured alias contributes its existing static prefix before
                 // this assignment's complete checked projection.
                 let mut composed = source
@@ -289,9 +293,6 @@ impl OperationFrame<'_, '_> {
         {
             let logical = self.receiving_place(captured.original_source, captured.original_path)?;
             let physical = self.receiving_place(captured.source, captured.path)?;
-            if physical.root_type != captured.root_type {
-                return unsupported("captured primitive destination changed its root declaration");
-            }
             destination.logical_receiving = Some(logical);
             destination.place = captured.source;
             destination.root_type = physical.root_type;
@@ -653,11 +654,6 @@ impl OperationFrame<'_, '_> {
                 let logical =
                     self.receiving_place(captured.original_source, captured.original_path)?;
                 let physical = self.receiving_place(captured.source, captured.path)?;
-                if physical.root_type != captured.root_type {
-                    return unsupported(
-                        "captured representation store changed its root declaration",
-                    );
-                }
                 Ok(crate::emission::primitive_store::PhysicalDestination {
                     place: captured.source,
                     root_type: physical.root_type,

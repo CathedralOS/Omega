@@ -60,8 +60,6 @@ struct ScalarCaseDispatchArm {
 fn push_arm_target(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
-    _checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
     source_types: &[QualifiedScalarType],
     result_type: QualifiedScalarType,
@@ -73,8 +71,7 @@ fn push_arm_target(
     )],
 ) -> Result<usize, LoweringError> {
     let CheckedScalarBranchDestination::Return {
-        statement_ordinal,
-        is_continuation,
+        is_continuation, ..
     } = destination
     else {
         return unsupported("ordered scalar completion cannot drop a non-returning edge");
@@ -85,9 +82,6 @@ fn push_arm_target(
         CheckedScalarExpressionRole::Return
     };
     let (target, exit) = completion_target(destination, completions)?;
-    if exit.state_symbol != state || exit.statement_index != *statement_ordinal as usize {
-        return unsupported("scalar return completion changed its source coordinate");
-    }
     expansion.normal_return(
         identities,
         &exit,
@@ -220,8 +214,6 @@ impl Evaluation {
             let target = push_arm_target(
                 identities,
                 expansion,
-                checked,
-                state,
                 bindings,
                 source_types,
                 result_type,
@@ -243,8 +235,6 @@ impl Evaluation {
                 push_arm_target(
                     identities,
                     expansion,
-                    checked,
-                    state,
                     bindings,
                     source_types,
                     result_type,
@@ -352,8 +342,6 @@ impl Evaluation {
                 let target = push_arm_target(
                     identities,
                     &mut expansion,
-                    checked,
-                    state,
                     &bindings,
                     &source_types,
                     result_type,
@@ -380,8 +368,6 @@ impl Evaluation {
                 let true_target = push_arm_target(
                     identities,
                     &mut expansion,
-                    checked,
-                    state,
                     &bindings,
                     &source_types,
                     result_type,
@@ -391,8 +377,6 @@ impl Evaluation {
                 let false_target = push_arm_target(
                     identities,
                     &mut expansion,
-                    checked,
-                    state,
                     &bindings,
                     &source_types,
                     result_type,
@@ -557,8 +541,6 @@ impl Evaluation {
                         let target = push_arm_target(
                             identities,
                             &mut expansion,
-                            checked,
-                            state,
                             &bindings,
                             &source_types,
                             result_type,
@@ -573,8 +555,6 @@ impl Evaluation {
                         push_arm_target(
                             identities,
                             &mut expansion,
-                            checked,
-                            state,
                             &bindings,
                             &source_types,
                             result_type,

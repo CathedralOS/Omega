@@ -323,11 +323,6 @@ pub(crate) fn fresh_field_snapshot(
     qualifications: &[terminal_psi::ScalarFieldQualification],
 ) -> Result<terminal_psi::ValueDeclaration, LoweringError> {
     let qualification = qualifications.iter().find(|row| row.field == field);
-    if qualification.is_some_and(|row| row.value_type.scalar_type != scalar_type) {
-        return crate::lowering_error::unsupported(
-            "field snapshot qualification changed its declared carrier",
-        );
-    }
     Ok(terminal_psi::ValueDeclaration {
         qualifications: qualification
             .map(|row| row.value_type.qualifications)
