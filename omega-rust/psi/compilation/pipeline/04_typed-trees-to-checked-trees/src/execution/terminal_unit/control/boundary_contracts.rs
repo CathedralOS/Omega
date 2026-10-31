@@ -43,9 +43,6 @@ pub(super) fn boundary_scalar_requires(
         .zip(closed.authored_requires().iter().map(Option::as_ref))
         .chain(entries.map(|clause| (clause, None)))
     {
-        if std::env::var_os("OMEGA_TRACE_BOUNDARY_CONTRACT").is_some() {
-            eprintln!("boundary clause owner={owner:?} clause={clause:?} closed={row:?}");
-        }
         if clause.binding.is_some() {
             return None;
         }
@@ -138,7 +135,7 @@ pub(super) fn boundary_scalar_requires(
                     )?
                 }
                 ProofFact::Expression(expression) => {
-                    let projected = crate::values::lower_callable_scalar_contract_predicate(
+                    crate::values::lower_callable_scalar_contract_predicate(
                         program,
                         operators,
                         owner,
@@ -147,26 +144,7 @@ pub(super) fn boundary_scalar_requires(
                         *expression,
                         false,
                         &mut remaining,
-                    );
-                    if std::env::var_os("OMEGA_TRACE_BOUNDARY_CONTRACT").is_some() {
-                        eprintln!(
-                            "boundary contract owner={owner:?} expression={expression:?} node={:?} projected={projected:?} parameters={parameters:?}",
-                            program.expression_table.expression(*expression)
-                        );
-                        if let Some(binary) = program.expression_table.binary_node(*expression) {
-                            for operand in [binary.left, binary.right] {
-                                eprintln!(
-                                    "boundary operand={operand:?} node={:?} type={:?} closed={:?}",
-                                    program.expression_table.expression(operand),
-                                    validation::parameter_expression_result_type_reference(
-                                        program, owner, parameters, operand
-                                    ),
-                                    program.closed_integer_expression_value_in(operand, owner)
-                                );
-                            }
-                        }
-                    }
-                    projected?
+                    )?
                 }
                 ProofFact::Proposition(_) => return None,
             };

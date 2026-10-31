@@ -229,11 +229,22 @@ fn indexed_read_has_builtin_meaning(
         };
         let scope = program.symbols.get(first.symbol).parent;
         if !scope.is_valid()
-            || program.symbols.get(scope).kind == symbols::SymbolKind::State
             || parameters.iter().any(|parameter| {
                 !parameter.symbol.is_valid()
                     || program.symbols.get(parameter.symbol).parent != scope
             })
+        {
+            return false;
+        }
+        // Trait requirements also own State-kind signature scopes. Their
+        // exact declared formals authenticate the same index operation; they
+        // do not need an executable state or another machine's body locals.
+        if program.symbols.get(scope).kind == symbols::SymbolKind::State
+            && !program
+                .trait_machine_signature(scope)
+                .is_some_and(|(_, signature)| {
+                    program.state_signature_parameters(signature) == parameters
+                })
         {
             return false;
         }
