@@ -12,6 +12,7 @@ use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,
 };
+use terminal_semantics::byte_carrier_field_declaration;
 
 pub(super) fn establish(
     operation: &AbstractOperation,
@@ -231,10 +232,7 @@ pub(super) fn establish(
                             .structural_observation_type(function, argument.place)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                         let expected = field_type.byte_sequence_carrier().and_then(|carrier| {
-                            terminal_semantics::byte_carrier_field_declaration(
-                                types.values().copied(),
-                                carrier,
-                            )
+                            byte_carrier_field_declaration(types.values().copied(), carrier)
                         });
                         if expected.is_none_or(|declaration| {
                             terminal_semantics::borrowed_referent_presentation(

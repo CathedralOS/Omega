@@ -2,12 +2,17 @@
 //! descriptor storage follows actual post-transfer, post-cleanup edges.
 //! Incoming conditional slots retain the union of possible backing origins.
 //! The fixed point computes storage metadata, not a second ownership judgment.
+use super::function_signature::integer_parameters;
+use super::scalar::byte_views::{is_immutable_byte_carrier_parameter, is_owned_byte_parameter};
+use super::scalar::element_views::is_element_view_parameter;
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
 };
+use aggregate_results::block_home;
+use references::{merge_arrivals, merge_borrowed_arrivals};
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
@@ -162,10 +167,7 @@ impl LiveDefinitions {
         );
         for other in exits {
             let other = scoped(other.clone());
-            references::merge_borrowed_arrivals(
-                &mut arrival.borrowed_sources,
-                &other.borrowed_sources,
-            );
+            merge_borrowed_arrivals(&mut arrival.borrowed_sources, &other.borrowed_sources);
             references::merge_arrivals(function, &mut arrival.references, &other.references)?;
             arrival
                 .retired_reference_roots
@@ -305,19 +307,10 @@ pub(super) fn lower(
             if entry.block == function.entry
                 || parameter.position as usize != position
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
-                    && !super::scalar::byte_views::is_immutable_byte_carrier_parameter(
-                        parameter,
-                        structural_types,
-                    )
-                    && !super::scalar::element_views::is_element_view_parameter(
-                        parameter,
-                        structural_types,
-                    )
+                    && !is_immutable_byte_carrier_parameter(parameter, structural_types)
+                    && !is_element_view_parameter(parameter, structural_types)
                     && !transfers::is_address_join(parameter, structural_types)
-                    && !super::scalar::byte_views::is_owned_byte_parameter(
-                        parameter,
-                        structural_types,
-                    )
+                    && !is_owned_byte_parameter(parameter, structural_types)
                     && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
                         parameter,
                         |identity| structural_types.get(&identity).copied(),
@@ -493,10 +486,7 @@ pub(super) fn lower(
         reference_position: (entries[entry_position].block, 0),
         access_formals: references::access_formals(function, structural_types)?,
         structural_homes: BTreeMap::new(),
-        integers: super::function_signature::integer_parameters(
-            function.machine,
-            &prepared.scalar_parameters,
-        )?,
+        integers: integer_parameters(function.machine, &prepared.scalar_parameters)?,
         booleans: BTreeMap::new(),
         scalar_homes: BTreeMap::new(),
         ieee_float_constants: BTreeMap::new(),
@@ -561,12 +551,7 @@ pub(super) fn lower(
                             continue 'blocks;
                         }
                     };
-                    if references::merge_arrivals(
-                        function,
-                        &mut arrival.references,
-                        &other.references,
-                    )
-                    .is_err()
+                    if merge_arrivals(function, &mut arrival.references, &other.references).is_err()
                     {
                         deferred = true;
                         continue 'blocks;
@@ -628,11 +613,7 @@ pub(super) fn lower(
                     .iter()
                     .filter(|parameter| parameter.access == StructuralAccess::Owned)
                 {
-                    let home = aggregate_results::block_home(
-                        entries[position].block,
-                        parameter,
-                        structural_types,
-                    )?;
+                    let home = block_home(entries[position].block, parameter, structural_types)?;
                     if live
                         .structural_homes
                         .insert(parameter.place, home)
@@ -777,10 +758,7 @@ pub(super) fn lower(
         for other in arrivals {
             let other = other?;
             references::merge_arrivals(function, &mut arrival.references, &other.references)?;
-            references::merge_borrowed_arrivals(
-                &mut arrival.borrowed_sources,
-                &other.borrowed_sources,
-            );
+            merge_borrowed_arrivals(&mut arrival.borrowed_sources, &other.borrowed_sources);
         }
         if reference_entries[position].as_ref() != Some(&arrival.references)
             || borrowed_entries[position].as_ref() != Some(&arrival.borrowed_sources)

@@ -7,6 +7,7 @@
 //! Dynamic targets borrow the public requirement slot, never one table row.
 //! Their opaque selection operand stays separate from the ordinary argument ABI.
 
+use super::primitive_storage::retain_result;
 use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
@@ -36,6 +37,7 @@ use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralArgument,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
 };
+use terminal_semantics::descriptor_results::is_descriptor;
 
 /// Only the published scalar operation requires a separately published ABI.
 /// This distinction never selects an operand transport algorithm.
@@ -422,11 +424,7 @@ fn land_result(
             {
                 return Err(LoweringError::DuplicateValue(result.value));
             }
-            TargetCallResult::Scalar(super::primitive_storage::retain_result(
-                call.psi_operation,
-                *result,
-                live,
-            )?)
+            TargetCallResult::Scalar(retain_result(call.psi_operation, *result, live)?)
         }
         AbstractStructuralCallResult::Structural { result, .. } => {
             let result_home =
@@ -472,10 +470,7 @@ fn land_result(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if (bounded_owned_byte_result(result.structural_type, types)
-                || terminal_semantics::descriptor_results::is_descriptor(
-                    types.values().copied(),
-                    result.structural_type,
-                ))
+                || is_descriptor(types.values().copied(), result.structural_type))
                 && live
                     .views
                     .insert(result.place, (call.psi_operation, result.structural_type))

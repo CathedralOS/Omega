@@ -10,6 +10,7 @@ use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 use target_operations::{TargetBooleanExpression, TargetScalarExpression, TerminalPsiProvenance};
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
+use terminal_semantics::descriptor_results::is_descriptor;
 
 /// A materialized descriptor owns its carrier, not the borrowed backing.
 /// A live descriptor comes from an operation or a block arrival. Rejoin its
@@ -436,10 +437,7 @@ pub(super) fn lower_terminator(
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
             let cleanup_actions = cleanup_actions.clone();
-            if terminal_semantics::descriptor_results::is_descriptor(
-                structural_types.values().copied(),
-                result.structural_type,
-            ) {
+            if is_descriptor(structural_types.values().copied(), result.structural_type) {
                 // Descriptor storage is not backing ownership. Every established
                 // view uses the same value-result ABI, including a literal whose
                 // octets live in the image rather than an operation-result home.

@@ -1,5 +1,7 @@
 //! Exact mutable byte descriptors and once-evaluated scalar write operands.
 
+use super::observations::bounded_owner_storage;
+use super::primitive_storage::field_root;
 use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -276,13 +278,7 @@ fn writable_byte_field(
     let (root_type, access) = if let Some(reference) = &reference_destination {
         (reference.carrier_type, StructuralAccess::MutableBorrow)
     } else {
-        super::primitive_storage::field_root(
-            function,
-            structural_types,
-            prepared,
-            live,
-            destination,
-        )?
+        field_root(function, structural_types, prepared, live, destination)?
     };
     if !matches!(
         access,
@@ -462,7 +458,7 @@ pub(super) fn lower(
             || live.structural_homes.contains_key(destination)
             // A mutable bounded owner loan arrives as its owner's address,
             // the same storage a byte observation through it reads.
-            || super::observations::bounded_owner_storage(
+            || bounded_owner_storage(
                 function,
                 structural_types,
                 live,

@@ -1,6 +1,7 @@
 //! Ordered graph operations and their durable scalar result homes.
 use super::RowSite;
 use super::observations;
+use super::selected_boundary_calls::retain_origin;
 use crate::LoweringError;
 use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -743,11 +744,7 @@ pub(super) fn lower_operation(
         _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }?;
     if let (Some(selected), Some((_, origin))) = (selected, resolved) {
-        super::selected_boundary_calls::retain_origin(
-            &mut site.operations[first_output..],
-            selected,
-            origin,
-        )?;
+        retain_origin(&mut site.operations[first_output..], selected, origin)?;
     }
     Ok(())
 }
