@@ -5,34 +5,13 @@
 
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
+use checked_trees::typed_trees::service_declarations::projection;
 use checked_trees::typed_trees::service_declarations::{
     PreparedServiceSurface, ProviderSchemaDeclaration,
 };
-use checked_trees::typed_trees::service_declarations::{ProjectedServiceSurface, projection};
-use checked_trees::typed_trees::trait_definition::AppliedTraitScope;
 use effects::provider_plan::{ServiceCallingApplication, ServiceCallingPlan, ServiceSchema};
 
 pub use checked_trees::typed_trees::service_declarations::projection::is_product_declaration;
-
-/// Add target evidence by exact source correspondence, not a readable method name.
-/// The neutral declaration is shared unchanged with its source projection.
-fn attach_projected_calling(
-    projected: &ProjectedServiceSurface,
-    calling_plans: &[BoundaryCallingPlanRealization],
-    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
-) -> ServiceSchema {
-    attach_requirement_calling(
-        projected.declaration.clone(),
-        projected.schema,
-        projected.argument_owner,
-        projected
-            .requirements
-            .iter()
-            .map(|requirement| requirement.symbol),
-        boundary_arguments,
-        calling_plans,
-    )
-}
 
 /// Source formation already fixed both the neutral surface and attachment
 /// coordinates. Targets attach evidence without projecting that source again.
@@ -81,29 +60,6 @@ fn attach_requirement_calling(
         }
     }
     schema
-}
-
-pub fn from_typed(
-    context: ProviderPlanningContext<'_>,
-    calling_plans: &[BoundaryCallingPlanRealization],
-    definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
-) -> Option<ServiceSchema> {
-    let projected = projection::from_typed(context, definition)?;
-    Some(attach_projected_calling(&projected, calling_plans, &[]))
-}
-
-pub fn from_typed_application(
-    context: ProviderPlanningContext<'_>,
-    calling_plans: &[BoundaryCallingPlanRealization],
-    root: AppliedTraitScope<'_>,
-    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
-) -> Option<ServiceSchema> {
-    let projected = projection::from_typed_application(context, root)?;
-    Some(attach_projected_calling(
-        &projected,
-        calling_plans,
-        boundary_arguments,
-    ))
 }
 
 pub fn from_typed_operator(

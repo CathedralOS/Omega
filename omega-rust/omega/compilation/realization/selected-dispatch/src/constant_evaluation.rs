@@ -74,12 +74,13 @@ impl SelectedConstantEvaluation {
     /// `opaque_representation_selections` are the exact selection the deferred
     /// data-layout queries are answered under.
     pub fn prepare(
-        context: provider_planning::ProviderPlanningContext<'_>,
+        services: typed_trees::service_declarations::ServiceCatalog<'_>,
         target_profile: target::TargetProfile,
         opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let context = services.context();
         let typed = context.typed;
         let uses = facts.resolved_expression_selections();
         let mut selected = Self {
@@ -102,7 +103,7 @@ impl SelectedConstantEvaluation {
             // Select this exact method, not the binding kind of a sibling
             // row in the same boundary-trait plan.
             if let Some((provider, declaration)) =
-                provider_planning::selected_requirement_checked_adapter(context, plan, requirement)
+                provider_planning::selected_requirement_checked_adapter(services, plan, requirement)
                     .map_err(|error| vec![error])?
             {
                 selected.provider_bodies.push(

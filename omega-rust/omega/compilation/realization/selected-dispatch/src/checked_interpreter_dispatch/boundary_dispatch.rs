@@ -21,37 +21,9 @@ use crate::checked_interpreter_dispatch::boundary_dispatch::boundary_fields::{
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 
-/// Service erasure joins the selected plan, not its checked-adapter subset.
-/// Intrinsic and foreign rows deliberately produce no adapter dispatch; an
-/// unrelated checked provider must not make their service carriers invalid.
-/// Exact schema ownership still matters: another requirement's valid digest
-/// cannot authorize this receiver. Fused selection provenance and carrier
-/// custody remain independently checked by `service_custody` before native use.
-fn selected_service_plan_for_application<'plans>(
-    typed: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    selected_plans: &'plans effects::SelectedProviderPlanFacts,
-    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
-    arguments: &[typed_trees::types::TypeReferenceHandle],
-) -> Option<&'plans effects::provider_plan::ProviderPlan> {
-    let schema = provider_planning::service_schema::from_typed_application(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        calling_plans,
-        application.clone(),
-        arguments,
-    )?;
-    let mut matching = selected_plans.plans().iter().filter(|plan| {
-        provider_planning::provider_receiver_application(typed, plan, application, &schema)
-            .is_some()
-    });
-    let plan = matching.next()?;
-    matching.next().is_none().then_some(plan)
-}
-
 /// Produce selected execution associations without changing source-derived facts.
 pub(crate) fn settle_selected_boundary_adapter_dispatch(
     checked: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<checked_trees::CheckedBoundaryAdapterDispatch>, Vec<Diagnostic>> {
     // Review retains checked Build bodies, but this operation realizes only
@@ -136,15 +108,10 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     let retains_receiver = |receiver: &BoundaryField| {
         adapters
             .iter()
-            .any(|adapter| receiver.supplies_adapter(typed, adapter))
-            || generic_requirements.iter().any(|selected| {
-                receiver.supplies_requirement(
-                    typed,
-                    selected.provider_plan_digest,
-                    selected.receiver_trait,
-                    selected.requirement_symbol,
-                )
-            })
+            .any(|adapter| receiver.supplies_adapter(adapter))
+            || generic_requirements
+                .iter()
+                .any(|selected| receiver.trait_symbol == selected.receiver_trait)
     };
 
     // Exact typed field symbol -> exact boundary-trait symbol. Field spellings
@@ -159,49 +126,16 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
             let Some(field) = member.as_field() else {
                 continue;
             };
-            let (symbol, application, provider_plan_digest) = if let Ok(Some(carrier)) =
-                typed_trees::service::classify_exact_bound_service_carrier(
-                    typed,
-                    typed_trees::service::ServiceCarrierOccurrence {
-                        type_reference: field.type_reference,
-                        lexical_owner: data.symbol,
-                        enclosing_data_applications: &[],
-                    },
-                ) {
-                let Some(application) = carrier.application(typed, data.symbol, &[]) else {
-                    continue;
-                };
-                let Some(plan) = selected_service_plan_for_application(
-                    typed,
-                    calling_plans,
-                    selected_plans,
-                    &application,
-                    carrier.arguments(typed),
-                ) else {
-                    // Unselected requirements supply no executable adapter.
-                    // Root establishment owns missing-provider diagnostics.
-                    continue;
-                };
-                (
-                    carrier.requirement,
-                    Some(application.environment()),
-                    Some(*plan.identity_digest().as_bytes()),
-                )
-            } else {
-                let Some(symbol) = typed
-                    .type_reference_table
-                    .type_reference(field.type_reference)
-                    .as_named_symbol()
-                else {
-                    continue;
-                };
-                (symbol, None, None)
+            let Some(symbol) = typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+                .as_named_symbol()
+            else {
+                continue;
             };
             let receiver = BoundaryField {
                 symbol: field.symbol,
                 trait_symbol: symbol,
-                application,
-                provider_plan_digest,
             };
             if !retains_receiver(&receiver) {
                 continue;
@@ -240,8 +174,6 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
         let field = BoundaryField {
             symbol: owner,
             trait_symbol: adapter.receiver_trait,
-            application: None,
-            provider_plan_digest: None,
         };
         if !boundary_fields.contains(&field) {
             boundary_fields.push(field);
@@ -250,9 +182,8 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
 
     // A borrowed nominal boundary-trait parameter uses the same selected
     // requirement as a boundary field. Its state-local parameter symbol, not
-    // the repeated parameter spelling, identifies the receiver. This is not
-    // routed Service erasure: generic and qualified carriers still require
-    // the checked receipt below and must not enter through this narrow shape.
+    // the repeated parameter spelling, identifies the receiver. This nominal
+    // association grants no source-visible service carrier or generic receiver.
     for machine in typed
         .machines()
         .iter()
@@ -304,101 +235,8 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 boundary_fields.push(BoundaryField {
                     symbol: parameter.symbol,
                     trait_symbol,
-                    application: None,
-                    provider_plan_digest: None,
                 });
             }
-        }
-    }
-
-    // Logical Binding parameter receipts identify the receiver independently
-    // of provider selection. Only selected requirements contribute dispatch;
-    // an unused helper may declare other requirements without installing them.
-    let unit = &checked.facts.flow.terminal_unit_effects;
-    let parameter_rosters = unit
-        .machines
-        .iter()
-        .filter(|machine| product_roots.contains(machine.machine))
-        .map(|machine| machine.structural_parameters.as_slice())
-        .chain(
-            unit.composed_machines
-                .iter()
-                .filter(|machine| product_roots.contains(machine.machine))
-                .flat_map(|machine| {
-                    machine
-                        .states
-                        .iter()
-                        .map(|state| state.structural_parameters.as_slice())
-                }),
-        );
-    for parameters in parameter_rosters {
-        for parameter in parameters {
-            let Some(receipt) = &parameter.binding_carrier else {
-                continue;
-            };
-            let Some(source_parameter) = typed
-                .machines()
-                .iter()
-                .flat_map(|machine| typed.machine_states(machine))
-                .flat_map(|state| typed.state_parameters(state))
-                .find(|source| source.symbol == receipt.source_parameter)
-            else {
-                continue;
-            };
-            let Ok(Some(carrier)) = typed_trees::service::classify_exact_service_parameter_carrier(
-                typed,
-                typed_trees::service::ServiceCarrierOccurrence {
-                    type_reference: source_parameter.type_reference,
-                    lexical_owner: source_parameter.symbol,
-                    enclosing_data_applications: &[],
-                },
-            ) else {
-                continue;
-            };
-            if carrier.carrier.requirement != receipt.requirement
-                || typed.normalized_type_identity(source_parameter.type_reference)
-                    != receipt.carrier_type_identity
-            {
-                continue;
-            }
-            let Some(application) =
-                carrier
-                    .carrier
-                    .application(typed, receipt.source_parameter, &[])
-            else {
-                continue;
-            };
-            let Some(plan) = selected_service_plan_for_application(
-                typed,
-                calling_plans,
-                selected_plans,
-                &application,
-                carrier.carrier.arguments(typed),
-            ) else {
-                continue;
-            };
-            let receiver = BoundaryField {
-                symbol: receipt.source_parameter,
-                trait_symbol: receipt.requirement,
-                application: Some(application.environment()),
-                provider_plan_digest: Some(*plan.identity_digest().as_bytes()),
-            };
-            if !retains_receiver(&receiver) {
-                continue;
-            }
-            if let Some(existing) = boundary_fields
-                .iter()
-                .find(|existing| existing.symbol == receipt.source_parameter)
-            {
-                if *existing != receiver {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "boundary receiver symbol {:?} maps to both trait symbols {:?} and {:?}",
-                        receipt.source_parameter, existing.trait_symbol, receipt.requirement,
-                    )));
-                }
-                continue;
-            }
-            boundary_fields.push(receiver);
         }
     }
 
@@ -459,7 +297,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     for receiver in &boundary_fields {
         for adapter in adapters
             .iter()
-            .filter(|adapter| receiver.supplies_adapter(typed, adapter))
+            .filter(|adapter| receiver.supplies_adapter(adapter))
         {
             dispatch.push(checked_trees::CheckedBoundaryAdapterDispatch {
                 receiver: receiver.symbol,
@@ -479,7 +317,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     for adapter in adapters.iter().filter(|adapter| {
         !boundary_fields
             .iter()
-            .any(|receiver| receiver.supplies_adapter(typed, adapter))
+            .any(|receiver| receiver.supplies_adapter(adapter))
     }) {
         let application = typed.closed_requirement_application(adapter.requirement_symbol);
         let receiver = application

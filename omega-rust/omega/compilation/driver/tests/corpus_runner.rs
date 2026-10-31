@@ -797,21 +797,19 @@ fn interpret_checked_fixture(
             "checked fixture has no selected ProgramEntry",
         );
     };
-    let dispatch = match selected_dispatch::prepare_checked_interpreter_dispatch(
-        checked.execution(),
-        &checked.providers().boundary_calling_plan_realizations,
-    ) {
-        Ok(dispatch) => dispatch,
-        Err(errors) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:declined".to_owned()],
-                diagnostics: errors
-                    .iter()
-                    .map(|error| host_free_diagnostic_text(&error.message))
-                    .collect(),
-            };
-        }
-    };
+    let dispatch =
+        match selected_dispatch::prepare_checked_interpreter_dispatch(checked.execution()) {
+            Ok(dispatch) => dispatch,
+            Err(errors) => {
+                return terminal_execution::Observation {
+                    facts: vec!["interpreter:declined".to_owned()],
+                    diagnostics: errors
+                        .iter()
+                        .map(|error| host_free_diagnostic_text(&error.message))
+                        .collect(),
+                };
+            }
+        };
     let mut input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),

@@ -116,7 +116,7 @@ pub(crate) fn prepare_checked_build(
     if had_pending {
         let operator_selections = validation::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
-            context,
+            services,
             execution_profile.unwrap_or_else(target::TargetProfile::host),
             &[],
             &operator_selections,

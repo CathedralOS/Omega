@@ -229,9 +229,13 @@ neutral schemas per target. Canonical-host admission still requires the exact
 accepted package, path and complete target-augmented schema digest. Native
 supplies retain exact declared-signature checks and validate every authored
 target's locator before narrowing realization; neither catalog presence nor a
-Product row supplies Build-host authority. Other source-schema consumers, default ABI signature
-materialization and canonical Terminal publication of the full catalog remain
-unfinished source dependencies.
+Product row supplies Build-host authority. Entry-role nomination, physical-entry
+planning and deferred Build adapter lookup use those prepared declarations too;
+their existing source-shape, source-custody and checked-body admission remain
+explicit. Reference dispatch no longer carries retired `Binding<R>` receiver
+applications or calling-plan inputs used only by them. Other source-schema
+consumers, default ABI signature materialization and canonical Terminal publication
+of the full catalog remain unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;

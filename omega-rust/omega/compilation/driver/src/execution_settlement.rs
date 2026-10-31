@@ -54,7 +54,10 @@ impl SelectedProductTarget {
         if let Some(inputs) = package_inputs.as_ref()
             && let Some(binding) =
                 provider_planning::program_entry::discover_explicit_entry_binding(
-                    &source.program.typed,
+                    source
+                        .provider_inventory
+                        .services_for(&source.program)
+                        .map_err(|error| vec![error])?,
                     &source.computed_build_config.config.root_bindings,
                     target,
                     &source.computed_build_config.config.provider_selections,
@@ -340,7 +343,10 @@ fn select_checked_providers(
     } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
     let mut selected_program_entry =
         provider_planning::program_entry::select_compiler_program_entry(
-            typed,
+            source
+                .provider_inventory
+                .services_for(&source.program)
+                .map_err(|error| vec![error])?,
             &build_config.root_bindings,
             selected_target_profile,
             &providers.boundary_calling_plan_realizations,

@@ -916,7 +916,13 @@ fn provider_derivation_consumes_the_prepared_service_census() {
     let native_supply =
         include_str!("../../realization/provider-planning/src/native_bindings/plans.rs");
     let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
-    for consumer in [native_supply, settlement] {
+    let entry = include_str!("../../realization/provider-planning/src/program_entry.rs");
+    let nomination =
+        include_str!("../../realization/provider-planning/src/program_entry/discovery.rs");
+    let adapter = include_str!(
+        "../../realization/provider-planning/src/provider_planning/provenance_replay/adapter_conformance.rs"
+    );
+    for consumer in [native_supply, settlement, entry, nomination, adapter] {
         assert!(!consumer.contains("service_schema::from_typed"));
         assert!(consumer.contains("service_schema::attach_calling(&prepared,"));
     }
@@ -939,6 +945,36 @@ fn provider_derivation_consumes_the_prepared_service_census() {
             .find("PreparedServiceCatalog::prepare(context)")
             .unwrap()
             < build.find("derive_satisfies_plans(").unwrap()
+    );
+}
+
+#[test]
+fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
+    let attachment = include_str!("../../realization/provider-planning/src/service_schema/mod.rs");
+    assert!(!attachment.contains("fn from_typed("));
+    assert!(!attachment.contains("fn from_typed_application("));
+    let dispatch = include_str!(
+        "../../realization/selected-dispatch/src/checked_interpreter_dispatch/boundary_dispatch.rs"
+    );
+    for retired in [
+        "classify_exact_bound_service_carrier(",
+        "classify_exact_service_parameter_carrier(",
+        "binding_carrier",
+        "calling_plans:",
+        "service_schema::from_typed",
+        "provider_receiver_application(",
+    ] {
+        assert!(!dispatch.contains(retired), "dispatch retained {retired}");
+    }
+    let fields = include_str!(
+        "../../realization/selected-dispatch/src/checked_interpreter_dispatch/boundary_dispatch/boundary_fields.rs"
+    );
+    assert!(!fields.contains("TraitApplicationEnvironment"));
+    assert!(!fields.contains("self.provider_plan_digest"));
+    let evaluation = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
+    assert!(evaluation.contains("services: typed_trees::service_declarations::ServiceCatalog<'_>"));
+    assert!(
+        evaluation.contains("selected_requirement_checked_adapter(services, plan, requirement)")
     );
 }
 
