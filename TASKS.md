@@ -466,14 +466,6 @@ retired-syntax deletions to completion.
   and `fail/slices/signed_slice_index_upper_only` each report their intended
   refusal.
 
-- **CHECKED-PACKAGE-REUSE.** (new-scope) Consume checked dependency judgments
-  through compiler-private checked package reuse bound to exact source,
-  dependency, and compiler identities (`std` is checked once at package review
-  and reused in dependents at the same precision).
-  Acceptance: fixture median under 2 s and a 10-line `std` probe check under 3 s,
-  with `corpus_gate --compare` over the touched groups losing nothing and
-  `tests/omega/fail/proofs/structural_ensures_unjudged_rejected` still rejecting.
-
 ## Pipeline route
 
 Follow one connected stage chain under the
