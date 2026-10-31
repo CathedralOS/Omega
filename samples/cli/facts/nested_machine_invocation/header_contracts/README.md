@@ -51,8 +51,10 @@ other-host requirements.
 
 The Omega-written parser's native harness checks 504 cases, including the
 contract-owner controls. Affected source migration and the supported header
-slice of bootstrap D are part of this prerequisite; D's new lower-chain
-customer execution remains pending. The broader `REQUIRES-UNIFICATION` and
+slice of bootstrap D complete this delimiter prerequisite. The bound
+twenty-invocation D customer also passed through the lower chain on macOS arm64
+with exact `Exit(0)` and `A`, host status zero and empty stderr. The broader
+`REQUIRES-UNIFICATION` and
 `NESTED-MACHINE-UNIFICATION` acceptances remain open. Run identities, raw engine
 outcomes, baseline failures and migration limits stay in the qualification and
 claim records; no whole-corpus or other-host success is inferred.
