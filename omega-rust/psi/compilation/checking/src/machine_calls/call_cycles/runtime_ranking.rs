@@ -268,7 +268,16 @@ pub(super) fn project_component(
             .iter()
             .map(|rows| rows.as_ref().unwrap().clone())
             .collect::<Vec<_>>();
-        projection::natural_component(program, component, &ranks, &mappings, &relevance)
+        // The body owner may publish its executable observations separately
+        // (for example a declared application). Comparison evidence survives
+        // even when this optional primitive projection has no coordinate rows.
+        Some(
+            projection::natural_component(program, component, &ranks, &mappings, &relevance)
+                .unwrap_or(ValidatedRuntimeNaturalComponent {
+                    states: Vec::new(),
+                    edges: Vec::new(),
+                }),
+        )
     } else {
         None
     };
@@ -414,7 +423,9 @@ pub(super) fn project_component(
                                 ) =>
                         {
                             entry_relative = false;
-                            natural = None;
+                            if let Some(retained) = &mut natural {
+                                retained.states.clear();
+                            }
                             continue;
                         }
                         // Do not replay an entry-relative projection or a guard
@@ -475,6 +486,7 @@ pub(super) fn project_component(
                                 && !projection::retain_internal_transfer(
                                     program,
                                     retained,
+                                    &component_states,
                                     &relevance,
                                     state.symbol,
                                     target_symbol,
@@ -483,7 +495,9 @@ pub(super) fn project_component(
                                     body_witnesses[position].unwrap().edges,
                                 )
                             {
-                                natural = None;
+                                return Err(
+                                    "an internal arrival lost its exact admitted comparison",
+                                );
                             }
                             // An internal state arrival belongs to the
                             // member's own ranking judgment -- the checked
@@ -629,21 +643,8 @@ pub(super) fn project_component(
     // Removing all strict edges must leave an acyclic graph across exact
     // state arrivals and invocation entries. No complete weak cycle survives.
     if weak_edges_are_acyclic(&weak_edges) {
-        // Scalar emission currently identifies authored delivery by the
-        // source/target state pair. Keep mixed parallel comparisons out of
-        // this projection until emitted delivery retains the call ordinal;
-        // ordinary runtime component admission is unchanged.
-        if natural.as_ref().is_some_and(|component| {
-            component.edges.iter().enumerate().any(|(position, edge)| {
-                component.edges[..position].iter().any(|earlier| {
-                    earlier.source == edge.source
-                        && earlier.target == edge.target
-                        && earlier.strict != edge.strict
-                })
-            })
-        }) {
-            natural = None;
-        }
+        // Delivery already retains the original statement ordinal, so
+        // parallel preserving/strict edges remain separate proof observations.
         Ok(natural)
     } else {
         Err("a preserving cycle has no strict measure DECREASE")

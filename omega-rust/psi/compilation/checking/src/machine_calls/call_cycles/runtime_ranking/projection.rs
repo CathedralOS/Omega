@@ -649,6 +649,7 @@ pub(super) fn natural_component(
 pub(super) fn retain_internal_transfer(
     program: &dyn crate::CheckingInput,
     component: &mut super::ValidatedRuntimeNaturalComponent,
+    component_states: &[SymbolHandle],
     relevance: &super::super::RankRelevance,
     source: SymbolHandle,
     target: SymbolHandle,
@@ -663,9 +664,7 @@ pub(super) fn retain_internal_transfer(
     if !relevance.requires_rank(target) {
         return true;
     }
-    if !component.states.iter().any(|rank| rank.state == source)
-        || !component.states.iter().any(|rank| rank.state == target)
-    {
+    if !component_states.contains(&source) || !component_states.contains(&target) {
         return false;
     }
     let mut matching = judgments.iter().filter(|edge| {
