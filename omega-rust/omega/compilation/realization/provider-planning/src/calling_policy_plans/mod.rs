@@ -20,9 +20,11 @@ mod callback_layout_catalog;
 mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
+mod policy_code;
 mod selected_application;
 mod terminal_execution;
 mod terminal_values;
+pub use policy_code::CallingPolicyCode;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_application;
 pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
@@ -40,5 +42,5 @@ pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
     BoundaryOpaqueRepresentationUse,
 };
-pub use plan_computation::compute_boundary_calling_plans;
 pub(crate) use plan_computation::evaluate_default_calling_application;
+pub use plan_computation::{PreparedBoundaryCallingPlans, prepare_boundary_calling_plans};

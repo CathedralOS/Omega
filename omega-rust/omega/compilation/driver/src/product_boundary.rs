@@ -952,7 +952,7 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
         .split("pub(crate) fn evaluate_default_calling_application(")
         .nth(1)
         .unwrap()
-        .split("pub fn compute_boundary_calling_plans(")
+        .split("pub fn prepare_boundary_calling_plans<")
         .next()
         .unwrap();
     assert_absent(

@@ -408,14 +408,19 @@ fn prepare_target_provider_selection(
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
-    let mut boundary_calling_plan_realizations =
-        provider_planning::calling_policy_plans::compute_boundary_calling_plans(
-            &source.program,
-            one_refusal(source.provider_inventory.services_for(&source.program))?,
-            selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-            &build_config.opaque_representation_selections,
-            package_inputs,
-        )?;
+    let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
+        &source.program,
+        one_refusal(source.provider_inventory.services_for(&source.program))?,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        &build_config.opaque_representation_selections,
+        package_inputs,
+    )?;
+    let code = if calling.is_empty() {
+        None
+    } else {
+        crate::terminal::retain_calling_policy_code(source)?
+    };
+    let mut boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
     // Provider schemas and provenance commit to the complete calling
     // application. Close target callback geometry before either captures it;
     // otherwise nominal placements retain no private materialization and a
@@ -427,7 +432,7 @@ fn prepare_target_provider_selection(
             &mut boundary_calling_plan_realizations,
             profile,
             &build_config.opaque_representation_selections,
-            package_inputs,
+            code.as_deref(),
         )?;
     }
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(

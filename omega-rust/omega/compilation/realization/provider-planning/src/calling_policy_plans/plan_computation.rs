@@ -8,7 +8,7 @@ use crate::calling_policy_plans::boundary_signatures::{
 };
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
-    VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case, decode_boundary_plan_result,
+    VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case,
 };
 use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, validate_retained_callback_binders,
@@ -24,7 +24,6 @@ use calling_conventions::{
     ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
-use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 
@@ -89,13 +88,13 @@ pub(crate) fn evaluate_default_calling_application(
 /// Discover concrete `Calling<Policy>` relationships, evaluate the selected implementation row once for
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated applications in the realization output. Source trees are borrowed.
-pub fn compute_boundary_calling_plans(
-    checked: &checked_trees::CheckedTrees,
+pub fn prepare_boundary_calling_plans<'checked>(
+    checked: &'checked checked_trees::CheckedTrees,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+) -> Result<PreparedBoundaryCallingPlans<'checked>, Vec<Diagnostic>> {
     if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
     {
@@ -158,22 +157,27 @@ pub fn compute_boundary_calling_plans(
                         .with_source_span(request.span),
                     ]
                 })?;
-                pending.push((
-                    request.boundary,
-                    calling.arguments(instance).to_vec(),
-                    instance.argument_owner,
-                    declaration.symbol,
-                    policy_machine.name.as_str().to_owned(),
-                    policy_machine.symbol,
-                    boundary_signature,
-                    request.span,
-                ));
+                pending.push(PreparedCallingPolicy {
+                    boundary_trait: request.boundary,
+                    boundary_arguments: calling.arguments(instance).to_vec(),
+                    argument_owner: instance.argument_owner,
+                    requirement_machine: declaration.symbol,
+                    policy_machine: policy_machine.name.as_str().to_owned(),
+                    policy_symbol: policy_machine.symbol,
+                    signature: boundary_signature,
+                    relationship_span: request.span,
+                    admission: Ok(()),
+                });
             }
         }
     }
 
     if pending.is_empty() {
-        return Ok(Vec::new());
+        return Ok(PreparedBoundaryCallingPlans {
+            checked,
+            pending,
+            target: target_profile,
+        });
     }
     // Policy helpers use ordinary target families too. Select their exact
     // retained bodies in Omega, then give admission and evaluation one shared
@@ -199,127 +203,112 @@ pub fn compute_boundary_calling_plans(
     )
     .with_selected_machine_bodies(typed, &machine_bodies)
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let mut evaluated = Vec::with_capacity(pending.len());
-    for (
-        boundary_trait,
-        boundary_arguments,
-        argument_owner,
-        requirement_machine,
-        policy_machine,
-        policy_symbol,
-        signature,
-        relationship_span,
-    ) in pending
-    {
-        let validated = evaluate_selected_materialized_calling_policy_plan(
-            BuildTimeProgram::Checked(checked),
-            &admission,
-            &policy_machine,
-            policy_symbol,
-            &signature,
-            Some(build_time_evaluation::BuildTimeInvocationCustody::Source(
-                relationship_span,
-            )),
-        )
-        .map_err(|rejection| {
-            vec![
-                Diagnostic::error(rejection.reason)
-                    .with_source_span(rejection.source_span.unwrap_or(relationship_span)),
-            ]
-        })?;
-        let (application_report_fingerprint, application_commitment) =
-            boundary_plan_application_identity(&signature, &validated)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        evaluated.push(BoundaryCallingPlanRealization {
+    for policy in &mut pending {
+        policy.admission = admission
+            .admitted_program_machine_closure_symbols(
+                BuildTimeProgram::Checked(checked),
+                policy.policy_symbol,
+                build_time_evaluation::BuildTimeInvocationCustody::Source(policy.relationship_span),
+            )
+            .map(|_closure| ());
+    }
+    Ok(PreparedBoundaryCallingPlans {
+        checked,
+        pending,
+        target: target_profile,
+    })
+}
+
+/// Source admission and signature preparation precede code publication.
+/// Activation consumes only this owned preparation and retained policy code.
+pub struct PreparedBoundaryCallingPlans<'checked> {
+    checked: &'checked checked_trees::CheckedTrees,
+    pending: Vec<PreparedCallingPolicy>,
+    target: target::TargetProfile,
+}
+
+struct PreparedCallingPolicy {
+    boundary_trait: symbols::SymbolHandle,
+    boundary_arguments: Vec<checked_trees::typed_trees::types::TypeReferenceHandle>,
+    argument_owner: symbols::SymbolHandle,
+    requirement_machine: symbols::SymbolHandle,
+    policy_machine: String,
+    policy_symbol: symbols::SymbolHandle,
+    signature: MaterializedBoundarySignature,
+    relationship_span: source::SourceSpan,
+    admission: Result<(), String>,
+}
+
+impl PreparedBoundaryCallingPlans<'_> {
+    pub fn is_empty(&self) -> bool {
+        self.pending.is_empty()
+    }
+
+    pub fn evaluate(
+        self,
+        code: Option<&super::CallingPolicyCode>,
+    ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+        let mut evaluated = Vec::with_capacity(self.pending.len());
+        for PreparedCallingPolicy {
             boundary_trait,
             boundary_arguments,
             argument_owner,
             requirement_machine,
-            report_fingerprint: application_report_fingerprint,
-            commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                application_commitment,
-            ),
-            boundary_entry_plan: validated.plan().clone(),
-            validated_boundary_entry_plan: validated,
-            callback_binders: signature.callback_binders.clone(),
-            callback_demands: signature.callback_demands.clone(),
-            callback_context_closed: false,
-            native_parameters: signature.native_parameters.clone(),
-            materialized_signature: signature,
             policy_machine,
             policy_symbol,
+            signature,
             relationship_span,
-        });
-    }
-    for realization in &evaluated {
-        validate_retained_callback_binders(realization)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    }
-    Ok(evaluated)
-}
-
-/// One refused calling-policy evaluation. `source_span` locates the authored
-/// occurrence build-time admission rejected, when it named one; the caller
-/// otherwise reports the `Calling<Policy>` relationship it was evaluating.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CallingPolicyRejection {
-    pub(crate) reason: String,
-    pub(crate) source_span: Option<source::SourceSpan>,
-}
-
-impl From<String> for CallingPolicyRejection {
-    fn from(reason: String) -> Self {
-        Self {
-            reason,
-            source_span: None,
-        }
-    }
-}
-
-pub(crate) fn evaluate_materialized_calling_policy_plan(
-    typed: &TypedTrees,
-    admission: &build_time_evaluation::BuildTimeAdmissionPlan,
-    policy_machine: &str,
-    policy_symbol: symbols::SymbolHandle,
-    signature: &MaterializedBoundarySignature,
-    custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
-) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
-    evaluate_selected_materialized_calling_policy_plan(
-        BuildTimeProgram::Typed(typed),
-        admission,
-        policy_machine,
-        policy_symbol,
-        signature,
-        custody,
-    )
-}
-
-fn evaluate_selected_materialized_calling_policy_plan(
-    program: BuildTimeProgram<'_>,
-    admission: &build_time_evaluation::BuildTimeAdmissionPlan,
-    policy_machine: &str,
-    policy_symbol: symbols::SymbolHandle,
-    signature: &MaterializedBoundarySignature,
-    custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
-) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
-    let arguments = vec![build_boundary_signature(signature)?];
-    let value = admission
-        .evaluate_machine_symbol_for_invocation_measured(
-            program,
-            policy_symbol,
-            arguments,
-            custody.unwrap_or(build_time_evaluation::BuildTimeInvocationCustody::Symbol(
+            admission,
+        } in self.pending
+        {
+            admission.map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
+            })?;
+            let code = code.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "calling policies have no published Terminal code",
+                )]
+            })?;
+            code.require_owner(self.checked)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let validated = code
+                .evaluate(policy_symbol, self.target, &signature)
+                .map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!("calling policy `{policy_machine}`: {reason}"))
+                            .with_source_span(relationship_span),
+                    ]
+                })?;
+            let (application_report_fingerprint, application_commitment) =
+                boundary_plan_application_identity(&signature, &validated)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            evaluated.push(BoundaryCallingPlanRealization {
+                boundary_trait,
+                boundary_arguments,
+                argument_owner,
+                requirement_machine,
+                report_fingerprint: application_report_fingerprint,
+                commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                    application_commitment,
+                ),
+                boundary_entry_plan: validated.plan().clone(),
+                validated_boundary_entry_plan: validated,
+                callback_binders: signature.callback_binders.clone(),
+                callback_demands: signature.callback_demands.clone(),
+                callback_context_closed: false,
+                native_parameters: signature.native_parameters.clone(),
+                materialized_signature: signature,
+                policy_machine,
                 policy_symbol,
-            )),
-        )
-        .map(|evaluation| evaluation.into_value())
-        .map_err(CallingPolicyRejection::from)?;
-    let result = decode_boundary_plan_result(&value).map_err(|reason| {
-        format!("calling policy `{policy_machine}` returned an invalid result: {reason}")
-    })?;
-
-    validate_materialized_boundary_plan_result(result, signature)
-        .map_err(CallingPolicyRejection::from)
+                relationship_span,
+            });
+        }
+        for realization in &evaluated {
+            validate_retained_callback_binders(realization)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
+        Ok(evaluated)
+    }
 }
 
 /// The zero-valued case an absent optional boundary field decodes to.

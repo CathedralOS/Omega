@@ -5,9 +5,7 @@
 use crate::calling_policy_plans::build_time_decoding::CALLBACK_MATERIALIZATION_CAPACITY;
 use crate::calling_policy_plans::callback_layout_catalog;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
-use crate::calling_policy_plans::plan_computation::{
-    boundary_plan_application_identity, evaluate_materialized_calling_policy_plan,
-};
+use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::{
     BoundaryCallbackBinder, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
     BoundaryNativeParameterShape, MaterializedBoundarySignature,
@@ -270,7 +268,7 @@ pub fn close_outbound_callback_materializations(
     realizations: &mut [BoundaryCallingPlanRealization],
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
-    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    code: Option<&super::CallingPolicyCode>,
 ) -> Result<(), Vec<Diagnostic>> {
     if realizations.is_empty() {
         return Ok(());
@@ -291,13 +289,6 @@ pub fn close_outbound_callback_materializations(
         }),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-        typed,
-        package_inputs.map(|inputs| {
-            std::sync::Arc::new(inputs.clone())
-                as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        }),
-    );
 
     for realization in realizations {
         let mut signature = realization.materialized_signature.clone();
@@ -389,25 +380,16 @@ pub fn close_outbound_callback_materializations(
         let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
         signature.callback_demands = demands.clone();
         signature.callback_layout_catalog = entries.into_iter().flatten().collect();
-        let validated = evaluate_materialized_calling_policy_plan(
-            typed,
-            &admission,
-            &realization.policy_machine,
-            realization.policy_symbol,
-            &signature,
-            Some(build_time_evaluation::BuildTimeInvocationCustody::Source(
-                realization.relationship_span,
-            )),
-        )
-        .map_err(|rejection| {
-            vec![
-                Diagnostic::error(rejection.reason).with_source_span(
-                    rejection
-                        .source_span
-                        .unwrap_or(realization.relationship_span),
-                ),
-            ]
+        let code = code.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "callback geometry has no published calling-policy code",
+            )]
         })?;
+        let validated = code
+            .evaluate(realization.policy_symbol, target_profile, &signature)
+            .map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+            })?;
         let classified = CallSignature {
             parameters: validated
                 .plan()
