@@ -2,6 +2,7 @@ use crate::{SaturatingCarrier, TrappingOperation};
 use register_model::RegisterConstraintKey;
 
 use super::MachineSemanticKind;
+use crate::IeeeFloatArithmeticOperation::FromInteger;
 use crate::SelectedConstraintKeys;
 
 impl SelectedConstraintKeys {
@@ -199,9 +200,7 @@ impl SelectedConstraintKeys {
                         | crate::IeeeFloatArithmeticOperation::IsNormal
                         | crate::IeeeFloatArithmeticOperation::IsSubnormal
                         | crate::IeeeFloatArithmeticOperation::Classify
-                        | crate::IeeeFloatArithmeticOperation::FromInteger(
-                            crate::IeeeFloatIntegerCarrier::U64,
-                        )
+                        | FromInteger(crate::IeeeFloatIntegerCarrier::U64)
                         | crate::IeeeFloatArithmeticOperation::TruncateToInteger {
                             target: crate::IeeeFloatIntegerCarrier::U64,
                             ..

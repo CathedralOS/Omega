@@ -22,6 +22,8 @@ pub use identity::{
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
     machine_effect_catalog_identity, saturating_family_tag, trapping_family_tag,
 };
+use register_model::RegisterConstraintFamily::SystemCall;
+use register_model::find_register_constraint;
 use register_model::{RegisterConstraintCatalogIdentity, RegisterConstraintKey, RegisterViewId};
 use target::NativeTarget;
 
@@ -62,13 +64,11 @@ pub fn validate_machine_effect_catalog(
         return Err(MachineEffectCatalogValidationError::DeclarationRosterMismatch);
     }
     for declaration in &catalog.declarations {
-        let row = register_model::find_register_constraint(
-            &constraints.catalog().constraints,
-            declaration.constraint,
-        )
-        .ok_or(MachineEffectCatalogValidationError::UnknownConstraint(
-            declaration.semantic,
-        ))?;
+        let row =
+            find_register_constraint(&constraints.catalog().constraints, declaration.constraint)
+                .ok_or(MachineEffectCatalogValidationError::UnknownConstraint(
+                    declaration.semantic,
+                ))?;
         validate_declaration(catalog.target.architecture, row, declaration)?;
     }
     let identity = machine_effect_catalog_identity(&catalog);
@@ -1055,9 +1055,7 @@ impl MachineEffectDeclaration {
             }],
         };
         match foreign_supervisor_bytes {
-            Some(supervisor_byte_count)
-                if constraint.family == register_model::RegisterConstraintFamily::SystemCall =>
-            {
+            Some(supervisor_byte_count) if constraint.family == SystemCall => {
                 declaration.call = MachineCallEffect::SupervisorNormalReturnV1;
                 for alternative in &mut declaration.alternatives {
                     alternative.size = MachineSizeKnowledge::ExactBytes(supervisor_byte_count);

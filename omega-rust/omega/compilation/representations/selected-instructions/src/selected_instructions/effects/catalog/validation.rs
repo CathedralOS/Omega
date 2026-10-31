@@ -15,6 +15,10 @@ use super::{
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineSemanticKind, MachineSizeKnowledge,
 };
+use crate::MachineCallEffect::SupervisorNormalReturnV1;
+use crate::MachineMemoryEffect::{CompareByteSequencesV1, ReadFrameStorageV1, WritePointerV1};
+use crate::MachineTrapBehavior::{HostedExitReturnedV1, MayArchitecturalFaultV1};
+use register_model::RegisterConstraintFamily::Call;
 
 /// Float-to-integer Trapping is the same observable policy check as integer
 /// Trapping: a failed representability predicate executes an in-place Crash.
@@ -253,7 +257,7 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
         MachineSemanticKind::AccessorScalarAccess(form) => {
             if form.write {
-                crate::MachineMemoryEffect::WritePointerV1
+                WritePointerV1
             } else {
                 crate::MachineMemoryEffect::ReadPointerV1
             }
@@ -263,9 +267,7 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::ScanByteSequence => crate::MachineMemoryEffect::ScanByteSequenceV1,
         MachineSemanticKind::LoadEncodedScalar => crate::MachineMemoryEffect::ReadEncodedScalarV1,
         MachineSemanticKind::StoreEncodedScalar => crate::MachineMemoryEffect::WriteEncodedScalarV1,
-        MachineSemanticKind::CompareByteSequences => {
-            crate::MachineMemoryEffect::CompareByteSequencesV1
-        }
+        MachineSemanticKind::CompareByteSequences => CompareByteSequencesV1,
         MachineSemanticKind::HostedReadByte => crate::MachineMemoryEffect::HostedReadByteV1,
         MachineSemanticKind::HostedWriteByteI32 => crate::MachineMemoryEffect::HostedWriteByteV1,
         MachineSemanticKind::Load8
@@ -280,12 +282,8 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::Store64 | MachineSemanticKind::SaveFloatingControl => {
             crate::MachineMemoryEffect::WriteFrameStorageV1
         }
-        MachineSemanticKind::RestoreFloatingControl => {
-            crate::MachineMemoryEffect::ReadFrameStorageV1
-        }
-        MachineSemanticKind::Store | MachineSemanticKind::StorePacked => {
-            crate::MachineMemoryEffect::WritePointerV1
-        }
+        MachineSemanticKind::RestoreFloatingControl => ReadFrameStorageV1,
+        MachineSemanticKind::Store | MachineSemanticKind::StorePacked => WritePointerV1,
         _ => crate::MachineMemoryEffect::NoneV1,
     };
     if declaration.memory != expected_memory {
@@ -294,8 +292,8 @@ pub(super) fn validate_declaration(
         ));
     }
     let expected_trap = match semantic {
-        _ if table_call => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-        _ if temporary_stack => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        _ if table_call => MayArchitecturalFaultV1,
+        _ if temporary_stack => MayArchitecturalFaultV1,
         MachineSemanticKind::PortWrite
         | MachineSemanticKind::SystemRegisterRead
         | MachineSemanticKind::SystemRegisterWrite
@@ -308,14 +306,10 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::ProcessorHalt
         | MachineSemanticKind::InterruptControl
         | MachineSemanticKind::AtomicAccess(_)
-        | MachineSemanticKind::AccessorScalarAccess(_) => {
-            crate::MachineTrapBehavior::MayArchitecturalFaultV1
-        }
+        | MachineSemanticKind::AccessorScalarAccess(_) => MayArchitecturalFaultV1,
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
         semantic if has_policy_trap(semantic) => crate::MachineTrapBehavior::TrappingIntegerV1,
-        MachineSemanticKind::HostedExitProcessI32 => {
-            crate::MachineTrapBehavior::HostedExitReturnedV1
-        }
+        MachineSemanticKind::HostedExitProcessI32 => HostedExitReturnedV1,
         MachineSemanticKind::HostedReadByte => crate::MachineTrapBehavior::HostedReadFailureV1,
         MachineSemanticKind::HostedWriteByteI32 => crate::MachineTrapBehavior::HostedWriteFailureV1,
         MachineSemanticKind::CopyBytes
@@ -337,9 +331,7 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::StorePacked
         | MachineSemanticKind::Store64
         | MachineSemanticKind::SaveFloatingControl
-        | MachineSemanticKind::RestoreFloatingControl => {
-            crate::MachineTrapBehavior::MayArchitecturalFaultV1
-        }
+        | MachineSemanticKind::RestoreFloatingControl => MayArchitecturalFaultV1,
         _ => crate::MachineTrapBehavior::NeverV1,
     };
     if declaration.trap != expected_trap {
@@ -361,8 +353,7 @@ pub(super) fn validate_declaration(
             crate::MachineCallEffect::InternalNoNormalV1 {
                 pre_call_stack_alignment,
             },
-        ) if pre_call_stack_alignment.is_power_of_two()
-            && constraint.key.family == register_model::RegisterConstraintFamily::Call => {}
+        ) if pre_call_stack_alignment.is_power_of_two() && constraint.key.family == Call => {}
         (MachineSemanticKind::InvokeNoNormal, _) => {
             return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 semantic,
@@ -391,12 +382,9 @@ pub(super) fn validate_declaration(
             crate::MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment,
             },
-        ) if pre_call_stack_alignment.is_power_of_two()
-            && constraint.key.family == register_model::RegisterConstraintFamily::Call => {}
-        (
-            MachineSemanticKind::NormalizedForeignCall,
-            crate::MachineCallEffect::SupervisorNormalReturnV1,
-        ) if constraint.key.family == register_model::RegisterConstraintFamily::SystemCall => {}
+        ) if pre_call_stack_alignment.is_power_of_two() && constraint.key.family == Call => {}
+        (MachineSemanticKind::NormalizedForeignCall, SupervisorNormalReturnV1)
+            if constraint.key.family == register_model::RegisterConstraintFamily::SystemCall => {}
         (MachineSemanticKind::NormalizedForeignCall, _) => {
             return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 semantic,
@@ -702,7 +690,7 @@ fn validate_encoded_effects(
     }
     if declaration.semantic == MachineSemanticKind::HostedExitProcessI32
         && (declaration.memory != crate::MachineMemoryEffect::NoneV1
-            || declaration.trap != crate::MachineTrapBehavior::HostedExitReturnedV1
+            || declaration.trap != HostedExitReturnedV1
             || encoded.memory != MachineEncodedMemoryEffect::NoneV1
             || encoded.trap != MachineEncodedTrapBehavior::HostedExitReturnedV1
             || encoded.stack != MachineEncodedStackEffect::UnchangedV1
@@ -882,7 +870,7 @@ fn validate_encoded_effects(
         | MachineEncodedControlEffect::IndirectExternalCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::SupervisorCallV1
             if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
-                && declaration.call == crate::MachineCallEffect::SupervisorNormalReturnV1 =>
+                && declaration.call == SupervisorNormalReturnV1 =>
         {
             MachineBarrier::Call
         }
@@ -978,14 +966,14 @@ fn validate_encoded_effects(
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::RestoreFloatingControl
-            && declaration.memory == crate::MachineMemoryEffect::ReadFrameStorageV1 => {}
+            && declaration.memory == ReadFrameStorageV1 => {}
         (
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::HostedExitReturnedV1,
         ) if declaration.semantic == MachineSemanticKind::HostedExitProcessI32
             && declaration.memory == crate::MachineMemoryEffect::NoneV1
-            && declaration.trap == crate::MachineTrapBehavior::HostedExitReturnedV1
+            && declaration.trap == HostedExitReturnedV1
             && encoded.control == MachineEncodedControlEffect::HostedExitOrTrapV1
             && encoded.external_operand_reads == [0]
             && encoded.external_operand_writes.is_empty()
@@ -1027,7 +1015,7 @@ fn validate_encoded_effects(
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::CopyBytes
             && declaration.memory == crate::MachineMemoryEffect::CopyBytesV1
-            && declaration.trap == crate::MachineTrapBehavior::MayArchitecturalFaultV1
+            && declaration.trap == MayArchitecturalFaultV1
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1, 2]
             && encoded.external_operand_writes == [3, 4]
@@ -1042,7 +1030,7 @@ fn validate_encoded_effects(
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::ZeroBytes
             && declaration.memory == crate::MachineMemoryEffect::ZeroBytesV1
-            && declaration.trap == crate::MachineTrapBehavior::MayArchitecturalFaultV1
+            && declaration.trap == MayArchitecturalFaultV1
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes == [2]
@@ -1083,7 +1071,7 @@ fn validate_encoded_effects(
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::ScanByteSequence
             && declaration.memory == crate::MachineMemoryEffect::ScanByteSequenceV1
-            && declaration.trap == crate::MachineTrapBehavior::MayArchitecturalFaultV1
+            && declaration.trap == MayArchitecturalFaultV1
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes == [2, 3, 4]
@@ -1099,8 +1087,8 @@ fn validate_encoded_effects(
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::CompareByteSequences
-            && declaration.memory == crate::MachineMemoryEffect::CompareByteSequencesV1
-            && declaration.trap == crate::MachineTrapBehavior::MayArchitecturalFaultV1
+            && declaration.memory == CompareByteSequencesV1
+            && declaration.trap == MayArchitecturalFaultV1
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1, 2, 3]
             && encoded.external_operand_writes == [4, 5, 6, 7]
@@ -1187,7 +1175,7 @@ fn validate_encoded_effects(
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if matches!(declaration.semantic, MachineSemanticKind::AccessorScalarAccess(form) if form.write && form.ordinary_semantic().is_some())
-            && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
+            && declaration.memory == WritePointerV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes.is_empty()
             && encoded.control == MachineEncodedControlEffect::FallThroughV1 => {}
@@ -1224,7 +1212,7 @@ fn validate_encoded_effects(
         ) if matches!(
             declaration.semantic,
             crate::MachineSemanticKind::Store | crate::MachineSemanticKind::StorePacked
-        ) && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
+        ) && declaration.memory == WritePointerV1
             && encoded.external_operand_reads == [0, 1]
             && (if declaration.semantic == crate::MachineSemanticKind::StorePacked {
                 encoded.external_operand_writes == [2]
