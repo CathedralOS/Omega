@@ -13,6 +13,7 @@
 //! owned declaration roots participate; Product descriptions retained during
 //! Build admission never become host-target evaluation work.
 
+use crate::build_time_evaluation::expression_table;
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use typed_trees::TypedTrees;
@@ -166,8 +167,7 @@ pub fn fold_data_layout_queries(
         checked_trees::typed_trees::expression::ExpressionHandle,
         checked_trees::typed_trees::expression::DataLayoutQueryRequest,
         source::SourceSpan,
-    )> = program
-        .expression_table
+    )> = expression_table(program)
         .iter_expressions()
         .filter(|(handle, _)| owned_expressions.contains(handle))
         .filter_map(|(handle, node)| match node {

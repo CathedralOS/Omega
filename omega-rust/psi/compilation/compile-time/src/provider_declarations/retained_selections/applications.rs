@@ -2,6 +2,7 @@
 //! Only owned graph handles cross worlds. Rejoining uses declaration custody;
 //! neither private-name lookup nor a parser reconstructs the selected tuple.
 use super::*;
+use crate::build_time_evaluation::expression_table;
 use language_semantics::declaration_selection::{
     ProductDeclarationOperand, ProductOperandRole, product_operands::ProductStaticOperandGraph,
 };
@@ -42,11 +43,9 @@ impl RetainedProviderApplication {
                 "selected provider application changed its complete static identity".into(),
             );
         }
-        let application = program
-            .expression_table
-            .static_machine_application(prepared.supplying_application);
-        let [argument] = program
-            .expression_table
+        let application =
+            expression_table(program).static_machine_application(prepared.supplying_application);
+        let [argument] = expression_table(program)
             .static_machine_application_arguments(prepared.supplying_application)
         else {
             return Err("selected nominal application lost its one whole operand".into());

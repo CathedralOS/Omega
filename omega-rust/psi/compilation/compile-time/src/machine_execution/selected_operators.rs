@@ -4,6 +4,7 @@
 //! The private execution graph substitutes implementation bodies, but retains
 //! the original declaration selection for package authority and const replay.
 use crate::SelectedBuildTimeBinaryOperator;
+use crate::build_time_evaluation::expression_table;
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -71,8 +72,7 @@ impl SelectedBuildTimeProviderBody {
         let operands = match program.expression_table.expression(expression) {
             ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
             ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
-            ExpressionNode::Call(call) => program
-                .expression_table
+            ExpressionNode::Call(call) => expression_table(program)
                 .expression_handles(call.arguments)
                 .to_vec(),
             _ => {
@@ -376,8 +376,7 @@ pub fn validate_selected_provider_bodies(
             }
             // A named operator use is an ordinary call expression; its
             // argument list is the authored operand tuple.
-            ExpressionNode::Call(call) => program
-                .expression_table
+            ExpressionNode::Call(call) => expression_table(program)
                 .expression_handles(call.arguments)
                 .to_vec(),
             _ => return Err("selected build-time provider expression disappeared".into()),
@@ -922,10 +921,7 @@ fn direct_operator_occurrence(
         _ => None,
     };
     let mut selected = None;
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in expression_table(program).authored_selection_occurrences(expression) {
         if authored_call.is_some_and(|own| own != occurrence) {
             continue;
         }
@@ -933,8 +929,7 @@ fn direct_operator_occurrence(
         // An ancestor's retained history cannot resolve a descendant's call.
         if descendants.iter().any(|child| {
             *child != expression
-                && program
-                    .expression_table
+                && expression_table(program)
                     .authored_selection_occurrences(*child)
                     .any(|inherited| inherited == occurrence)
         }) {
@@ -1005,8 +1000,7 @@ fn specialization_copies_template(
     let (Some(template), Some(copy)) = (program.machine(source), program.machine(instance)) else {
         return Ok(false);
     };
-    let binding = program
-        .expression_table
+    let binding = expression_table(program)
         .static_machine_applications()
         .find(|(handle, _)| *handle == application.binding_application)
         .map(|(_, binding)| binding)

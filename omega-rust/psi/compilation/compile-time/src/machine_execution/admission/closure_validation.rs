@@ -1,3 +1,4 @@
+use crate::build_time_evaluation::expression_table;
 use language_semantics::{MachineSupplyMode, TerminationGuarantee};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -144,9 +145,7 @@ fn is_parameter_domain_premise(
             };
             if !membership.domain_symbol.is_valid()
                 || !membership.domain_arguments.is_empty()
-                || !program
-                    .expression_table
-                    .expression_is_valid(membership.value)
+                || !expression_table(program).expression_is_valid(membership.value)
             {
                 return false;
             }

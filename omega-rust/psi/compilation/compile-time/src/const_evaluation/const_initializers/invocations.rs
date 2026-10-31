@@ -20,6 +20,7 @@
 //! Scalar probes keep their exact evaluator rather than acquiring runtime
 //! return-range obligations.
 
+use crate::build_time_evaluation::expression_table;
 use crate::unique::{extend_unique, push_unique};
 use std::sync::Arc;
 
@@ -646,8 +647,7 @@ impl Invocation<'_> {
         // Pair each evaluated operand expression with its declared carrier.
         let operands: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> =
             match target {
-                SelectedCall::Entry { entry, .. } => typed
-                    .expression_table
+                SelectedCall::Entry { entry, .. } => expression_table(typed)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied()
@@ -660,8 +660,7 @@ impl Invocation<'_> {
                     .collect(),
                 SelectedCall::Operator(operator) => {
                     let mut operands = Vec::new();
-                    let mut arguments = typed
-                        .expression_table
+                    let mut arguments = expression_table(typed)
                         .expression_handles(call.arguments)
                         .iter()
                         .copied();

@@ -23,6 +23,7 @@
 //! while calls it cannot close keep their authored expression for ordinary
 //! post-typing admission.
 
+use crate::build_time_evaluation::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -395,8 +396,7 @@ fn evaluate_application_group(
             &evaluation_domain,
         )?;
         for (expression, source_span) in endpoint_leaves {
-            let value = typed
-                .expression_table
+            let value = expression_table(&typed)
                 .iter_expressions()
                 .filter(|(handle, _)| typed.expression_table.source_span(*handle) == source_span)
                 .find_map(|(_, node)| match node {

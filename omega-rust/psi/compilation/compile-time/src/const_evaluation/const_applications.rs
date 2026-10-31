@@ -23,6 +23,7 @@
 //! member types with the folded literals, and rewriting the site to `Named`.
 
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::build_time_evaluation::expression_table;
 use crate::unique::extend_unique;
 use std::collections::{HashMap, HashSet};
 
@@ -397,8 +398,7 @@ fn direct_const_call(
     root: ExpressionHandle,
 ) -> Option<(SymbolHandle, Identifier)> {
     let call = typed.expression_table.call_node(root)?;
-    if !typed
-        .expression_table
+    if !expression_table(typed)
         .expression_handles(call.arguments)
         .is_empty()
         || !call.machine_arguments.is_empty()

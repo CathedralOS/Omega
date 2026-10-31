@@ -5,6 +5,7 @@
 //! and initializer completion. Layout plans installed by evaluation must be
 //! visible to the second query pass, never a reused first-pass view.
 
+use crate::build_time_evaluation::expression_table;
 use crate::{
     LayoutQueryProvider, PreCheckEvaluation, SelectedBuildTimeOperators,
     SelectedBuildTimeTargetBody,
@@ -106,8 +107,7 @@ mod tests {
     #[test]
     fn deferred_query_uses_a_fresh_measurement_view() {
         let mut program = query_program();
-        let query = program
-            .expression_table
+        let query = expression_table(&program)
             .iter_expressions()
             .find_map(|(handle, node)| {
                 matches!(node, ExpressionNode::Call(call) if call.layout_query.is_some())
@@ -157,8 +157,7 @@ mod tests {
         assert_eq!(layouts.preparations.load(Ordering::Relaxed), 2);
         assert!(format!("{errors:?}").contains("unresolved array extent"));
         assert!(
-            program
-                .expression_table
+            expression_table(&program)
                 .iter_expressions()
                 .any(|(_, node)| {
                     matches!(node, ExpressionNode::Call(call) if call.layout_query.is_some())

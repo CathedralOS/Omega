@@ -7,6 +7,7 @@
 //! proof-integer predecessor. Only structured values return to syntax; original
 //! bounds remain available to declaration checking and application custody.
 
+use crate::build_time_evaluation::expression_table;
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
@@ -235,8 +236,7 @@ pub(crate) fn evaluate(
     // A whole bound folds only after all authored calls pass static admission.
     // Selective execution may skip some of them; this records admission, not
     // execution. Origin custody continues to read every original occurrence.
-    let folded_roots: Vec<_> = typed
-        .expression_table
+    let folded_roots: Vec<_> = expression_table(&typed)
         .iter_expressions()
         .filter(|(handle, node)| {
             !matches!(node, typed_trees::expression::ExpressionNode::Integer(_))

@@ -17,6 +17,7 @@ pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls}
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
+use crate::build_time_evaluation::expression_table;
 use crate::unique::push_unique;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -583,10 +584,7 @@ pub(super) fn expression_custody(
     let mut pending = vec![root];
     let mut visited = Vec::new();
     while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+        for occurrence in expression_table(program).authored_selection_occurrences(expression) {
             let selection = program
                 .authored_declaration_selections()
                 .get(occurrence)
@@ -715,8 +713,7 @@ fn inherits_normalized_constant_call(
     ) {
         return false;
     }
-    program
-        .expression_table
+    expression_table(program)
         .authored_selection_occurrences(expression)
         .any(|occurrence| {
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
@@ -734,14 +731,10 @@ fn inherits_normalized_constant_call(
             };
             declarations.next().is_none()
                 && declaration.evaluated_value.is_some()
-                && program
-                    .expression_table
-                    .expression_is_valid(declaration.authored_initializer)
-                && program
-                    .expression_table
+                && expression_table(program).expression_is_valid(declaration.authored_initializer)
+                && expression_table(program)
                     .expression_is_valid(declaration.materialized_initializer)
-                && program
-                    .expression_table
+                && expression_table(program)
                     .authored_selection_occurrences(declaration.materialized_initializer)
                     .any(|owned| owned == call_occurrence)
         })
