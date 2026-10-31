@@ -6,6 +6,7 @@ use super::{
     ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
     HandleSpan, ProgramPoint, SymbolHandle, retain_qualification_correspondence,
 };
+use crate::flow::canonical_place_from_semantic_place;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transport(
@@ -27,11 +28,7 @@ pub(super) fn transport(
     let target_place = write.target_place;
     let source_place = write.source_place;
     let source_value_place = source_place.and_then(|source| {
-        crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(source),
-        )
+        canonical_place_from_semantic_place(program, semantic, semantic.places.get(source))
     });
     let mut value_carriers_agree: Option<bool> = None;
     for context_handle in context_handles {
@@ -47,7 +44,7 @@ pub(super) fn transport(
                 // calls or shadowed bindings and supplies no value identity.
                 let matches_source = |fact_place| {
                     source_value_place.as_ref().is_some_and(|source| {
-                        crate::flow::canonical_place_from_semantic_place(
+                        canonical_place_from_semantic_place(
                             program,
                             semantic,
                             semantic.places.get(fact_place),
@@ -73,12 +70,12 @@ pub(super) fn transport(
                             // Compare the source and installed referent carriers before transporting
                             // completed value observations; reference access itself is not a value.
                             source_place.is_some_and(|source| {
-                                let source = crate::flow::canonical_place_from_semantic_place(
+                                let source = canonical_place_from_semantic_place(
                                     program,
                                     semantic,
                                     semantic.places.get(source),
                                 );
-                                let target = crate::flow::canonical_place_from_semantic_place(
+                                let target = canonical_place_from_semantic_place(
                                     program,
                                     semantic,
                                     semantic.places.get(target_place),

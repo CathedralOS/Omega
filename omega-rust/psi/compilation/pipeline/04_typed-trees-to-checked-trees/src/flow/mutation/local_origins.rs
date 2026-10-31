@@ -9,6 +9,8 @@
 //! leaves on every write, without assigning them a referent. An exact-origin
 //! query must not discard unknown alternatives.
 
+use crate::collections::push_unique;
+use crate::flow;
 use validation::CanonicalPlace;
 use validation::push_field_place_segments;
 use validation::resolve_member_symbol_from_type_symbol;
@@ -199,7 +201,7 @@ pub(super) fn assignment_storage_regions(
         }
     }
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolver = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let target = resolver.assignment_write_target(machine, statement);
     if matches!(
         target,
@@ -232,7 +234,7 @@ pub(super) fn assignment_storage_regions(
                 place,
                 call_frames,
             )? {
-                crate::collections::push_unique(&mut regions, region);
+                push_unique(&mut regions, region);
             }
         }
         return Some(regions);
@@ -296,7 +298,7 @@ fn place_requires_local_write_origin(
         return false;
     };
     let mut owned_frames = None;
-    crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+    flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
         .is_none_or(|resolver| resolver.local_requires_write_origin(local.type_reference))
 }
 
@@ -324,7 +326,7 @@ pub(crate) fn rebase_exact_local_place(
         .statement_table
         .statement_at(state, statement_index)?;
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolver = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let mut candidates = origins.iter().filter(|origin| {
         origin.local_symbol == root
@@ -350,10 +352,7 @@ pub(crate) fn rebase_exact_local_place(
     // uses that window's coordinates, while subsequent array dimensions
     // belong to the selected value. Share the captured-operand address join
     // so returned-reference candidates and call handback name actual storage.
-    crate::flow::project_captured_view_place(
-        canonical,
-        &place.segments[origin.local_segments.len()..],
-    )
+    flow::project_captured_view_place(canonical, &place.segments[origin.local_segments.len()..])
 }
 
 pub(super) fn rebase_local_write_places(
@@ -560,7 +559,7 @@ fn rebase_write_regions(
     let (machine, state) = validation::find_state(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolver = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let Some(origins) =
         resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)
     else {
@@ -666,7 +665,7 @@ fn rebase_reachable_storage(
                             origins,
                         )
                     })? {
-                        crate::collections::push_unique(&mut projected, rebased);
+                        push_unique(&mut projected, rebased);
                     }
                     continue;
                 }
@@ -679,7 +678,7 @@ fn rebase_reachable_storage(
                 // Another possible origin may fully cover this descriptor.
                 // Its replacement cannot erase the retained incoming target.
                 let region = StorageRegion::Declared(place.clone());
-                crate::collections::push_unique(&mut projected, region);
+                push_unique(&mut projected, region);
                 continue;
             }
             if crossed.contains(&origin_index) {
@@ -711,7 +710,7 @@ fn reference_result_candidate_places(
     place: &CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let candidates = crate::flow::reference_result_candidates_before_statement(
+    let candidates = flow::reference_result_candidates_before_statement(
         program,
         state_symbol,
         statement_index,
@@ -766,7 +765,7 @@ pub(crate) fn place_from_origin_path(
         .iter()
         .find_map(|parameter| (parameter.name.as_str() == root_name).then_some(parameter.symbol))
         .or_else(|| {
-            crate::flow::state_statements(program, state.statement_nodes)
+            flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .take(statement_index)
                 .find_map(|statement| {

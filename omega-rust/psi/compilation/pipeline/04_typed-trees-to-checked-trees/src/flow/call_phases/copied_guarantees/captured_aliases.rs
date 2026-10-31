@@ -3,8 +3,10 @@
 //! neither this association nor its inverse projection grants a storage write.
 
 use super::ArgumentSources;
+use crate::collections::push_unique;
 use crate::flow::expressions;
 use crate::flow::mutation::CallMutationWrite;
+use crate::flow::operand_contexts::binding_overwrite;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
@@ -37,11 +39,7 @@ impl ArgumentSources<'_, '_> {
             };
             if later.iter().any(|write| {
                 write.root == binding.root
-                    && crate::flow::operand_contexts::binding_overwrite(
-                        self.program,
-                        &binding,
-                        &write.segments,
-                    )
+                    && binding_overwrite(self.program, &binding, &write.segments)
             }) {
                 continue;
             }
@@ -62,7 +60,7 @@ impl ArgumentSources<'_, '_> {
                 ) {
                     projected.segments.extend(suffix);
                 }
-                crate::collections::push_unique(&mut aliases, projected);
+                push_unique(&mut aliases, projected);
             }
         }
         // A callee-relative write also retains the path through an input's
@@ -110,11 +108,7 @@ impl ArgumentSources<'_, '_> {
                 binding.segments.extend_from_slice(&path[..boundary]);
                 if !later.iter().any(|write| {
                     write.root == binding.root
-                        && crate::flow::operand_contexts::binding_overwrite(
-                            self.program,
-                            &binding,
-                            &write.segments,
-                        )
+                        && binding_overwrite(self.program, &binding, &write.segments)
                 }) {
                     let projected = path
                         .iter()
@@ -132,7 +126,7 @@ impl ArgumentSources<'_, '_> {
                     {
                         alias = projected;
                     }
-                    crate::collections::push_unique(&mut aliases, alias);
+                    push_unique(&mut aliases, alias);
                 }
             }
         }

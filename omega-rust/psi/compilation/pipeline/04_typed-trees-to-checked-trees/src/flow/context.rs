@@ -3,7 +3,10 @@
 //! between sweeps, the incoming state values and dirty set that decide re-sweeps,
 //! and memo tables for lookups that depend only on the program, which survive
 //! between sweeps.
+use crate::facts::boolean_predicates;
+use crate::facts::entry_parameter_place_before_statement;
 use crate::flow::StateMutationSummaryCache;
+use crate::flow::entry_origins;
 use crate::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
@@ -247,14 +250,10 @@ pub(super) struct FlowBuildContext<'plans> {
         HashMap<(SymbolHandle, SymbolHandle), Rc<Vec<(SymbolHandle, SymbolHandle)>>>,
     /// One solved parameter-origin fixed point per machine, shared by every
     /// state's `entry_origin_chains` row.
-    machine_parameter_origins:
-        HashMap<SymbolHandle, Rc<crate::flow::entry_origins::MachineParameterOrigins>>,
+    machine_parameter_origins: HashMap<SymbolHandle, Rc<entry_origins::MachineParameterOrigins>>,
     /// Physical origins are distinct from typed value forwarding: a recast
     /// can retain its backing without becoming the original formal's type.
-    machine_storage_origins: Vec<(
-        SymbolHandle,
-        Rc<crate::flow::entry_origins::MachineParameterOrigins>,
-    )>,
+    machine_storage_origins: Vec<(SymbolHandle, Rc<entry_origins::MachineParameterOrigins>)>,
     /// Statement storage-write places per site: the answer is program-pure on
     /// (state, statement index) -- the machine and statement are implied by
     /// the key and the shared call-frame resolver is the same `call_frames`
@@ -544,7 +543,7 @@ impl<'plans> FlowBuildContext<'plans> {
             }) {
             Ok(position) => position,
             Err(position) => {
-                let expression = crate::facts::boolean_predicates::lower_current_guard(
+                let expression = boolean_predicates::lower_current_guard(
                     program,
                     self.operators,
                     state,
@@ -574,27 +573,21 @@ impl<'plans> FlowBuildContext<'plans> {
         value: bool,
         writes: arena::HandleSpan<checked_trees::FlowOperandReferent>,
         unknown_write: bool,
-    ) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+    ) -> Option<boolean_predicates::BoundPredicate> {
         let expression = self
             .guard_expression_at(program, state, statement, expression)?
             .clone();
-        crate::facts::boolean_predicates::bind_current_expression(
-            program,
-            state,
-            expression,
-            value,
-            |operand| {
-                super::observations::current_scalar_observation(
-                    program,
-                    self,
-                    state,
-                    statement,
-                    writes,
-                    unknown_write,
-                    operand.scalar()?,
-                )
-            },
-        )
+        boolean_predicates::bind_current_expression(program, state, expression, value, |operand| {
+            super::observations::current_scalar_observation(
+                program,
+                self,
+                state,
+                statement,
+                writes,
+                unknown_write,
+                operand.scalar()?,
+            )
+        })
     }
 
     pub(super) fn complete_predicate_bindings(
@@ -602,8 +595,8 @@ impl<'plans> FlowBuildContext<'plans> {
         program: &dyn validation::CheckingInput,
         state: SymbolHandle,
         statement: usize,
-        mut predicate: crate::facts::boolean_predicates::BoundPredicate,
-    ) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+        mut predicate: boolean_predicates::BoundPredicate,
+    ) -> Option<boolean_predicates::BoundPredicate> {
         for binding in &mut predicate.bindings {
             let observed = super::observations::scalar_observation_at(
                 program,
@@ -632,34 +625,18 @@ impl<'plans> FlowBuildContext<'plans> {
         program: &dyn validation::CheckingInput,
         state: SymbolHandle,
         statement: usize,
-        predicate: &crate::facts::boolean_predicates::BoundPredicate,
+        predicate: &boolean_predicates::BoundPredicate,
         writes: arena::HandleSpan<checked_trees::FlowOperandReferent>,
         unknown_write: bool,
     ) -> Option<checked_trees::CheckedBooleanExpression> {
         let (machine, _) = validation::find_state(program, state)?;
-        crate::facts::boolean_predicates::entry_expression_with(
-            program,
-            machine.symbol,
-            predicate,
-            |place| {
-                if !super::entry_origin_is_stable(
-                    program,
-                    &self.control,
-                    writes,
-                    unknown_write,
-                    place,
-                ) {
-                    return None;
-                }
-                crate::facts::entry_parameter_place_before_statement(
-                    program,
-                    machine.symbol,
-                    state,
-                    statement,
-                    place,
-                )
-            },
-        )
+        boolean_predicates::entry_expression_with(program, machine.symbol, predicate, |place| {
+            if !super::entry_origin_is_stable(program, &self.control, writes, unknown_write, place)
+            {
+                return None;
+            }
+            entry_parameter_place_before_statement(program, machine.symbol, state, statement, place)
+        })
     }
 
     /// Current value identity differs from address syntax when an arm has
@@ -748,7 +725,7 @@ impl<'plans> FlowBuildContext<'plans> {
             .entry_subject
             .get_or_insert_with(|| {
                 let (machine, _) = validation::find_state(program, state)?;
-                crate::facts::entry_parameter_place_before_statement(
+                entry_parameter_place_before_statement(
                     program,
                     machine.symbol,
                     state,
@@ -814,15 +791,13 @@ impl<'plans> FlowBuildContext<'plans> {
         let solved = match self.machine_parameter_origins.get(&machine.symbol) {
             Some(solved) if solved.covers(program, machine) => solved.clone(),
             _ => {
-                let solved = Rc::new(crate::flow::entry_origins::machine_parameter_origins(
-                    program, machine,
-                ));
+                let solved = Rc::new(entry_origins::machine_parameter_origins(program, machine));
                 self.machine_parameter_origins
                     .insert(machine.symbol, solved.clone());
                 solved
             }
         };
-        let chain = Rc::new(crate::flow::entry_origins::state_origins(
+        let chain = Rc::new(entry_origins::state_origins(
             program, machine, state, &solved,
         ));
         self.entry_origin_chains
@@ -833,7 +808,7 @@ impl<'plans> FlowBuildContext<'plans> {
     pub(super) fn storage_origins_at(
         &mut self,
         machine: SymbolHandle,
-    ) -> Option<Rc<crate::flow::entry_origins::MachineParameterOrigins>> {
+    ) -> Option<Rc<entry_origins::MachineParameterOrigins>> {
         let program = self.program;
         let machine = program.machine_by_symbol(machine)?;
         if let Some((_, solved)) = self
@@ -843,7 +818,7 @@ impl<'plans> FlowBuildContext<'plans> {
         {
             return Some(solved.clone());
         }
-        let solved = Rc::new(crate::flow::entry_origins::machine_storage_origins(
+        let solved = Rc::new(entry_origins::machine_storage_origins(
             program,
             self.call_frames?,
             machine,
