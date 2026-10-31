@@ -82,9 +82,10 @@ field comparison, and each copy-removal rejection. Its current matching-host
 observations retain their exact producer identity in the PR evidence. The earlier
 Linux and Windows runs above describe their original sources and producers;
 they are not runs of these migrated Build bindings. This shared implementation
-does not establish distinct-body selection on two targets. The nested and array
-productions below, other-host execution of the new bindings, and the remaining
-target/native retirement acceptance stay open.
+does not establish distinct-body selection on two targets. The direct,
+[nested](nested/README.md) and [array](arrays/README.md) productions bind the
+same way, the last two with both `divide` and `verify`. Other-host execution of
+the new bindings and the remaining target/native retirement acceptance stay open.
 
 ## Direct foreign production
 
