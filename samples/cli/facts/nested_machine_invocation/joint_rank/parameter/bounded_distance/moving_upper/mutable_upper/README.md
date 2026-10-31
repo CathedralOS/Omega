@@ -40,5 +40,5 @@ expression semantics; user-selected indexing is not physical-coordinate evidence
 Fixtures are `tests/omega/{pass,fail}/facts/nested_machine_joint_rank_mutable_upper_*`.
 Raw baseline/candidate commands, producer identities and engine observations live
 in this workbench's `build/mutable-upper/`. This production does not close the
-parent task's remaining normal-return, nonscalar, migration or product-compiler
+parent task's remaining computed-endpoint, normal-return, nonscalar, migration or product-compiler
 acceptance.
