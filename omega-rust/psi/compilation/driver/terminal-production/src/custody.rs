@@ -3,6 +3,15 @@
 //! Portable artifacts and invocation-only code share Terminal semantics, not
 //! publication rights. These producer results are not another Psi IR.
 
+use crate::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
+use crate::TerminalBuildFilesystemCall;
+use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::{
+    NativeBindingFormation, ProductDeclarationRequest,
+};
+use lowered_psi_to_terminal_psi::rejoin_program_entry_receipt;
+use std::sync::Arc;
+use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Source-free inputs for one product's later composition admission. A receipt
@@ -10,8 +19,8 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 /// diagnostics without executing product policy inside Psi production.
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProducedTerminalApplication {
-    pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>,
-    pub roots: Vec<Result<crate::TerminalAdmissionRoot, Vec<diagnostics::Diagnostic>>>,
+    pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<Diagnostic>>,
+    pub roots: Vec<Result<crate::TerminalAdmissionRoot, Vec<Diagnostic>>>,
 }
 
 /// Terminal code beside the checked-source evidence the caller
@@ -29,10 +38,10 @@ pub struct ProducedTerminalApplication {
 #[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalProgram {
     pub(super) program: terminal_codec::TerminalProgramProduct,
-    pub(super) build_bindings: crate::TerminalBuildBindings,
-    pub(super) build_requests: crate::TerminalBuildRequests,
-    pub(super) build_filesystem: crate::TerminalBuildFilesystem,
-    pub(super) applications: Vec<Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>>,
+    pub(super) build_bindings: TerminalBuildBindings,
+    pub(super) build_requests: TerminalBuildRequests,
+    pub(super) build_filesystem: TerminalBuildFilesystem,
+    pub(super) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
 }
 
 // Source-completion receipts retain portable production. Recover its canonical
@@ -74,31 +83,21 @@ impl compiler_storage::Record for ProducedTerminalProgram {
         use compiler_storage::Record;
         input.record(|input| {
             let bytes = Vec::<u8>::read(input)?;
-            let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
                 .map_err(|error| input.error(error.to_string()))?;
-            let calls: std::sync::Arc<[crate::TerminalBuildBindingCall]> = Record::read(input)?;
-            let declarations: std::sync::Arc<
-                [std::sync::Arc<
-                    language_semantics::declaration_selection::ProductDeclarationRequest,
-                >],
-            > = Record::read(input)?;
-            let queries: std::sync::Arc<[crate::TerminalBuildQueryCall]> = Record::read(input)?;
-            let native_formations: std::sync::Arc<
-                [language_semantics::declaration_selection::NativeBindingFormation],
-            > = Record::read(input)?;
-            let requests: std::sync::Arc<[crate::TerminalBuildRequestCall]> = Record::read(input)?;
-            let filesystem: std::sync::Arc<[crate::TerminalBuildFilesystemCall]> =
+            let calls: Arc<[crate::TerminalBuildBindingCall]> = Record::read(input)?;
+            let declarations: Arc<[Arc<ProductDeclarationRequest>]> = Record::read(input)?;
+            let queries: Arc<[crate::TerminalBuildQueryCall]> = Record::read(input)?;
+            let native_formations: Arc<[NativeBindingFormation]> = Record::read(input)?;
+            let requests: Arc<[crate::TerminalBuildRequestCall]> = Record::read(input)?;
+            let filesystem: Arc<[TerminalBuildFilesystemCall]> = Record::read(input)?;
+            let applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>> =
                 Record::read(input)?;
-            let applications: Vec<
-                Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>,
-            > = Record::read(input)?;
             for application in &applications {
                 if let Ok(application) = application {
                     if let Ok(Some(receipt)) = &application.receipt {
-                        lowered_psi_to_terminal_psi::rejoin_program_entry_receipt(
-                            receipt, &artifact,
-                        )
-                        .map_err(|error| input.error(error.to_string()))?;
+                        rejoin_program_entry_receipt(receipt, &artifact)
+                            .map_err(|error| input.error(error.to_string()))?;
                     }
                     for root in application
                         .roots
@@ -113,15 +112,10 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             }
             let view = artifact.view().into();
             // Reuse the producer constructors with the recovered companion storage.
-            let build_bindings = crate::TerminalBuildBindings::new(
-                view,
-                calls,
-                declarations,
-                queries,
-                native_formations,
-            );
-            let build_requests = crate::TerminalBuildRequests::new(view, requests);
-            let build_filesystem = crate::TerminalBuildFilesystem::new(view, filesystem);
+            let build_bindings =
+                TerminalBuildBindings::new(view, calls, declarations, queries, native_formations);
+            let build_requests = TerminalBuildRequests::new(view, requests);
+            let build_filesystem = TerminalBuildFilesystem::new(view, filesystem);
             Ok(Self {
                 program: terminal_codec::TerminalProgramProduct::Portable(artifact),
                 build_bindings,
@@ -138,22 +132,22 @@ impl ProducedTerminalProgram {
     /// copying bytes or recreating companion custody from external ingress.
     pub fn into_shared_portable(
         self,
-    ) -> Result<PortableTerminalProgram, terminal_codec::CanonicalTerminalArtifactError> {
+    ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
         Ok(PortableTerminalProgram {
-            artifact: std::sync::Arc::new(self.program.into_portable()?),
+            artifact: Arc::new(self.program.into_portable()?),
             build_bindings: self.build_bindings,
             build_requests: self.build_requests,
             build_filesystem: self.build_filesystem,
             applications: self.applications,
         })
     }
-    pub const fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
+    pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
         &self.build_filesystem
     }
-    pub const fn build_requests(&self) -> &crate::TerminalBuildRequests {
+    pub const fn build_requests(&self) -> &TerminalBuildRequests {
         &self.build_requests
     }
-    pub const fn build_bindings(&self) -> &crate::TerminalBuildBindings {
+    pub const fn build_bindings(&self) -> &TerminalBuildBindings {
         &self.build_bindings
     }
     pub fn view(&self) -> terminal_codec::TerminalExecutionView<'_> {
@@ -164,12 +158,7 @@ impl ProducedTerminalProgram {
         self.program.retain_code()
     }
 
-    pub fn artifact(
-        &self,
-    ) -> Result<
-        &terminal_codec::CanonicalTerminalArtifact,
-        terminal_codec::CanonicalTerminalArtifactError,
-    > {
+    pub fn artifact(&self) -> Result<&CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
         self.program.portable()
     }
 
@@ -178,10 +167,7 @@ impl ProducedTerminalProgram {
     /// or publish a native product.
     pub fn into_artifact(
         self,
-    ) -> Result<
-        terminal_codec::CanonicalTerminalArtifact,
-        terminal_codec::CanonicalTerminalArtifactError,
-    > {
+    ) -> Result<CanonicalTerminalArtifact, CanonicalTerminalArtifactError> {
         self.program.into_portable()
     }
 
@@ -191,10 +177,10 @@ impl ProducedTerminalProgram {
         self,
     ) -> Result<
         (
-            terminal_codec::CanonicalTerminalArtifact,
-            Vec<Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>>,
+            CanonicalTerminalArtifact,
+            Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
         ),
-        terminal_codec::CanonicalTerminalArtifactError,
+        CanonicalTerminalArtifactError,
     > {
         Ok((self.program.into_portable()?, self.applications))
     }
@@ -205,29 +191,27 @@ impl ProducedTerminalProgram {
 /// created by sharing them. Invocation-only code cannot construct this result.
 #[derive(Debug)]
 pub struct PortableTerminalProgram {
-    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    build_bindings: crate::TerminalBuildBindings,
-    build_requests: crate::TerminalBuildRequests,
-    build_filesystem: crate::TerminalBuildFilesystem,
-    applications: Vec<Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>>,
+    artifact: Arc<CanonicalTerminalArtifact>,
+    build_bindings: TerminalBuildBindings,
+    build_requests: TerminalBuildRequests,
+    build_filesystem: TerminalBuildFilesystem,
+    applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
 }
 
 impl PortableTerminalProgram {
-    pub fn artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
+    pub fn artifact(&self) -> &Arc<CanonicalTerminalArtifact> {
         &self.artifact
     }
-    pub fn build_bindings(&self) -> &crate::TerminalBuildBindings {
+    pub fn build_bindings(&self) -> &TerminalBuildBindings {
         &self.build_bindings
     }
-    pub fn build_requests(&self) -> &crate::TerminalBuildRequests {
+    pub fn build_requests(&self) -> &TerminalBuildRequests {
         &self.build_requests
     }
-    pub fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
+    pub fn build_filesystem(&self) -> &TerminalBuildFilesystem {
         &self.build_filesystem
     }
-    pub fn applications(
-        &self,
-    ) -> &[Result<ProducedTerminalApplication, Vec<diagnostics::Diagnostic>>] {
+    pub fn applications(&self) -> &[Result<ProducedTerminalApplication, Vec<Diagnostic>>] {
         &self.applications
     }
 }
