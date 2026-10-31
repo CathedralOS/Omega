@@ -9,7 +9,7 @@ use typed_trees::type_identity::TypeIdentityId;
 
 mod application_formation;
 pub use application_formation::{
-    CheckedRankApplicationFacts, CheckedRankApplicationFormation,
+    CheckedDeclarationCall, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
     CheckedRankApplicationFormationHandle,
 };
 
