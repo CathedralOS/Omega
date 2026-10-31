@@ -72,6 +72,8 @@ fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms 
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/recast/native_bounded_array_window_short rejected 969ms expected @bb8f3fedf0ae
+	cannot prove requires contract for call fill from main: bytes[8..151].len >= 144 (needs fact `output.len >= 144` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
@@ -12030,6 +12032,7 @@ pass/recast/mutable_signed_bits_write_compile checked 2221ms @ccdb99ca2214
 pass/recast/mutable_u16_signed_write_compile checked 2833ms @ccdb99ca2214
 pass/recast/mutable_unsigned_signed_write_compile checked 2515ms @ccdb99ca2214
 pass/recast/narrow_signed_bits_view_compile checked 2356ms @ccdb99ca2214
+pass/recast/native_bounded_array_window_exit checked 1315ms check-target:macos_arm64 @bb8f3fedf0ae
 pass/recast/nested_operand_view_compile checked 2761ms @ccdb99ca2214
 pass/recast/non_owning_erasure_additional_record_predicate_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/non_owning_erasure_authored_reestablishment_exit checked 3470ms check-target:macos_arm64 @ccdb99ca2214
