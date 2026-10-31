@@ -52,14 +52,6 @@ pub(crate) fn task_specialization_commitment<'program>(
         })?;
     let normalized_requirement =
         typed.trait_requirement_callable_identity_text(requirement_owner, requirement);
-    let application = typed
-        .closed_requirement_application(selection.requirement)
-        .filter(|application| application.declaring_trait == requirement_owner.symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "task specialization lost its exact closed requirement application",
-            )]
-        })?;
     let mut strong = ExactSpecializationEncoder::new();
     strong.string(normalized_requirement.as_str());
     strong.optional_digest(

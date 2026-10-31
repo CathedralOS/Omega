@@ -18,7 +18,6 @@ use terminal_psi::ProofOutputRuntimeResult;
 pub(crate) fn lower_proof_output_calls(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,

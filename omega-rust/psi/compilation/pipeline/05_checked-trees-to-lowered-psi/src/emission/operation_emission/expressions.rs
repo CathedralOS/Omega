@@ -278,10 +278,23 @@ impl LoweredDirectExpression {
         parameters: &[QualifiedScalarType],
     ) -> Result<(), LoweringError> {
         match self {
-            Self::PrimitiveRead { qualifications, .. }
-            | Self::StructuralField { qualifications, .. }
-            | Self::IndexedPrimitiveRead { qualifications, .. } => {
-                *qualifications = value_type.qualifications
+            Self::PrimitiveRead {
+                scalar_type,
+                qualifications,
+                ..
+            }
+            | Self::StructuralField {
+                scalar_type,
+                qualifications,
+                ..
+            }
+            | Self::IndexedPrimitiveRead {
+                scalar_type,
+                qualifications,
+                ..
+            } => {
+                *scalar_type = value_type.scalar_type;
+                *qualifications = value_type.qualifications;
             }
             Self::Boolean { expression } => match expression.as_mut() {
                 LoweredBooleanReturnExpression::PrimitiveRead { qualifications, .. }

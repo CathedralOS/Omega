@@ -328,6 +328,6 @@ pub(crate) fn fresh_field_snapshot(
             .map(|row| row.value_type.qualifications)
             .unwrap_or_default(),
         id: value_id(allocate_dense(next_value)?),
-        scalar_type,
+        scalar_type: qualification.map_or(scalar_type, |row| row.value_type.scalar_type),
     })
 }

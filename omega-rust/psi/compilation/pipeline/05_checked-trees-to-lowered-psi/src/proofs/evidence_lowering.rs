@@ -117,7 +117,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         proof_output_calls.extend(lower_proof_output_calls(
             identities,
             checked,
-            source_machine_ids,
             machine,
             terminal_machine,
             &lowered.semantic_module,

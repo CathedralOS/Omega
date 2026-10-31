@@ -128,8 +128,6 @@ impl Evaluation {
     fn scalar_case_dispatch(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        checked: &CheckedTrees,
-        state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
         guard_statement_ordinal: u32,
         destination: &CheckedScalarBranchDestination,
@@ -459,8 +457,6 @@ impl Evaluation {
                     self.case_dispatch_split(
                         identities,
                         &mut expansion,
-                        checked,
-                        state,
                         &bindings,
                         &source_types,
                         result_type,
@@ -522,8 +518,6 @@ impl Evaluation {
                         let terminator = self.case_dispatch_split(
                             identities,
                             &mut expansion,
-                            checked,
-                            state,
                             &bindings,
                             &source_types,
                             result_type,
