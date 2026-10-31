@@ -1,5 +1,7 @@
 //! Catalog execution sources are recorded beside, never inside, Product routing.
 
+use super::validation::validate_package_navigation;
+use super::validation::validate_source_identity;
 use super::{
     CanonicalCatalogDependency, CanonicalDependencySourceRequest,
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
@@ -117,14 +119,8 @@ pub(super) fn validate(
             ));
         }
         previous = Some(dependency);
-        super::validation::validate_source_identity(
-            &dependency.observer,
-            limits.maximum_identity_bytes,
-        )?;
-        super::validation::validate_package_navigation(
-            &dependency.observer,
-            &dependency.navigation,
-        )?;
+        validate_source_identity(&dependency.observer, limits.maximum_identity_bytes)?;
+        validate_package_navigation(&dependency.observer, &dependency.navigation)?;
         super::validation::validate_dependency_request(
             Request::from(&dependency.request),
             limits.maximum_request_bytes,
