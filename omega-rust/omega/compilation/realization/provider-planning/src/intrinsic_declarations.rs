@@ -4,6 +4,7 @@
 //! Catalog eligibility and accepted public-plan authority remain independent;
 //! deferred shape failures are demanded only after the original ownership gate.
 
+use crate::provider_planning::is_unit_type;
 use crate::provider_planning::type_reference_node;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::TypeReferenceNode;
@@ -823,10 +824,7 @@ fn exact_boundary_signature(
                     typed.state_signature_parameters(signature),
                     typed.state_signature_contracts(signature),
                 )
-                && matches!(
-                    type_reference_node(typed, signature.return_type),
-                    TypeReferenceNode::Unit
-                )
+                && is_unit_type(typed, signature.return_type)
         }
         BoundaryIntrinsicShape::UnitToAddress => {
             !signature.blocks
@@ -839,10 +837,7 @@ fn exact_boundary_signature(
             // non-crashing ceiling; this leg does not widen their envelope.
             !signature.blocks
                 && exact_i32_parameter(typed, typed.state_signature_parameters(signature))
-                && matches!(
-                    type_reference_node(typed, signature.return_type),
-                    TypeReferenceNode::Unit
-                )
+                && is_unit_type(typed, signature.return_type)
         }
         BoundaryIntrinsicShape::UnitToByteRead => {
             // Hosted input may occupy the worker while it waits for a byte and
@@ -895,20 +890,14 @@ fn exact_boundary_state(
                 typed,
                 typed.state_parameters(state),
                 typed.state_contracts(state),
-            ) && matches!(
-                type_reference_node(typed, state.return_type),
-                TypeReferenceNode::Unit
-            )
+            ) && is_unit_type(typed, state.return_type)
         }
         BoundaryIntrinsicShape::UnitToAddress => {
             typed.state_parameters(state).is_empty() && exact_address_type(typed, state.return_type)
         }
         BoundaryIntrinsicShape::I32ToUnit => {
             exact_i32_parameter(typed, typed.state_parameters(state))
-                && matches!(
-                    type_reference_node(typed, state.return_type),
-                    TypeReferenceNode::Unit
-                )
+                && is_unit_type(typed, state.return_type)
         }
         BoundaryIntrinsicShape::UnitToByteRead => {
             typed.state_parameters(state).is_empty()

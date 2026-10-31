@@ -110,3 +110,8 @@ pub(crate) fn type_reference_node(
 ) -> &TypeReferenceNode {
     typed.type_reference_table.type_reference(handle)
 }
+
+/// Whether one type reference resolves to the unit node.
+pub(crate) fn is_unit_type(typed: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    matches!(type_reference_node(typed, handle), TypeReferenceNode::Unit)
+}
