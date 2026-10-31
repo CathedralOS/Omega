@@ -687,13 +687,13 @@ fn validate_callable_effects(
 
     if may_suspend && !operational.may_suspend {
         diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends;`",
+            "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends`",
             parameter.name
         )));
     }
     if may_block && !operational.may_block {
         diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: it may block, but the requirement omits `blocks;`",
+            "{label} does not refine `{}`: it may block, but the requirement omits `blocks`",
             parameter.name
         )));
     }

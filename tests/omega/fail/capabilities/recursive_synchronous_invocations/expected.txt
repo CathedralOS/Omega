@@ -1,1 +1,1 @@
-omits `invokes Third;`
+omits `invokes Third`

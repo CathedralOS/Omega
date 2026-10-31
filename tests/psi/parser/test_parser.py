@@ -1421,7 +1421,7 @@ def machine_form_cases(program: str) -> None:
     source = b'machine f(i: u64, n: u64) terminates by (i, n.len) -> Nat::BoundedDistance {}'
     declaration_accepted(
         program, "ranked-subject-list-and-view", source,
-        clauses=(clause_row(TERMINATES, (0, 0), 3, through(source, b"terminates", b"Distance;"), True, (0, 2)),),
+        clauses=(clause_row(TERMINATES, (0, 0), 3, through(source, b"terminates", b"Distance"), True, (0, 2)),),
         arguments=(0, 2),
     )
     source = b'machine f(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n) requires i < n {}'
@@ -1531,7 +1531,7 @@ def machine_form_cases(program: str) -> None:
         ),
     )
     assert actual.machines[0][13:15] == (2, 1), actual.machines
-    source = b'machine b<machine F>() requires machine F(); ;data D {}'
+    source = b'machine b<machine F>() requires machine F();; data D {}'
     declaration_accepted(
         program, "bodyless-machine-contract", source,
         roots=((MACHINE_ROOT, 0, *span(source, b"machine b<machine F>() requires machine F();;")),
@@ -1618,7 +1618,7 @@ def machine_form_cases(program: str) -> None:
             clause_row(REACHES, (0, 0), 0, span(source, b"reaches;")),
             clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends false;"), True),
             clause_row(BLOCKS, (0, 0), 1, span(source, b"blocks false;"), True),
-            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates")),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;")),
         ),
         traits=((*span(source, b"LocalLogger"), 0, 0, 0, 0, 0, 1, 0, 1, *whole(source), 0, 0, 1, 0),),
     )
@@ -1759,11 +1759,11 @@ def machine_form_cases(program: str) -> None:
     over = exact + b"let x: u8 = 0;\n"
     rejected(program, "definition-capacity-plus-one", over, 190, (len(exact), len(exact) + 3),
              root_count=256, type_reference_count=256, expression_count=256, member_count=0)
-    exact = b"machine f() terminates by (" + b", ".join([b"a"] * 8) + b"); {}"
+    exact = b"machine f() terminates by (" + b", ".join([b"a"] * 8) + b") {}"
     status, payload = run(program, exact)
     assert status == 0 and decode(payload).clauses[0][9:11] == (0, 8), "8 ranked subjects"
-    over = b"machine f() terminates by (" + b", ".join([b"a"] * 9) + b"); {}"
-    rejected(program, "ranked-subject-capacity-plus-one", over, 180, (len(over) - 5, len(over) - 4),
+    over = b"machine f() terminates by (" + b", ".join([b"a"] * 9) + b") {}"
+    rejected(program, "ranked-subject-capacity-plus-one", over, 180, (over.rindex(b")"), over.rindex(b")") + 1),
              expression_count=9)
 
 
