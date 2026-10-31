@@ -25,7 +25,10 @@ fn attach_projected_calling(
         projected.declaration.clone(),
         projected.schema,
         projected.argument_owner,
-        &projected.requirements,
+        projected
+            .requirements
+            .iter()
+            .map(|requirement| requirement.symbol),
         boundary_arguments,
         calling_plans,
     )
@@ -41,7 +44,10 @@ pub(crate) fn attach_calling(
         prepared.declaration.clone(),
         prepared.schema,
         prepared.argument_owner,
-        prepared.requirements,
+        prepared
+            .requirements
+            .iter()
+            .map(|requirement| requirement.source.symbol),
         prepared.boundary_arguments,
         calling_plans,
     )
@@ -51,7 +57,7 @@ fn attach_requirement_calling(
     declaration: std::sync::Arc<language_semantics::service_surface::ServiceSurface>,
     source: ProviderSchemaDeclaration,
     argument_owner: symbols::SymbolHandle,
-    requirements: &[checked_trees::typed_trees::service_declarations::projection::ServiceRequirementSource],
+    requirements: impl IntoIterator<Item = symbols::SymbolHandle>,
     boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
     calling_plans: &[BoundaryCallingPlanRealization],
 ) -> ServiceSchema {
@@ -62,7 +68,7 @@ fn attach_requirement_calling(
                 application.boundary_trait == source.symbol()
                     && application.boundary_arguments == boundary_arguments
                     && application.argument_owner() == argument_owner
-                    && application.requirement_machine == requirement.symbol
+                    && application.requirement_machine == requirement
             }) {
                 schema.calling_applications.push(ServiceCallingApplication {
                     requirement: method.requirement_identity,

@@ -38,14 +38,12 @@ impl ComponentPublication {
         // Export ABI planning belongs to this source-owned preparation, not
         // the native handoff after Terminal publication. Ordinary entry calls
         // do not enumerate every exported component requirement.
-        let plans = checked
+        let providers = checked
             .execution()
-            .provider_source
-            .plans()
-            .plans()
+            .selected_provider_provenance
             .iter()
             .collect::<Vec<_>>();
-        let exported_calling_applications = if plans.is_empty() {
+        let exported_calling_applications = if providers.is_empty() {
             Vec::new()
         } else {
             let target = checked
@@ -57,9 +55,14 @@ impl ComponentPublication {
                     )]
                 })?;
             provider_planning::calling_policy_plans::component_calling_applications(
-                &checked.execution().provider_source.program().typed,
+                checked
+                    .execution()
+                    .provider_source
+                    .inventory()
+                    .services_for(checked.execution().provider_source.program())
+                    .map_err(|error| vec![error])?,
                 target,
-                &plans,
+                &providers,
                 &checked.providers().boundary_calling_plan_realizations,
                 &checked.build().config.opaque_representation_selections,
             )?

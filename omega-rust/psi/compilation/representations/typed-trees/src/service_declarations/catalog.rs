@@ -19,6 +19,31 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+mod calling_owners;
+
+/// Exact source correspondence and its deferred calling-owner obligation.
+/// Ordinary inherited traits may occur in a service surface without becoming
+/// boundary calling owners. Merely preparing that surface must not reject it.
+pub struct PreparedServiceRequirement {
+    pub source: ServiceRequirementSource,
+    calling_eligibility: Result<(), Diagnostic>,
+}
+
+impl Default for PreparedServiceRequirement {
+    fn default() -> Self {
+        Self {
+            source: ServiceRequirementSource::default(),
+            calling_eligibility: Ok(()),
+        }
+    }
+}
+
+impl PreparedServiceRequirement {
+    pub fn require_calling_owner(&self) -> Result<(), Diagnostic> {
+        self.calling_eligibility.clone()
+    }
+}
+
 /// Lookup coordinates are issued by source preparation, never reconstructed
 /// from a rendered signature or a runtime-erased carrier.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -43,7 +68,7 @@ struct ServiceRecord {
     package: Option<PackageKeyIdentity>,
     path: String,
     declaration: Option<Arc<ServiceSurface>>,
-    requirements: HandleSpan<ServiceRequirementSource>,
+    requirements: HandleSpan<PreparedServiceRequirement>,
     arguments: HandleSpan<TypeReferenceHandle>,
     correspondence: Result<(), Diagnostic>,
 }
@@ -89,7 +114,7 @@ pub struct PreparedServiceCatalog {
     owner_address: usize,
     scope: source::DependencyScope,
     records: Arena<ServiceRecord>,
-    requirements: Arena<ServiceRequirementSource>,
+    requirements: Arena<PreparedServiceRequirement>,
     arguments: Arena<TypeReferenceHandle>,
     sealed: Arena<SealedDeclaration>,
 }
@@ -118,7 +143,7 @@ pub struct PreparedServiceSurface<'catalog> {
     pub package: Option<PackageKeyIdentity>,
     pub path: &'catalog str,
     pub declaration: &'catalog Arc<ServiceSurface>,
-    pub requirements: &'catalog [ServiceRequirementSource],
+    pub requirements: &'catalog [PreparedServiceRequirement],
     pub boundary_arguments: &'catalog [TypeReferenceHandle],
     correspondence: &'catalog Result<(), Diagnostic>,
 }
@@ -129,7 +154,7 @@ impl PreparedServiceSurface<'_> {
         Ok(self
             .requirements
             .iter()
-            .map(|requirement| requirement.symbol)
+            .map(|requirement| requirement.source.symbol)
             .collect())
     }
 }
@@ -405,7 +430,40 @@ impl PreparedServiceCatalog {
         if let Some(projected) = projected {
             record.correspondence = projected.validate_correspondence();
             record.argument_owner = projected.argument_owner;
-            record.requirements = self.requirements.insert_many(projected.requirements);
+            record.requirements =
+                self.requirements
+                    .insert_many(projected.requirements.into_iter().enumerate().map(
+                        |(ordinal, source)| {
+                            let calling_eligibility = if matches!(
+                                projected.schema,
+                                ProviderSchemaDeclaration::BoundaryTrait(_)
+                            ) {
+                                projected
+                                    .declaration
+                                    .methods
+                                    .get(ordinal)
+                                    .ok_or_else(|| {
+                                        Diagnostic::error(
+                                            "service calling row lost its ordered correspondence",
+                                        )
+                                    })
+                                    .and_then(|method| {
+                                        calling_owners::prepare(
+                                            context,
+                                            &projected.declaration,
+                                            method,
+                                            source,
+                                        )
+                                    })
+                            } else {
+                                Ok(())
+                            };
+                            PreparedServiceRequirement {
+                                source,
+                                calling_eligibility,
+                            }
+                        },
+                    ));
             record.declaration = Some(projected.declaration);
         }
         self.records.insert(record);

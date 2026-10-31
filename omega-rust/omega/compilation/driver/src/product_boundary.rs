@@ -923,6 +923,50 @@ fn provider_derivation_consumes_the_prepared_service_census() {
 }
 
 #[test]
+fn selected_calling_consumes_source_correspondence_without_ast_search() {
+    let calling = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/selected_application.rs"
+    );
+    let selection = calling
+        .split("pub(crate) fn selected_source_calling_application(")
+        .nth(1)
+        .unwrap()
+        .split("/// Materialize this producer")
+        .next()
+        .unwrap();
+    for forbidden in [
+        ".traits()",
+        ".operators()",
+        ".machines()",
+        "trait_machine_signatures(",
+        "schema_binds_exact_",
+        "service_schema::from_typed",
+    ] {
+        assert!(
+            !selection.contains(forbidden),
+            "selected calling reopens {forbidden}"
+        );
+    }
+    assert!(selection.contains("provenance.row_requirements.get(row_index)"));
+    assert!(selection.contains("requirement.source.symbol"));
+    assert!(!selection.contains("matching_methods"));
+    assert!(selection.contains("source.require_calling_owner()?"));
+    assert!(selection.contains("realization.commitment == commitment"));
+    let owners = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/catalog/calling_owners.rs"
+    );
+    assert!(owners.contains("context.contains(declaration.symbol)"));
+    assert!(owners.contains("if !owner.is_boundary"));
+    assert!(owners.contains("signature.symbol != source.symbol"));
+    let extraction = include_str!(
+        "../../realization/provider-planning/src/provider_planning/external_binding_rows.rs"
+    );
+    assert!(extraction.contains("for source in sources"));
+    assert!(!extraction.contains(".find(|source| source.plan"));
+    assert!(!extraction.contains("selected_plans:"));
+}
+
+#[test]
 fn product_coordinator_has_no_native_stage_dependency() {
     let manifest = include_str!("../Cargo.toml")
         .split("[dev-dependencies]")

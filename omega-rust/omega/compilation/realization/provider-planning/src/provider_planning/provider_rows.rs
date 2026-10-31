@@ -247,7 +247,7 @@ pub(crate) fn prepare(
     source: DerivedProviderPlan,
     context: &super::external_binding_rows::ExternalBindingContext<'_>,
 ) -> Result<ProviderPlanCandidate<UnpreparedProviderRows>, Vec<Diagnostic>> {
-    let typed = context.typed;
+    let typed = context.services.context().typed;
     let mut direct = vec![None; source.plan.rows.len()];
     for (row_index, row) in source.plan.rows.iter().enumerate() {
         if !matches!(
@@ -304,7 +304,7 @@ pub(crate) fn prepare(
             DirectBoundaryMechanism::Intrinsic
         } else {
             let binding = context
-                .row(&source.plan, row_index, Some(&source.provenance))
+                .row(&source.plan, row_index, &source.provenance)
                 .and_then(|row| {
                     row.ok_or_else(|| {
                         vec![Diagnostic::error(
