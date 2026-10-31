@@ -2,10 +2,10 @@
 
 use crate::facts::crash_calls::private_summaries::crash_route_expressions_by_identity;
 use crate::facts::crash_calls::summary_predicates::{
-    CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
-    concrete_guard_scalar_value, normalize_summary_buckets, normalize_summary_guards,
-    scalar_guard_is_integer_comparison, scalar_guard_proves_false, summary_boolean_value,
-    summary_closed_float_relation,
+    CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate,
+    SummaryCrashRouteGuard as RouteGuard, concrete_guard_scalar_value, normalize_summary_buckets,
+    normalize_summary_guards, scalar_guard_is_integer_comparison, scalar_guard_proves_false,
+    summary_boolean_value, summary_closed_float_relation,
 };
 use crate::facts::crash_entry_values;
 use crate::flow::active_context_handles;
@@ -1253,7 +1253,7 @@ pub(crate) fn refine_published_crash_routes(
         for guard in bucket.alternative_guards() {
             match guard {
                 checked_trees::CrashRouteGuard::Truth => {
-                    guards.push(SummaryCrashRouteGuard::Truth);
+                    guards.push(RouteGuard::Truth);
                 }
                 checked_trees::CrashRouteGuard::Predicate(identity) => {
                     let expression = *route_expressions.get(identity).expect(
@@ -1301,7 +1301,7 @@ pub(crate) fn refine_published_crash_routes(
                         continue;
                     }
                     let Some(predicate) = identity.expression() else {
-                        guards.push(SummaryCrashRouteGuard::Truth);
+                        guards.push(RouteGuard::Truth);
                         continue;
                     };
                     // The direct evaluator follows actuals and local initializers.
@@ -1335,7 +1335,7 @@ pub(crate) fn refine_published_crash_routes(
                         .flatten();
                     match concrete_value {
                         Some(false) => {}
-                        Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
+                        Some(true) => guards.push(RouteGuard::Truth),
                         None => {
                             // Live storage evidence decides a guard entry
                             // custody cannot carry: each referenced formal is
@@ -1363,7 +1363,7 @@ pub(crate) fn refine_published_crash_routes(
                                 }
                             }) {
                                 if value {
-                                    guards.push(SummaryCrashRouteGuard::Truth);
+                                    guards.push(RouteGuard::Truth);
                                 }
                                 continue;
                             }
@@ -1383,7 +1383,7 @@ pub(crate) fn refine_published_crash_routes(
                                 // the unconditional ceiling without inventing
                                 // a guard in the caller namespace.
                                 if !scalar_guard_proves_false(builtin_meaning, scalar.as_ref()) {
-                                    guards.push(SummaryCrashRouteGuard::Truth);
+                                    guards.push(RouteGuard::Truth);
                                 }
                                 continue;
                             };
@@ -1406,14 +1406,12 @@ pub(crate) fn refine_published_crash_routes(
                             });
                             match value {
                                 Some(false) => {}
-                                Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
-                                None => guards.push(SummaryCrashRouteGuard::Predicate(
-                                    SummaryCrashPredicate {
-                                        identity: predicate,
-                                        builtin_meaning,
-                                        scalar,
-                                    },
-                                )),
+                                Some(true) => guards.push(RouteGuard::Truth),
+                                None => guards.push(RouteGuard::Predicate(SummaryCrashPredicate {
+                                    identity: predicate,
+                                    builtin_meaning,
+                                    scalar,
+                                })),
                             }
                         }
                     }
