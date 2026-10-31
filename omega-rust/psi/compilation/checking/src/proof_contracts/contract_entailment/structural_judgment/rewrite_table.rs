@@ -193,7 +193,14 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
     match term.semantic_value() {
         StructuralTerm::Variable(name) => (1, string_key(name)),
         StructuralTerm::BoundValue(symbol) => (2, handle_key(*symbol)),
-        StructuralTerm::CapturedValue { expression, .. } => (3, handle_key(*expression)),
+        StructuralTerm::CapturedValue {
+            expression,
+            statement,
+            ..
+        } => (
+            3,
+            handle_key(*expression) ^ handle_key(*statement).rotate_left(1),
+        ),
         StructuralTerm::BoundProjection { subject, .. } => (4, handle_key(*subject)),
         StructuralTerm::Integer(_) => (5, 0),
         StructuralTerm::RepeatedArray { length, .. } => (20, *length),

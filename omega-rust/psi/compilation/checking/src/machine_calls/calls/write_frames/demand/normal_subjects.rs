@@ -26,16 +26,25 @@ pub(crate) struct InvocationReferenceSubject {
 }
 
 impl<'program> CallFrameResolver<'program> {
-    pub(crate) fn expression_call_reference_subjects(
+    pub(crate) fn call_reference_subjects(
         &self,
         machine: &'program Machine,
-        expression: ExpressionHandle,
+        site: crate::CallSite<'program>,
         parameters: &[StateParameter],
     ) -> Option<Vec<InvocationReferenceSubject>> {
-        let writes = self
-            .operation_write_frame(machine, expression)
-            .into_complete_paths()?;
-        self.expression_entry_reference_subjects(machine, expression, parameters)?
+        let (writes, entries) = match site {
+            crate::CallSite::Expression { expression, .. } => (
+                self.operation_write_frame(machine, expression),
+                self.expression_entry_reference_subjects(machine, expression, parameters)?,
+            ),
+            crate::CallSite::Statement(call) => (
+                self.may_write_frame(machine, call),
+                self.statement_entry_reference_subjects(machine, call, parameters)?,
+            ),
+            _ => return None,
+        };
+        let writes = writes.into_complete_paths()?;
+        entries
             .into_iter()
             .map(|entry| {
                 let parameter = parameters

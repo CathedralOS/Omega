@@ -117,6 +117,9 @@ pub(crate) enum StructuralTerm {
     /// observations have no callable. Equal operands never identify two events.
     CapturedValue {
         expression: ExpressionHandle,
+        // A statement call has no result expression. Its actual statement
+        // handle separates equal-counter captures on different branch arms.
+        statement: arena::Handle<typed_trees::statement::StatementNode>,
         callable: SymbolHandle,
         occurrence: usize,
         result_type: TypeReferenceHandle,
@@ -842,6 +845,7 @@ impl<'program> StructuralJudge<'program> {
                         if let (
                             Some(StructuralTerm::CapturedValue {
                                 expression: e1,
+                                statement: s1,
                                 callable: c1,
                                 result_type: t1,
                                 integer_range: r1,
@@ -849,6 +853,7 @@ impl<'program> StructuralJudge<'program> {
                             }),
                             Some(StructuralTerm::CapturedValue {
                                 expression: e2,
+                                statement: s2,
                                 callable: c2,
                                 result_type: t2,
                                 integer_range: r2,
@@ -856,6 +861,7 @@ impl<'program> StructuralJudge<'program> {
                             }),
                         ) = (matched_current.as_ref(), other.current.as_ref())
                             && e1 == e2
+                            && s1 == s2
                             && c1 == c2
                             && t1 == t2
                             && r1 == r2
@@ -903,6 +909,7 @@ impl<'program> StructuralJudge<'program> {
                     intersected.push((*expr, val.clone()));
                 } else if let StructuralTerm::CapturedValue {
                     expression: e1,
+                    statement: s1,
                     callable: c1,
                     result_type: t1,
                     integer_range: r1,
@@ -915,11 +922,12 @@ impl<'program> StructuralJudge<'program> {
                                     other_val,
                                     StructuralTerm::CapturedValue {
                                         expression: e2,
+                                statement: s2,
                                         callable: c2,
                                         result_type: t2,
                                         integer_range: r2,
                                         ..
-                                    } if e1 == e2 && c1 == c2 && t1 == t2 && r1 == r2
+                                    } if e1 == e2 && s1 == s2 && c1 == c2 && t1 == t2 && r1 == r2
                                 )
                         })
                     })
@@ -1001,6 +1009,7 @@ impl<'program> StructuralJudge<'program> {
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
+            judge.intake_entry_collection_predicate(*fact);
             if let Some(state) = state {
                 judge.retain_entry_scalar_reads(state, *fact);
             }
@@ -2688,6 +2697,9 @@ impl<'program> StructuralJudge<'program> {
         if let Some(value) = self.stored_value_observation(
             scope.map(|(machine, state, _)| (machine, state)),
             expression,
+            |selector| {
+                self.callee_term(selector, environment, static_observations, scope, depth + 1)
+            },
         ) {
             return Some(value);
         }
