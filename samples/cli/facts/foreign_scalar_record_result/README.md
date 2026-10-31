@@ -82,19 +82,23 @@ field comparison, and each copy-removal rejection. Its current matching-host
 observations retain their exact producer identity in the PR evidence. The earlier
 Linux and Windows runs above describe their original sources and producers;
 they are not runs of these migrated Build bindings. This shared implementation
-does not establish distinct-body selection on two targets. The direct, nested,
-and array productions below, other-host execution of the new bindings, and the
-remaining target/native retirement acceptance stay open.
+does not establish distinct-body selection on two targets. The nested and array
+productions below, other-host execution of the new bindings, and the remaining
+target/native retirement acceptance stay open.
 
 ## Direct foreign production
 
 The same fact also needs the concrete foreign-call production, independently of
 the selected `IntegerDivision::divide` route. The [direct root](direct/main.omg)
-and its nine places call `divide` directly for both original input pairs. They
-retain the whole-record double use, the earlier result across the second call,
-and all six signed-field comparisons. The exact `lldiv` bindings and public
-two-`i64` carrier remain unchanged; each external leaf uses `boundary machine`.
-Nested helpers use ordinary `machine` declarations and explicit arguments.
+and its nine places call the `IntegerDivision::divide` requirement directly for
+both original input pairs. They retain the whole-record double use, the earlier
+result across the second call, and all six signed-field comparisons. The exact
+`lldiv` locators and public two-`i64` carrier remain unchanged; each package's
+Build binds the requirement to its four native locators, so no place declares a
+per-symbol binding helper or a bodyless realizing `boundary machine`. The
+target-body place selects one `Observation` implementation with four Build rows
+because its four target-prefixed bodies were identical. Nested helpers use
+ordinary `machine` declarations and explicit arguments.
 
 The direct places are [local](direct/local/main.omg),
 [field](direct/field/main.omg), [parameter](direct/parameter/main.omg),
@@ -117,7 +121,9 @@ native exit 0, Terminal exit 0, and successful `inspect-terminal --artifact`.
 All nine copy-removal twins reject with `holds no value`. The exact signed
 inputs, both result fields, earlier-result copies and consuming operation remain
 unchanged. The match join additionally observes each arm's marker so an inverted
-branch traps.
+branch traps. That macOS run, and the retained direct run record, describe the
+original `via` sources and their producer; they are not runs of the Build-bound
+sources.
 
 Fresh fixed baseline `14d6fefba285962378d30e5992de83fde81b3c69` reproduced missing
 applications for direct calls and an incorrect requirement-call projection inside
