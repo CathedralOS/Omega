@@ -42,23 +42,19 @@ pub(crate) fn exact_checked_contract_operator_meaning(
             let symbol = target.selected_symbol();
             let declaration = typed_trees::operator::declaration_by_symbol(compilation, symbol)
                 .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "reviewed {} `{}` contract selected an operator without one retained declaration",
-                        context.subject_kind, context.subject_name
-                    ))]
+                    context
+                        .rejected("contract selected an operator without one retained declaration")
                 })?;
             Ok(PackageReviewContractOperatorMeaning::Declared(
                 project_operator_coordinate(compilation, declaration)?,
             ))
         }
-        AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract operator selected a non-operator intrinsic",
-            context.subject_kind, context.subject_name
-        ))]),
-        AuthoredDeclarationSelectionTarget::LateBound(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract operator remains late-bound after checked lowering",
-            context.subject_kind, context.subject_name
-        ))]),
+        AuthoredDeclarationSelectionTarget::Intrinsic(_) => {
+            Err(context.rejected("contract operator selected a non-operator intrinsic"))
+        }
+        AuthoredDeclarationSelectionTarget::LateBound(_) => {
+            Err(context.rejected("contract operator remains late-bound after checked lowering"))
+        }
     }
 }
 

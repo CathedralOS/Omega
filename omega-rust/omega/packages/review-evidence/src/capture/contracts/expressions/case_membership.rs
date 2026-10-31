@@ -48,10 +48,7 @@ pub(super) fn checked_case_classifier(
     binary: &TableBinaryExpression,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let rejected = || {
-        vec![Diagnostic::error(format!(
-            "reviewed {} `{}` case membership does not retain its exact subject, carrier, case and selection exposure",
-            context.subject_kind, context.subject_name,
-        ))]
+        context.rejected("case membership does not retain its exact subject, carrier, case and selection exposure")
     };
     let machine_owner = match context.owner {
         ContractProofFactOwner::Machine { machine_symbol } => Some((machine_symbol, None)),
@@ -167,10 +164,10 @@ pub(super) fn checked_case_classifier(
     let carrier = validation::exact_case_reference_owner(compilation.checking_input, binary.right)
         .ok_or_else(rejected)?;
     if context.requires_public_nominals() && !carrier.is_public {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` exposes non-public data `{}` through case membership",
-            context.subject_kind, context.subject_name, carrier.name,
-        ))]);
+        return Err(context.rejected(format!(
+            "exposes non-public data `{}` through case membership",
+            carrier.name
+        )));
     }
     nominal_identity(compilation, case.symbol)
 }

@@ -60,10 +60,7 @@ pub(crate) fn project_contract_expression_with_substitutions(
     use typed_trees::expression::ExpressionNode;
 
     if depth >= 256 {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract expression exceeds the package-review depth limit",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("contract expression exceeds the package-review depth limit"));
     }
     let child = |expression| {
         project_contract_expression_with_substitutions(
@@ -85,10 +82,9 @@ pub(crate) fn project_contract_expression_with_substitutions(
         ExpressionNode::SavedSubject(_) => Err(vec![Diagnostic::error(
             "package contract projection requires a scoped structural-match capture representation; a saved runtime subject is not a free denotational value",
         )]),
-        ExpressionNode::UndeterminedNaN(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contains a semantic NaN leaf without a supported canonical package-review contract expression",
-            context.subject_kind, context.subject_name
-        ))]),
+        ExpressionNode::UndeterminedNaN(_) => Err(context.rejected(
+            "contains a semantic NaN leaf without a supported canonical package-review contract expression",
+        )),
         ExpressionNode::Match(dispatch) => {
             let subject = child(dispatch.subject)?;
             let mut arms = Vec::new();
@@ -127,10 +123,9 @@ pub(crate) fn project_contract_expression_with_substitutions(
                     PackageReviewFloatLiteral::F64(value.landed_f64().to_bits()),
                 ))
             }
-            None => Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contains a float literal without an exact checked width landing",
-                context.subject_kind, context.subject_name
-            ))]),
+            None => Err(context.rejected(
+                "contains a float literal without an exact checked width landing",
+            )),
         },
         ExpressionNode::ArrayLiteral(values) => compilation
             .expression_table
@@ -238,10 +233,9 @@ pub(crate) fn project_contract_expression_with_substitutions(
             if exact_checked_contract_operator_meaning(compilation, context, expression)?
                 != PackageReviewContractOperatorMeaning::Builtin
             {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` unary contract operator is not one closed compiler-owned meaning",
-                    context.subject_kind, context.subject_name
-                ))]);
+                return Err(context.rejected(
+                    "unary contract operator is not one closed compiler-owned meaning",
+                ));
             }
             Ok(PackageReviewContractExpression::Unary {
                 operator: project_contract_unary_operator(unary.operator),

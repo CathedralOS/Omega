@@ -58,10 +58,9 @@ pub(crate) fn project_contract_name_expression(
         })
     {
         let Some(checked_fact) = checked_fact else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` uses a data-invariant field without an exact checked place join",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(
+                context.rejected("uses a data-invariant field without an exact checked place join")
+            );
         };
         return checked_contract_member_path(
             compilation,
@@ -136,16 +135,11 @@ pub(crate) fn project_contract_name_expression(
                     .any(|parameter| name == &parameter.name)
             })
         {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract parameter spelling does not match its exact resolved symbol",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context
+                .rejected("contract parameter spelling does not match its exact resolved symbol"));
         }
         if !path.symbol.is_valid() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract contains an unresolved name expression",
-                context.subject_kind, context.subject_name
-            ))]);
+            return Err(context.rejected("contract contains an unresolved name expression"));
         }
         // Compiler carrier members have closed semantic identity, not package
         // provenance. Exact symbol lookup keeps authored same-spelled names
@@ -160,10 +154,9 @@ pub(crate) fn project_contract_name_expression(
         return Ok(projected);
     }
     let Some(checked_fact) = checked_fact else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` uses a proposition-argument name-path member without an exact checked place join",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected(
+            "uses a proposition-argument name-path member without an exact checked place join",
+        ));
     };
     let semantic_root = is_domain_subject
         .then_some(facts::PlaceRoot::Expression(expression))
@@ -176,20 +169,12 @@ pub(crate) fn project_contract_name_expression(
                 .is_valid()
                 .then_some(facts::PlaceRoot::Symbol(root_symbol))
         })
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract name-path member has no exact semantic root",
-                context.subject_kind, context.subject_name
-            ))]
-        })?;
+        .ok_or_else(|| context.rejected("contract name-path member has no exact semantic root"))?;
     let member_symbols = compilation
         .expression_table
         .name_path_member_symbols(path.member_symbols);
     if member_symbols.len() != members.len() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract name path lacks exact member identities",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("contract name path lacks exact member identities"));
     }
     checked_contract_member_path(
         compilation,
