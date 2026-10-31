@@ -134,7 +134,7 @@ pub(crate) fn instantiate_requirement_applications(
                     | typed_trees::data::TypeParameterKind::Const { .. }
                     | typed_trees::data::TypeParameterKind::Value { .. } => {
                         let actual = program
-                            .static_operand_type_reference(argument)
+                            .static_operand_type_reference_in_scope(argument, invocation.owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?;
                         open |= super::contextual_calls::operand_is_open(program, actual);
                     }
@@ -148,18 +148,14 @@ pub(crate) fn instantiate_requirement_applications(
             if open {
                 continue;
             }
-            let bindings = invocation_bindings(program, &parameters, &arguments)?;
+            let bindings = invocation_bindings(program, invocation.owner, &parameters, &arguments)?;
             let application = expressions_of_mut(program).retain_static_machine_application(
                 requirement,
                 name.clone(),
                 &arguments,
             );
             let source = expressions_of_mut(program).static_machine_application_mut(application);
-            source.lexical_owner = if invocation.owner.is_valid() {
-                invocation.owner
-            } else {
-                requirement
-            };
+            source.lexical_owner = invocation.owner;
             source.binding_declaration = requirement;
             expressions_of_mut(program).set_static_machine_application_lifetimes(
                 application,
@@ -214,8 +210,11 @@ pub(super) fn selected_applications<'a>(
 
 /// Symbolic and executable requirement calls share one binding roster.
 /// Openness prevents executable instantiation, not substitution in a contract.
+/// Actual type payloads keep their supplying declaration before a receiving
+/// signature substitutes them for its own formal binders.
 pub(crate) fn invocation_bindings(
     program: &mut TypedTrees,
+    owner: SymbolHandle,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Result<Vec<StaticMachineBinding>, Vec<Diagnostic>> {
@@ -228,7 +227,7 @@ pub(crate) fn invocation_bindings(
                 value: match &parameter.kind {
                     typed_trees::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(
                         program
-                            .static_operand_type_reference(argument)
+                            .static_operand_type_reference_in_scope(argument, owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?,
                     ),
                     typed_trees::data::TypeParameterKind::Const { type_reference }
@@ -282,7 +281,7 @@ pub(crate) fn invocation_bindings(
                                 )
                             } else {
                                 program
-                                    .static_operand_type_reference(argument)
+                                    .static_operand_type_reference_in_scope(argument, owner)
                                     .map_err(|message| vec![Diagnostic::error(message)])?
                             };
                             StaticMachineBindingValue::Const(actual)

@@ -628,7 +628,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             &mut arguments,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
+        let bindings = super::invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
         expressions_of_mut(program)
             .static_machine_application_mut(application)
             .binding_declaration = template;

@@ -280,14 +280,24 @@ impl TypedTrees {
         let bindings = self
             .static_machine_application_bindings(application)
             .to_vec();
+        // Binding payloads can come from a transient public invocation view.
+        // Copy them in the source telescope before closing the receiving one;
+        // validation alone cannot supply missing operand custody.
         let local_arguments = bindings
             .iter()
             .map(|binding| match &binding.value {
                 static_applications::StaticMachineBindingValue::Type(actual)
-                | static_applications::StaticMachineBindingValue::Const(actual) => Ok(*actual),
+                | static_applications::StaticMachineBindingValue::Const(actual) => self
+                    .static_operand_type_reference_in_scope(
+                        &crate::expression::StaticMachineArgument {
+                            type_reference: *actual,
+                            ..Default::default()
+                        },
+                        lexical_owner,
+                    ),
                 static_applications::StaticMachineBindingValue::Machine(actual)
                 | static_applications::StaticMachineBindingValue::Conformance(actual) => {
-                    self.static_operand_type_reference(actual)
+                    self.static_operand_type_reference_in_scope(actual, lexical_owner)
                 }
                 static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
                     Err("runtime operand does not close a requirement instance")
