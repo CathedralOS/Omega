@@ -7,6 +7,7 @@
 //! `proof_output_calls.rs` lowers proof-output calls and runtime calls and
 //! `producer_provenance.rs` lowers evidence producer provenance.
 
+use crate::machine_lowering::declarations::semantic_identity;
 mod evidence_terms;
 mod outcome_specific_calls;
 mod outcome_specific_ensures;
@@ -287,12 +288,7 @@ pub(crate) fn checked_requirement_schema(
     };
     Ok(terminal_psi::ClosedConformanceSchema {
         requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
-            crate::machine_lowering::declarations::semantic_identity(
-                identities,
-                checked,
-                requirement,
-            )
-            .map_err(|_| {
+            semantic_identity(identities, checked, requirement).map_err(|_| {
                 LoweringError::Unsupported("conformance requirement lost its declaration owner")
             })?,
         ),

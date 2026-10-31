@@ -3,6 +3,7 @@
 
 use crate::LoweringError;
 use crate::machine_lowering::declarations;
+use crate::unit::attached_unit::checked_unit_boundary_identity;
 use checked_trees::CheckedTrees;
 use terminal_psi::{
     ExternalProviderConformance, ExternalProviderOwner, TerminalIdentityTableBuilder,
@@ -96,11 +97,7 @@ pub(crate) fn project(
                         }
                         typed.callable_identity_text(identity)
                     }
-                    _ => crate::unit::attached_unit::checked_unit_boundary_identity(
-                        checked,
-                        requirement,
-                    )?
-                    .render(checked)?,
+                    _ => checked_unit_boundary_identity(checked, requirement)?.render(checked)?,
                 };
                 if !include(identities, &callable) {
                     continue;
