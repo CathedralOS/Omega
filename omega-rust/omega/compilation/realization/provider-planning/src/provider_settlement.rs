@@ -34,6 +34,7 @@ use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
@@ -48,7 +49,7 @@ use symbols::SymbolHandle;
 /// Resolve the exact Product boundary and normalized schema for the canonical
 /// filesystem host binding.
 fn resolve_canonical_host_binding<'trees>(
-    typed: &'trees TypedTrees,
+    services: ServiceCatalog<'trees>,
     calling_plans: &[BoundaryCallingPlanRealization],
     binding: &AcceptedSemanticBinding,
 ) -> Result<
@@ -58,22 +59,18 @@ fn resolve_canonical_host_binding<'trees>(
     ),
     Diagnostic,
 > {
-    let matches = typed
-        .traits()
-        .iter()
-        .filter_map(|definition| {
-            if !definition.is_boundary
-                || typed.symbols.symbol_package_identity(definition.symbol)
-                    != Some(binding.package())
-                || typed.symbols.display_path(definition.symbol, "::") != binding.declaration_path()
+    let typed = services.context().typed;
+    let matches = services
+        .declared_traits()
+        .filter_map(|declaration| {
+            if declaration.package != Some(binding.package())
+                || declaration.path != binding.declaration_path()
             {
                 return None;
             }
-            let schema = crate::service_schema::from_typed(
-                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-                calling_plans,
-                definition,
-            )?;
+            let prepared = declaration.surface?;
+            let definition = typed.trait_definition_by_symbol(declaration.schema.symbol())?;
+            let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
             (schema.declaration.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
                     == binding.normalized_schema_digest())
@@ -107,7 +104,7 @@ pub(super) struct ToolchainSettledLeaf {
 /// that realizes it. `provider` and `host_label` supply the plan's nominal
 /// identity and diagnostic label.
 fn mint_toolchain_settled_plan(
-    typed: &TypedTrees,
+    services: ServiceCatalog<'_>,
     calling_plans: &[BoundaryCallingPlanRealization],
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
@@ -125,9 +122,12 @@ fn mint_toolchain_settled_plan(
     if leaves.is_empty() {
         return Ok(None);
     }
-    let (definition, schema) = resolve_canonical_host_binding(typed, calling_plans, binding)
+    let (definition, schema) = resolve_canonical_host_binding(services, calling_plans, binding)
         .map_err(|error| vec![error])?;
-    let signatures = typed.trait_machine_signatures(definition);
+    let signatures = services
+        .context()
+        .typed
+        .trait_machine_signatures(definition);
     if already_selected.iter().any(|selected| {
         selected.schema.declaration.trait_package_identity
             == schema.declaration.trait_package_identity
@@ -434,7 +434,6 @@ pub fn settle_checked_providers(
     let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
@@ -457,7 +456,7 @@ pub fn settle_checked_providers(
     let mut derived_provider_plans = authored_providers.candidates().to_vec();
     let mut identities = evaluated_via_bindings.identities().clone().into_builder();
     let native_build_plans = crate::native_bindings::derive(
-        context,
+        services,
         &boundary_calling_plan_realizations,
         native_supplies,
         planning_target,
@@ -497,7 +496,7 @@ pub fn settle_checked_providers(
         .map(|selected| selected.derived.plan.clone())
         .collect::<Vec<_>>();
     let toolchain_filesystem_plan = canonical_filesystem_host::mint_canonical_filesystem_host_plan(
-        typed,
+        services,
         &boundary_calling_plan_realizations,
         package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
