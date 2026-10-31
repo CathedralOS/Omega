@@ -2,7 +2,9 @@
 
 use super::contextual_projection::contextual_canonical_place_from_expression;
 use super::member_resolution::effective_member_symbol;
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
+use typed_trees::types::TypeReferenceNode;
 
 use super::declared_symbols::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
@@ -86,7 +88,7 @@ impl CanonicalPlace {
     }
 
     /// The canonical label diagnostics quote for this place.
-    pub fn label(&self, program: &dyn crate::CheckingInput) -> String {
+    pub fn label(&self, program: &dyn CheckingInput) -> String {
         facts::canonical_place_label_from_parts(program, self.root, &self.segments)
     }
 }
@@ -97,7 +99,7 @@ impl CanonicalPlace {
 /// is read. Unknown endpoints decline this exact-coordinate query; they never
 /// become layout constants or bounds evidence.
 pub fn canonical_collection_element_place(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     collection: ExpressionHandle,
@@ -194,7 +196,7 @@ pub fn canonical_collection_element_place(
 }
 
 pub fn index_place_segment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> facts::PlaceSegment {
     if let ExpressionNode::Range(range) = expression_table(program).expression(expression)
@@ -212,7 +214,7 @@ pub fn index_place_segment(
 /// A point selector's place segment. A range is not a point: callers that
 /// only fold element ordinals keep a range expression as an index segment.
 pub fn element_place_segment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> facts::PlaceSegment {
     // A singleton postcondition describes the completed coordinate; it does
@@ -241,7 +243,7 @@ pub fn element_place_segment(
 }
 
 fn exact_fixed_element(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<usize> {
@@ -282,7 +284,7 @@ fn exact_fixed_element(
 }
 
 fn standing_fixed_element(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<i64> {
     let states = states_naming(program, expression);
@@ -307,7 +309,7 @@ fn standing_fixed_element(
 }
 
 fn immutable_name_initializer(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
@@ -336,7 +338,7 @@ fn immutable_name_initializer(
 /// not by the place algebra. Inclusive syntax is normalized once by advancing
 /// its last included ordinal.
 fn fixed_half_open_range(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
@@ -360,10 +362,7 @@ fn fixed_half_open_range(
 /// `match which { 0 -> items[0..which + 2] }` is therefore the same fixed
 /// window as `items[0..2]`. A wildcard arm assigns no pattern, so its
 /// endpoint stays a runtime index.
-fn range_coordinate(
-    program: &dyn crate::CheckingInput,
-    endpoint: ExpressionHandle,
-) -> Option<usize> {
+fn range_coordinate(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Option<usize> {
     let value = if let Some(value) = program.closed_integer_expression_value(endpoint) {
         value.to_i64()?
     } else {
@@ -379,7 +378,7 @@ fn range_coordinate(
 /// an inert evaluation prefix from the selected arm's entry. A call's own
 /// ensured result still folds independently of these match substitutions.
 fn match_arm_bindings(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     endpoint: ExpressionHandle,
 ) -> Option<Vec<(ExpressionHandle, i64)>> {
     let mut bindings = Vec::new();
@@ -411,7 +410,7 @@ fn match_arm_bindings(
 }
 
 fn collect_arm_bindings(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: ExpressionHandle,
     endpoint: ExpressionHandle,
     bindings: &mut Vec<(ExpressionHandle, i64)>,
@@ -446,10 +445,7 @@ fn collect_arm_bindings(
     }
 }
 
-fn states_naming(
-    program: &dyn crate::CheckingInput,
-    endpoint: ExpressionHandle,
-) -> Vec<SymbolHandle> {
+fn states_naming(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Vec<SymbolHandle> {
     let mut nodes = Vec::new();
     crate::expression_traversal::collect_expression_tree(program, endpoint, &mut nodes);
     let mut states = Vec::new();
@@ -472,7 +468,7 @@ fn states_naming(
 }
 
 fn folded_coordinate(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     bindings: &[(ExpressionHandle, i64)],
 ) -> Option<i64> {
@@ -536,7 +532,7 @@ fn folded_coordinate(
 }
 
 fn same_match_subject(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     subject: ExpressionHandle,
     expression: ExpressionHandle,
 ) -> bool {
@@ -550,7 +546,7 @@ fn same_match_subject(
 }
 
 pub fn push_field_place_segments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     segments: &mut Vec<facts::PlaceSegment>,
     symbol: SymbolHandle,
 ) {
@@ -561,7 +557,7 @@ pub fn push_field_place_segments(
 }
 
 pub fn canonical_place_from_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     if !expression.is_valid() {
@@ -650,7 +646,7 @@ pub fn canonical_place_from_expression(
 }
 
 pub(super) fn cast_preserves_place(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     cast: &checked_trees::expression::TableCastExpression,
 ) -> bool {
     if cast.form.is_recast() {
@@ -677,10 +673,8 @@ pub(super) fn cast_preserves_place(
         }
         super::member_resolution::MemberPosition::Declaration(symbol) => {
             match program.type_reference_table.type_reference(target_carrier) {
-                typed_trees::types::TypeReferenceNode::Named { symbol: s, .. } => *s == symbol,
-                typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
-                    *base_symbol == symbol
-                }
+                TypeReferenceNode::Named { symbol: s, .. } => *s == symbol,
+                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol == symbol,
                 _ => false,
             }
         }
@@ -689,7 +683,7 @@ pub(super) fn cast_preserves_place(
 }
 
 fn carriers_match(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     left: typed_trees::types::TypeReferenceHandle,
     right: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -707,11 +701,11 @@ fn carriers_match(
         program.type_reference_table.type_reference(right),
     ) {
         (
-            typed_trees::types::TypeReferenceNode::Named {
+            TypeReferenceNode::Named {
                 symbol: s1,
                 name: n1,
             },
-            typed_trees::types::TypeReferenceNode::Named {
+            TypeReferenceNode::Named {
                 symbol: s2,
                 name: n2,
             },
@@ -723,12 +717,12 @@ fn carriers_match(
             }
         }
         (
-            typed_trees::types::TypeReferenceNode::Generic {
+            TypeReferenceNode::Generic {
                 base_symbol: s1,
                 base_name: n1,
                 ..
             },
-            typed_trees::types::TypeReferenceNode::Generic {
+            TypeReferenceNode::Generic {
                 base_symbol: s2,
                 base_name: n2,
                 ..
@@ -740,10 +734,7 @@ fn carriers_match(
                 n1 == n2
             }
         }
-        (
-            typed_trees::types::TypeReferenceNode::Unit,
-            typed_trees::types::TypeReferenceNode::Unit,
-        ) => true,
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
         _ => false,
     }
 }
@@ -755,7 +746,7 @@ fn carriers_match(
 /// so it remains possible. A `false` answer is exact: callers asking many
 /// expressions for one root skip the full resolution of every other place.
 pub fn place_root_may_be_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -780,7 +771,7 @@ pub fn place_root_may_be_symbol(
 }
 
 pub(super) fn name_materializes_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     crate::exact_case_reference_owner(program, expression).is_some()
@@ -793,7 +784,7 @@ pub(super) fn name_materializes_value(
 }
 
 pub fn canonical_place_from_expression_in_state(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,

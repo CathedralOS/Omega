@@ -6,7 +6,10 @@
 use super::declared_symbols::{data_member_symbol_by_name, first_valid_name_path_symbol};
 use crate::frozen_program::expression_table;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use facts::PlaceSegment;
 use symbols::SymbolHandle;
+use symbols::SymbolKind;
+use typed_trees::data::DataMember;
 
 /// Where a demanded member path currently points: a stored type reference
 /// that still retains the reaching generic application's arguments, or a
@@ -117,7 +120,7 @@ fn member_type_position(
         && let Some(projected) = super::projection_types::project_type_reference_from_segments(
             program,
             reference,
-            &[facts::PlaceSegment::Field {
+            &[PlaceSegment::Field {
                 symbol: member_symbol,
             }],
         )
@@ -173,7 +176,7 @@ fn container_member_type_position(
     // all-miss walk produced.
     let grandparent = program.symbols.get(parent).parent;
     match program.symbols.get(parent).kind {
-        symbols::SymbolKind::Machine => {
+        SymbolKind::Machine => {
             let Some(machine) = program.machine_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
@@ -189,7 +192,7 @@ fn container_member_type_position(
                 })
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
-        symbols::SymbolKind::Data => {
+        SymbolKind::Data => {
             let Some(data) = program.data_definition_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
@@ -197,7 +200,7 @@ fn container_member_type_position(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
+                    DataMember::Field(field) if field.symbol == symbol => Some(
                         ContainerOutcome::Position(MemberPosition::Reference(field.type_reference)),
                     ),
                     _ => None,
@@ -207,7 +210,7 @@ fn container_member_type_position(
         // A payload field's parent is its variant and the variant's parent
         // is the data row, so two hops reach the same field list the scan
         // walks.
-        symbols::SymbolKind::Variant => {
+        SymbolKind::Variant => {
             if !grandparent.is_valid() {
                 return ContainerOutcome::Unmapped;
             }
@@ -218,9 +221,7 @@ fn container_member_type_position(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
-                        Some(variant)
-                    }
+                    DataMember::Variant(variant) if variant.symbol == parent => Some(variant),
                     _ => None,
                 })
             else {
@@ -236,9 +237,9 @@ fn container_member_type_position(
         // States and trait signatures share SymbolKind::State; the row's own
         // parent separates them — a signature's parent names its trait, a
         // state member's parent names its state.
-        symbols::SymbolKind::State
+        SymbolKind::State
             if grandparent.is_valid()
-                && program.symbols.get(grandparent).kind == symbols::SymbolKind::Trait =>
+                && program.symbols.get(grandparent).kind == SymbolKind::Trait =>
         {
             let Some(trait_definition) = program.trait_definition_by_symbol(grandparent) else {
                 return ContainerOutcome::Unmapped;
@@ -257,7 +258,7 @@ fn container_member_type_position(
                 })
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
-        symbols::SymbolKind::State => {
+        SymbolKind::State => {
             let Some(state) = program.state_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
@@ -276,9 +277,9 @@ fn container_member_type_position(
         // Domain operators chain through the domain row the way signatures
         // chain through traits; a top-level operator's parameters resolve on
         // the operator itself.
-        symbols::SymbolKind::Operator
+        SymbolKind::Operator
             if grandparent.is_valid()
-                && program.symbols.get(grandparent).kind == symbols::SymbolKind::Domain =>
+                && program.symbols.get(grandparent).kind == SymbolKind::Domain =>
         {
             let Some(domain) = program.domain_definition(grandparent) else {
                 return ContainerOutcome::Unmapped;
@@ -299,7 +300,7 @@ fn container_member_type_position(
                 })
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
-        symbols::SymbolKind::Operator => {
+        SymbolKind::Operator => {
             let Some(operator) = program.operator_definition_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
@@ -353,7 +354,7 @@ pub(super) fn symbol_type_position(
     // roots, states, signatures, operators, traits, domains, variants —
     // stores no member row, so the scan is provably a miss for them.
     match program.symbols.get(symbol).kind {
-        symbols::SymbolKind::Machine => {
+        SymbolKind::Machine => {
             // A machine's position is its attached data declaration; resolve
             // that row directly instead of walking every unrelated machine.
             let machine = program.machine_by_symbol(symbol)?;
@@ -364,9 +365,7 @@ pub(super) fn symbol_type_position(
                 .attached_data_definition(machine)
                 .map(|data| MemberPosition::Declaration(data.symbol));
         }
-        symbols::SymbolKind::Parameter
-        | symbols::SymbolKind::Local
-        | symbols::SymbolKind::Field => {}
+        SymbolKind::Parameter | SymbolKind::Local | SymbolKind::Field => {}
         _ => return None,
     }
     whole_program_member_type_position(program, symbol)
@@ -496,7 +495,7 @@ pub(super) fn expression_type_position(
                     // `values[0..2]` is a slice of `Box<Context>`, not one
                     // element — so the position becomes the window and only
                     // a further index hop resumes at the element.
-                    facts::PlaceSegment::FixedRange { .. } => {
+                    PlaceSegment::FixedRange { .. } => {
                         super::projection_types::collection_element_type_reference(
                             program, reference,
                         )
@@ -512,7 +511,7 @@ pub(super) fn expression_type_position(
                 Some(MemberPosition::Sliced(element)) => match segment {
                     // Re-windowing a window keeps the same element; an index
                     // hop names one element and resumes at its position.
-                    facts::PlaceSegment::FixedRange { .. } => Some(MemberPosition::Sliced(element)),
+                    PlaceSegment::FixedRange { .. } => Some(MemberPosition::Sliced(element)),
                     _ => Some(MemberPosition::Reference(element)),
                 },
                 position => position,
@@ -638,13 +637,13 @@ fn array_literal_position(
 pub(super) fn member_position_after_segments(
     program: &dyn crate::CheckingInput,
     position: MemberPosition,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> Option<MemberPosition> {
     let mut position = position;
     for segment in segments {
         position = match segment {
-            facts::PlaceSegment::Case { .. } => position,
-            facts::PlaceSegment::Field { symbol } => match position {
+            PlaceSegment::Case { .. } => position,
+            PlaceSegment::Field { symbol } => match position {
                 MemberPosition::Reference(reference) => {
                     match super::projection_types::project_type_reference_from_segments(
                         program,
@@ -659,30 +658,24 @@ pub(super) fn member_position_after_segments(
                 MemberPosition::Declaration(_) => symbol_type_position(program, *symbol)?,
                 MemberPosition::Sliced(_) => return None,
             },
-            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
-                match position {
-                    MemberPosition::Reference(reference) => MemberPosition::Reference(
-                        super::projection_types::project_type_reference_from_segments(
-                            program,
-                            reference,
-                            std::slice::from_ref(segment),
-                        )?,
-                    ),
-                    MemberPosition::Sliced(element) => MemberPosition::Reference(element),
-                    MemberPosition::Declaration(_) => return None,
-                }
-            }
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
-                match position {
-                    MemberPosition::Reference(reference) => MemberPosition::Sliced(
-                        super::projection_types::collection_element_type_reference(
-                            program, reference,
-                        )?,
-                    ),
-                    MemberPosition::Sliced(element) => MemberPosition::Sliced(element),
-                    MemberPosition::Declaration(_) => return None,
-                }
-            }
+            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. } => match position {
+                MemberPosition::Reference(reference) => MemberPosition::Reference(
+                    super::projection_types::project_type_reference_from_segments(
+                        program,
+                        reference,
+                        std::slice::from_ref(segment),
+                    )?,
+                ),
+                MemberPosition::Sliced(element) => MemberPosition::Reference(element),
+                MemberPosition::Declaration(_) => return None,
+            },
+            PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => match position {
+                MemberPosition::Reference(reference) => MemberPosition::Sliced(
+                    super::projection_types::collection_element_type_reference(program, reference)?,
+                ),
+                MemberPosition::Sliced(element) => MemberPosition::Sliced(element),
+                MemberPosition::Declaration(_) => return None,
+            },
         };
     }
     Some(position)
@@ -702,7 +695,7 @@ pub(super) fn member_position_after_segments(
 pub fn expression_place_type_reference(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     expression_place_type_reference_observing(program, expression, segments, &mut |_| Some(()))
 }
@@ -710,7 +703,7 @@ pub fn expression_place_type_reference(
 pub(super) fn expression_place_type_reference_observing(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
     observe_prefix: &mut impl FnMut(Option<typed_trees::types::TypeReferenceHandle>) -> Option<()>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let mut position = expression_type_position(program, expression)?;
@@ -806,9 +799,7 @@ pub(super) fn effective_member_symbol_from_position(
                         .data_members(declaration)
                         .iter()
                         .find_map(|row| match row {
-                            typed_trees::data::DataMember::Variant(variant)
-                                if variant.name == *case_name =>
-                            {
+                            DataMember::Variant(variant) if variant.name == *case_name => {
                                 Some(variant)
                             }
                             _ => None,
@@ -866,7 +857,7 @@ fn saved_subject_member_symbol(
     let data = super::data_definition_for_type(program, reference)?;
     let selected = if let Some(head) = expression_table(program).name_path_node(saved.pattern_head)
         && head.symbol.is_valid()
-        && program.symbols.get(head.symbol).kind == symbols::SymbolKind::Variant
+        && program.symbols.get(head.symbol).kind == SymbolKind::Variant
     {
         if program.closed_data_definition(reference).is_some() {
             program
@@ -890,8 +881,8 @@ fn saved_subject_member_symbol(
         .data_members(data)
         .iter()
         .flat_map(|entry| match entry {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant) if variant.symbol == selected => {
+            DataMember::Field(field) => std::slice::from_ref(field),
+            DataMember::Variant(variant) if variant.symbol == selected => {
                 program.data_payload_fields(variant)
             }
             _ => &[],
@@ -921,11 +912,7 @@ pub(super) fn resolve_case_member_symbol_from_type_symbol(
         .data_members(declaration)
         .iter()
         .find_map(|row| match row {
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == case_name =>
-            {
-                Some(variant)
-            }
+            DataMember::Variant(variant) if variant.name.as_str() == case_name => Some(variant),
             _ => None,
         })?;
     program
