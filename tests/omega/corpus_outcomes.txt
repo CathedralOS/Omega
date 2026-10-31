@@ -12,6 +12,8 @@ fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b85
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
 fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
 	native binding requires the exact compiler-owned `ForeignBinding` declaration
+fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
+	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -1393,6 +1395,7 @@ pass/build/native_component_reuse_foreign checked 6215ms check-target:macos_arm6
 pass/build/nested_generated_dependency_dual_purpose checked 4792ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_provider_readiness checked 11097ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/package_batch_distinct_builds checked 4446ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/package_owned_callable_identity checked 1635ms check-target:macos_arm64 @946b56944a1b
 pass/build/policy_array_entry_context_exit checked 4122ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/product_description_paths_exit checked 3999ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/product_entry_named_user_machine_exit checked 3361ms check-target:macos_arm64 @ccdb99ca2214

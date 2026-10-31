@@ -25,6 +25,7 @@ pass/borrows/runtime_reference_result_case_payload_exit built 6928ms exit:0 inte
 pass/borrows/runtime_write_only_disjoint_field_predicates_exit built 1478ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/build/native_component_case_cycle built 1825ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/build/native_component_case_loan_cycle built 1179ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
+pass/build/package_owned_callable_identity built 1676ms exit:0 interpreter-exit:0 interpreter:agrees @946b56944a1b
 pass/build/provider_applied_const29_exit built 2469ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @bad69cc2a485
 pass/build/provider_nested_type_application_exit built 2392ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @bad69cc2a485
 pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @b86bab8d85ef
