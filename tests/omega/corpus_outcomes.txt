@@ -65,42 +65,6 @@ fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms ex
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/fixed_layout_bit_observation_through_call_result_rejected rejected 663ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_const_name_rejected rejected 147ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_field_rejected rejected 670ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_local_rejected rejected 666ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_match_join_rejected rejected 674ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_other_machine_rejected rejected 674ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_other_state_rejected rejected 670ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_parameter_rejected rejected 659ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_bit_observation_through_target_body_rejected rejected 683ms expected @2ba727eefb59+wt
-	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
-fail/facts/fixed_layout_storage_through_call_result_rejected rejected 664ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_const_name_rejected rejected 141ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_field_rejected rejected 662ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_local_rejected rejected 669ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_match_join_rejected rejected 694ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_other_machine_rejected rejected 700ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_other_state_rejected rejected 660ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_parameter_rejected rejected 669ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_target_body_rejected rejected 684ms expected @2ba727eefb59+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
 	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
 fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
@@ -34373,6 +34337,42 @@ fail/facts/zero_byte_erased_carrier_unproved_target_body rejected 3208ms expecte
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/fixed_layout_bit_observation_through_call_result_rejected rejected 663ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_const_name_rejected rejected 147ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_field_rejected rejected 670ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_local_rejected rejected 666ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_match_join_rejected rejected 674ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_other_machine_rejected rejected 674ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_other_state_rejected rejected 670ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_parameter_rejected rejected 659ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_target_body_rejected rejected 683ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_storage_through_call_result_rejected rejected 664ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_const_name_rejected rejected 141ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_field_rejected rejected 662ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_local_rejected rejected 669ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_match_join_rejected rejected 694ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_machine_rejected rejected 700ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_state_rejected rejected 660ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_parameter_rejected rejected 669ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_target_body_rejected rejected 684ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/filesystem/windows_directory_nth_requires_metadata rejected 26559ms expected @ccdb99ca2214
 	machine `Main::main` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/filesystem/windows_read_link_requires_metadata rejected 22326ms expected @ccdb99ca2214
