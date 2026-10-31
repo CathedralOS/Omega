@@ -1136,7 +1136,10 @@ impl<'a, 's> Solver<'a, 's> {
                     self.binder_name(owner)
                 )));
             }
-            if self.has_range_shell_equation(index) {
+            if self
+                .equations_defining(index)
+                .any(|structure| matches!(structure, Structure::RangeShell { .. }))
+            {
                 return Err(self.reject(format!(
                     "cannot construct type binder `{binder}` from its range-shell equation; supply the argument explicitly"
                 )));
@@ -1215,11 +1218,6 @@ impl<'a, 's> Solver<'a, 's> {
             })
     }
 
-    fn has_range_shell_equation(&self, binder: usize) -> bool {
-        self.equations_defining(binder)
-            .any(|structure| matches!(structure, Structure::RangeShell { .. }))
-    }
-
     /// Whether following `binder == structure` edges from `start` returns to
     /// `start`: the binder is defined through itself.
     fn defined_through_cycle(&self, start: usize) -> bool {
@@ -1288,7 +1286,8 @@ impl<'a, 's> Solver<'a, 's> {
                 span,
             } => {
                 if let Structure::Name { name, binder: None } = structure {
-                    self.require_closed_name_type(name, *span)?;
+                    validate_closed_name_type(self.syntax, self.selection, name)
+                        .map_err(|reason| self.reject(reason).with_source_span(*span))?;
                 }
                 if structure
                     .binder_mentions(self.syntax, self.base_info.parameter_names)
@@ -1412,15 +1411,6 @@ impl<'a, 's> Solver<'a, 's> {
             )
             .with_source_span(span)
         })
-    }
-
-    fn require_closed_name_type(
-        &self,
-        name: &Identifier,
-        span: SourceSpan,
-    ) -> Result<(), Diagnostic> {
-        validate_closed_name_type(self.syntax, self.selection, name)
-            .map_err(|reason| self.reject(reason).with_source_span(span))
     }
 
     /// The binder side is unbound: a closed name, an already bound type
@@ -1683,7 +1673,11 @@ impl<'a, 's> Solver<'a, 's> {
         for mention in mentions {
             match &self.bindings[mention] {
                 Some(Binding::Integer(value)) => {
-                    let Some(value) = integer_to_i128(value) else {
+                    let Some(value) = value
+                        .to_i64()
+                        .map(i128::from)
+                        .or_else(|| value.to_u64().map(i128::from))
+                    else {
                         return Err(self.reject(format!(
                             "where equation on `{binder_name}` cannot be decided: `{}` exceeds the endpoint evaluator's 64-bit envelope",
                             self.binder_name(mention)
@@ -2070,13 +2064,6 @@ impl<'a, 's> Solver<'a, 's> {
             }
         }
     }
-}
-
-fn integer_to_i128(value: &BigInt) -> Option<i128> {
-    value
-        .to_i64()
-        .map(i128::from)
-        .or_else(|| value.to_u64().map(i128::from))
 }
 
 /// Only already closed Boolean spelling or the shared canonical value atom.

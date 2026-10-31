@@ -16,6 +16,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TableLocalData};
+use validation::expression_result_type_reference;
 
 pub(in crate::monomorphization) fn materialize(
     program: &mut TypedTrees,
@@ -37,12 +38,9 @@ pub(in crate::monomorphization) fn materialize(
                 {
                     continue;
                 }
-                let Some(actual) = validation::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    local.initial_value,
-                ) else {
+                let Some(actual) =
+                    expression_result_type_reference(program, machine, state, local.initial_value)
+                else {
                     continue;
                 };
                 if validation::reference_shell(program, actual).is_some()

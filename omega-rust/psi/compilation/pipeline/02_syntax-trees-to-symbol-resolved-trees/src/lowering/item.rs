@@ -536,25 +536,14 @@ fn candidate_satisfies_requirement(
                 && clause.requirement.as_ref().is_some_and(|requirement| {
                     requirement.as_str(syntax_trees) == requirement_name.as_str(syntax_trees)
                 })
-                && identifiers_match(
-                    syntax_trees,
-                    &clause.lifetime_arguments,
-                    trait_lifetime_arguments,
-                )
+                && clause.lifetime_arguments.len() == trait_lifetime_arguments.len()
+                && clause
+                    .lifetime_arguments
+                    .iter()
+                    .zip(trait_lifetime_arguments)
+                    .all(|(left, right)| left.as_str(syntax_trees) == right.as_str(syntax_trees))
                 && syntax_type_arguments_match(syntax_trees, clause.arguments, trait_arguments)
         })
-}
-
-fn identifiers_match(
-    syntax_trees: &SyntaxTrees,
-    left: &[syntax::identifier::Identifier],
-    right: &[syntax::identifier::Identifier],
-) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| left.as_str(syntax_trees) == right.as_str(syntax_trees))
 }
 
 fn syntax_type_arguments_match(

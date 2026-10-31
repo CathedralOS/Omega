@@ -115,7 +115,12 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
                 }) {
                 *symbol
             } else {
-                resolve_signature_free_requirement(program, &requirement_argument_path(name))
+                let argument_path: Vec<DiagnosticName> = name
+                    .as_str()
+                    .split("::")
+                    .map(|segment| DiagnosticName::from_str(segment, name.source_span()))
+                    .collect();
+                resolve_signature_free_requirement(program, &argument_path)
                     .map(|exact| exact.requirement.symbol)
                     .map_err(|error| {
                         Diagnostic::error(format!(
@@ -149,17 +154,6 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
         *symbol = requirement;
     }
     Ok(())
-}
-
-/// A `TypeReference::Named` argument retains one rendered `Trait::requirement`
-/// spelling; splitting it back into exact name segments (each carrying the
-/// whole spelling's span) lets the shared signature-free law resolve it
-/// instead of a second copy of that law.
-fn requirement_argument_path(name: &DiagnosticName) -> Vec<DiagnosticName> {
-    name.as_str()
-        .split("::")
-        .map(|segment| DiagnosticName::from_str(segment, name.source_span()))
-        .collect()
 }
 
 /// The diagnostic sentences for the shared resolution law's error variants.

@@ -33,6 +33,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::domain::ProofFact;
+use typed_trees::domain::indexed_domain_instance_name;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
@@ -952,7 +953,7 @@ pub(crate) fn finalize_type_domain_instance_identities(
                 continue;
             };
             let index_parameters = typed_trees::domain::index_parameters(program, &domain);
-            let identity = typed_trees::domain::indexed_domain_instance_name(
+            let identity = indexed_domain_instance_name(
                 program,
                 &domain,
                 index_parameters,
@@ -1035,12 +1036,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
         let arguments = program
             .type_reference_table
             .type_reference_handles(arguments);
-        let identity = typed_trees::domain::indexed_domain_instance_name(
-            program,
-            &domain,
-            index_parameters,
-            arguments,
-        )?;
+        let identity = indexed_domain_instance_name(program, &domain, index_parameters, arguments)?;
         cast_updates.push((handle, identity));
     }
     for (handle, identity) in cast_updates {
@@ -1081,9 +1077,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
                 "membership instance has missing or invalid domain arguments",
             ));
         }
-        let identity = typed_trees::domain::indexed_domain_instance_name(
-            program, domain, parameters, arguments,
-        )?;
+        let identity = indexed_domain_instance_name(program, domain, parameters, arguments)?;
         membership_updates.push((handle, identity));
     }
     for (handle, identity) in membership_updates {

@@ -4,6 +4,7 @@ use super::{CallSelection, CallSite, Candidate};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::typed_trees::MachineSpecialization;
+use validation::expression_traversal::collect_expression_tree;
 
 pub(super) fn replay(
     source: &mut TypedTrees,
@@ -30,11 +31,7 @@ pub(super) fn replay(
                 source,
                 source.statement_table.statement(handle),
             ) {
-                validation::expression_traversal::collect_expression_tree(
-                    source,
-                    root,
-                    &mut expressions,
-                );
+                collect_expression_tree(source, root, &mut expressions);
             }
         }
     }

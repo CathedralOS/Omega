@@ -293,11 +293,17 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 &requirement.substitution,
                 conformance.handle,
             );
+            let exact_requirement_owner = traits
+                .get(&requirement.declaring_trait)
+                .filter(|definition| {
+                    !definition.has_lifetime_parameters && definition.parameter_names.is_empty()
+                })
+                .map(|definition| definition.path.as_str());
             let machine = machine_from_signature(
                 syntax,
                 implementation_member_name(&conformance.declaration, signature.name.as_str(syntax)),
                 &signature,
-                exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
+                exact_requirement_owner,
                 Identifier::generated(declaring_path.as_str()),
             );
             closed_members.push(ConformanceMember::TraitDefault {
@@ -536,11 +542,7 @@ fn substitute_type_reference(
                 syntax
                     .tables
                     .type_references
-                    .insert_reference_with_lifetime(
-                    substituted,
-                    access,
-                    lifetime,
-                )
+                    .insert_reference_with_lifetime(substituted, access, lifetime)
             }
         }
         TypeReferenceNode::Constrained {
@@ -1069,21 +1071,6 @@ fn bare_static_argument(name: Identifier) -> StaticMachineArgument {
         const_literal: None,
         evidence_projection: None,
     }
-}
-
-/// A requirement edge on a synthesized default only rejoins the declaring
-/// trait for an unparameterized trait reference. Parameterized owners resolve
-/// through their instantiated generic instead. The returned spelling is the
-/// selected trait's logical path: the compiler-derived partition requires a
-/// generated spelling, and a qualified path still reaches the exact owner in
-/// its package where a bare leaf could select a same-spelled competitor.
-fn exact_unargumented_requirement_owner(
-    traits: &HashMap<SymbolHandle, TraitDefaultsInput>,
-    owner: SymbolHandle,
-) -> Option<&str> {
-    let definition = traits.get(&owner)?;
-    (!definition.has_lifetime_parameters && definition.parameter_names.is_empty())
-        .then_some(definition.path.as_str())
 }
 
 /// `default_body_trait` names the trait that authored `signature`'s body. The

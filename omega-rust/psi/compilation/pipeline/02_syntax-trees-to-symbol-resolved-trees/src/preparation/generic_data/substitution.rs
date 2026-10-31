@@ -387,7 +387,7 @@ fn substitute_case_fact_domain_argument(
             argument
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            if !expression_mentions_const(syntax, expression, const_scalars) {
+            if !expression_mentions_in(syntax, expression, const_scalars) {
                 return argument;
             }
             // The copy's `Name` leaves sit past the caller's const-fact
@@ -436,14 +436,6 @@ fn expression_mentions_in<V>(
         | ExpressionNode::String(_) => false,
         _ => true,
     }
-}
-
-fn expression_mentions_const(
-    syntax: &SyntaxTrees,
-    expression: ExpressionHandle,
-    const_scalars: &HashMap<String, ConstScalarValue>,
-) -> bool {
-    expression_mentions_in(syntax, expression, const_scalars)
 }
 
 fn flatten_case_fact_conjuncts(

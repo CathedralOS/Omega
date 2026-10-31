@@ -989,7 +989,7 @@ impl TerminalExecution<'_> {
             projected_qualifications: selected.projected_qualifications,
             path: Vec::new(),
         };
-        self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved))?;
+        self.transplant_subtree(&hole, &StructuralRuntimePlace::from(&moved), true)?;
         self.structural_values.insert(result.place, moved)?;
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
@@ -1475,28 +1475,6 @@ impl TerminalExecution<'_> {
         storage.publish(self)
     }
 
-    /// Move every runtime cell under `from` to the same subtree suffix under
-    /// `to`. Cells are staged before removal so the source region is never
-    /// partially vacated.
-    fn relocate_subtree(
-        &mut self,
-        from: &StructuralRuntimePlace,
-        to: &StructuralRuntimePlace,
-    ) -> Result<(), TerminalInterpretError> {
-        self.transplant_subtree(from, to, true)
-    }
-
-    /// Copy every runtime cell under `from` to the same subtree suffix under
-    /// `to`, leaving `from` intact. The `Unrestricted` leaf's cells duplicate
-    /// beneath the result's own opaque identity; nothing vacates.
-    fn clone_subtree(
-        &mut self,
-        from: &StructuralRuntimePlace,
-        to: &StructuralRuntimePlace,
-    ) -> Result<(), TerminalInterpretError> {
-        self.transplant_subtree(from, to, false)
-    }
-
     /// Project an `Unrestricted` leaf out of a live root into a fresh owned
     /// place by copying its cells: the source subtree stays fully intact, so
     /// shared loans admit the observation where a move would vacate borrowed
@@ -1852,9 +1830,10 @@ impl TerminalExecution<'_> {
             }
             self.element_view_values.insert(result.place, descriptor)?;
         }
-        self.clone_subtree(
+        self.transplant_subtree(
             &StructuralRuntimePlace::from(&leaf),
             &StructuralRuntimePlace::from(&copied),
+            false,
         )?;
         self.structural_values.insert(result.place, copied)?;
         self.track_affine_result(result);

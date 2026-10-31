@@ -1,6 +1,9 @@
 //! Ordinary exit roster and effect checks, driven by the claimed contract.
 
-use super::super::WholeFunctionExitContractError::{NonReturnControlEffect, NonReturnStackEffect};
+use super::super::WholeFunctionExitContractError::{
+    ArtifactMismatch, BlockRosterMismatch, FunctionRosterMismatch, InstructionRosterMismatch,
+    MissingInstruction, NonReturnControlEffect, NonReturnStackEffect, OffsetOverflow,
+};
 use super::super::{
     WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
     validation_rules::{
@@ -47,22 +50,18 @@ pub(super) fn check(
                 && claimed.entry_block == function.entry_block
                 && claimed.body_stack_delta == 0,
         )?;
-        let machine_function = machine.function(claimed.machine).ok_or(
-            WholeFunctionExitContractError::FunctionRosterMismatch(claimed.machine),
-        )?;
+        let machine_function = machine
+            .function(claimed.machine)
+            .ok_or(FunctionRosterMismatch(claimed.machine))?;
         let layout_function = layout
             .functions()
             .iter()
             .find(|row| row.machine == claimed.machine)
-            .ok_or(WholeFunctionExitContractError::FunctionRosterMismatch(
-                claimed.machine,
-            ))?;
+            .ok_or(FunctionRosterMismatch(claimed.machine))?;
         if machine_function.blocks.len() != function.blocks.len()
             || layout_function.blocks.len() != function.blocks.len()
         {
-            return Err(WholeFunctionExitContractError::FunctionRosterMismatch(
-                claimed.machine,
-            ));
+            return Err(FunctionRosterMismatch(claimed.machine));
         }
         let function_frame = frame
             .map(|(frame, _)| {
@@ -71,9 +70,7 @@ pub(super) fn check(
                     .functions
                     .iter()
                     .find(|row| row.machine == claimed.machine)
-                    .ok_or(WholeFunctionExitContractError::FunctionRosterMismatch(
-                        claimed.machine,
-                    ))
+                    .ok_or(FunctionRosterMismatch(claimed.machine))
             })
             .transpose()?;
         if let Some((_, protocol)) = frame
@@ -83,9 +80,7 @@ pub(super) fn check(
                 .iter()
                 .any(|row| row.machine == claimed.machine)
         {
-            return Err(WholeFunctionExitContractError::FunctionRosterMismatch(
-                claimed.machine,
-            ));
+            return Err(FunctionRosterMismatch(claimed.machine));
         }
         let (allowed, link_write) = frame_permissions(physical, function_frame)?;
         let mut modified = BTreeSet::new();
@@ -97,18 +92,14 @@ pub(super) fn check(
                 .blocks
                 .iter()
                 .find(|row| row.block == block.id)
-                .ok_or(WholeFunctionExitContractError::BlockRosterMismatch(
-                    block.id,
-                ))?;
+                .ok_or(BlockRosterMismatch(block.id))?;
             if !layout_function
                 .blocks
                 .iter()
                 .any(|row| row.block == block.id)
                 || machine_block.instructions.len() != block.instructions.len() + 1
             {
-                return Err(WholeFunctionExitContractError::BlockRosterMismatch(
-                    block.id,
-                ));
+                return Err(BlockRosterMismatch(block.id));
             }
             let (terminal, edge) = (
                 selected_instructions::terminator_instruction(&block.terminator),
@@ -122,17 +113,15 @@ pub(super) fn check(
                 .enumerate()
             {
                 if instruction.id != actual.instruction {
-                    return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
-                        instruction.id,
-                    ));
+                    return Err(InstructionRosterMismatch(instruction.id));
                 }
                 let key = (claimed.machine, instruction.id);
-                let encoding_row = encoding_rows.get(&key).ok_or(
-                    WholeFunctionExitContractError::MissingInstruction(instruction.id),
-                )?;
-                let (resolved_block, resolved) = layout_rows.get(&key).ok_or(
-                    WholeFunctionExitContractError::MissingInstruction(instruction.id),
-                )?;
+                let encoding_row = encoding_rows
+                    .get(&key)
+                    .ok_or(MissingInstruction(instruction.id))?;
+                let (resolved_block, resolved) = layout_rows
+                    .get(&key)
+                    .ok_or(MissingInstruction(instruction.id))?;
                 let relaxed_comparison = matches!(
                     contract.layout_custody,
                     WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
@@ -152,9 +141,7 @@ pub(super) fn check(
                     || encoding_row.alternative != actual.alternative.key
                     || (resolved.alternative != actual.alternative.key && !relaxed_comparison)
                 {
-                    return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
-                        instruction.id,
-                    ));
+                    return Err(InstructionRosterMismatch(instruction.id));
                 }
                 validate_preservation_writes(
                     actual,
@@ -177,7 +164,7 @@ pub(super) fn check(
                     let end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
-                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                        .ok_or(OffsetOverflow)?;
                     super::super::validation_rules::trap::validate_trap(
                         physical,
                         instruction,
@@ -191,9 +178,7 @@ pub(super) fn check(
                         psi_edge, cause, ..
                     } = &block.terminator
                     {
-                        let crash = crashes
-                            .next()
-                            .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
+                        let crash = crashes.next().ok_or(ArtifactMismatch)?;
                         require(
                             crash.block == block.id
                                 && crash.psi_edge == *psi_edge
@@ -221,13 +206,11 @@ pub(super) fn check(
                     {
                         return Err(NonReturnStackEffect(instruction.id));
                     }
-                    let exited = process_exits
-                        .next()
-                        .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
+                    let exited = process_exits.next().ok_or(ArtifactMismatch)?;
                     let end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
-                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                        .ok_or(OffsetOverflow)?;
                     validate_process_exit(
                         physical,
                         function,
@@ -248,13 +231,11 @@ pub(super) fn check(
                             && exited.bytes == resolved.bytes,
                     )?;
                 } else if let Some(edge) = edge.filter(|_| terminal) {
-                    let claimed_return = returns
-                        .next()
-                        .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
+                    let claimed_return = returns.next().ok_or(ArtifactMismatch)?;
                     let end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
-                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                        .ok_or(OffsetOverflow)?;
                     returned::check(
                         context,
                         super::super::validation_rules::scalar_return_view(

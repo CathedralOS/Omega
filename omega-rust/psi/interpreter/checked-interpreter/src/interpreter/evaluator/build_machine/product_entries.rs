@@ -44,8 +44,8 @@ impl<'program> Evaluator<'program> {
             ));
         };
         self.require_product_facet(*facet, frame)?;
-        let path = self.eval_product_entry_operand(*path, frame)?;
-        let slot = self.eval_product_entry_operand(*slot, frame)?;
+        let path = self.eval_byte_data_operand(*path, frame, "product entry operand")?;
+        let slot = self.eval_byte_data_operand(*slot, frame, "product entry operand")?;
         self.issue_product_entry_description(&path, &slot, occurrence)
             .map(Some)
     }
@@ -124,18 +124,5 @@ impl<'program> Evaluator<'program> {
             type_name: PRODUCT_ENTRY_DESCRIPTION_TYPE.into(),
             fields: BTreeMap::from([("description".into(), description)]),
         })
-    }
-
-    fn eval_product_entry_operand(
-        &mut self,
-        expression: ExpressionHandle,
-        frame: &mut Frame,
-    ) -> EvalResult<Vec<u8>> {
-        self.eval_byte_data_operand(
-            expression,
-            frame,
-            "product entry operand",
-            "product entry operands",
-        )
     }
 }

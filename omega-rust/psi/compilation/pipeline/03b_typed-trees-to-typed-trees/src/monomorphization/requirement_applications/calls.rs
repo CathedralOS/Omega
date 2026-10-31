@@ -9,6 +9,8 @@ use typed_trees::{
     TypedTrees, expression::StaticMachineArgument, references::StaticArgumentCall,
     trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
+use validation::expression_traversal::collect_expression_tree;
+use validation::expression_type_reference_in_state;
 
 use super::super::failed;
 use super::selected_applications;
@@ -205,12 +207,7 @@ fn receiver_scope<'p>(
             expressions_of(program)
                 .name_path_node(call.receiver)
                 .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-            validation::expression_type_reference_in_state(
-                program,
-                state.symbol,
-                position,
-                call.receiver,
-            ),
+            expression_type_reference_in_state(program, state.symbol, position, call.receiver),
         ),
     };
     validation::qualified_trait_scope(program, machine.symbol, symbol, reference)
@@ -383,11 +380,7 @@ fn source_expression_roster(
                 .unwrap_or(package.statement_index)
                 == position
         {
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                package.call,
-                &mut expressions,
-            );
+            collect_expression_tree(program, package.call, &mut expressions);
         }
     }
     expressions
@@ -554,7 +547,7 @@ pub(super) fn invocation_tuples<'p>(
                                         expressions_of(program)
                                             .name_path_node(call.receiver)
                                             .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                        validation::expression_type_reference_in_state(
+                                        expression_type_reference_in_state(
                                             program,
                                             state.symbol,
                                             position,
@@ -707,7 +700,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                                     expressions_of(program)
                                         .name_path_node(call.receiver)
                                         .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                    validation::expression_type_reference_in_state(
+                                    expression_type_reference_in_state(
                                         program,
                                         state.symbol,
                                         position,
