@@ -1,5 +1,5 @@
 //! Rejoin owned aggregate actuals to exact incoming, produced or block-owned backing.
-use crate::selection::place_declaration::declares_block_parameter;
+use crate::selection::place_declaration::{arrivals, declares_block_parameter};
 
 use super::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction, StructuralAccess,
@@ -106,13 +106,7 @@ pub(super) fn validate_owned_arguments(
                 }
             }
             target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
-                let mut parameters = source.blocks.iter().flat_map(|owner| {
-                    owner
-                        .structural_parameters
-                        .iter()
-                        .filter(move |parameter| parameter.place == place)
-                        .map(move |parameter| (owner.id, parameter))
-                });
+                let mut parameters = arrivals(source, place);
                 let (owner, parameter) = parameters.next()?;
                 if parameters.next().is_some()
                     || block != owner

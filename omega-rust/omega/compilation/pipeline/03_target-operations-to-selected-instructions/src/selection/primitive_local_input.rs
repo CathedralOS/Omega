@@ -6,7 +6,9 @@
 //! layout. An owner's claims, linearity or domains do not turn an admitted
 //! scalar read into a whole-owner copy. Keep those records on the owner; do not
 //! impose the retired claim-free carrier restriction during physical selection.
-use crate::selection::place_declaration::{declares_block_parameter, declares_operation_result};
+use crate::selection::place_declaration::{
+    arrivals, declares_block_parameter, declares_operation_result,
+};
 
 use calling_conventions::ValueShape;
 use legalized_operations::{
@@ -77,13 +79,7 @@ fn block_arrival(
     place: PlaceId,
 ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
     let signature = source.structural.as_ref()?;
-    let mut matching = source.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = arrivals(source, place);
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block

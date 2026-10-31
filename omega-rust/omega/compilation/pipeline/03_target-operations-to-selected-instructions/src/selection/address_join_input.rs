@@ -9,7 +9,7 @@
 //! both derive the edge transport here from the legalized function and their
 //! own transport state; neither trusts the other's choice.
 
-use crate::selection::place_declaration::declares_block_parameter;
+use crate::selection::place_declaration::{arrivals, declares_block_parameter};
 
 use calling_conventions::ValueShape;
 use legalized_operations::LegalizedScalarFunction;
@@ -26,13 +26,7 @@ pub(crate) fn join(
     place: PlaceId,
 ) -> Option<(BlockId, &StructuralParameterDeclaration)> {
     let signature = source.structural.as_ref()?;
-    let mut matching = source.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = arrivals(source, place);
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block

@@ -12,7 +12,7 @@
 //! A home lookup preserves the result's domain metadata without interpreting
 //! it as a storage restriction: an authorized boundary result occupies the
 //! same home as any other value of its declared representation.
-use crate::selection::place_declaration::declares_block_parameter;
+use crate::selection::place_declaration::{arrivals, declares_block_parameter};
 
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -1243,13 +1243,7 @@ pub(super) fn block_home(
     semantic_vocabulary::BlockId,
     &terminal_psi::StructuralParameterDeclaration,
 )> {
-    let mut matching = source.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = arrivals(source, place);
     let (block, parameter) = matching.next()?;
     let signature = source.structural.as_ref()?;
     if matching.next().is_some()
