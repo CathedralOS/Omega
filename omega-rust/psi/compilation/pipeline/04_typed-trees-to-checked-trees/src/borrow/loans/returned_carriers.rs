@@ -28,9 +28,33 @@ use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
 use crate::borrow::view_link::resolve_view_return_source;
 use crate::flow::expressions;
+use checked_trees::BorrowAccessKind;
+use checked_trees::BorrowLoanLineage;
+use checked_trees::BorrowReturnedLoanFact;
+use checked_trees::CapturedPlace;
+use checked_trees::CheckFacts;
+use checked_trees::StateBorrowFact;
+use checked_trees::statement::TableLocalData;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use language_semantics::MachineSupplyMode;
+use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
+use validation::CallFrameResolver;
+use validation::ReferenceResultLeafOrigin;
 use validation::borrow_contracts::ViewReturnInputSource;
+use validation::call_target_entry_symbol;
+use validation::effective_member_symbol;
+use validation::expression_type_reference_in_state;
+use validation::find_state;
+use validation::project_type_reference_from_segments;
+use validation::reference_result_custody::declared_carrier_references;
+use validation::reference_result_custody::input_carrier_type;
+use validation::reference_result_custody::loan_owner_path;
+use validation::reference_result_custody::origin_place_segments;
+use validation::reference_shell;
 
-use checked_trees::expression::ExpressionHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use symbols::SymbolHandle;
 
 /// Descriptor candidates and lifetime debts share one completed relation.
@@ -39,8 +63,8 @@ use symbols::SymbolHandle;
 pub(crate) fn call_reference_sources(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
-    call: &checked_trees::expression::TableCallExpression,
-) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
+    call: &TableCallExpression,
+) -> Option<Vec<(ViewReturnFieldSource, Vec<PlaceSegment>)>> {
     let sources = completed_call_reference_sources(program, state_symbol, call)?;
     if sources
         .iter()
@@ -61,7 +85,7 @@ pub(crate) fn call_reference_sources(
 pub(crate) fn completed_call_reference_sources(
     program: &dyn validation::CheckingInput,
     state_symbol: SymbolHandle,
-    call: &checked_trees::expression::TableCallExpression,
+    call: &TableCallExpression,
 ) -> Option<Vec<CompletedReturnSource>> {
     let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
     Some(completed_sources(
@@ -78,7 +102,7 @@ pub(crate) fn completed_call_reference_sources(
 pub(crate) fn call_reference_lifetime_sources(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
-    call: &checked_trees::expression::TableCallExpression,
+    call: &TableCallExpression,
 ) -> Option<Vec<ViewReturnFieldSource>> {
     let contract = call_view_return_contract(program, state_symbol, call)?;
     match contract.source(program) {
@@ -101,11 +125,11 @@ pub(crate) enum CompletedReturnSource {
     /// input roster. It supplies no caller storage address or loan ancestry.
     ImmutableImage {
         owner_path: Vec<BorrowOwnerSegment>,
-        kind: checked_trees::BorrowAccessKind,
+        kind: BorrowAccessKind,
     },
     DescriptorCandidate {
         field: ViewReturnFieldSource,
-        projection: Vec<facts::PlaceSegment>,
+        projection: Vec<PlaceSegment>,
     },
     LifetimeDependency {
         field: ViewReturnFieldSource,
@@ -115,12 +139,12 @@ pub(crate) enum CompletedReturnSource {
     /// another return route must not mask it with a convenient input source.
     UnresolvedDescriptor {
         owner_path: Vec<BorrowOwnerSegment>,
-        kind: checked_trees::BorrowAccessKind,
+        kind: BorrowAccessKind,
     },
 }
 
 impl CompletedReturnSource {
-    fn descriptor_candidate(self) -> Option<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
+    fn descriptor_candidate(self) -> Option<(ViewReturnFieldSource, Vec<PlaceSegment>)> {
         match self {
             Self::DescriptorCandidate { field, projection } => Some((field, projection)),
             Self::ImmutableImage { .. }
@@ -133,12 +157,9 @@ impl CompletedReturnSource {
     /// become a spatial root merely because it shares the result's owner path.
     pub(super) fn capture_loans(
         self,
-        local: &checked_trees::statement::TableLocalData,
+        local: &TableLocalData,
         owner_prefix: &[BorrowOwnerSegment],
-        capture: impl FnOnce(
-            ViewReturnFieldSource,
-            Vec<facts::PlaceSegment>,
-        ) -> Vec<StatementBorrowLoan>,
+        capture: impl FnOnce(ViewReturnFieldSource, Vec<PlaceSegment>) -> Vec<StatementBorrowLoan>,
     ) -> Vec<StatementBorrowLoan> {
         match self {
             // Image storage owes no borrowed input loan. Independent declared
@@ -156,14 +177,14 @@ impl CompletedReturnSource {
                     formation_expression: local.initial_value,
                     representation_address: None,
                     owner_symbol: local.symbol,
-                    storage_owner: facts::PlaceRoot::Symbol(local.symbol),
+                    storage_owner: PlaceRoot::Symbol(local.symbol),
                     owner_name: local.name.clone(),
                     owner_path: path,
                     retained_operand: None,
-                    place: checked_trees::CapturedPlace::default(),
+                    place: CapturedPlace::default(),
                     source_owner_symbol: SymbolHandle::invalid(),
                     supplying_loans: Vec::new(),
-                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    lineage: BorrowLoanLineage::UnretainedDerived,
                     kind,
                     call_result: true,
                 }]
@@ -172,7 +193,7 @@ impl CompletedReturnSource {
             Self::LifetimeDependency { field } => {
                 let mut loans = capture(field, Vec::new());
                 for loan in &mut loans {
-                    loan.lineage = checked_trees::BorrowLoanLineage::LifetimeDependency;
+                    loan.lineage = BorrowLoanLineage::LifetimeDependency;
                 }
                 loans
             }
@@ -217,9 +238,9 @@ pub(super) fn completed_sources(
 /// could silently treat an unrecognized source as permission to return it.
 pub(crate) fn returned_body_source_mismatch(
     program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    facts: &CheckFacts,
+    state: &State,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<usize> {
     let fields = match resolve_view_return_source(program, state) {
         ViewReturnSource::Fields { fields } => fields,
@@ -267,8 +288,8 @@ pub(crate) fn returned_body_source_mismatch(
             // descriptors stored inside an input need an opaque leaf identity.
             // Owned input storage and invocation-local homes are escape checks.
             let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
-                returned.root == facts::PlaceRoot::Symbol(parameter.symbol)
-                    && validation::reference_shell(program, parameter.type_reference).is_some()
+                returned.root == PlaceRoot::Symbol(parameter.symbol)
+                    && reference_shell(program, parameter.type_reference).is_some()
             }) else {
                 continue;
             };
@@ -296,7 +317,7 @@ pub(crate) fn returned_body_source_mismatch(
         if !fields.iter().any(|field| {
             field.parameter_index == parameter_index
                 && ((field.lifetime_only
-                    && returned.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency)
+                    && returned.lineage == BorrowLoanLineage::LifetimeDependency)
                     || field.kind == returned.kind)
                 && structural_owner_path(program, &field.owner_path).as_ref() == Some(&owner_path)
                 && ((field.source == source
@@ -324,10 +345,10 @@ pub(crate) fn returned_body_source_mismatch(
 /// immediate parent from a matching path. Formation still owns that judgment.
 fn incoming_reborrow_matches_input_lifetime(
     program: &dyn validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    state: &checked_trees::StateBorrowFact,
+    facts: &CheckFacts,
+    state: &StateBorrowFact,
     field: &ViewReturnFieldSource,
-    returned: &checked_trees::BorrowReturnedLoanFact,
+    returned: &BorrowReturnedLoanFact,
     source_path: &[BorrowOwnerSegment],
 ) -> bool {
     if field.lifetime_only
@@ -343,23 +364,19 @@ fn incoming_reborrow_matches_input_lifetime(
         .borrow
         .incoming_references
         .get(returned.incoming_reference);
-    let Some(input) = validation::reference_shell(program, field.source_type) else {
+    let Some(input) = reference_shell(program, field.source_type) else {
         return false;
     };
     if incoming.carrier_type != input.referee {
         return false;
     }
-    let Some(leaves) =
-        validation::reference_result_custody::declared_carrier_references(program, input.referee)
-    else {
+    let Some(leaves) = declared_carrier_references(program, input.referee) else {
         return false;
     };
     leaves.iter().any(|leaf| {
-        let Some(segments) = validation::reference_result_custody::origin_place_segments(
-            program,
-            input.referee,
-            leaf.path.iter().cloned(),
-        ) else {
+        let Some(segments) =
+            origin_place_segments(program, input.referee, leaf.path.iter().cloned())
+        else {
             return false;
         };
         let owner_path = owner_path_from_place_segments(program, &segments);
@@ -379,21 +396,19 @@ fn completed_field_sources(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
     arguments: &[ExpressionHandle],
 ) -> Option<Result<Vec<CompletedReturnSource>, usize>> {
-    let entered_target = validation::call_target_entry_symbol(program, target);
-    let (machine, state) = validation::find_state(program, entered_target)?;
-    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.body_is_present
-    {
+    let entered_target = call_target_entry_symbol(program, target);
+    let (machine, state) = find_state(program, entered_target)?;
+    if machine.supply_mode != MachineSupplyMode::CheckedBody || !machine.body_is_present {
         return None;
     }
     let prepared_frames;
     let call_frames = match call_frames {
         Some(call_frames) => call_frames,
         None => {
-            prepared_frames = validation::CallFrameResolver::new(program)?;
+            prepared_frames = CallFrameResolver::new(program)?;
             &prepared_frames
         }
     };
@@ -404,9 +419,9 @@ fn completed_field_sources(
 
 fn judge_completed_field_sources(
     program: &dyn validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     fields: &[ViewReturnFieldSource],
-    sources: Vec<validation::ReferenceResultLeafOrigin>,
+    sources: Vec<ReferenceResultLeafOrigin>,
 ) -> Option<Result<Vec<CompletedReturnSource>, usize>> {
     let parameters = program.state_parameters(state);
     let declared_paths = fields
@@ -420,11 +435,8 @@ fn judge_completed_field_sources(
             program,
             &owner_path_from_place_segments(program, &source.result_path),
         )?;
-        let result_leaf = validation::project_type_reference_from_segments(
-            program,
-            state.return_type,
-            &source.result_path,
-        )?;
+        let result_leaf =
+            project_type_reference_from_segments(program, state.return_type, &source.result_path)?;
         let kind = reference_borrow_access_kind(program, result_leaf)?;
         if source.source.is_image_storage {
             output.push(CompletedReturnSource::ImmutableImage {
@@ -529,31 +541,27 @@ fn source_path_covers(
 /// own captured descriptor identity rather than authority from a prefix.
 fn stored_source_covers(
     program: &dyn validation::CheckingInput,
-    parameter: typed_trees::types::TypeReferenceHandle,
+    parameter: TypeReferenceHandle,
     declared: &[BorrowOwnerSegment],
-    selected: &[facts::PlaceSegment],
+    selected: &[PlaceSegment],
 ) -> bool {
     if !owner_path_matches(program, declared, selected) {
         return false;
     }
-    let Some(carrier) =
-        validation::reference_result_custody::input_carrier_type(program, parameter)
+    let Some(carrier) = input_carrier_type(program, parameter) else {
+        return false;
+    };
+    let Some(descriptor) =
+        project_type_reference_from_segments(program, carrier, &selected[..declared.len()])
     else {
         return false;
     };
-    let Some(descriptor) = validation::project_type_reference_from_segments(
-        program,
-        carrier,
-        &selected[..declared.len()],
-    ) else {
-        return false;
-    };
-    if validation::reference_shell(program, descriptor).is_none() {
+    if reference_shell(program, descriptor).is_none() {
         return false;
     }
     (declared.len() + 1..selected.len()).all(|prefix| {
-        validation::project_type_reference_from_segments(program, carrier, &selected[..prefix])
-            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+        project_type_reference_from_segments(program, carrier, &selected[..prefix])
+            .is_some_and(|reference| reference_shell(program, reference).is_none())
     })
 }
 
@@ -565,7 +573,7 @@ pub(super) fn result_loans(
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &checked_trees::statement::TableLocalData,
+    local_data: &TableLocalData,
     expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
@@ -592,11 +600,7 @@ pub(super) fn result_loans(
         // expression-type query to resolve the callable again: its raw result
         // may still be a template, even though this loan relation is closed.
         path.extend(structural_owner_path(program, &loan.owner_path)?);
-        loan.owner_path = validation::reference_result_custody::loan_owner_path(
-            program,
-            local_data.type_reference,
-            &path,
-        )?;
+        loan.owner_path = loan_owner_path(program, local_data.type_reference, &path)?;
     }
     Some(loans)
 }
@@ -606,22 +610,21 @@ pub(super) fn relative_result_loans(
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &checked_trees::statement::TableLocalData,
+    local_data: &TableLocalData,
     mut expression: ExpressionHandle,
     loan_trackers: &[StateLoanTracker],
 ) -> Option<Vec<StatementBorrowLoan>> {
     let mut access_limits = Vec::new();
     loop {
         let call = match program.expression_table.expression(expression) {
-            checked_trees::expression::ExpressionNode::StructLiteral(_)
-            | checked_trees::expression::ExpressionNode::ArrayLiteral(_) => {
-                let type_reference = validation::expression_type_reference_in_state(
+            ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
+                let type_reference = expression_type_reference_in_state(
                     program,
                     state_symbol,
                     statement_index,
                     expression,
                 )?;
-                let carrier = checked_trees::statement::TableLocalData {
+                let carrier = TableLocalData {
                     type_reference,
                     initial_value: expression,
                     ..local_data.clone()
@@ -639,8 +642,8 @@ pub(super) fn relative_result_loans(
                     &access_limits,
                 ));
             }
-            checked_trees::expression::ExpressionNode::Call(call) => call,
-            checked_trees::expression::ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Call(call) => call,
+            ExpressionNode::Indexed(indexed) => {
                 let loans = relative_result_loans(
                     program,
                     state_symbol,
@@ -672,7 +675,7 @@ pub(super) fn relative_result_loans(
                     .collect();
                 return Some(limit_access(loans, &access_limits));
             }
-            checked_trees::expression::ExpressionNode::Member(member) => {
+            ExpressionNode::Member(member) => {
                 let loans = relative_result_loans(
                     program,
                     state_symbol,
@@ -687,12 +690,12 @@ pub(super) fn relative_result_loans(
                 // constructor and generic-member joins preserve this field's
                 // identity where the place-only fact query cannot. An opaque
                 // identity still retains the conservative frontier below.
-                let field = validation::effective_member_symbol(program, member.receiver, member);
+                let field = effective_member_symbol(program, member.receiver, member);
                 let selects_field = |candidate| {
                     owner_segment_matches_place_segment(
                         program,
                         &BorrowOwnerSegment::Field(candidate),
-                        &facts::PlaceSegment::Field { symbol: field },
+                        &PlaceSegment::Field { symbol: field },
                     ) == Some(true)
                 };
                 let loans = loans
@@ -724,19 +727,19 @@ pub(super) fn relative_result_loans(
                     .collect();
                 return Some(limit_access(loans, &access_limits));
             }
-            checked_trees::expression::ExpressionNode::Borrow(borrow) => {
+            ExpressionNode::Borrow(borrow) => {
                 // Borrowing an owned value forms a loan of its storage.
                 // Borrowing a descriptor forwards its selected referent.
-                let target_type = validation::expression_type_reference_in_state(
+                let target_type = expression_type_reference_in_state(
                     program,
                     state_symbol,
                     statement_index,
                     borrow.target,
                 )?;
-                if validation::reference_shell(program, target_type).is_none() {
+                if reference_shell(program, target_type).is_none() {
                     return None;
                 }
-                access_limits.push(checked_trees::BorrowAccessKind::from(borrow.access));
+                access_limits.push(BorrowAccessKind::from(borrow.access));
                 expression = borrow.target;
                 continue;
             }
@@ -769,13 +772,11 @@ pub(super) fn relative_result_loans(
                 retained.formation_expression = expression;
             }
             loan.call_result = true;
-            if loan.place.root.is_valid()
-                && loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
-            {
+            if loan.place.root.is_valid() && loan.lineage != BorrowLoanLineage::LifetimeDependency {
                 loan.lineage = if loan.source_owner_symbol.is_valid() {
-                    checked_trees::BorrowLoanLineage::UnretainedDerived
+                    BorrowLoanLineage::UnretainedDerived
                 } else {
-                    checked_trees::BorrowLoanLineage::DirectRoot
+                    BorrowLoanLineage::DirectRoot
                 };
             }
         }
@@ -785,7 +786,7 @@ pub(super) fn relative_result_loans(
 
 fn limit_access(
     mut loans: Vec<StatementBorrowLoan>,
-    limits: &[checked_trees::BorrowAccessKind],
+    limits: &[BorrowAccessKind],
 ) -> Vec<StatementBorrowLoan> {
     for access in limits.iter().rev() {
         attenuate(&mut loans, access);
@@ -793,12 +794,9 @@ fn limit_access(
     loans
 }
 
-pub(super) fn attenuate(
-    loans: &mut [StatementBorrowLoan],
-    access: &checked_trees::BorrowAccessKind,
-) {
+pub(super) fn attenuate(loans: &mut [StatementBorrowLoan], access: &BorrowAccessKind) {
     for loan in loans {
-        if loan.kind == checked_trees::BorrowAccessKind::Mutable {
+        if loan.kind == BorrowAccessKind::Mutable {
             loan.kind = access.clone();
         }
     }
@@ -810,12 +808,12 @@ pub(super) fn argument_loans(
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
-    local_data: &checked_trees::statement::TableLocalData,
+    local_data: &TableLocalData,
     argument: ExpressionHandle,
     field: &ViewReturnFieldSource,
     result_owner_path: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     carried_arguments: &mut Vec<(usize, Vec<StatementBorrowLoan>)>,
 ) -> Vec<StatementBorrowLoan> {
     let source_segments = place_segments(&field.source_path);
@@ -831,7 +829,7 @@ pub(super) fn argument_loans(
             // result_owner_path rebases its leaves only after source selection.
             // Using an outer Envelope here would erase a Held argument's
             // target leaf before an owned forwarding call could transport it.
-            let argument_owner = checked_trees::statement::TableLocalData {
+            let argument_owner = TableLocalData {
                 type_reference: CallViewReturnContract::carrier_reference(
                     program,
                     field.source_type,
@@ -873,24 +871,22 @@ pub(super) fn argument_loans(
                     .iter()
                     .zip(&source_segments)
                     .all(|(owner, source)| match (owner, source) {
-                        (
-                            BorrowOwnerSegment::Field(owner),
-                            facts::PlaceSegment::Field { symbol },
-                        ) => program
-                            .any_field_owner(*owner)
-                            .zip(program.any_field_owner(*symbol))
-                            .is_some_and(|(owner, source)| {
-                                owner.1.path_identity() == source.1.path_identity()
-                            }),
-                        (
-                            BorrowOwnerSegment::Case(owner),
-                            facts::PlaceSegment::Case { variant },
-                        ) => program
-                            .variant_owner(*owner)
-                            .zip(program.variant_owner(*variant))
-                            .is_some_and(|(owner, source)| {
-                                owner.1.path_identity() == source.1.path_identity()
-                            }),
+                        (BorrowOwnerSegment::Field(owner), PlaceSegment::Field { symbol }) => {
+                            program
+                                .any_field_owner(*owner)
+                                .zip(program.any_field_owner(*symbol))
+                                .is_some_and(|(owner, source)| {
+                                    owner.1.path_identity() == source.1.path_identity()
+                                })
+                        }
+                        (BorrowOwnerSegment::Case(owner), PlaceSegment::Case { variant }) => {
+                            program
+                                .variant_owner(*owner)
+                                .zip(program.variant_owner(*variant))
+                                .is_some_and(|(owner, source)| {
+                                    owner.1.path_identity() == source.1.path_identity()
+                                })
+                        }
                         _ => owner_path_matches(
                             program,
                             std::slice::from_ref(owner),
@@ -909,8 +905,7 @@ pub(super) fn argument_loans(
             if !field.lifetime_only
                 && matches!(
                     field.kind,
-                    checked_trees::BorrowAccessKind::Read
-                        | checked_trees::BorrowAccessKind::WriteOnly
+                    BorrowAccessKind::Read | BorrowAccessKind::WriteOnly
                 )
             {
                 loan.kind = field.kind.clone();

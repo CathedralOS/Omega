@@ -25,7 +25,9 @@
 //! current roster. Escape and simultaneous-hold checks consume those rows;
 //! they never rebuild a return's contents from historical local activations.
 
-use validation::machine_state_count;
+use arena::Arena;
+use diagnostics::Diagnostic;
+use validation::{CallFrameResolver, machine_state_count};
 
 use checked_trees::BorrowFacts;
 pub(crate) mod accesses;
@@ -66,22 +68,19 @@ use state::{BorrowFactArenas, append_state_borrow_facts};
 /// retains failed preparation; source reconstruction must not retry it per call.
 pub(crate) fn build_borrow_facts(
     program: &dyn ::validation::CheckingInput,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Result<BorrowFacts, Vec<diagnostics::Diagnostic>> {
-    let mut writable_roots = arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
-    let mut incoming_references = arena::Arena::new();
-    let mut access_segments =
-        arena::Arena::with_capacity(program.expression_table.expression_count());
-    let mut owner_segments =
-        arena::Arena::with_capacity(program.expression_table.expression_count());
-    let mut argument_accesses =
-        arena::Arena::with_capacity(program.expression_table.expression_count());
-    let mut calls = arena::Arena::with_capacity(program.statement_table.statement_count());
-    let mut reference_slot_effects = arena::Arena::new();
-    let mut loans = arena::Arena::with_capacity(program.statement_table.statement_count());
-    let mut loan_suppliers = arena::Arena::new();
-    let mut returned_loans = arena::Arena::new();
-    let mut states = arena::Arena::with_capacity(machine_state_count(program));
+    call_frames: Option<&CallFrameResolver<'_>>,
+) -> Result<BorrowFacts, Vec<Diagnostic>> {
+    let mut writable_roots = Arena::with_capacity(estimated_borrow_root_capacity(program));
+    let mut incoming_references = Arena::new();
+    let mut access_segments = Arena::with_capacity(program.expression_table.expression_count());
+    let mut owner_segments = Arena::with_capacity(program.expression_table.expression_count());
+    let mut argument_accesses = Arena::with_capacity(program.expression_table.expression_count());
+    let mut calls = Arena::with_capacity(program.statement_table.statement_count());
+    let mut reference_slot_effects = Arena::new();
+    let mut loans = Arena::with_capacity(program.statement_table.statement_count());
+    let mut loan_suppliers = Arena::new();
+    let mut returned_loans = Arena::new();
+    let mut states = Arena::with_capacity(machine_state_count(program));
     let mut state_loan_trackers = Vec::new();
 
     {
