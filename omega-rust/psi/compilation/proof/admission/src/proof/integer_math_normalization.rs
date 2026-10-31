@@ -4,7 +4,9 @@
 //! back, and matching a retained proposition against a requested one
 //! under either normalization.
 
-use semantic_vocabulary::{IntegerCarrier, IntegerMathTerm, IntegerType, Proposition, ScalarTerm};
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerMathTerm, IntegerType, Proposition, ScalarTerm, ScalarType,
+};
 
 /// Canonically embed a relation over fixed-width terms into the mathematical
 /// vocabulary. Projections and compound operations retain their complete scalar
@@ -44,9 +46,7 @@ pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposit
     let source_type = [left, right].into_iter().find_map(|term| match term {
         IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
         IntegerMathTerm::Embed(term) => match term.scalar_type() {
-            semantic_vocabulary::ScalarType::Integer(integer) if exact_ring_carrier(&integer) => {
-                Some(integer)
-            }
+            ScalarType::Integer(integer) if exact_ring_carrier(&integer) => Some(integer),
             _ => None,
         },
         _ => None,
@@ -55,16 +55,15 @@ pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposit
         IntegerMathTerm::MathValue {
             source_type: actual,
             value,
-        } if *actual == source_type => Some(ScalarTerm::value(
-            *value,
-            semantic_vocabulary::ScalarType::Integer(source_type),
-        )),
+        } if *actual == source_type => {
+            Some(ScalarTerm::value(*value, ScalarType::Integer(source_type)))
+        }
         IntegerMathTerm::IntegerLiteral(literal) => {
             ScalarTerm::integer(source_type, literal.as_integer_value(source_type)?).ok()
         }
         IntegerMathTerm::Embed(term)
             if exact_ring_carrier(&source_type)
-                && term.scalar_type() == semantic_vocabulary::ScalarType::Integer(source_type) =>
+                && term.scalar_type() == ScalarType::Integer(source_type) =>
         {
             Some(term.as_ref().clone())
         }
