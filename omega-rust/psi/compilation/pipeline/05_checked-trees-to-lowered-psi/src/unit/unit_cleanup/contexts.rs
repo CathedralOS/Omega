@@ -15,7 +15,6 @@ use terminal_psi::{
 /// Advance the original roster only on demand: an early successful lookup
 /// must not inspect a later action that the original search never reached.
 pub(crate) struct SelectedCleanupSubjects<'checked> {
-    checked: &'checked CheckedTrees,
     remaining: Box<
         dyn Iterator<Item = &'checked checked_trees::CheckedUnitNominalAffineCleanupPlan>
             + 'checked,
@@ -28,16 +27,14 @@ pub(crate) struct SelectedCleanupSubjects<'checked> {
 
 impl<'checked> SelectedCleanupSubjects<'checked> {
     pub(crate) fn new(checked: &'checked CheckedTrees) -> Self {
-        Self::from_rows(checked, super::selected_cleanups(checked))
+        Self::from_rows(super::selected_cleanups(checked))
     }
 
     fn from_rows(
-        checked: &'checked CheckedTrees,
         rows: impl Iterator<Item = &'checked checked_trees::CheckedUnitNominalAffineCleanupPlan>
         + 'checked,
     ) -> Self {
         Self {
-            checked,
             remaining: Box::new(rows),
             first: Default::default(),
         }
@@ -132,13 +129,13 @@ pub(crate) fn field_clause(
 
 pub(crate) fn prepare_signature(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
     selected_subjects: &mut SelectedCleanupSubjects<'_>,
     source: SymbolHandle,
     predicate_parameters: &mut Vec<StructuralParameterDeclaration>,
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Option<SignatureContext>, LoweringError> {
-    let checked = selected_subjects.checked;
     let plans = &checked
         .facts
         .flow

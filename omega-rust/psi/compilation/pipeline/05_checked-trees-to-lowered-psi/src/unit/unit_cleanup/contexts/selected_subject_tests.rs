@@ -81,7 +81,7 @@ fn first_subjects_match_original_search_without_visiting_an_unused_tail() {
     let rows = std::iter::once(row)
         .inspect(|_| visits.set(visits.get() + 1))
         .chain(std::iter::once_with(|| panic!("unvisited cleanup tail")));
-    let mut prefix = SelectedCleanupSubjects::from_rows(&checked, rows);
+    let mut prefix = SelectedCleanupSubjects::from_rows(rows);
     assert!(std::ptr::eq(prefix.first(first).unwrap(), row));
     assert!(std::ptr::eq(prefix.first(first).unwrap(), row));
     assert_eq!(visits.get(), 1);
