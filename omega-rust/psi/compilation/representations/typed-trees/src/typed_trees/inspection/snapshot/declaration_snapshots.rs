@@ -853,15 +853,12 @@ fn cleanup_selection_snapshot(
     program: &TypedTrees,
     selection: &crate::domain::CleanupSelection,
 ) -> CleanupSelectionSnapshot {
-    let application = program
-        .expression_table
-        .static_machine_application(selection.application);
+    let application = program.static_machine_application(selection.application);
     CleanupSelectionSnapshot {
         target: program
             .symbols
             .display_path(application.registration_operation, "::"),
         arguments: program
-            .expression_table
             .static_machine_application_arguments(selection.application)
             .iter()
             .map(|argument| {

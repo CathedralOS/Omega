@@ -12,6 +12,11 @@
 //! crate-wide: a `_mut` twin stays on its column because a mutable borrow of
 //! one table is not a view of the tables struct.
 
+use crate::expression::StaticMachineArgument;
+use crate::static_applications::{
+    StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
+    StaticMachineLifetimeBinding,
+};
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 
@@ -27,5 +32,41 @@ impl crate::typed_trees::TypedTreeTables {
     /// Whether `handle` still names a live type reference row.
     pub(crate) fn contains_type_reference(&self, handle: TypeReferenceHandle) -> bool {
         self.type_reference_table.contains_type_reference(handle)
+    }
+
+    /// One static machine application row.
+    pub(crate) fn static_machine_application(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &StaticMachineApplication {
+        self.expression_table
+            .static_machine_application(application)
+    }
+
+    /// The argument rows a static machine application supplies.
+    pub(crate) fn static_machine_application_arguments(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineArgument] {
+        self.expression_table
+            .static_machine_application_arguments(application)
+    }
+
+    /// The bindings a static machine application row captures.
+    pub(crate) fn static_machine_application_bindings(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineBinding] {
+        self.expression_table
+            .static_machine_application_bindings(application)
+    }
+
+    /// The lifetime bindings a static machine application row captures.
+    pub(crate) fn static_machine_application_lifetimes(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineLifetimeBinding] {
+        self.expression_table
+            .static_machine_application_lifetimes(application)
     }
 }
