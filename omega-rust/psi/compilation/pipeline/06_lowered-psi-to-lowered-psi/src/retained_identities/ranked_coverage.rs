@@ -26,21 +26,39 @@ pub(crate) struct RankedCoverage {
 }
 
 /// Inventory the coordinates `machine`'s retained ranking evidence covers.
-/// An unranked machine has empty coverage and optimizes everywhere.
-pub(crate) fn ranked_coverage(machine: &TerminalMachine) -> RankedCoverage {
+/// An unranked machine has empty coverage and optimizes everywhere. An
+/// unresolved tuple disables the rewrite; partial coverage grants no rewrite
+/// authority. Artifact validation reports the malformed ranking itself.
+pub(crate) fn ranked_coverage(machine: &TerminalMachine) -> Option<RankedCoverage> {
     let mut coverage = RankedCoverage::default();
     let Some(ranking) = &machine.ranked_scc else {
-        return coverage;
+        return Some(coverage);
     };
     let TerminalRankedScc::Natural(components) = ranking;
+    if components.is_empty() {
+        return None;
+    }
     for component in components {
+        if component.ranks.is_empty() {
+            return None;
+        }
         for rank in &component.ranks {
             coverage.blocks.insert(rank.block);
-            coverage.values.insert(rank.value);
+            coverage.values.extend(
+                component
+                    .rank_values(rank.values)?
+                    .iter()
+                    .map(|value| value.value),
+            );
         }
         for edge in &component.edges {
             coverage.blocks.extend([edge.source, edge.target]);
-            coverage.values.insert(edge.successor_rank);
+            coverage.values.extend(
+                component
+                    .rank_values(edge.successor_ranks)?
+                    .iter()
+                    .map(|value| value.value),
+            );
         }
     }
     // The read-side of `map_scalar_uses` is a mutating traversal: walk clones
@@ -62,5 +80,5 @@ pub(crate) fn ranked_coverage(machine: &TerminalMachine) -> RankedCoverage {
             value
         });
     }
-    coverage
+    Some(coverage)
 }

@@ -4,7 +4,6 @@
 //! prefix; only a complete prefix supplies a publishable component decision.
 //! No source subject or public termination claim is added.
 
-mod comparison;
 mod meaning;
 mod occurrences;
 mod prefix;
@@ -26,17 +25,23 @@ use crate::proof_contracts::contract_entailment::{
     RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     call_member_premise_symbols, prove_captured_rank_call, prove_ranking_range_call,
 };
-use comparison::Comparison;
 use projection::RankProjection;
 
 /// Exact scalar coordinates from the runtime component judgment. These are
 /// transient query results, not another executable representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeNaturalState {
+    pub state: SymbolHandle,
+    /// Ordered components of one source-admitted relation, never independent
+    /// ranking alternatives. Every state in the component keeps this arity.
+    pub values: Vec<ValidatedRuntimeIntegerRank>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRuntimeIntegerRank {
     pub application: Option<crate::IntegerApplicationFormation>,
     /// Exact declared application, or ZII for a normalized primitive view.
     pub measure: SymbolHandle,
-    pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub coordinate: crate::RankSubjectCoordinate,
     pub entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
@@ -684,9 +689,12 @@ fn admit_ranked_edge(
     if arguments.len() != parameters.iter().count() {
         return Err("call arguments do not match the exact entry parameters");
     }
-    let Some(argument) = arguments.get(ranks[callee_position].argument_position) else {
+    if arguments
+        .get(ranks[callee_position].argument_position)
+        .is_none()
+    {
         return Err("the ranked parameter has no corresponding actual argument");
-    };
+    }
     observed.push(callee);
     let strict;
     if let (Some(source), Some(destination)) = (
@@ -708,7 +716,10 @@ fn admit_ranked_edge(
             transition_target,
             arguments,
         )?;
-        for application in progress.source_applications.into_iter().flatten() {
+        for (index, application) in progress.source_applications.into_iter().enumerate() {
+            let Some(application) = application else {
+                continue;
+            };
             let Some(component) = natural.as_mut() else {
                 continue;
             };
@@ -717,6 +728,10 @@ fn admit_ranked_edge(
                 .iter_mut()
                 .find(|row| row.state == state.symbol)
             {
+                let row = row
+                    .values
+                    .get_mut(index)
+                    .ok_or("the captured rank application lost its ordered component")?;
                 if row.measure != application.measure()
                     || row
                         .application
@@ -793,23 +808,7 @@ fn admit_ranked_edge(
             }
         }
     } else {
-        match comparison::argument_comparison(
-            program,
-            caller.symbol,
-            &ranks[caller_rank_index],
-            *argument,
-            site_guards,
-            &RankingRangeCallSite {
-                state,
-                entry_parameters: caller_bindings,
-            },
-        ) {
-            Some(Comparison::Strict) => strict = true,
-            Some(Comparison::Equal) => strict = false,
-            None => {
-                return Err("ranking preservation or strict DECREASE is unproven at a call site");
-            }
-        }
+        return Err("ranked invocation has no complete captured value comparison");
     };
     if !strict {
         let source = component_states

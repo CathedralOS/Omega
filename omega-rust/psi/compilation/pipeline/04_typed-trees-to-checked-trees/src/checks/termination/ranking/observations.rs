@@ -202,13 +202,18 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
             (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
             _ => return None,
         };
+        let components = admitted.observation_components.insert_many([
+            checked_trees::CheckedIntegerRankObservation {
+                function: checked_trees::CheckedNaturalRankFunction::Identity,
+                parameter: destination.parameter,
+                parameter_position: u32::try_from(parameter_position).ok()?,
+                measure,
+                observation: Default::default(),
+            },
+        ]);
         observations.push(CheckedStateNaturalRank {
-            function: checked_trees::CheckedNaturalRankFunction::Identity,
             state: state.symbol,
-            parameter: destination.parameter,
-            parameter_position: u32::try_from(parameter_position).ok()?,
-            measure,
-            observation: Default::default(),
+            components,
         });
     }
     Some(observations)

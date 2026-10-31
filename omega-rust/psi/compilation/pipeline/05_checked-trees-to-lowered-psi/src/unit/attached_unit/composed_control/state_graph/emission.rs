@@ -77,7 +77,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     entry_reentered: bool,
     invocation_entry: Option<BlockId>,
     invocation_erased: Vec<ValueDeclaration>,
-    rank_parameters: Vec<Option<ValueId>>,
+    rank_parameters: Vec<Vec<ValueId>>,
     state_ids: Vec<BlockId>,
     state_views: Vec<Vec<StructuralParameterDeclaration>>,
     state_contract_rosters: &'a [Vec<(u32, StructuralParameterDeclaration)>],
@@ -104,8 +104,8 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     loan_chains: loan_chains::LoanChains,
     captured_loans: captured_loans::CapturedLoans,
     occurrences: super::super::ComposedOccurrences,
-    block_ranks: BTreeMap<BlockId, ValueId>,
-    rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
+    block_ranks: BTreeMap<BlockId, Vec<ValueId>>,
+    rank_edges: BTreeMap<EdgeId, (Vec<ValueId>, terminal_psi::TerminalNaturalRankComparison)>,
     owners: Vec<symbols::SymbolHandle>,
     record_fields: Vec<crate::scalar_lowering::computations::fields::Binding>,
     produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
@@ -402,7 +402,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .any(|successor| plan.successor_position(successor) == Some(0));
     // Invocation parameters are immutable. Reentering the authored entry
     // therefore uses an ordinary parameterized block behind a one-shot jump.
-    let entry_ranked = ranking::observation(checked, plan, &plan.states[0])?.is_some();
+    let entry_ranked = ranking::observations(checked, plan, &plan.states[0])?.is_some();
     let invocation_entry = if entry_reentered || entry_ranked {
         Some(block_id(allocate_dense(&mut catalogs.next_block)?))
     } else {
@@ -536,11 +536,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .iter()
         .enumerate()
         .map(|(position, state)| {
-            if admitted.live[position] && ranking::observation(checked, plan, state)?.is_some() {
-                Ok(Some(value_id(allocate_dense(&mut catalogs.next_value)?)))
-            } else {
-                Ok(None)
+            if !admitted.live[position] {
+                return Ok(Vec::new());
             }
+            let Some(roots) = ranking::observations(checked, plan, state)? else {
+                return Ok(Vec::new());
+            };
+            roots
+                .iter()
+                .map(|_| Ok(value_id(allocate_dense(&mut catalogs.next_value)?)))
+                .collect::<Result<Vec<_>, LoweringError>>()
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     for (position, state) in plan.states.iter().enumerate() {
@@ -1091,14 +1096,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .flat_map(|block| {
             block_ranks
                 .get(&block.id)
-                .copied()
                 .into_iter()
-                .chain(
-                    block
-                        .terminator
-                        .edges()
-                        .filter_map(|edge| rank_edges.get(&edge).map(|(rank, _)| *rank)),
-                )
+                .flatten()
+                .copied()
+                .chain(block.terminator.edges().flat_map(|edge| {
+                    rank_edges
+                        .get(&edge)
+                        .into_iter()
+                        .flat_map(|(rank, _)| rank.iter().copied())
+                }))
                 .map(move |value| (block.id, value))
         })
         .collect::<Vec<_>>();
@@ -1147,11 +1153,20 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     });
             }
             if let Some(rank) = original_ranks.get(&original) {
-                block_ranks.insert(physical, namespace.value(*rank));
+                block_ranks.insert(
+                    physical,
+                    rank.iter().map(|value| namespace.value(*value)).collect(),
+                );
             }
             for (original, physical) in namespace.edges.clone() {
                 if let Some((rank, comparison)) = original_edges.get(&original) {
-                    rank_edges.insert(physical, (namespace.value(*rank), *comparison));
+                    rank_edges.insert(
+                        physical,
+                        (
+                            rank.iter().map(|value| namespace.value(*value)).collect(),
+                            *comparison,
+                        ),
+                    );
                 }
             }
         }

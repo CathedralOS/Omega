@@ -25,7 +25,7 @@
 use super::{DecreaseMeasure, RankArrivalAdmission, nat, patterns};
 use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::checks::termination::order::RankingOrder;
-use checked_trees::{CheckedNaturalRankMeasure as RankMeasure, CheckedStateNaturalRank};
+use checked_trees::{CheckedIntegerRankObservation, CheckedNaturalRankMeasure as RankMeasure};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::machine::Machine;
@@ -73,7 +73,7 @@ fn scalar_rank(
     program: &dyn ::validation::CheckingInput,
     state: &State,
     measure: DecreaseMeasure,
-) -> Option<CheckedStateNaturalRank> {
+) -> Option<CheckedIntegerRankObservation> {
     let rank = nat::state_rank(program, state, measure)?;
     let exact = |position: u32| {
         program
@@ -100,8 +100,8 @@ fn prove_edge(
     machine: &Machine,
     source: &State,
     order: &RankingOrder,
-    source_rank: &CheckedStateNaturalRank,
-    target_rank: &CheckedStateNaturalRank,
+    source_rank: &CheckedIntegerRankObservation,
+    target_rank: &CheckedIntegerRankObservation,
     edge: &patterns::GuardedEdge<'_>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {

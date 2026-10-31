@@ -13,6 +13,9 @@ use typed_trees::{expression::BinaryOperator, types::PrimitiveType};
 pub(in crate::proof_contracts::contract_entailment) struct CapturedIntegerRank {
     pub input: StructuralTerm,
     pub primitive: PrimitiveType,
+    /// The selected relation's floor is a goal, not an input assumption.
+    /// The independently formed word still supplies its own carrier bounds.
+    pub minimum: BigInt,
     pub measure: SymbolHandle,
 }
 
@@ -72,14 +75,10 @@ impl StructuralJudge<'_> {
         if !engine.integer_value_lands(primitive, &value) {
             return Err("the entry rank has no independently proved result carrier bound");
         }
-        let (minimum, maximum) = primitive
+        let (_, maximum) = primitive
             .integer_bounds()
             .ok_or("the entry rank has no fixed integer carrier bounds")?;
-        let minimum = if rank.measure.is_valid() {
-            BigInt::from_i128(minimum)
-        } else {
-            BigInt::zero()
-        };
+        let minimum = rank.minimum.clone();
         if !engine.prove_at_least(
             &value.sub(&Polynomial::constant(minimum.clone())),
             &BigInt::zero(),
@@ -225,7 +224,7 @@ impl StructuralJudge<'_> {
         input: &Polynomial,
     ) -> Result<(Polynomial, BigInt), &'static str> {
         if !destination.measure.is_valid() {
-            return Ok((input.clone(), BigInt::zero()));
+            return Ok((input.clone(), destination.minimum.clone()));
         }
         let primitive = self
             .program
@@ -237,7 +236,7 @@ impl StructuralJudge<'_> {
                     .primitive_type_reference(declaration.return_type)
             })
             .ok_or("the arriving rank lost its declared integer carrier")?;
-        let (minimum, _) = primitive
+        primitive
             .integer_bounds()
             .ok_or("the arriving rank has no fixed integer bounds")?;
         let value = engine
@@ -247,6 +246,6 @@ impl StructuralJudge<'_> {
         if !engine.integer_value_lands(primitive, &value) {
             return Err("the arriving rank does not fit its declared carrier");
         }
-        Ok((value, BigInt::from_i128(minimum)))
+        Ok((value, destination.minimum.clone()))
     }
 }

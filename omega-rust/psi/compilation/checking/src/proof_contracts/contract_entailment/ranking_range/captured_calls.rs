@@ -1,4 +1,4 @@
-//! Ordered call ranks consumes the ordinary completed-prefix ledger. Save
+//! Ordered call ranks consume the ordinary completed-prefix ledger. Save
 //! the source rank at entry, then carry that same judge through the prefix and
 //! ordered argument evaluation. Reference bindings remain live descriptors;
 //! scalar arguments and the entry rank retain their original value snapshots.
@@ -22,6 +22,9 @@ pub(crate) struct CapturedRankComponent {
     /// suffix retains the ordinary scalar-read admission path.
     pub projection: Vec<facts::PlaceSegment>,
     pub primitive: PrimitiveType,
+    /// Prove the selected relation's lower endpoint on this produced value.
+    /// A desired floor cannot establish formation or become an entry premise.
+    pub minimum: numerics::bignum::BigInt,
     pub measure: SymbolHandle,
 }
 
@@ -91,6 +94,7 @@ pub(crate) fn prove_captured_rank_call(
         formed.push(judge.form_captured_integer_rank(&CapturedIntegerRank {
             input,
             primitive: component.primitive,
+            minimum: component.minimum.clone(),
             measure: component.measure,
         })?);
     }

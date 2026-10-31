@@ -2,7 +2,7 @@
 //! subjects. Every rank component reads those same operand observations; the
 //! tuple judgment forms them all before choosing a strict prefix.
 
-use super::{CapturedRankComponent, ExpressionHandle, Machine, State};
+use super::{CapturedRankComponent, Machine, State};
 use crate::proof_contracts::contract_entailment::{
     specification_calls::{call_parameter_scope, selected_call_site_contract},
     structural_judgment::normal_returns::OperationOperandDemand,
@@ -230,6 +230,7 @@ impl CallProgress {
                 destinations.push(CapturedIntegerRank {
                     input,
                     primitive: component.primitive,
+                    minimum: component.minimum.clone(),
                     measure: component.measure,
                 });
             }

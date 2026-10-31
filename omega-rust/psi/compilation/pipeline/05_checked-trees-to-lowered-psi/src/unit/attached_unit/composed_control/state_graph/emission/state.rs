@@ -335,7 +335,7 @@ impl StateGraphEmission<'_, '_> {
         // Every cyclic header receives its already-completed observation.
         // The source telescope stays unchanged: the extra phi is not a local,
         // argument capture or implicit authority in the authored program.
-        let current_rank = if let Some(root) = ranking::observation(checked, plan, state)? {
+        let current_rank = if let Some(roots) = ranking::observations(checked, plan, state)? {
             let scalar_slots = values
                 .iter()
                 .enumerate()
@@ -361,41 +361,48 @@ impl StateGraphEmission<'_, '_> {
                 &scalar_slots,
                 &structural_actuals,
             )?;
-            let rank_type = crate::scalar_lowering::computations::computation_value_type(
-                identities,
-                checked,
-                &evaluation.shared_qualifications,
-                root.root,
-                &bindings,
-                &values
-                    .iter()
-                    .map(|value| value.value_type())
-                    .collect::<Vec<_>>(),
-            )?;
-            if rank_type.scalar_type.as_integer().is_none() {
-                return unsupported("Unit graph rank observation lost its integer carrier");
+            if roots.len() != self.rank_parameters[position].len() {
+                return unsupported("ranked header lost an ordered component parameter");
             }
-            let rank = ValueDeclaration {
-                id: self.rank_parameters[position].ok_or(LoweringError::Unsupported(
-                    "ranked state has no completed observation parameter",
-                ))?,
-                scalar_type: rank_type.scalar_type,
-                qualifications: rank_type.qualifications,
-            };
-            evaluation.parameters.push(rank);
+            let ranks = roots
+                .iter()
+                .zip(&self.rank_parameters[position])
+                .map(|(root, parameter)| {
+                    let rank_type = crate::scalar_lowering::computations::computation_value_type(
+                        identities,
+                        checked,
+                        &evaluation.shared_qualifications,
+                        root.root,
+                        &bindings,
+                        &values
+                            .iter()
+                            .map(|value| value.value_type())
+                            .collect::<Vec<_>>(),
+                    )?;
+                    if rank_type.scalar_type.as_integer().is_none() {
+                        return unsupported("Unit graph rank observation lost its integer carrier");
+                    }
+                    Ok(ValueDeclaration {
+                        id: *parameter,
+                        scalar_type: rank_type.scalar_type,
+                        qualifications: rank_type.qualifications,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            evaluation.parameters.extend(ranks.iter().copied());
             if position == 0 {
                 self.initialize_invocation_rank(
                     identities,
-                    root,
+                    &roots,
                     &evaluation,
-                    rank,
+                    &ranks,
                     &mut operations,
                     &mut next_value,
                     &mut next_block,
                     &mut next_edge,
                 )?;
             }
-            Some(rank.id)
+            Some(ranks.iter().map(|rank| rank.id).collect::<Vec<_>>())
         } else {
             None
         };
@@ -435,7 +442,7 @@ impl StateGraphEmission<'_, '_> {
                 operations,
                 super::seal::SealFrame {
                     state_parameters,
-                    current_rank,
+                    current_rank: current_rank.as_deref(),
                     is_guarded_return: false,
                     dispatches: false,
                     body_end,
@@ -1072,7 +1079,7 @@ impl StateGraphEmission<'_, '_> {
                     ShortCircuitFrame {
                         erased_scalar_formals: &self.state_erased[position],
                         erased_proof_formals: &self.state_erased_proof[position],
-                        current_rank,
+                        current_rank: current_rank.as_deref(),
                         inherited_lengths: &inherited_lengths,
                     },
                     &mut self.block_ranks,
@@ -1090,7 +1097,7 @@ impl StateGraphEmission<'_, '_> {
             position,
             state_parameters,
             bindings: &bindings,
-            current_rank,
+            current_rank: current_rank.as_deref(),
             inherited_lengths: &inherited_lengths,
             sequence: &sequence,
         };
@@ -1356,7 +1363,7 @@ impl StateGraphEmission<'_, '_> {
                         decision_edge(
                             guarded_decisions[index + 1],
                             self.state_erased_proof[position].len(),
-                            current_rank,
+                            current_rank.as_deref(),
                             &mut self.rank_edges,
                             &mut next_edge,
                         )?
@@ -1374,8 +1381,8 @@ impl StateGraphEmission<'_, '_> {
                             short_circuit!(&planned, &namespace, [when_true, when_false])
                         }
                     };
-                    if let Some(rank) = current_rank {
-                        self.block_ranks.insert(id, rank);
+                    if let Some(rank) = current_rank.as_ref() {
+                        self.block_ranks.insert(id, rank.clone());
                     }
                     edge_blocks.push(Block {
                         id,
@@ -1394,7 +1401,7 @@ impl StateGraphEmission<'_, '_> {
                 let first_false = decision_edge(
                     guarded_decisions[0],
                     self.state_erased_proof[position].len(),
-                    current_rank,
+                    current_rank.as_deref(),
                     &mut self.rank_edges,
                     &mut next_edge,
                 )?;
@@ -1498,7 +1505,7 @@ impl StateGraphEmission<'_, '_> {
             operations,
             super::seal::SealFrame {
                 state_parameters: &state_parameters,
-                current_rank,
+                current_rank: current_rank.as_deref(),
                 is_guarded_return,
                 dispatches,
                 body_end,
@@ -1590,7 +1597,7 @@ pub(super) enum ChainGuard {
 struct ShortCircuitFrame<'a> {
     erased_scalar_formals: &'a [ValueDeclaration],
     erased_proof_formals: &'a [checked_trees::CheckedErasedProofParameterPlan],
-    current_rank: Option<semantic_vocabulary::ValueId>,
+    current_rank: Option<&'a [semantic_vocabulary::ValueId]>,
     /// The length observations the state held before any successor
     /// staging; the decision cannot reuse observations staged after it.
     inherited_lengths: &'a StorageObservations,
@@ -1612,12 +1619,12 @@ fn emit_short_circuit_decision(
     frame: ShortCircuitFrame<'_>,
     block_ranks: &mut std::collections::BTreeMap<
         semantic_vocabulary::BlockId,
-        semantic_vocabulary::ValueId,
+        Vec<semantic_vocabulary::ValueId>,
     >,
     rank_edges: &mut std::collections::BTreeMap<
         semantic_vocabulary::EdgeId,
         (
-            semantic_vocabulary::ValueId,
+            Vec<semantic_vocabulary::ValueId>,
             terminal_psi::TerminalNaturalRankComparison,
         ),
     >,
@@ -1637,7 +1644,7 @@ fn emit_short_circuit_decision(
     let false_block = block_id(allocate_dense(next_block)?);
     for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
         if let Some(rank) = frame.current_rank {
-            block_ranks.insert(id, rank);
+            block_ranks.insert(id, rank.to_vec());
         }
         edge_blocks.push(Block {
             id,
@@ -1704,7 +1711,7 @@ fn emit_short_circuit_decision(
         rank_edges.insert(
             edge,
             (
-                rank,
+                rank.to_vec(),
                 terminal_psi::TerminalNaturalRankComparison::Preserving,
             ),
         );
@@ -1726,11 +1733,11 @@ fn emit_short_circuit_decision(
 fn decision_edge(
     target: semantic_vocabulary::BlockId,
     erased_proof_count: usize,
-    current_rank: Option<semantic_vocabulary::ValueId>,
+    current_rank: Option<&[semantic_vocabulary::ValueId]>,
     rank_edges: &mut std::collections::BTreeMap<
         semantic_vocabulary::EdgeId,
         (
-            semantic_vocabulary::ValueId,
+            Vec<semantic_vocabulary::ValueId>,
             terminal_psi::TerminalNaturalRankComparison,
         ),
     >,
@@ -1741,7 +1748,7 @@ fn decision_edge(
         rank_edges.insert(
             edge,
             (
-                rank,
+                rank.to_vec(),
                 terminal_psi::TerminalNaturalRankComparison::Preserving,
             ),
         );

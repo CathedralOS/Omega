@@ -277,11 +277,11 @@ impl StateGraphEmission<'_, '_> {
                                 .ok_or(LoweringError::Unsupported("stopped successor operand lost its exact invocation"))?;
                             let selection_edge = edge_id(allocate_dense(next_edge)?);
                             if let Some(rank) = current_rank {
-                                self.block_ranks.insert(staged, rank);
-                                self.block_ranks.insert(edge_evaluation.current, rank);
-                                self.block_ranks.extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
+                                self.block_ranks.insert(staged, rank.to_vec());
+                                self.block_ranks.insert(edge_evaluation.current, rank.to_vec());
+                                self.block_ranks.extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank.to_vec())));
                                 self.preserve_edges(edge_evaluation.blocks.iter().flat_map(|block| block.terminator.edges()), rank);
-                                self.rank_edges.insert(selection_edge, (rank, terminal_psi::TerminalNaturalRankComparison::Preserving));
+                                self.rank_edges.insert(selection_edge, (rank.to_vec(), terminal_psi::TerminalNaturalRankComparison::Preserving));
                             }
                             edge_blocks.extend(edge_evaluation.blocks);
                             edge_blocks.push(Block {
@@ -1233,7 +1233,8 @@ impl StateGraphEmission<'_, '_> {
         } else {
             terminal_psi::TerminalNaturalRankComparison::Strict
         };
-        let arriving_rank = if let Some(root) = ranking::observation(checked, plan, target_state)? {
+        let arriving_rank = if let Some(roots) = ranking::observations(checked, plan, target_state)?
+        {
             // Scalar and structural operands are already complete. Rejoin the
             // exact target telescope here, before projected transfer or cleanup.
             let mut scalar_slots = Vec::with_capacity(arguments.len());
@@ -1312,34 +1313,46 @@ impl StateGraphEmission<'_, '_> {
                     },
                     |frame| {
                         let (mut environment, emission) = frame.split();
-                        emission.evaluation.retained_observation(
-                            identities,
-                            checked,
-                            root,
-                            &bindings,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
-                            &mut environment,
-                        )
+                        roots
+                            .iter()
+                            .map(|root| {
+                                emission.evaluation.retained_observation(
+                                    identities,
+                                    checked,
+                                    root,
+                                    &bindings,
+                                    emission.values,
+                                    emission.next_value,
+                                    emission.next_block,
+                                    emission.next_edge,
+                                    emission.operations,
+                                    emission.calls,
+                                    &mut environment,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()
                     },
                 )?;
-            if observed.scalar_type.as_integer().is_none() {
+            if observed
+                .iter()
+                .any(|value| value.scalar_type.as_integer().is_none())
+            {
                 return unsupported("Unit graph rank observation lost its integer carrier");
             }
-            Some(observed.id)
+            Some(observed.iter().map(|value| value.id).collect::<Vec<_>>())
         } else {
             None
         };
         // The private rank phi follows the authored scalar telescope. It is
         // always computed, including an acyclic predecessor entering a cycle.
-        match (self.rank_parameters[target], arriving_rank) {
-            (Some(_), Some(rank)) => arguments.push(rank),
-            (None, None) => {}
-            _ => return unsupported("ranked arrival lost its completed observation"),
+        match (&self.rank_parameters[target][..], arriving_rank.as_ref()) {
+            ([], None) => {}
+            (parameters, Some(values))
+                if !parameters.is_empty() && parameters.len() == values.len() =>
+            {
+                arguments.extend(values.iter().copied());
+            }
+            _ => return unsupported("ranked arrival lost its complete ordered observations"),
         }
         sequence.require_closed()?;
         let owner_arguments =
@@ -1422,10 +1435,15 @@ impl StateGraphEmission<'_, '_> {
                 self.decided_arrival_edges.insert(backedge);
             }
             if let Some(rank) = current_rank {
-                self.block_ranks.insert(staged, rank);
-                self.block_ranks.insert(edge_evaluation.current, rank);
+                self.block_ranks.insert(staged, rank.to_vec());
                 self.block_ranks
-                    .extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
+                    .insert(edge_evaluation.current, rank.to_vec());
+                self.block_ranks.extend(
+                    edge_evaluation
+                        .blocks
+                        .iter()
+                        .map(|block| (block.id, rank.to_vec())),
+                );
                 self.preserve_edges(
                     edge_evaluation
                         .blocks
@@ -1436,13 +1454,13 @@ impl StateGraphEmission<'_, '_> {
                 self.rank_edges.insert(
                     selection_edge,
                     (
-                        rank,
+                        rank.to_vec(),
                         terminal_psi::TerminalNaturalRankComparison::Preserving,
                     ),
                 );
-                if let Some(after) = arriving_rank {
+                if let Some(after) = arriving_rank.as_ref() {
                     self.rank_edges
-                        .insert(backedge, (after, arriving_comparison));
+                        .insert(backedge, (after.clone(), arriving_comparison));
                 }
             }
             edge_blocks.extend(edge_evaluation.blocks);
@@ -1493,9 +1511,9 @@ impl StateGraphEmission<'_, '_> {
             if arrival_decided {
                 self.decided_arrival_edges.insert(successor_edge);
             }
-            if let Some(after) = arriving_rank {
+            if let Some(after) = arriving_rank.as_ref() {
                 self.rank_edges
-                    .insert(successor_edge, (after, arriving_comparison));
+                    .insert(successor_edge, (after.clone(), arriving_comparison));
             }
             Ok(SuccessorEdge {
                 edge: successor_edge,
@@ -1517,7 +1535,7 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) position: usize,
     pub(super) state_parameters: &'f [StructuralParameterDeclaration],
     pub(super) bindings: &'f ScalarBindings,
-    pub(super) current_rank: Option<ValueId>,
+    pub(super) current_rank: Option<&'f [ValueId]>,
     pub(super) inherited_lengths: &'f StorageObservations,
     pub(super) sequence:
         &'f crate::unit::attached_unit::composed_control::emission::OperationSequence,
