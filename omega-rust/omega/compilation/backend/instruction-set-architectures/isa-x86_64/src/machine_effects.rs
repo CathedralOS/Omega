@@ -597,11 +597,9 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             unreachable!("float arithmetic effects returned above")
         }
         Semantic::Crash => (Vec::new(), Vec::new()),
-        Semantic::CompareI64Zero => (vec![0], vec![]),
-        Semantic::CompareI64Immediate => (vec![0], vec![]),
+        Semantic::CompareI64Zero | Semantic::CompareI64Immediate => (vec![0], vec![]),
         Semantic::CompareI64 => (vec![0, 1], vec![]),
-        Semantic::MaterializeI64 => (vec![], vec![0]),
-        Semantic::ImageAddress => (vec![], vec![0]),
+        Semantic::MaterializeI64 | Semantic::ImageAddress => (vec![], vec![0]),
         Semantic::MaterializeBooleanEqual
         | Semantic::MaterializeBooleanU64LessThan
         | Semantic::MaterializeBooleanI64LessThan
@@ -863,10 +861,8 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
         Semantic::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         Semantic::PortWrite => Size::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
-        Semantic::AtomicFence => Size::ExactBytes(3),
-        Semantic::MemoryFence => Size::ExactBytes(3),
-        Semantic::ProcessorHalt => Size::ExactBytes(1),
-        Semantic::InterruptControl => Size::ExactBytes(1),
+        Semantic::AtomicFence | Semantic::MemoryFence => Size::ExactBytes(3),
+        Semantic::ProcessorHalt | Semantic::InterruptControl => Size::ExactBytes(1),
         Semantic::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)
         }
