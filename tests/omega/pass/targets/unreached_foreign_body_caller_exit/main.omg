@@ -21,23 +21,25 @@ machine Helper::firmware_bridge(input: i32) -> i32 {
     transition { _ -> (Helper::firmware_only(input)) }
 }
 
-public data Value {}
-public boundary requirement Value::read(input: i32) -> i32;
+public boundary trait ValueRead {
+    machine read(input: i32) -> i32
+    reaches;
+}
 
-// The provider the build selects for `Value::read`.
+// The provider the build selects for `ValueRead::read`.
 public data PlainValue {}
 machine PlainValue::read(input: i32) -> i32
-satisfies Value::read { input }
+satisfies ValueRead::read { input }
 
 // A competing provider the build never selects.
 public data FirmwareValue {}
 machine FirmwareValue::read(input: i32) -> i32
-satisfies Value::read { Helper::firmware_only(input) }
+satisfies ValueRead::read { Helper::firmware_only(input) }
 
 data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let selected: i32 = Value::read(70);
+    let selected: i32 = ValueRead::read(70);
     Console::exit_process(selected);
 }
 
