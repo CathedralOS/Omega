@@ -3,9 +3,9 @@
 
 use super::item_copies::SyntaxCopy;
 use crate::expression::{
-    ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
-    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableStructLiteral,
-    TableStructLiteralField,
+    ExpressionHandle, ExpressionNode, MatchPattern, MatchSubjectCapture, StaticMachineArgument,
+    TableBinaryExpression, TableCallExpression, TableCastExpression, TableDestructurePattern,
+    TableIndexedExpression, TableMemberExpression, TableStructLiteral, TableStructLiteralField,
 };
 use crate::identifier::Identifier;
 use crate::item::{
@@ -17,7 +17,7 @@ use crate::statement::{
     TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
 use crate::syntax_trees::SyntaxTrees;
-use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::{Handle, HandleSpan};
 
 /// `StateSignature` assembly shared by the signature copy entrances: one row
@@ -55,8 +55,8 @@ impl SyntaxCopy<'_> {
     pub fn copy_static_machine_argument(
         &mut self,
         other: &SyntaxTrees,
-        argument: &crate::expression::StaticMachineArgument,
-    ) -> crate::expression::StaticMachineArgument {
+        argument: &StaticMachineArgument,
+    ) -> StaticMachineArgument {
         let mut copied = argument.clone();
         self.remap_static_machine_argument(other, &mut copied);
         copied
@@ -65,7 +65,7 @@ impl SyntaxCopy<'_> {
     pub(super) fn remap_static_machine_argument(
         &mut self,
         other: &SyntaxTrees,
-        argument: &mut crate::expression::StaticMachineArgument,
+        argument: &mut StaticMachineArgument,
     ) {
         argument.type_reference = self.copy_type_reference_handle(other, argument.type_reference);
         if let Some(application) = &mut argument.application {
@@ -380,11 +380,9 @@ impl SyntaxCopy<'_> {
             } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
                 let length = match length {
-                    crate::types::FixedArrayLength::Expression(use_type) => {
-                        crate::types::FixedArrayLength::Expression(
-                            self.copy_type_reference_handle(other, *use_type),
-                        )
-                    }
+                    FixedArrayLength::Expression(use_type) => FixedArrayLength::Expression(
+                        self.copy_type_reference_handle(other, *use_type),
+                    ),
                     length => length.clone(),
                 };
                 self.type_references
@@ -537,8 +535,8 @@ impl SyntaxCopy<'_> {
     fn copy_match_subject(
         &mut self,
         other: &SyntaxTrees,
-        capture: Handle<crate::expression::MatchSubjectCapture>,
-    ) -> Handle<crate::expression::MatchSubjectCapture> {
+        capture: Handle<MatchSubjectCapture>,
+    ) -> Handle<MatchSubjectCapture> {
         if !capture.is_valid() {
             return Handle::invalid();
         }
@@ -562,8 +560,8 @@ impl SyntaxCopy<'_> {
     fn copy_destructure_pattern(
         &mut self,
         other: &SyntaxTrees,
-        pattern: crate::expression::TableDestructurePattern,
-    ) -> crate::expression::TableDestructurePattern {
+        pattern: TableDestructurePattern,
+    ) -> TableDestructurePattern {
         use crate::expression::{MatchFieldAction, TableMatchField};
         let head = self.copy_expression_handle(other, pattern.head);
         let fields = other
@@ -590,7 +588,7 @@ impl SyntaxCopy<'_> {
                 .iter()
                 .cloned(),
         );
-        crate::expression::TableDestructurePattern {
+        TableDestructurePattern {
             head,
             fields,
             has_rest: pattern.has_rest,
@@ -623,18 +621,12 @@ impl SyntaxCopy<'_> {
                     Vec::with_capacity(other.expressions.match_arms(dispatch.arms).len());
                 for arm in other.expressions.match_arms(dispatch.arms) {
                     let pattern = match arm.pattern {
-                        crate::expression::MatchPattern::Value(value) => {
-                            crate::expression::MatchPattern::Value(
-                                self.copy_expression_handle(other, value),
-                            )
+                        MatchPattern::Value(value) => {
+                            MatchPattern::Value(self.copy_expression_handle(other, value))
                         }
-                        crate::expression::MatchPattern::Wildcard => {
-                            crate::expression::MatchPattern::Wildcard
-                        }
-                        crate::expression::MatchPattern::Destructure(pattern) => {
-                            crate::expression::MatchPattern::Destructure(
-                                self.copy_destructure_pattern(other, pattern),
-                            )
+                        MatchPattern::Wildcard => MatchPattern::Wildcard,
+                        MatchPattern::Destructure(pattern) => {
+                            MatchPattern::Destructure(self.copy_destructure_pattern(other, pattern))
                         }
                     };
                     let value = self.copy_expression_handle(other, arm.value);
