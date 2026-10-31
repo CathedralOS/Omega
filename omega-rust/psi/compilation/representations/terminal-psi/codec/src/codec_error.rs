@@ -23,6 +23,16 @@ pub enum CodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedStructuralFoundation(&'static str),
+    /// Preserve the exact failed return custody row without admitting it or
+    /// requiring a second diagnostic build to identify its producing owner.
+    MalformedScalarReturnFoundation {
+        machine: String,
+        domain: String,
+        edge: semantic_vocabulary::EdgeId,
+        source: semantic_vocabulary::ValueId,
+        result: semantic_vocabulary::ValueId,
+        reason: String,
+    },
     /// A malformed operation retains its portable owner and position so the
     /// diagnostic identifies the producer to repair, not just the failed rule.
     MalformedOperationFoundation {
