@@ -151,6 +151,23 @@ pub fn aarch64_register_constraint_catalog(
             .collect::<Vec<_>>()
     };
 
+    // The recurring three-address register form: two preserved inputs and a
+    // late-clobber output, in operand order.
+    let use_use_def = || {
+        vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(2, RegisterOperandAccess::Def, GPR64),
+        ]
+    };
+    // The recurring two-operand form: one preserved input, one late-clobber output.
+    let use_def = || {
+        vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Def, GPR64),
+        ]
+    };
+
     let sp_units = view("sp").units.clone();
     let pc_units = view("pc").units.clone();
     let link_units = view("x30").units.clone();
@@ -318,14 +335,7 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
-        instruction_row(
-            RegisterConstraintId(7),
-            AARCH64_COPY_I64,
-            vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-        ),
+        instruction_row(RegisterConstraintId(7), AARCH64_COPY_I64, use_def()),
         nzcv_defining_row(
             RegisterConstraintId(8),
             AARCH64_COMPARE_I64_ZERO,
@@ -345,39 +355,21 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: view("pc").units.clone(),
             clobbers: Vec::new(),
         },
-        instruction_row(
-            RegisterConstraintId(10),
-            AARCH64_ADD_I64,
-            vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
-        ),
+        instruction_row(RegisterConstraintId(10), AARCH64_ADD_I64, use_use_def()),
         instruction_row(
             RegisterConstraintId(11),
             AARCH64_ADD_I64_IMMEDIATE,
-            vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
+            use_def(),
         ),
         instruction_row(
             RegisterConstraintId(12),
             AARCH64_SUBTRACT_I64,
-            vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Use, GPR64),
-                allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
+            use_use_def(),
         ),
         instruction_row(
             RegisterConstraintId(13),
             AARCH64_SUBTRACT_I64_IMMEDIATE,
-            vec![
-                allocatable(0, RegisterOperandAccess::Use, GPR64),
-                allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
+            use_def(),
         ),
         nzcv_defining_row(
             RegisterConstraintId(16),
@@ -411,19 +403,12 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         AARCH64_LOAD64,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_def(),
     ));
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         AARCH64_LOAD8_INDEXED,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     for (key, result_access) in [
         (AARCH64_STORE, RegisterOperandAccess::Use),
@@ -710,11 +695,7 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(nzcv_defining_row(
         RegisterConstraintId(0),
         AARCH64_SATURATING_SUBTRACT_UNSIGNED,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     constraints.push(instruction_row(
         RegisterConstraintId(0),
@@ -732,11 +713,7 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         AARCH64_DIVIDE_I64,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     constraints.push(instruction_row(
         RegisterConstraintId(0),
@@ -754,20 +731,12 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         AARCH64_DIVIDE_U64,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         AARCH64_MULTIPLY_I64,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     // LSLV/LSRV/ASRV are ordinary three-address register forms: the count
     // operand supplies its own low-six-bit reduction, so no operand is
@@ -775,20 +744,12 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         AARCH64_SHIFT_I64,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     constraints.push(nzcv_defining_row(
         RegisterConstraintId(0),
         AARCH64_SATURATING_ADD_U64,
-        vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
+        use_use_def(),
     ));
     // The clamped saturating forms clamp through a bound scratch (operand 3);
     // the multiplications hold the product's high half there instead. Both
