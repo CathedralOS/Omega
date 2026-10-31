@@ -30,11 +30,15 @@ struct PreparedInvocation {
 
 fn occurrence(
     program: &TypedTrees,
-    owner: SymbolHandle,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    position: usize,
     call: StaticArgumentCall<'_>,
 ) -> InvocationTuple {
+    let owner = machine.symbol;
     let application = call.application();
     let arguments = invocation_binding_views::complete_arguments(program, owner, call)
+        .or_else(|| inferred_method_arguments(program, machine, state, position, call))
         .unwrap_or_else(|| call.arguments(program).to_vec());
     if application.is_valid() {
         InvocationTuple {
@@ -55,6 +59,151 @@ fn occurrence(
             lifetimes: Vec::new(),
         }
     }
+}
+
+/// Infer omitted method type operands from this exact invocation's runtime
+/// actuals. This is tuple formation only: ordinary immutable call admission
+/// still validates every substituted carrier, restriction and argument.
+fn inferred_method_arguments(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    position: usize,
+    call: StaticArgumentCall<'_>,
+) -> Option<Vec<StaticMachineArgument>> {
+    let (target, runtime_arguments, application) = match call {
+        StaticArgumentCall::Expression(_, call) => (
+            call.target_symbol,
+            program.expression_table.expression_handles(call.arguments),
+            call.requirement_application,
+        ),
+        StaticArgumentCall::Statement(call) => (
+            call.target_symbol,
+            program.statement_table.expression_handles(call.arguments),
+            TypeReferenceHandle::invalid(),
+        ),
+    };
+    // Rechecking a joined Product can observe an already closed receiving
+    // target. Its zero-parameter signature cannot replace this invocation's
+    // original method telescope or its independently applied outer scope.
+    let receiver = || receiver_scope(program, machine, state, position, call);
+    let (template, scope) =
+        source_scope(program, machine.symbol, target, receiver, application).ok()??;
+    let (_, declared_signature) = program.trait_machine_signature(template)?;
+    let signature = program
+        .applied_callable_signature(&scope, template)
+        .or_else(|| {
+            (scope.substitutions.is_empty() && scope.declaration.lifetime_parameters.is_empty())
+                .then_some(declared_signature)
+        })?;
+    let parameters = program.state_signature_type_parameters(signature);
+    let explicit = call.arguments(program);
+    if explicit.len() >= parameters.len() {
+        return None;
+    }
+    let mut bindings = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(explicit) {
+        if !matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Const { .. }
+        ) {
+            return None;
+        }
+        bindings.push((
+            parameter.symbol,
+            if argument.type_reference.is_valid() {
+                argument.type_reference
+            } else if argument.application.is_none()
+                && argument.const_literal.is_none()
+                && argument.evidence_projection.is_none()
+            {
+                program
+                    .type_reference_table
+                    .find_named_type_reference(argument.symbol)?
+            } else {
+                return None;
+            },
+        ));
+    }
+    for (formal, actual) in program
+        .state_signature_parameters(signature)
+        .iter()
+        .zip(runtime_arguments)
+    {
+        let Some(actual) =
+            validation::expression_result_type_reference(program, machine, state, *actual)
+        else {
+            // Another argument can supply this tuple. Unavailable result types
+            // are not evidence for a binding and do not block independent ones.
+            continue;
+        };
+        validation::infer_call_type_arguments(
+            program,
+            parameters,
+            program.machine_type_parameters(machine),
+            formal.type_reference,
+            actual,
+            &mut bindings,
+        );
+    }
+    let mut complete = explicit.to_vec();
+    for parameter in &parameters[explicit.len()..] {
+        if !matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Const { .. }
+        ) {
+            return None;
+        }
+        let mut matches = bindings
+            .iter()
+            .filter(|(symbol, _)| *symbol == parameter.symbol);
+        let (_, reference) = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        complete.push(
+            program
+                .static_operand_from_type_reference(*reference)
+                .ok()?,
+        );
+    }
+    Some(complete)
+}
+
+/// Rejoin the invocation's authored receiver in its exact evaluation context.
+/// Statement and expression actual spans have different arena owners, while
+/// their applied trait scope has the same checking meaning.
+fn receiver_scope<'p>(
+    program: &'p TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    position: usize,
+    call: StaticArgumentCall<'_>,
+) -> Option<AppliedTraitScope<'p>> {
+    if matches!(call, StaticArgumentCall::Expression(_, call) if !call.receiver.is_valid()) {
+        return None;
+    }
+    let (symbol, reference) = match call {
+        StaticArgumentCall::Statement(call) => (
+            call.receiver_symbol,
+            validation::projected_statement_receiver_type_reference(program, state, position, call),
+        ),
+        StaticArgumentCall::Expression(_, call) => (
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+            validation::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                position,
+                call.receiver,
+            ),
+        ),
+    };
+    validation::qualified_trait_scope(program, machine.symbol, symbol, reference)
 }
 
 fn instance<'p>(
@@ -254,7 +403,9 @@ fn prepare_invocations(
                         target: call.target_symbol,
                         tuple: occurrence(
                             program,
-                            machine.symbol,
+                            machine,
+                            state,
+                            position,
                             StaticArgumentCall::Statement(call),
                         ),
                     });
@@ -273,7 +424,9 @@ fn prepare_invocations(
                             target: call.target_symbol,
                             tuple: occurrence(
                                 program,
-                                machine.symbol,
+                                machine,
+                                state,
+                                position,
                                 StaticArgumentCall::Expression(expression, call),
                             ),
                         });
@@ -361,7 +514,13 @@ pub(super) fn invocation_tuples<'p>(
                         },
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
-                        occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
+                        occurrence(
+                            program,
+                            machine,
+                            state,
+                            position,
+                            StaticArgumentCall::Statement(call),
+                        ),
                     )?;
                 }
                 let expressions = source_expression_roster(
@@ -400,7 +559,9 @@ pub(super) fn invocation_tuples<'p>(
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
                                 program,
-                                machine.symbol,
+                                machine,
+                                state,
+                                position,
                                 StaticArgumentCall::Expression(expression, call),
                             ),
                         )?;
@@ -608,10 +769,10 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             continue;
         }
         let application = super::super::applications::retain_authored_call(program, site, owner);
-        let mut arguments = program
-            .expression_table
-            .static_machine_application_arguments(application)
-            .to_vec();
+        // Authored operands remain the source recipe. Publish the complete
+        // occurrence-derived tuple in the separate bindings lane, so omitted
+        // type arguments survive retargeting without rewriting that recipe.
+        let mut arguments = invocation.tuple.arguments.clone();
         if arguments.len() != parameters.len() {
             // Argument admission owns malformed source telescopes.
             continue;
