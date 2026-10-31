@@ -18,6 +18,8 @@ fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
 	native binding requires the exact compiler-owned `ForeignBinding` declaration
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
 	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure
+fail/build/terminal_calling_policy_invalid_rejection rejected 8431ms expected @d2937c3afdf3
+	construction of `CallingPolicyRejection` field `reason` is not proven in domain `[u8]::Utf8` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -15948,7 +15950,7 @@ fail/build/calling_policy_checked_helper_rejection rejected 18781ms expected @cc
 	calling policy rejected the boundary: checked helper observed
 fail/build/calling_policy_entry_premise rejected 18444ms expected @ccdb99ca2214
 	machine `LocalPolicy::plan` is not build-time admissible: machine `LocalPolicy::plan` has an authored `requires` premise along `LocalPolicy::plan`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/build/calling_policy_missing_target_member rejected 16712ms expected @ccdb99ca2214
+fail/build/calling_policy_missing_target_member rejected 8848ms expected @d2937c3afdf3
 	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
 fail/build/calling_policy_unproved_helper rejected 18269ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
@@ -39175,7 +39177,7 @@ fail/text/concatenation_into_borrowed_view_rejected rejected 14288ms expected @c
 	the concatenation stored into `out_line` in render establishes owned bytes, but `out_line` is a borrowed `&[u8]` view that cannot hold them; store the concatenation into a bounded `[u8; N]` carrier whose capacity bounds both operands
 fail/text/element_guard_other_index_unbounded rejected 672ms expected @ccdb99ca2214
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/text/inline_byte_case_requires_field_domain rejected 1568ms expected @ccdb99ca2214
+fail/text/inline_byte_case_requires_field_domain rejected 1097ms expected @d2937c3afdf3
 	construction value is not proven in domain `[u8; N]::Ascii` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	construction of `Reply` field `content` is not proven in domain `[u8; N]::Ascii` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/text/later_arm_guard_read_unbounded rejected 1530ms expected @ccdb99ca2214
