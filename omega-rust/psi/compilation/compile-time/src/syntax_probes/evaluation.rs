@@ -268,7 +268,11 @@ fn prepare_evaluation_inputs_with_owners(
         // raw syntax. Use the existing operational graph, not token spellings or
         // a second expression walker, to demand those same selected bodies.
         let operators = validation::derive_pre_flow_operator_selections(typing.typed());
-        selected_body_dependencies(typing.typed(), &operators, &mut execution);
+        crate::BuildTimeAdmissionPlan::infer_execution_dependencies(
+            typing.typed(),
+            &operators,
+            &mut execution,
+        );
         let (work, selection) = declaration_dependencies(
             typing.typed(),
             &operators,
@@ -322,14 +326,6 @@ fn validate_declaration_roots(
         )]);
     }
     Ok(())
-}
-
-fn selected_body_dependencies(
-    program: &TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
-    execution: &mut Vec<SymbolHandle>,
-) {
-    crate::BuildTimeAdmissionPlan::infer_execution_dependencies(program, operators, execution);
 }
 
 /// Calls are not the whole checking domain: a demanded signature, data predicate,
