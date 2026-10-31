@@ -23,6 +23,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
     machine_parameters: HandleSpan<StateParameterHandle>,
     machine_return_type: TypeReferenceHandle,
 ) -> ParseResult<'tokens, 'source, ParsedMachineBody> {
+    crate::contracts::reject_machine_clause_separator(syntax_trees, input)?;
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         let entry_state = State {

@@ -174,12 +174,13 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;
         let (clauses, rest) =
-            parse_signature_clauses(syntax_trees, rest, true, signature.type_parameters)?;
+            parse_signature_clauses(syntax_trees, rest, signature.type_parameters)?;
         crate::parameters::contracts::validate_machine_parameter_contracts(
             syntax_trees,
             signature.type_parameters,
             rest,
         )?;
+        crate::contracts::reject_machine_clause_separator(syntax_trees, rest)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
