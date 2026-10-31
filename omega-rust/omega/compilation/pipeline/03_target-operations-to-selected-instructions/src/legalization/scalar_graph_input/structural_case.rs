@@ -418,18 +418,13 @@ pub(in crate::legalization) fn structural_transport_layout(
             })
             .ok_or(LegalizationError::custody())?;
     }
-    let shape = crate::structural_inputs::structural_reference_input::shape(
-        copy_type,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let shape = crate::structural_inputs::shape(copy_type, &plan.structural_types)
+        .ok_or(LegalizationError::custody())?;
     // Nominal adaptation is licensed by its exact retained occurrence, while
     // the physical copy independently preserves both endpoints' geometry.
     if quotient
-        && crate::structural_inputs::structural_reference_input::shape(
-            result.structural_type,
-            &plan.structural_types,
-        ) != Some(shape.clone())
+        && crate::structural_inputs::shape(result.structural_type, &plan.structural_types)
+            != Some(shape.clone())
     {
         return Err(LegalizationError::custody());
     }

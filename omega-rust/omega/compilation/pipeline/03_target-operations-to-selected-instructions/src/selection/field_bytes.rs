@@ -34,10 +34,7 @@ impl FieldBytes {
             field,
             &signature.structural_types,
         )?;
-        if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        ) {
+        if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
             return None;
         }
         let offset = if let Some(offset) = geometry.descriptor_offset {

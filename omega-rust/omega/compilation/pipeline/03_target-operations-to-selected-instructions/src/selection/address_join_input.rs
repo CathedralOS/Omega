@@ -135,10 +135,7 @@ pub(crate) fn projection(
             &signature.structural_types,
         )
     }?;
-    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-        indices,
-        &geometry.elements,
-    ) {
+    if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
         return None;
     }
     let referent = geometry.selected;
@@ -156,10 +153,7 @@ pub(crate) fn projection(
     } else {
         geometry.byte_offset
     };
-    let Some(lent) = crate::structural_inputs::structural_reference_input::shape(
-        referent,
-        &signature.structural_types,
-    ) else {
+    let Some(lent) = crate::structural_inputs::shape(referent, &signature.structural_types) else {
         return None;
     };
     if referent != parameter.structural_type {

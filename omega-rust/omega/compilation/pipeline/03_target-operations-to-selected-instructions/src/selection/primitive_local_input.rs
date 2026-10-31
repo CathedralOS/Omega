@@ -187,11 +187,8 @@ fn length_count_matches(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
             .ok()?,
     );
-    (scalar == count
-        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices, elements,
-        ))
-    .then_some(())
+    (scalar == count && crate::structural_inputs::runtime_indices_match(indices, elements))
+        .then_some(())
 }
 
 pub(super) fn read_geometry(
@@ -231,15 +228,8 @@ pub(super) fn read_geometry(
             geometry.byte_offset = geometry.byte_offset.checked_add(expected)?;
             (geometry.readable
                 && *length_byte_offset == expected
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices,
-                    &geometry.elements,
-                ))
-            .then_some((
-                argument.place,
-                geometry.byte_offset,
-                geometry.pointer_slots,
-            ))
+                && crate::structural_inputs::runtime_indices_match(indices, &geometry.elements))
+            .then_some((argument.place, geometry.byte_offset, geometry.pointer_slots))
         }
         Instruction::ElementViewLength {
             source: argument,
@@ -301,11 +291,8 @@ pub(super) fn read_geometry(
                     path,
                     &signature.structural_types,
                 )?;
-            crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices,
-                &geometry.elements,
-            )
-            .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
+            crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
+                .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
         }
         Instruction::PrimitiveScalarRead {
             source: place,
@@ -345,11 +332,8 @@ pub(super) fn read_geometry(
                     scalar,
                     &signature.structural_types,
                 )?;
-            crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices,
-                &geometry.elements,
-            )
-            .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
+            crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
+                .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,

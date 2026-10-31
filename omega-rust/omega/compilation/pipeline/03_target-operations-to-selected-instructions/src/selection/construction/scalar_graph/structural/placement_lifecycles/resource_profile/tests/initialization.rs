@@ -227,11 +227,8 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
                     .zip(parameter_types)
                     .enumerate()
                     .map(|(position, (place, structural_type))| {
-                        let shape = crate::structural_inputs::structural_reference_input::shape(
-                            structural_type,
-                            &types.0,
-                        )
-                        .unwrap();
+                        let shape =
+                            crate::structural_inputs::shape(structural_type, &types.0).unwrap();
                         let semantic = StructuralParameterDeclaration {
                             place,
                             position: position as u32,

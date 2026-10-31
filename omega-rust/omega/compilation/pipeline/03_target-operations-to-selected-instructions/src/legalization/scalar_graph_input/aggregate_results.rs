@@ -262,11 +262,8 @@ pub(super) fn header(
         .collect::<Result<Vec<_>, _>>()?;
     for parameter in &abstracted.structural_parameters {
         shapes.push(
-            crate::structural_inputs::structural_reference_input::parameter_shape(
-                parameter,
-                &plan.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?,
+            crate::structural_inputs::parameter_shape(parameter, &plan.structural_types)
+                .ok_or(LegalizationError::custody())?,
         );
     }
     let expected = evaluate_call_plan(
@@ -677,12 +674,7 @@ pub(in crate::legalization) fn type_home_layout(
                 structural_type,
                 &plan.structural_types,
             )
-            .or_else(|| {
-                crate::structural_inputs::structural_reference_input::shape(
-                    structural_type,
-                    &plan.structural_types,
-                )
-            })
+            .or_else(|| crate::structural_inputs::shape(structural_type, &plan.structural_types))
             .ok_or(LegalizationError::custody())?,
         ));
     }

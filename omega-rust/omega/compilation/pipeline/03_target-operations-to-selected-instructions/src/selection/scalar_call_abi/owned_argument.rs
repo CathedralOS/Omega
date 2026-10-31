@@ -42,9 +42,7 @@ pub(super) fn validate_owned_arguments(
             || target.shape != shape
             || target.destination.shape != shape
             || target.source_byte_offset != offset
-            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices, &elements,
-            )
+            || !crate::structural_inputs::runtime_indices_match(indices, &elements)
             || target.indices.len() != indices.len()
             || target
                 .indices
