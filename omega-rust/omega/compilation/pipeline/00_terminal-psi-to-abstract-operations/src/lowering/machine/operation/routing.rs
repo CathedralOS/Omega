@@ -8,7 +8,7 @@ use terminal_psi::{OperationKind, TerminalMachine};
 use super::{
     LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, atomic_events, boolean,
     borrowed_windows, calls, effects, ieee_float, integer_bitwise, integer_constants_and_relations,
-    integer_conversion, shifts, structural_establishment, structural_leaf_copy,
+    integer_conversion, shifts, structural_establishment, structural_leaf_copy, structural_result,
     structural_scalar_fields, trapping_integer, unsigned_scalar,
 };
 use crate::lowering::LoweringError;
@@ -40,11 +40,7 @@ pub(super) fn lower(
         } => {
             terminal_semantics::activation_storage::activation_claim_shape(module, operation)
                 .map_err(|_| LoweringError::InvalidActivationStorage(operation.id))?;
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
+            let result = structural_result(operation, LoweringError::InvalidActivationStorage)?;
             Ok(AbstractOperation::EstablishActivationClaim {
                 psi_operation: operation.id,
                 result,
@@ -70,11 +66,7 @@ pub(super) fn lower(
             covered_case,
             rejected_case,
         } => {
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
+            let result = structural_result(operation, LoweringError::InvalidActivationStorage)?;
             Ok(AbstractOperation::SplitActivationClaim {
                 psi_operation: operation.id,
                 result,
@@ -94,11 +86,7 @@ pub(super) fn lower(
             covered_case,
             rejected_case,
         } => {
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
+            let result = structural_result(operation, LoweringError::InvalidActivationStorage)?;
             Ok(AbstractOperation::MergeActivationClaim {
                 psi_operation: operation.id,
                 result,
@@ -476,11 +464,8 @@ pub(super) fn lower(
             // One descriptor derivation for both spellings; the argument's
             // `MutableBorrow` access keeps the exclusive-loan distinction
             // consumers must see.
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::InvalidElementViewEstablishment(operation.id))?;
+            let result =
+                structural_result(operation, LoweringError::InvalidElementViewEstablishment)?;
             if result.place != *destination {
                 return Err(LoweringError::InvalidElementViewEstablishment(operation.id));
             }

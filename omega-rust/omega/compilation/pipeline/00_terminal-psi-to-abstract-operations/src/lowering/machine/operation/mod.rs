@@ -56,6 +56,16 @@ fn unsigned_scalar(
     Ok(result)
 }
 
+/// The operation's structural result, cloned so each caller routes onward the
+/// place and claim frontier it established.
+fn structural_result(
+    operation: &terminal_psi::Operation,
+    invalid: fn(OperationId) -> LoweringError,
+) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
+    let result = operation.result.structural().cloned();
+    result.ok_or(invalid(operation.id))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
     operation: &terminal_psi::Operation,
