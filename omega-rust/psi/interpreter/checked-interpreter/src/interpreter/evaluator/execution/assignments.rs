@@ -10,6 +10,7 @@ use crate::interpreter::evaluator::{
     MutableRecordRecastWrite, ReferenceStorage, Value, expression_table, trap,
     type_reference_table,
 };
+use validation::{assignment_stored_value_type, declared_place_type_raw};
 
 enum AssignmentDestination {
     Cell(Cell),
@@ -48,12 +49,7 @@ impl Evaluator<'_> {
                 self.program
                     .state_in_machine(machine, frame.state_symbol)
                     .and_then(|state| {
-                        validation::assignment_stored_value_type(
-                            self.program,
-                            machine,
-                            state,
-                            assignment,
-                        )
+                        assignment_stored_value_type(self.program, machine, state, assignment)
                     })
             })
             .ok_or_else(|| {
@@ -248,12 +244,7 @@ impl Evaluator<'_> {
                     self.program
                         .state_in_machine(machine, frame.state_symbol)
                         .and_then(|state| {
-                            validation::declared_place_type_raw(
-                                self.program,
-                                machine,
-                                Some(state),
-                                target,
-                            )
+                            declared_place_type_raw(self.program, machine, Some(state), target)
                         })
                 })
                 .ok_or_else(|| {

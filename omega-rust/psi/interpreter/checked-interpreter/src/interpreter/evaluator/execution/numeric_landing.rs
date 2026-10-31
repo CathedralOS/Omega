@@ -3,7 +3,7 @@
 //! destinations and Ref values keep their existing storage relationships.
 
 use crate::interpreter::evaluator::{
-    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame,
+    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
     PrimitiveType, Reference, State, TypeReferenceHandle, TypeReferenceNode, Value,
     type_reference_table, unsupported,
 };
@@ -24,11 +24,7 @@ impl Evaluator<'_> {
             self.tick()?;
             let declared = self
                 .expression_type_reference(carrier.place, frame)
-                .ok_or_else(|| {
-                    crate::interpreter::evaluator::Halt::Unsupported(
-                        "atomic attempt lost its cell type".to_owned(),
-                    )
-                })?;
+                .ok_or_else(|| Halt::Unsupported("atomic attempt lost its cell type".to_owned()))?;
             let TypeReferenceNode::Named { symbol, .. } =
                 self.program.type_reference_table.type_reference(declared)
             else {

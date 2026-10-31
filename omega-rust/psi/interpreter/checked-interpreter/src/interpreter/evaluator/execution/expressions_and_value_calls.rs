@@ -3,6 +3,7 @@ use crate::interpreter::evaluator::{
     Frame, Halt, HashSet, PrimitiveType, Reference, Value, expression_table, trap,
     type_reference_table, unsupported,
 };
+use typed_trees::references::collect_type_symbol_dependencies;
 mod call_evaluation;
 mod layout_target_facts;
 mod literal_evaluation;
@@ -53,16 +54,13 @@ impl<'program> Evaluator<'program> {
                 .map(Value::Bool)
                 .ok_or_else(|| {
                     let input = [left, right].into_iter().find_map(|reference| {
-                        typed_trees::references::collect_type_symbol_dependencies(
-                            self.program,
-                            reference,
-                        )
-                        .into_iter()
-                        .find(|symbol| {
-                            symbol.is_valid()
-                                && self.program.symbols.get(*symbol).kind
-                                    == symbols::SymbolKind::TypeParameter
-                        })
+                        collect_type_symbol_dependencies(self.program, reference)
+                            .into_iter()
+                            .find(|symbol| {
+                                symbol.is_valid()
+                                    && self.program.symbols.get(*symbol).kind
+                                        == symbols::SymbolKind::TypeParameter
+                            })
                     });
                     match input {
                         Some(input) => Halt::StaticInputUnavailable(
