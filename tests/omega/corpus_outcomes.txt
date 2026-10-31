@@ -12205,6 +12205,7 @@ pass/providers/applied_requirement_computed_const_exit rejected 1559ms check-tar
 pass/providers/applied_routed_index_forwarding_exit rejected 1322ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
 	provider choice must supply the declaration's complete static application
 	inspection main admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 390, end: 405 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/providers/applied_routed_index_forwarding_exit/build.omg", line: 8, column: 12 }) }]
+pass/providers/applied_trait_member_implicit_inference_exit checked 1699ms check-target:macos_arm64 @f56bc7223ee4
 pass/providers/applied_type_index_forwarding_exit rejected 716ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	provider choice must supply the declaration's complete static application
 pass/providers/assumed_result_bound_call_result_exit checked 3131ms check-target:linux_x86_64 @ccdb99ca2214
