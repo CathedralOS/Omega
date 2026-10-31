@@ -1,3 +1,4 @@
+use crate::interpreter::UnavailableStaticInput::Binding;
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
     ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet, MutableRecordRecastWrite,
@@ -8,6 +9,8 @@ use crate::interpreter::evaluator::{
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
+use typed_trees::types::TypeReferenceNode::Constrained;
+use typed_trees::types::TypeReferenceNode::FixedArray;
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn field_cell(
         &self,
@@ -699,12 +702,10 @@ impl<'program> Evaluator<'program> {
         } else if path.head_symbol.is_valid()
             && self.program.symbols.get(path.head_symbol).kind == symbols::SymbolKind::TypeParameter
         {
-            return Err(Halt::StaticInputUnavailable(
-                crate::interpreter::UnavailableStaticInput::Binding {
-                    symbol: path.head_symbol,
-                    display: head.to_owned(),
-                },
-            ));
+            return Err(Halt::StaticInputUnavailable(Binding {
+                symbol: path.head_symbol,
+                display: head.to_owned(),
+            }));
         } else if self.is_declaration_namespace(path.head_symbol) {
             // A head resolved to a declaration (`Worker` in `Worker::write`)
             // names no storage. Reading it as an implicit field would let a
@@ -736,10 +737,8 @@ impl<'program> Evaluator<'program> {
             return false;
         }
         match type_reference_table(self.program).type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                self.declared_type_is_fixed_array(*base_type)
-            }
+            FixedArray { .. } => true,
+            Constrained { base_type, .. } => self.declared_type_is_fixed_array(*base_type),
             _ => false,
         }
     }
@@ -756,12 +755,8 @@ impl<'program> Evaluator<'program> {
             return None;
         }
         match type_reference_table(self.program).type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
-                Some(*element_type)
-            }
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                self.fixed_array_element_type(*base_type)
-            }
+            FixedArray { element_type, .. } => Some(*element_type),
+            Constrained { base_type, .. } => self.fixed_array_element_type(*base_type),
             _ => None,
         }
     }

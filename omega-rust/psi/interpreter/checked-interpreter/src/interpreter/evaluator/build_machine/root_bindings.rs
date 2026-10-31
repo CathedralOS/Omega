@@ -2,11 +2,12 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, Frame, Halt, Value, expression_table, trap,
 };
-use language_semantics::declaration_selection::{
+use declaration_selection::{
     BuildOperation, BuildSelectionRequest, CompositionMode,
     ExecutedBuildSelection as SourceBuildSelection, ExecutedProductSelection, RootBindingOperand,
 };
-use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
+use declaration_selection::{ExecutedRootBinding, RootBindingSelection};
+use language_semantics::declaration_selection;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::product_operand::capture_static_environment;
 
@@ -145,17 +146,13 @@ impl<'program> Evaluator<'program> {
                 if code >= request.vocabulary.cases().len() as u64 {
                     return trap("behavior exclusion code is outside its vocabulary");
                 }
-                SourceBuildSelection::Exclusion(
-                    language_semantics::declaration_selection::ExecutedEnumExclusion {
-                        request,
-                        code,
-                        selecting_machine: author_coordinate.ok_or_else(|| {
-                            Halt::Trap(
-                                "behavior exclusion lost its authored machine coordinate".into(),
-                            )
-                        })?,
-                    },
-                )
+                SourceBuildSelection::Exclusion(declaration_selection::ExecutedEnumExclusion {
+                    request,
+                    code,
+                    selecting_machine: author_coordinate.ok_or_else(|| {
+                        Halt::Trap("behavior exclusion lost its authored machine coordinate".into())
+                    })?,
+                })
             }
             BuildSelectionRequest::Entry(binding) => {
                 let implementation = match binding.implementation {
@@ -188,9 +185,7 @@ impl<'program> Evaluator<'program> {
                         };
                         let target = u64::try_from(code)
                             .ok()
-                            .and_then(
-                                language_semantics::declaration_selection::ProductTarget::from_code,
-                            )
+                            .and_then(declaration_selection::ProductTarget::from_code)
                             .ok_or_else(|| {
                                 Halt::Trap(
                                     "Product selection names an unknown catalog target".into(),
