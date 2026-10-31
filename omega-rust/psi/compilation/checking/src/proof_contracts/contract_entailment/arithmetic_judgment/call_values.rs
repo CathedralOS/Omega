@@ -16,13 +16,15 @@ impl Engine<'_> {
         comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
     ) -> bool {
         for position in 0..self.opaque_terms.len() {
-            let (atom, operation) = self.opaque_terms[position].clone();
-            let OpaqueTerm::Call {
-                owner,
-                expression,
-                target,
-                arguments,
-            } = operation
+            let (
+                atom,
+                OpaqueTerm::Call {
+                    owner,
+                    expression,
+                    target,
+                    arguments,
+                },
+            ) = &self.opaque_terms[position]
             else {
                 continue;
             };
@@ -30,9 +32,10 @@ impl Engine<'_> {
                 .iter()
                 .map(|value| self.substituted(value))
                 .collect::<Vec<_>>();
-            if normalized == arguments {
+            if normalized == *arguments {
                 continue;
             }
+            let (atom, owner, expression, target) = (atom.clone(), *owner, *expression, *target);
             let Some(value) = self.selected_call_value(owner, expression, target, normalized)
             else {
                 return false;
