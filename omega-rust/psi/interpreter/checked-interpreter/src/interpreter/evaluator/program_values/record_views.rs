@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, FixedArrayLength, Frame, Halt, HashSet, PrimitiveType,
     ReferenceProjection, ReferenceProjectionStep, TypeReferenceHandle, TypeReferenceNode, Value,
-    interpreter_f32_from_bits, interpreter_f32_to_bits, trap, wrap_to_width,
+    interpreter_f32_from_bits, interpreter_f32_to_bits, trap, type_reference_table, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn assemble_scalar_byte_region(
@@ -338,11 +338,7 @@ impl<'program> Evaluator<'program> {
                 .assemble_scalar_byte_region(cells, base_offset, primitive)
                 .map(Some);
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. }
             | TypeReferenceNode::Reference {
                 referee: base_type, ..
@@ -432,11 +428,7 @@ impl<'program> Evaluator<'program> {
             let size = primitive.scalar_byte_size()?;
             return Some((size, size));
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. }
             | TypeReferenceNode::Reference {
                 referee: base_type, ..
@@ -650,11 +642,7 @@ impl<'program> Evaluator<'program> {
             ReferenceProjectionStep::Field(_) => {
                 let mut record_type = type_reference;
                 loop {
-                    match self
-                        .program
-                        .type_reference_table
-                        .type_reference(record_type)
-                    {
+                    match type_reference_table(self.program).type_reference(record_type) {
                         TypeReferenceNode::Constrained { base_type, .. }
                         | TypeReferenceNode::Reference {
                             referee: base_type, ..
@@ -668,9 +656,7 @@ impl<'program> Evaluator<'program> {
                 self.record_view_projection(record_type, path, base_offset, region_len, frame)
             }
             ReferenceProjectionStep::Index(index_handle) => {
-                let node = self
-                    .program
-                    .type_reference_table
+                let node = type_reference_table(self.program)
                     .type_reference(type_reference)
                     .clone();
                 let (element_type, length) = match node {
@@ -789,11 +775,7 @@ impl<'program> Evaluator<'program> {
         if !type_reference.is_valid() {
             return false;
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             TypeReferenceNode::Slice { .. } => true,
             TypeReferenceNode::Constrained { base_type, .. }
             | TypeReferenceNode::Reference {
@@ -878,11 +860,7 @@ impl<'program> Evaluator<'program> {
             let value = self.coerce_scalar_with(value, primitive, domain)?;
             return self.write_scalar_byte_region(cells, base_offset, primitive, value);
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. }
             | TypeReferenceNode::Reference {
                 referee: base_type, ..

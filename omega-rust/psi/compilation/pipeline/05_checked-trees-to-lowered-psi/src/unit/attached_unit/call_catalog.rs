@@ -12,6 +12,7 @@ use super::{
     checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
     checked_unit_provider_candidates, unsupported,
 };
+use crate::checked_facts::value_facts;
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) source_machines: Vec<symbols::SymbolHandle>,
@@ -58,9 +59,7 @@ pub(super) fn discover(
     // Discover each contract head and implementation before allocating shared
     // namespaces. An independent head retains its opaque checked plan even
     // when no call demands it; it supplies no implementation or authority.
-    let native_roots = checked
-        .facts
-        .values
+    let native_roots = value_facts(checked)
         .structural_values
         .nodes
         .iter()

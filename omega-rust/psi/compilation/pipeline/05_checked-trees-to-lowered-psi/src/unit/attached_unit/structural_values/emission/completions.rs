@@ -7,6 +7,7 @@ use super::super::super::{LoweringError, PlaceId, unsupported};
 use super::{
     CompletionOccurrence, Emission, NormalDeathReceipt, ValueCompletion, ValueContinuation,
 };
+use crate::checked_facts::flow_facts;
 use crate::expression_preparation::bindings::LoanAccess;
 
 impl Emission<'_, '_, '_> {
@@ -149,10 +150,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Result<(), LoweringError> {
-        let control = &self
-            .checked
-            .facts
-            .flow
+        let control = &flow_facts(&self.checked)
             .terminal_unit_effects
             .cleanup_control;
         let Some(completion) =

@@ -25,6 +25,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, StructuralPathSegment,
     ValueDeclaration, ValueId, unsupported,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -370,9 +371,7 @@ fn selector_source(
     role: CheckedScalarExpressionRole,
 ) -> Result<checked_trees::CheckedCallScalarArgument, LoweringError> {
     if let Some((_, expression)) =
-        checked
-            .facts
-            .values
+        value_facts(checked)
             .scalar_expressions
             .bound_expression_at(state, statement_index, role)
     {
@@ -380,9 +379,7 @@ fn selector_source(
             expression.clone(),
         ));
     }
-    let root = checked
-        .facts
-        .values
+    let root = value_facts(checked)
         .scalar_computations
         .root_at(state, statement_index, role)
         .ok_or(LoweringError::Unsupported(

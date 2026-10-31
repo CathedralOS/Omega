@@ -6,6 +6,7 @@
 //! preserve the separate provenance decision and exact returned SSA occurrence.
 
 use super::{CheckedTrees, LoweringError, ScalarQualificationCatalog, SymbolHandle, unsupported};
+use crate::checked_facts::flow_facts;
 use checked_trees::CheckedScalarReturnOrigin;
 use semantic_vocabulary::MachineId;
 use terminal_psi::{
@@ -308,9 +309,7 @@ fn matches_exit(
                 && decision.is_continuation
                     == matches!(exit.kind, FlowClaimJoinExitKind::TransitionContinuation)
         }
-        FlowClaimJoinExitKind::CallResult { call_ordinal } => checked
-            .facts
-            .flow
+        FlowClaimJoinExitKind::CallResult { call_ordinal } => flow_facts(checked)
             .control
             .states
             .iter()

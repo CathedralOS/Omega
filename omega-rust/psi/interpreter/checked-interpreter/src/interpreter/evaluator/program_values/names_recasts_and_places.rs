@@ -3,8 +3,8 @@ use crate::interpreter::evaluator::{
     ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet, MutableRecordRecastWrite,
     PrimitiveType, Reference, ReferenceProjection, ReferenceProjectionStep, ReferenceStorage,
     SemanticFloatFormat, SymbolHandle, TableNamePath, TypeReferenceHandle, TypeReferenceNode,
-    Value, apply_arithmetic_domain, interpreter_f32_from_bits, interpreter_f32_to_bits, trap,
-    unsupported,
+    Value, apply_arithmetic_domain, expression_table, interpreter_f32_from_bits,
+    interpreter_f32_to_bits, trap, type_reference_table, unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -64,10 +64,7 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         // The boolean keywords `true`/`false` can arrive as single-member name paths in
         // value/transition position (the parser does not always fold them to a literal).
-        let members = self
-            .program
-            .expression_table
-            .name_path_members(path.members);
+        let members = expression_table(self.program).name_path_members(path.members);
         if let [name] = members
             && let Some(value) = boolean_literal_spelling(name.as_str())
         {
@@ -131,11 +128,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Option<(Cell, ReferenceStorage)>> {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(destination)
-            {
+            match type_reference_table(self.program).type_reference(destination) {
                 TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
                 TypeReferenceNode::Reference { .. } => break,
                 _ => return Ok(None),
@@ -200,9 +193,7 @@ impl<'program> Evaluator<'program> {
                 _ => break,
             }
         }
-        if let ExpressionNode::Indexed(indexed) = self
-            .program
-            .expression_table
+        if let ExpressionNode::Indexed(indexed) = expression_table(self.program)
             .expression(source_handle)
             .clone()
         {
@@ -299,10 +290,7 @@ impl<'program> Evaluator<'program> {
                 .reference_recast_initializer(handle, frame)?
                 .map(|(_, recast)| (recast, Vec::new()))),
             ExpressionNode::Name(path) => {
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 if members.is_empty() {
                     return Ok(None);
                 }
@@ -694,9 +682,7 @@ impl<'program> Evaluator<'program> {
     }
 
     fn resolve_name_place(&mut self, path: &TableNamePath, frame: &Frame) -> EvalResult<Cell> {
-        let members = self
-            .program
-            .expression_table
+        let members = expression_table(self.program)
             .name_path_members(path.members)
             .iter()
             .map(|name| name.as_str().to_owned())
@@ -749,11 +735,7 @@ impl<'program> Evaluator<'program> {
         if !type_reference.is_valid() {
             return false;
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
             typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.declared_type_is_fixed_array(*base_type)
@@ -773,11 +755,7 @@ impl<'program> Evaluator<'program> {
         if !type_reference.is_valid() {
             return None;
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
                 Some(*element_type)
             }

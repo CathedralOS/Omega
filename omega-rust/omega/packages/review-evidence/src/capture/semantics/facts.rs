@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use diagnostics::Diagnostic;
 
 pub(crate) fn exactly_one<'item, Item>(
@@ -5,11 +6,9 @@ pub(crate) fn exactly_one<'item, Item>(
     subject: &str,
     fact_kind: &str,
 ) -> Result<&'item Item, Vec<Diagnostic>> {
-    let first = matches.next().ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "reviewed callable `{subject}` has no exact checked {fact_kind} row"
-        ))]
-    })?;
+    let first = matches.next().or_evidence(format!(
+        "reviewed callable `{subject}` has no exact checked {fact_kind} row"
+    ))?;
     if matches.next().is_some() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` has duplicate checked {fact_kind} rows"

@@ -4,6 +4,7 @@
 //! calls nested in scalar computations share this join, independently of result
 //! shape or dispatch. Actual stored guards select live claims during execution.
 
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::lowering_error::{LoweringError, unsupported};
@@ -66,9 +67,7 @@ pub(crate) fn qualification_facts<'a>(
                 .semantic
                 .place_segments
                 .span_or_empty(place.segments);
-            let region_segments = checked
-                .facts
-                .flow
+            let region_segments = flow_facts(checked)
                 .ownership
                 .segments
                 .span_or_empty(region.segments);
@@ -111,9 +110,7 @@ pub(crate) fn prepare(
         if owner.access != terminal_psi::StructuralAccess::Owned {
             return unsupported("loan completion cannot establish borrowed ingress custody");
         }
-        let canonical = checked
-            .facts
-            .flow
+        let canonical = flow_facts(checked)
             .ownership
             .segments
             .span_or_empty(region.segments);
@@ -129,16 +126,12 @@ pub(crate) fn prepare(
             )?,
         );
         let mut claims = Vec::new();
-        let state_permissions = checked
-            .facts
-            .flow
+        let state_permissions = flow_facts(checked)
             .ownership
             .with_state_permissions(coordinate.state, |handles| handles.to_vec());
         for handle in state_permissions {
             let event = checked.facts.flow.ownership.permissions.get(handle);
-            let event_path = checked
-                .facts
-                .flow
+            let event_path = flow_facts(checked)
                 .ownership
                 .segments
                 .span_or_empty(event.segments);

@@ -4,7 +4,8 @@
 
 use crate::interpreter::evaluator::{
     EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame,
-    PrimitiveType, Reference, State, TypeReferenceHandle, TypeReferenceNode, Value, unsupported,
+    PrimitiveType, Reference, State, TypeReferenceHandle, TypeReferenceNode, Value,
+    type_reference_table, unsupported,
 };
 impl Evaluator<'_> {
     /// Preserve aggregate destinations until each literal element reaches its
@@ -102,20 +103,15 @@ impl Evaluator<'_> {
         }
         if let ExpressionNode::ArrayLiteral(_) =
             self.program.expression_table.expression(expression)
-            && let TypeReferenceNode::FixedArray { element_type, .. } = self
-                .program
-                .type_reference_table
-                .type_reference(destination)
+            && let TypeReferenceNode::FixedArray { element_type, .. } =
+                type_reference_table(self.program).type_reference(destination)
         {
             return self.eval_array_literal_at_element_type(expression, *element_type, frame);
         }
         // An exact byte-array destination owns its literal bytes. Keeping the
         // evaluator's text view here would lose both width and owned snapshot
         // semantics when an applied field was retained by another package.
-        let carrier = self
-            .program
-            .type_reference_table
-            .peeled_type_reference(destination);
+        let carrier = type_reference_table(self.program).peeled_type_reference(destination);
         if let Some(bytes) = self.program.expression_table.string_node(expression)
             && let TypeReferenceNode::FixedArray { element_type, .. } =
                 self.program.type_reference_table.type_reference(carrier)
@@ -171,11 +167,7 @@ impl Evaluator<'_> {
         value: Value,
         destination: TypeReferenceHandle,
     ) -> EvalResult<Value> {
-        match self
-            .program
-            .type_reference_table
-            .type_reference(destination)
-        {
+        match type_reference_table(self.program).type_reference(destination) {
             TypeReferenceNode::Constrained { base_type, .. } => {
                 return self.capture_value_operand(value, *base_type);
             }

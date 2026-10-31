@@ -1,5 +1,5 @@
 use super::host_io::real_path;
-use super::{EACCES, ENOENT, MAX_FILESYSTEM_OBSERVATION_PATH_BYTES};
+use super::{EACCES, ENOENT, MAX_FILESYSTEM_OBSERVATION_PATH_BYTES, real_fs};
 use crate::interpreter::evaluator::{
     FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
 };
@@ -148,11 +148,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         follow: bool,
         operand_ordinal: u8,
     ) -> Option<PathBuf> {
-        let Some(grants) = self
-            .real_fs
-            .as_ref()
-            .and_then(|filesystem| filesystem.grants.as_ref())
-        else {
+        let Some(grants) = real_fs(self).and_then(|filesystem| filesystem.grants.as_ref()) else {
             return Some(path.to_path_buf()); // unscoped: full process authority
         };
         let resolved = if follow {

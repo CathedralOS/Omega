@@ -4,8 +4,8 @@
 //! no authority to invent a cleanup call from a type or machine name.
 
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, EvaluatedArgument, Evaluator, Frame, Halt, Machine, State, Value, trap,
-    unsupported,
+    Cell, EvalResult, EvaluatedArgument, Evaluator, Frame, Halt, Machine, State, Value,
+    statement_table, trap, unsupported,
 };
 use checked_trees::{
     CheckedNormalCleanupAction, CheckedUnitNominalAffineCleanupPlan,
@@ -113,11 +113,10 @@ impl<'program> Evaluator<'program> {
                     .ok_or_else(|| {
                         Halt::Unsupported("normal cleanup result binding is absent".into())
                     })?;
-                let Some(typed_trees::statement::StatementNode::LocalData(local)) = self
-                    .program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .get(result.statement_index as usize)
+                let Some(typed_trees::statement::StatementNode::LocalData(local)) =
+                    statement_table(self.program)
+                        .statements(state.statement_nodes)
+                        .get(result.statement_index as usize)
                 else {
                     return unsupported("normal cleanup result has no retained local binding");
                 };

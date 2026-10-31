@@ -1,6 +1,7 @@
 //! The checked body a scalar call lowers.
 use super::super::CheckedUnitStructuralParameterPlan;
 use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
+use crate::checked_facts::flow_facts;
 use crate::unit::attached_unit::bodies::UnitBody;
 
 /// The Unit body that owns a scalar callee's completion: an ordinary
@@ -28,16 +29,12 @@ impl<'checked> CheckedScalarCallee<'checked> {
         checked: &'checked CheckedTrees,
         source: symbols::SymbolHandle,
     ) -> Result<Self, LoweringError> {
-        let mut operation_bodies = checked
-            .facts
-            .flow
+        let mut operation_bodies = flow_facts(checked)
             .terminal_unit_effects
             .machines
             .iter()
             .chain(
-                checked
-                    .facts
-                    .flow
+                flow_facts(checked)
                     .terminal_partial_affine_unit_cleanups
                     .machines
                     .iter()
@@ -45,9 +42,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
             )
             .filter(|plan| plan.machine == source);
         let operation_body = operation_bodies.next();
-        let mut graph_bodies = checked
-            .facts
-            .flow
+        let mut graph_bodies = flow_facts(checked)
             .terminal_unit_effects
             .composed_machines
             .iter()
@@ -81,9 +76,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
         Err(LoweringError::InvalidUnitMachinePlan {
             machine: checked.symbols.display_path(source, "::"),
             reason: "scalar callee has no checked executable body",
-            gap: checked
-                .facts
-                .flow
+            gap: flow_facts(checked)
                 .terminal_unit_effects
                 .gap_diagnostic(source, &checked.symbols),
         })

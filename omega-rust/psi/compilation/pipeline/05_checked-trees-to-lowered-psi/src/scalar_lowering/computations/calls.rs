@@ -10,6 +10,7 @@ use super::{
     lower_scalar_call, parameter, produced_values, storage, structural_arguments, subslices,
     unsupported,
 };
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
@@ -456,10 +457,7 @@ impl Expansion<'_> {
                                 removed = prefix;
                             }
                             Frontier::Value { structural_type } => {
-                                let expression = self
-                                    .checked
-                                    .facts
-                                    .flow
+                                let expression = flow_facts(&self.checked)
                                     .control
                                     .call_arguments
                                     .span(source.authored_arguments)
@@ -588,10 +586,7 @@ impl Expansion<'_> {
             ..
         } = callee
         {
-            let slot_plan = self
-                .checked
-                .facts
-                .flow
+            let slot_plan = flow_facts(&self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
                 .iter()
@@ -600,10 +595,7 @@ impl Expansion<'_> {
                     "selector call has no exact checked shape",
                 ))?;
             let family_tuple = slot_plan.family_tuple.clone();
-            let requirement_identity = self
-                .checked
-                .facts
-                .flow
+            let requirement_identity = flow_facts(&self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
                 .iter()
@@ -629,10 +621,7 @@ impl Expansion<'_> {
                         LoweringError::Unsupported("dynamic family operand ordinal overflows")
                     })?,
                 };
-                let (_, expression) = self
-                    .checked
-                    .facts
-                    .values
+                let (_, expression) = value_facts(&self.checked)
                     .scalar_expressions
                     .bound_expression_at(
                         site.state,

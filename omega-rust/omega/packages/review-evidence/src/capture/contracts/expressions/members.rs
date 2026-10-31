@@ -76,10 +76,8 @@ pub(crate) fn require_exact_checked_contract_nominal_member(
         || (selected != expected_member
             && !aliases::attached_field(compilation, context, expected_member, selected))
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` nominal member disagrees with its exact checked member-selection row",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context
+            .rejected("nominal member disagrees with its exact checked member-selection row"));
     }
     Ok(())
 }
@@ -96,27 +94,19 @@ pub(crate) fn exact_checked_contract_nominal_member(
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` nominal member has {} exact checked member-selection rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "nominal member has {} exact checked member-selection rows; expected one",
             selections.len()
-        ))]);
+        )));
     };
     if selection.exposure() != context.selection_exposure {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` nominal member has the wrong retained selection exposure",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("nominal member has the wrong retained selection exposure"));
     }
     let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
         target,
     ) = selection.target()
     else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` nominal member does not retain one exact declaration target",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("nominal member does not retain one exact declaration target"));
     };
     Ok(target.selected_symbol())
 }
@@ -137,33 +127,27 @@ pub(crate) fn require_exact_checked_contract_collection_measure(
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` {} projection has {} exact checked member-selection rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "{} projection has {} exact checked member-selection rows; expected one",
             measure.description(),
             selections.len()
-        ))]);
+        )));
     };
     if selection.exposure() != context.selection_exposure {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` {} projection has the wrong retained selection exposure",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "{} projection has the wrong retained selection exposure",
             measure.description()
-        ))]);
+        )));
     }
     if member.member.as_str() != measure.member_name()
         || member.member_symbol.is_valid()
         || member.case_variant.is_some()
         || selection.target() != AuthoredDeclarationSelectionTarget::Intrinsic(measure.intrinsic())
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` {} syntax disagrees with its exact checked intrinsic selection",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "{} syntax disagrees with its exact checked intrinsic selection",
             measure.description()
-        ))]);
+        )));
     }
     Ok(())
 }
@@ -176,10 +160,7 @@ pub(crate) fn project_contract_member_expression(
     case_variant_symbol: Option<SymbolHandle>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     if !member_symbol.is_valid() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract contains an unresolved member expression",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("contract contains an unresolved member expression"));
     }
     Ok(PackageReviewContractExpression::Member {
         receiver: Box::new(receiver),
@@ -199,10 +180,8 @@ pub(crate) fn project_computed_contract_member_expression(
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let selected = exact_checked_contract_nominal_member(compilation, context, expression)?;
     if member.member_symbol.is_valid() && member.member_symbol != selected {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` computed member disagrees with its exact checked declaration selection",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context
+            .rejected("computed member disagrees with its exact checked declaration selection"));
     }
     let selected_parent = compilation.symbols.get(selected).parent;
     let case_variant = (compilation.symbols.get(selected_parent).kind
@@ -513,13 +492,11 @@ pub(crate) fn checked_contract_member_path(
         }
     }
     let [selected] = candidates.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract member path {:?} resolves to {} exact checked place rows; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "contract member path {:?} resolves to {} exact checked place rows; expected one",
             source_members,
             candidates.len()
-        ))]);
+        )));
     };
     Ok(selected.clone())
 }
@@ -579,12 +556,10 @@ fn select_checked_dependency_member(
         }
     }
     let [selected] = candidates.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract member path resolves to {} exact checked dependency records; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "contract member path resolves to {} exact checked dependency records; expected one",
             candidates.len()
-        ))]);
+        )));
     };
     Ok(selected.clone())
 }

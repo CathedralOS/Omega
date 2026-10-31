@@ -1,5 +1,6 @@
 use super::EACCES;
 use super::io_errno;
+use super::real_fs;
 use crate::interpreter::evaluator::{EvalResult, PreparedByteOutput};
 use crate::{CanonicalFilesystemMetadataRowKind, FilesystemMetadataObservationKind};
 
@@ -61,9 +62,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         };
         match looked_up {
             Ok(metadata) => {
-                let selected = self
-                    .real_fs
-                    .as_ref()
+                let selected = real_fs(self)
                     .expect("real metadata calls have a real provider")
                     // No-follow authorization already returned the
                     // parent-resolved authored leaf coordinate; followed

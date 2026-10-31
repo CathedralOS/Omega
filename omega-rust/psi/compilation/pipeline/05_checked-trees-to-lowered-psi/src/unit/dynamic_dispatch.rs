@@ -18,6 +18,7 @@
 //! closure keeps absent rows: no selector naming it can be produced here.
 
 use crate::LoweringError;
+use crate::checked_facts::flow_facts;
 use checked_trees::{CheckedDynamicSlotPlan, CheckedTrees};
 use symbols::SymbolHandle;
 use terminal_psi::{
@@ -285,9 +286,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         .structural_domains
         .iter()
         .map(|domain| {
-            let semantic_domain = checked
-                .facts
-                .flow
+            let semantic_domain = flow_facts(checked)
                 .terminal_unit_effects
                 .structural_domains
                 .iter()

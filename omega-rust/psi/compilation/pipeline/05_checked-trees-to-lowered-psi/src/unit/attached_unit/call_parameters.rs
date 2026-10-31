@@ -5,6 +5,7 @@
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::{CheckedTrees, LoweringError, unique_unit_boundary, unsupported};
+use crate::checked_facts::flow_facts;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitStructuralParameterPlan,
@@ -19,9 +20,7 @@ pub(crate) fn structural_parameters<'checked>(
         // A dispatch slot owns the shared formal roster; no single selectable
         // implementation is the call's target body. Its authored selector is
         // retained ahead of the data formals in this same position namespace.
-        let target = checked
-            .facts
-            .flow
+        let target = flow_facts(checked)
             .terminal_unit_effects
             .dynamic_slots
             .iter()

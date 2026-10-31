@@ -2,7 +2,7 @@
 //! no host spelling. Physical output descriptors keep their existing sponsor
 //! protocol, but both stores mint descriptors through RealFs's one allocator.
 
-use super::{EACCES, EBADF, EINVAL, ENOENT, ENOTDIR, RealFs};
+use super::{EACCES, EBADF, EINVAL, ENOENT, ENOTDIR, RealFs, real_fs};
 use crate::FilesystemGrantRootIdentity;
 use crate::interpreter::evaluator::filesystem::preparation::PreparedFilesystemPath;
 use crate::interpreter::evaluator::{EvalResult, Halt, PreparedFilesystemCall, Value};
@@ -246,9 +246,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 count,
             } => match self.captured_path(path) {
                 Ok((root, relative)) => {
-                    let real = self
-                        .real_fs
-                        .as_ref()
+                    let real = real_fs(self)
                         .ok_or_else(|| Halt::Trap("captured provider disappeared".into()))?;
                     match real
                         .captured_snapshot(root)
@@ -294,9 +292,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 count,
                 position,
             } => {
-                let real = self
-                    .real_fs
-                    .as_ref()
+                let real = real_fs(self)
                     .ok_or_else(|| Halt::Trap("captured provider disappeared".into()))?;
                 let listed = real
                     .captured_descriptors
@@ -408,10 +404,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         count: u64,
         offset: Option<u64>,
     ) -> EvalResult<Result<i64, i32>> {
-        let real = self
-            .real_fs
-            .as_ref()
-            .ok_or_else(|| Halt::Trap("captured provider disappeared".into()))?;
+        let real =
+            real_fs(self).ok_or_else(|| Halt::Trap("captured provider disappeared".into()))?;
         let Some(entry) = real.captured_descriptors.get(&descriptor) else {
             return Ok(Err(EBADF));
         };

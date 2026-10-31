@@ -3,6 +3,7 @@
 //! Unsupported constructs fail closed with a static reason; structured
 //! variants retain the identity a caller needs to report or test the refusal.
 
+use crate::checked_facts::flow_facts;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::PermissionClaimIdentity;
@@ -357,9 +358,7 @@ pub(crate) fn unit_machine_plan_error<'a>(
         LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
             machine: machine_name.to_owned(),
             reason,
-            gap: checked
-                .facts
-                .flow
+            gap: flow_facts(checked)
                 .terminal_unit_effects
                 .gap_diagnostic(symbol, &checked.symbols),
         },

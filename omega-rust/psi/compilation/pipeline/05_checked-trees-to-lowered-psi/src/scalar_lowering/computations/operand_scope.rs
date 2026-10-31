@@ -6,6 +6,7 @@ use super::{
     Argument, Computation, EstablishedValue, Expansion, LoweringError, QualifiedScalarType, Site,
     parameter, parameters,
 };
+use crate::checked_facts::value_facts;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
@@ -23,10 +24,7 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let operands = self
-            .checked
-            .facts
-            .values
+        let operands = value_facts(&self.checked)
             .scalar_computations
             .evaluation_operands
             .span(operands)

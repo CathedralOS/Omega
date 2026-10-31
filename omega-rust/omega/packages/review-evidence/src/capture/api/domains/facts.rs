@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
@@ -72,12 +73,10 @@ pub(crate) fn project_definition_contract_fact(
             )?;
             let domain = compilation
                 .domain_definition(membership.domain_symbol)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "{} `{}` predicate refers to an unresolved domain",
-                        context.subject_kind, context.subject_name
-                    ))]
-                })?;
+                .or_evidence(format!(
+                    "{} `{}` predicate refers to an unresolved domain",
+                    context.subject_kind, context.subject_name
+                ))?;
             let domain_identity = nominal_identity(compilation, domain.symbol)?;
             if reviewed_package_owns(&domain_identity, reviewed_package)? && !domain.is_public {
                 return Err(vec![Diagnostic::error(format!(

@@ -42,7 +42,7 @@ mod metadata;
 mod path_calls;
 mod sponsor;
 
-use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, Value};
+use crate::interpreter::evaluator::{EvalResult, Evaluator, PreparedFilesystemCall, Value};
 use crate::{
     CanonicalFilesystemMetadataRowKind, FilesystemGrantRootIdentity,
     FilesystemMetadataObservationKind,
@@ -495,4 +495,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             }
         }
     }
+}
+
+/// The real-filesystem state bound to `evaluator`, if a real provider is in
+/// use. `real_fs_mut` is its write counterpart and keeps the raw field.
+pub(in crate::interpreter) fn real_fs<'a>(evaluator: &'a Evaluator<'_>) -> Option<&'a RealFs> {
+    evaluator.real_fs.as_ref()
 }

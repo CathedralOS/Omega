@@ -7,6 +7,7 @@ use super::{
     CheckedTrees, LoweringError, PlaceId, Proposition, ScalarTerm, StructuralTypeShape,
     SymbolHandle, unsupported,
 };
+use crate::checked_facts::flow_facts;
 use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, find_structural_type,
 };
@@ -86,9 +87,7 @@ pub(crate) fn prepare_signature(
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Option<SignatureContext>, LoweringError> {
-    let plans = &checked
-        .facts
-        .flow
+    let plans = &flow_facts(checked)
         .terminal_nominal_affine_unit_cleanups
         .machines;
     let mut owners = plans.iter().filter(|nominal| nominal.machine == source);

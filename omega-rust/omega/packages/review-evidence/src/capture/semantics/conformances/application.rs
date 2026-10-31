@@ -1,4 +1,5 @@
 use super::projected_application::ProjectedSelectedConformanceApplication;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,
@@ -244,11 +245,9 @@ pub(crate) fn project_selected_conformance_application(
                     "{declaration_kind} `{declaration_path}` selected conformance retains an invalid target-trait lifetime ordinal"
                 ))]
             })?;
-            let selected = selected_lifetimes.get(ordinal).ok_or_else(|| {
-                vec![Diagnostic::error(format!(
+            let selected = selected_lifetimes.get(ordinal).or_evidence(format!(
                     "{declaration_kind} `{declaration_path}` selected conformance target-trait lifetime falls outside its checked application"
-                ))]
-            })?;
+                ))?;
             Ok::<_, Vec<Diagnostic>>(selected.clone())
         })
         .collect::<Result<Vec<_>, _>>()?;
