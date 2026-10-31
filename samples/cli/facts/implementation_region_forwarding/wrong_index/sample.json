@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "Const slot `N` conflicts: 8",
+    "versus 7"
+  ]
+}
