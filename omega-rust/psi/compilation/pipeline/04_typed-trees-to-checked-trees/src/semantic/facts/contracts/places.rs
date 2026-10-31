@@ -7,7 +7,9 @@ use validation::effective_member_symbol;
 use crate::flow::expressions;
 use crate::semantic::places::{append_place_segment, resolve_place_member_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
+use checked_trees::{
+    ContractProofFact, ContractProofFactKind, ContractProofFactOwner as FactOwner, ProofFacts,
+};
 use facts::PlaceHandle;
 use facts::{FactPlace, FactPlan};
 use language_core::is_self_receiver;
@@ -46,16 +48,13 @@ pub(crate) fn contract_fact_dependency_places(
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
     let state = match (contract.kind, contract.owner) {
-        (
-            ContractProofFactKind::Requires,
-            ContractProofFactOwner::MachineState { state_symbol, .. },
-        ) => Some(state_symbol),
-        (ContractProofFactKind::Requires, ContractProofFactOwner::Machine { machine_symbol }) => {
-            program
-                .machine(machine_symbol)
-                .and_then(|machine| program.machine_states(machine).first())
-                .map(|state| state.symbol)
+        (ContractProofFactKind::Requires, FactOwner::MachineState { state_symbol, .. }) => {
+            Some(state_symbol)
         }
+        (ContractProofFactKind::Requires, FactOwner::Machine { machine_symbol }) => program
+            .machine(machine_symbol)
+            .and_then(|machine| program.machine_states(machine).first())
+            .map(|state| state.symbol),
         _ => None,
     };
     for expression in fact_referenced_occurrences_in_state(program, contract.fact, state) {
@@ -164,12 +163,12 @@ pub(super) fn contract_expression_place(
         // A public trait requirement owns its `result` through the signature
         // symbol: the contract owner carries it as `StateSignature`.
         let owner_matches = match contract.owner {
-            ContractProofFactOwner::Machine { machine_symbol }
-            | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
+            FactOwner::Machine { machine_symbol }
+            | FactOwner::MachineState { machine_symbol, .. } => {
                 machine_symbol == result.machine_symbol
             }
-            ContractProofFactOwner::StateSignature { state_symbol, .. }
-            | ContractProofFactOwner::CallSignature { state_symbol, .. } => {
+            FactOwner::StateSignature { state_symbol, .. }
+            | FactOwner::CallSignature { state_symbol, .. } => {
                 state_symbol == result.machine_symbol
             }
             _ => false,
@@ -295,7 +294,7 @@ fn contract_name_path_place(
 fn contract_owner_parameter_symbol(
     program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
-    owner: ContractProofFactOwner,
+    owner: FactOwner,
     path: &typed_trees::expression::TableNamePath,
     head_name: Option<&typed_trees::name::Identifier>,
 ) -> Option<SymbolHandle> {
@@ -314,10 +313,10 @@ fn contract_owner_parameter_symbol(
 fn contract_owner_parameter<'program>(
     program: &'program dyn ::validation::CheckingInput,
     proof: &'program ProofFacts,
-    owner: ContractProofFactOwner,
+    owner: FactOwner,
     mut matches: impl FnMut(&typed_trees::signature::StateParameter) -> bool,
 ) -> Option<&'program typed_trees::signature::StateParameter> {
-    if let ContractProofFactOwner::CallSignature { .. } = owner {
+    if let FactOwner::CallSignature { .. } = owner {
         let signature = crate::proof::contracts::call_signatures::signature(proof, owner)?;
         return program
             .state_signature_parameters(signature)
@@ -325,9 +324,9 @@ fn contract_owner_parameter<'program>(
             .find(|parameter| matches(parameter));
     }
     let state_symbol = match owner {
-        ContractProofFactOwner::MachineState { state_symbol, .. }
-        | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
-        ContractProofFactOwner::Machine { machine_symbol } => {
+        FactOwner::MachineState { state_symbol, .. }
+        | FactOwner::StateSignature { state_symbol, .. } => state_symbol,
+        FactOwner::Machine { machine_symbol } => {
             return program.machine(machine_symbol).and_then(|machine| {
                 program.machine_states(machine).first().and_then(|state| {
                     program
@@ -337,7 +336,7 @@ fn contract_owner_parameter<'program>(
                 })
             });
         }
-        ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
+        FactOwner::OperatorDeclaration { operator_symbol } => {
             return typed_trees::operator::declaration_by_symbol(program, operator_symbol)
                 .and_then(|operator| {
                     program
@@ -346,9 +345,7 @@ fn contract_owner_parameter<'program>(
                         .find(|parameter| matches(parameter))
                 });
         }
-        ContractProofFactOwner::Unknown
-        | ContractProofFactOwner::OperatorUse { .. }
-        | ContractProofFactOwner::CallSignature { .. } => {
+        FactOwner::Unknown | FactOwner::OperatorUse { .. } | FactOwner::CallSignature { .. } => {
             return None;
         }
     };
