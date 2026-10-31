@@ -2,9 +2,9 @@
 
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
-    AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
-    ValueBinding,
+    AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
+    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic,
+    IntegerArithmeticOperator, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -729,7 +729,7 @@ pub enum AbstractOperation {
         psi_edge: EdgeId,
         target: BlockId,
         bindings: Vec<ValueBinding>,
-        structural_bindings: Vec<crate::AbstractStructuralBinding>,
+        structural_bindings: Vec<AbstractStructuralBinding>,
         /// Exact selected-edge action order, after outgoing values are captured
         /// and before destination parameters are bound. Never regroup by kind.
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
@@ -1004,10 +1004,7 @@ impl AbstractOperation {
 
     /// The owned structural transfer through `edge`: the successor target
     /// and its bound structural arguments, independent of scalar payload capture.
-    pub fn owned_transfer(
-        &self,
-        edge: EdgeId,
-    ) -> Option<(BlockId, &[crate::AbstractStructuralBinding])> {
+    pub fn owned_transfer(&self, edge: EdgeId) -> Option<(BlockId, &[AbstractStructuralBinding])> {
         match self {
             Self::Jump {
                 psi_edge,

@@ -43,8 +43,10 @@ use language_core::atomic::{
     AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,
     MemoryOrdering,
 };
-use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralFieldId, ValueId};
-use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
+use semantic_vocabulary::{
+    BlockId, OperationId, PlaceId, StructuralFieldId, StructuralPlaceKind, ValueId,
+};
+use terminal_psi::{StructuralAccess, StructuralOperationResult, StructuralPathSegment};
 
 use crate::{AbstractOperation, AbstractResult};
 
@@ -207,10 +209,7 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
     let immutable_image = |root| {
         places.iter().any(|place| {
             place.id == root
-                && matches!(
-                    place.kind,
-                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
-                )
+                && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
         })
     };
     // A fresh owned scalar-only value holds neither an atomic cell nor a
@@ -222,9 +221,8 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
             && places.iter().any(|place| {
                 place.id == root
                     && match place.kind {
-                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            structural_type,
-                            ..
+                        StructuralPlaceKind::OperationResult {
+                            structural_type, ..
                         } => scalar_owned_storage::contains_only_scalars(
                             types.clone(),
                             structural_type,
@@ -246,8 +244,7 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
                             parameter.place == root
                                 && matches!(
                                     parameter.access,
-                                    terminal_psi::StructuralAccess::Owned
-                                        | terminal_psi::StructuralAccess::MutableBorrow
+                                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
                                 )
                         })
                     };
