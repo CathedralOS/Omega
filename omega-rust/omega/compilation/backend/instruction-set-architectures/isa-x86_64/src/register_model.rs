@@ -66,8 +66,34 @@ pub(super) fn early_clobber(operand: RegisterOperandConstraint) -> RegisterOpera
     }
 }
 
+/// The canonical x86-64 view named `name`.
+///
+/// The model is a fixed table, so a miss is a crate bug rather than a caller
+/// error: every effect owner that names one register goes through here instead
+/// of restating the lookup and its message.
+pub(crate) fn view_of(name: &str) -> &'static RegisterView {
+    physical_model::x86_64_physical_register_model_ref()
+        .view_named(name)
+        .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
+}
+
+/// Units of the canonical view named `name`.
+pub(crate) fn units(name: &str) -> Vec<RegisterUnitId> {
+    view_of(name).units.clone()
+}
+
+/// Sorted, deduplicated units of every canonical view named in `names`.
+pub(crate) fn units_of(names: &[&str]) -> Vec<RegisterUnitId> {
+    sorted_units(
+        names
+            .iter()
+            .flat_map(|name| view_of(name).units.iter().copied()),
+    )
+}
+
 use register_model::{
-    RegisterClassId, RegisterOperandAccess, RegisterOperandConstraint, RegisterView,
+    RegisterClassId, RegisterOperandAccess, RegisterOperandConstraint, RegisterUnitId,
+    RegisterView, sorted_units,
 };
 
 mod call_keys;

@@ -124,10 +124,6 @@ impl Extend<SymbolHandle> for MachineSelectionDependencies<'_> {
 
 impl TypedReferences for MachineSelectionDependencies<'_> {
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        if self.types.contains(&reference) {
-            return false;
-        }
-        self.types.push(reference);
-        true
+        crate::machine_calls::record_reference(&mut self.types, reference)
     }
 }
