@@ -4,6 +4,7 @@
 
 use super::{Diagnostic, SymbolHandle, TypedTrees};
 use typed_trees::data::TypeParameterKind;
+use typed_trees::domain::indexed_domain_instance_name;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -124,13 +125,8 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             if !canonical {
                 continue;
             }
-            let identity = typed_trees::domain::indexed_domain_instance_name(
-                program,
-                &domain,
-                &parameters,
-                &arguments,
-            )
-            .map_err(|error| vec![error])?;
+            let identity = indexed_domain_instance_name(program, &domain, &parameters, &arguments)
+                .map_err(|error| vec![error])?;
             let identity = program.semantic_domains.intern(&identity);
             changed |= program
                 .prepare_closed_domain_application(symbol, &arguments, &closed_arguments, identity)
