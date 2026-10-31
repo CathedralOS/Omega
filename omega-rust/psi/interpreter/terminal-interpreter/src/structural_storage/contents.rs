@@ -2,7 +2,6 @@
 //! steps authenticate an overlay; runtime storage omits that step only after
 //! choosing the nominal case. Common and payload fields keep distinct keys.
 
-use crate::effects::TerminalEffectRejection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint};
@@ -13,7 +12,6 @@ use crate::values::{
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, PlaceId, ScalarType, StructuralCaseId, StructuralTypeId,
 };
-use std::sync::Arc;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeShape,
@@ -36,127 +34,68 @@ pub struct TerminalBoundaryStorageValue {
     pub contents: TerminalStorageContents,
 }
 
-#[derive(Debug)]
-pub struct TerminalBoundaryStructuralBuffer {
-    pub(super) original_storage:
-        Option<crate::effects::original_storage::TerminalOriginalStorageLoan>,
-    pub(super) identity: Arc<()>,
-    pub(super) argument_index: usize,
-    pub(super) access: StructuralAccess,
-    pub(super) structural_type: StructuralTypeId,
-    pub(super) values: Vec<TerminalBoundaryStorageValue>,
-    pub(super) references: Vec<BoundaryReferenceReplacement>,
-}
-
-/// An opaque request to select one endpoint in this invocation's immutable
-/// input snapshot. Only the interpreter can authenticate the identity and
-/// capture its reference; a host integer or native pointer cannot construct it.
-#[derive(Debug, Clone)]
-pub struct TerminalBoundaryReferenceSelection {
-    pub(super) identity: Arc<()>,
-    pub(super) argument_index: usize,
-    pub(super) path: Vec<Path>,
-    pub(super) access: StructuralAccess,
-}
-
-#[derive(Debug)]
-pub(super) struct BoundaryReferenceReplacement {
-    pub path: Vec<StructuralPathSegment>,
-    pub source: TerminalBoundaryReferenceSelection,
-    pub write: ReferenceOutputWrite,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ReferenceOutputWrite {
-    Descriptor,
-    Address,
-}
-
-impl TerminalBoundaryStructuralBuffer {
-    pub fn original_storage(
-        &self,
-    ) -> Option<&crate::effects::original_storage::TerminalOriginalStorageLoan> {
-        self.original_storage.as_ref()
-    }
-    pub fn argument_index(&self) -> usize {
-        self.argument_index
-    }
-    pub fn access(&self) -> StructuralAccess {
-        self.access
-    }
-    pub fn structural_type(&self) -> StructuralTypeId {
-        self.structural_type
-    }
-    pub fn values(&self) -> &[TerminalBoundaryStorageValue] {
-        &self.values
-    }
-
-    /// Stage an authenticated snapshot endpoint in an existing reference-output
-    /// slot. This changes only the request buffer; all inputs and all output
-    /// declarations are checked together before publishing any guest write.
-    pub fn replace_reference(
-        &mut self,
-        path: &[StructuralPathSegment],
-        source: TerminalBoundaryReferenceSelection,
-    ) -> Result<(), TerminalEffectRejection> {
-        self.stage_reference_replacement(path, source, ReferenceOutputWrite::Descriptor)
-    }
-
-    /// Stage an address-only foreign write. Completion retains the old scalar
-    /// storage interpretation and requires the selected endpoint to have the
-    /// same captured interpretation before publishing any guest storage.
-    pub fn replace_reference_address(
-        &mut self,
-        path: &[StructuralPathSegment],
-        source: TerminalBoundaryReferenceSelection,
-    ) -> Result<(), TerminalEffectRejection> {
-        self.stage_reference_replacement(path, source, ReferenceOutputWrite::Address)
-    }
-
-    fn stage_reference_replacement(
-        &mut self,
-        path: &[StructuralPathSegment],
-        source: TerminalBoundaryReferenceSelection,
-        write: ReferenceOutputWrite,
-    ) -> Result<(), TerminalEffectRejection> {
-        if self.access != StructuralAccess::MutableBorrow
-            || self
-                .references
-                .iter()
-                .any(|replacement| replacement.path == path)
-        {
-            return Err(TerminalEffectRejection::new(
-                "reference output is not one unique mutable slot",
-            ));
-        }
-        self.references.push(BoundaryReferenceReplacement {
-            path: path.to_vec(),
-            source,
-            write,
-        });
-        Ok(())
-    }
-
-    /// Stage complete active contents. Completion checks nominal membership,
-    /// field restrictions, original identity and retained opaque children before
-    /// any interpreter storage changes. This is not a native tag constructor.
-    pub fn replace(
-        &mut self,
-        values: Vec<TerminalBoundaryStorageValue>,
-    ) -> Result<(), TerminalEffectRejection> {
-        if self.access != StructuralAccess::MutableBorrow {
-            return Err(TerminalEffectRejection::new(
-                "owned or shared boundary storage cannot be replaced",
-            ));
-        }
-        self.values = values;
-        Ok(())
-    }
-}
-
 pub(crate) struct StorageLeaf {
     pub path: Vec<Path>,
     pub kind: StorageLeafKind,
+}
+
+#[derive(Default)]
+pub(crate) struct StorageDescription {
+    pub leaves: Vec<StorageLeaf>,
+    /// Erased bindings have no observable cell, but fresh contents cannot
+    /// establish their proof or authority merely by supplying runtime leaves.
+    pub requires_erased_establishment: bool,
+}
+
+impl StorageLeaf {
+    /// Construction and replacement validate the same typed scalar/tag lane.
+    /// This checks contents only, never ownership, a loan or a qualification.
+    pub(crate) fn validate_value(
+        &self,
+        value: &TerminalBoundaryStorageValue,
+    ) -> Result<(), &'static str> {
+        if self.path != value.path {
+            return Err("contents do not name the complete active declaration paths");
+        }
+        match (&self.kind, value.contents) {
+            (
+                StorageLeafKind::Scalar {
+                    scalar,
+                    restriction,
+                    stored_scalar,
+                    ..
+                },
+                TerminalStorageContents::Scalar {
+                    value,
+                    stored_scalar: actual,
+                },
+            ) => {
+                if value.scalar_type() != *scalar
+                    || !crate::scalar_operations::terminal_scalar_belongs_to_type(value)
+                {
+                    return Err("scalar contents differ from the declared logical carrier");
+                }
+                if actual != *stored_scalar
+                    || !crate::primitive_storage::scalar_fits_storage(actual, value)
+                {
+                    return Err("scalar contents differ from the declared stored carrier");
+                }
+                if restriction
+                    .as_ref()
+                    .is_some_and(|field| !value.satisfies_field(field))
+                {
+                    return Err("scalar contents do not satisfy the declaration restriction");
+                }
+                Ok(())
+            }
+            (StorageLeafKind::Case { case, .. }, TerminalStorageContents::Case(actual))
+                if actual == *case =>
+            {
+                Ok(())
+            }
+            _ => Err("contents kind differs from the active scalar or case declaration"),
+        }
+    }
 }
 
 pub(crate) enum StorageLeafKind {
@@ -208,8 +147,8 @@ pub(crate) fn describe(
     referent: &TerminalStructuralValue,
     access: StructuralAccess,
     replacement: Option<&[TerminalBoundaryStorageValue]>,
-) -> Result<Vec<StorageLeaf>, TerminalInterpretError> {
-    let mut leaves = Vec::new();
+) -> Result<StorageDescription, TerminalInterpretError> {
+    let mut leaves = StorageDescription::default();
     collect(
         execution,
         referent.structural_type,
@@ -230,7 +169,7 @@ pub(crate) fn select(
     referent: &TerminalStructuralValue,
     selected_path: &[Path],
 ) -> Result<Option<StorageLeaf>, TerminalInterpretError> {
-    let mut leaves = Vec::new();
+    let mut leaves = StorageDescription::default();
     collect(
         execution,
         referent.structural_type,
@@ -241,7 +180,10 @@ pub(crate) fn select(
         &mut Vec::new(),
         &mut leaves,
     )?;
-    Ok(leaves.into_iter().find(|leaf| leaf.path == selected_path))
+    Ok(leaves
+        .leaves
+        .into_iter()
+        .find(|leaf| leaf.path == selected_path))
 }
 
 fn collect(
@@ -252,16 +194,16 @@ fn collect(
     replacement: Option<&[TerminalBoundaryStorageValue]>,
     selected_path: Option<&[Path]>,
     path: &mut Vec<Path>,
-    leaves: &mut Vec<StorageLeaf>,
+    leaves: &mut StorageDescription,
 ) -> Result<(), TerminalInterpretError> {
     let declaration = execution.structural_declaration(root)?;
     match &declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => leaves.push(StorageLeaf {
+        StructuralTypeShape::PrimitiveScalar(scalar) => leaves.leaves.push(StorageLeaf {
             path: path.clone(),
             kind: StorageLeafKind::Scalar {
                 destination: PrimitiveStorageEndpoint::Scalar(destination.clone()),
                 scalar: *scalar,
-                restriction: None,
+                restriction: declaration.scalar_restriction.clone(),
                 stored_scalar: *scalar,
             },
         }),
@@ -296,7 +238,7 @@ fn collect(
                 )
                 .is_some_and(|(_, count)| count == 0)
             {
-                leaves.push(StorageLeaf {
+                leaves.leaves.push(StorageLeaf {
                     path: path.clone(),
                     kind: StorageLeafKind::EmptyScalarArray {
                         destination: destination.clone(),
@@ -306,7 +248,7 @@ fn collect(
                 return Ok(());
             }
             if execution.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
-                leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), structural_type: root, length: *length } });
+                leaves.leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), structural_type: root, length: *length } });
             }
             let elements = match selected_path {
                 None => 0..*length,
@@ -357,7 +299,7 @@ fn collect(
                 .iter()
                 .find(|selected| selected.id == case)
                 .ok_or_else(malformed)?;
-            leaves.push(StorageLeaf {
+            leaves.leaves.push(StorageLeaf {
                 path: path.clone(),
                 kind: StorageLeafKind::Case {
                     destination: destination.clone(),
@@ -397,7 +339,7 @@ fn collect(
             )?;
             path.pop();
         }
-        _ => leaves.push(StorageLeaf {
+        _ => leaves.leaves.push(StorageLeaf {
             path: path.clone(),
             kind: StorageLeafKind::Opaque {
                 destination: destination.clone(),
@@ -416,16 +358,19 @@ fn collect_fields(
     replacement: Option<&[TerminalBoundaryStorageValue]>,
     selected_path: Option<&[Path]>,
     path: &mut Vec<Path>,
-    leaves: &mut Vec<StorageLeaf>,
+    leaves: &mut StorageDescription,
     payload: bool,
 ) -> Result<(), TerminalInterpretError> {
-    for field in fields.iter().filter(|field| {
-        !field.relevance.is_erased()
-            && !matches!(field.field_type, StructuralFieldType::Erased { .. })
-    }) {
+    for field in fields {
         if selected_path
             .is_some_and(|selected| selected.get(path.len()) != Some(&Path::Field(field.id)))
         {
+            continue;
+        }
+        if field.relevance.is_erased()
+            || matches!(field.field_type, StructuralFieldType::Erased { .. })
+        {
+            leaves.requires_erased_establishment = true;
             continue;
         }
         if matches!(
@@ -448,7 +393,7 @@ fn collect_fields(
             } else {
                 StructuralScalarRuntimeField::member(parent.clone(), field.id)
             };
-            leaves.push(StorageLeaf {
+            leaves.leaves.push(StorageLeaf {
                 path: path.clone(),
                 kind: StorageLeafKind::Scalar {
                     destination: PrimitiveStorageEndpoint::ScalarField(destination),
@@ -479,7 +424,7 @@ fn collect_fields(
         } else {
             // Inline byte fields retain their parent-owned descriptor, not an
             // invented standalone structural type or native pointer word.
-            leaves.push(StorageLeaf {
+            leaves.leaves.push(StorageLeaf {
                 path: path.clone(),
                 kind: StorageLeafKind::ByteField {
                     parent: parent.clone(),

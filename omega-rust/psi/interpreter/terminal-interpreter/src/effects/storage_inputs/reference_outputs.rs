@@ -3,11 +3,12 @@
 //! of a typed captured endpoint supplies an address. Every request is staged
 //! before any input/result commit, so replacement cannot reread another output.
 
-use super::contents::{ReferenceOutputWrite, StorageLeafKind, TerminalBoundaryReferenceSelection};
+use super::structural_buffer::{ReferenceOutputWrite, TerminalBoundaryReferenceSelection};
 use super::{CapturedReferenceInput, StructuralLoanBinding, TerminalBoundaryStorageBuffer};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::ConstructorStorage;
+use crate::structural_storage::contents::StorageLeafKind;
 use std::sync::Arc;
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryMachineDeclaration, BoundaryReferenceDestination,

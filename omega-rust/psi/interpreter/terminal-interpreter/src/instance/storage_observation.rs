@@ -5,9 +5,9 @@
 //! No observation conveys a qualification, reference or disposal permission.
 
 use super::TerminalInstance;
-use crate::effects::storage_inputs::contents::{self, StorageLeafKind};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
+use crate::structural_storage::contents::{self, StorageLeafKind};
 use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralFieldNamespace, TerminalStructuralValue,
 };

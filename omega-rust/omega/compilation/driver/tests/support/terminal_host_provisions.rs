@@ -6,6 +6,8 @@ mod carried_requirements;
 mod cleanup_resume;
 #[path = "terminal_extent_view.rs"]
 mod extent_view;
+#[path = "terminal_input_contents.rs"]
+mod input_contents;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
 #[path = "terminal_mutable_boundary_provision.rs"]
@@ -32,6 +34,9 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["input-storage", expected, contents @ ..] => {
+            input_contents::observe(artifact, expected, contents)
+        }
         ["result-storage", oracles @ ..] => result_observation::observe(artifact, oracles),
         ["project-requests"] => project_requests::observe(artifact, requests),
         ["result-custody", cells, bytes, oracle @ ..] => {

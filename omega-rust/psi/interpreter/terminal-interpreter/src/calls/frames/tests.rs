@@ -85,13 +85,7 @@ fn refused_cleanup_frame_retains_outgoing_backing_and_claims() {
     let mut execution = TerminalExecution::start_with_program(
         empty_program(),
         &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
+        crate::TerminalStructuralInputs::default(),
         None,
         Some(account.clone()),
     )
