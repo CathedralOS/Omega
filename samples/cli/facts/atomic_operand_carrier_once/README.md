@@ -1,8 +1,8 @@
 # Atomic operand carrier, checked once
 
-Owner: `ARITHMETIC-POLICY-REALIZATION` in [TASKS.md](../../../../TASKS.md), its
-`IMPLICIT-STORE-CONVERSION` clause: one actionable diagnostic per authored
-conversion error.
+Owner: `ARITHMETIC-POLICY-REALIZATION`, its `IMPLICIT-STORE-CONVERSION` clause
+(one actionable diagnostic per authored conversion error). The item left
+[TASKS.md](../../../../TASKS.md) when its acceptance passed.
 
 Fact: An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
 
