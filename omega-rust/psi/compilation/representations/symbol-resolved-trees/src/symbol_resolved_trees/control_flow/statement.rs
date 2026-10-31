@@ -917,19 +917,20 @@ mod tests {
     use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
     use arena::{Arena, Handle};
-    use language_semantics::declaration_selection::AuthoredDeclarationSelections;
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelections,
+    };
+    use source::{SourceId, SourceSpan, Span};
     use symbols::SymbolHandle;
 
     fn selection_ledger(start: usize, symbol: u32) -> AuthoredDeclarationSelections {
         let mut ledger = AuthoredDeclarationSelections::default();
         ledger
             .record_resolved(
-                source::SourceSpan::new(
-                    source::SourceId(1),
-                    source::Span::new(start, start + 1),
-                ),
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call,
+                SourceSpan::new(SourceId(1), Span::new(start, start + 1)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
                 SymbolHandle::from_arena_index(symbol),
             )
             .expect("selection row");
@@ -941,24 +942,18 @@ mod tests {
         let mut combined = selection_ledger(1, 2);
         let extension = combined
             .record_resolved(
-                source::SourceSpan::new(
-                    source::SourceId(1),
-                    source::Span::new(3, 4),
-                ),
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call,
+                SourceSpan::new(SourceId(1), Span::new(3, 4)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
                 SymbolHandle::from_arena_index(3),
             )
             .expect("extension selection");
         let mut destination = selection_ledger(1, 2);
         destination
             .record_resolved(
-                source::SourceSpan::new(
-                    source::SourceId(1),
-                    source::Span::new(2, 3),
-                ),
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess,
+                SourceSpan::new(SourceId(1), Span::new(2, 3)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
                 SymbolHandle::from_arena_index(4),
             )
             .expect("later-phase row");
