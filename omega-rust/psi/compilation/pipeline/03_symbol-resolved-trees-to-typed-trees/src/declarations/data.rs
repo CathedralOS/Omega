@@ -6,6 +6,7 @@ use crate::type_reference::{lower_type_reference_into_table, retain_static_path_
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use typed::data::DataField;
 use typed_trees as typed;
 
 pub(crate) fn lower_data_definition(
@@ -200,15 +201,13 @@ fn lower_data_member(
     member: &resolved::data::DataMember,
 ) -> Result<typed::data::DataMember, Diagnostic> {
     match member {
-        resolved::data::DataMember::Field(field) => {
-            Ok(typed::data::DataMember::Field(typed::data::DataField {
-                identity: field.identity,
-                symbol: field.symbol,
-                name: lower_name(&field.name),
-                relevance: field.relevance,
-                type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
-            }))
-        }
+        resolved::data::DataMember::Field(field) => Ok(typed::data::DataMember::Field(DataField {
+            identity: field.identity,
+            symbol: field.symbol,
+            name: lower_name(&field.name),
+            relevance: field.relevance,
+            type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
+        })),
         resolved::data::DataMember::Variant(variant) => {
             let mut typed_variant = typed::data::DataVariant {
                 identity: variant.identity,
@@ -223,7 +222,7 @@ fn lower_data_member(
                 .data_payload_fields(variant.payload)
                 .to_vec();
             for field in &payload_fields {
-                let lowered = typed::data::DataField {
+                let lowered = DataField {
                     identity: field.identity,
                     symbol: field.symbol,
                     name: lower_name(&field.name),

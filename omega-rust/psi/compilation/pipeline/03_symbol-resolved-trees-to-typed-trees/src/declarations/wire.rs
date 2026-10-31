@@ -4,6 +4,7 @@ use crate::type_reference::lower_type_reference_into_table;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use typed::wire::WireField;
 use typed_trees as typed;
 
 pub(crate) fn lower_wire_schema(
@@ -29,17 +30,12 @@ fn lower_wire_members(
 
     for member in lowerer.source_trees.wire_members(members) {
         lowered.push(match member {
-            resolved::wire::WireMember::Field(field) => {
-                typed::wire::WireMember::Field(typed::wire::WireField {
-                    number: field.number,
-                    name: lower_name(&field.name),
-                    relevance: field.relevance,
-                    type_reference: lower_type_reference_into_table(
-                        lowerer,
-                        &field.type_reference,
-                    )?,
-                })
-            }
+            resolved::wire::WireMember::Field(field) => typed::wire::WireMember::Field(WireField {
+                number: field.number,
+                name: lower_name(&field.name),
+                relevance: field.relevance,
+                type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
+            }),
             resolved::wire::WireMember::Reserved(reserved) => {
                 typed::wire::WireMember::Reserved(typed::wire::WireReserved {
                     number: reserved.number,

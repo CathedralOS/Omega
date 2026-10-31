@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use language_semantics::const_value;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbol_resolved_trees as resolved;
@@ -195,15 +196,10 @@ pub(super) fn lower_fixed_array_type(
                 });
                 if let Some(evaluated) = &declaration.evaluated_value {
                     let value = evaluated.encoding().and_then(|encoding| {
-                        language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
-                            .decode_encoding()
+                        const_value::CanonicalConstValue::new("", encoding, "").decode_encoding()
                     });
-                    let Some(
-                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                            value,
-                            ..
-                        },
-                    ) = value
+                    let Some(const_value::DecodedCanonicalConstValue::Integer { value, .. }) =
+                        value
                     else {
                         return Err(Diagnostic::error(format!(
                             "fixed-array length `{name}` requires an evaluated integer constant"

@@ -66,9 +66,13 @@ use crate::declarations::trait_definition::lower_trait_definition;
 use crate::expressions::equatable::validate_equatable_conformances_in;
 use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
 use crate::expressions::expression::lower_expression_handle;
+use crate::lowerer::progress::normalize_machine_progress_premises;
 use crate::signatures::lexical_context::captured_arguments;
 use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
+use crate::type_reference::{
+    lower_type_reference_into_table, normalize_const_argument_carriers, validate_range_arguments,
+};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::machine::Machine;
@@ -350,19 +354,13 @@ pub(crate) fn close_typed_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
-    crate::lowerer::progress::normalize_machine_progress_premises(
-        &mut lowerer.typed_trees,
-        cohort.typed_machines,
-    )?;
+    normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    crate::type_reference::normalize_const_argument_carriers(
-        &mut lowerer.typed_trees,
-        cohort.typed_type_references,
-    )?;
+    normalize_const_argument_carriers(&mut lowerer.typed_trees, cohort.typed_type_references)?;
     normalize_domain_constraints(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
@@ -394,10 +392,7 @@ pub(crate) fn close_typed_cohort(
         && cohort.operators == lowerer.source_trees.operators.len()
         && cohort.data_definitions == lowerer.source_trees.data_definitions.len())
     {
-        crate::type_reference::validate_range_arguments(
-            lowerer.source_trees,
-            &lowerer.typed_trees,
-        )?;
+        validate_range_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
     }
     finalize_provider_default_calls(&mut lowerer.typed_trees)?;
     target_machine_families::append(
@@ -528,12 +523,7 @@ impl Lowerer<'_> {
     ) -> Result<(), Diagnostic> {
         let declared_type = self.with_type_reference_exposure(
             declaration_exposure(declaration.is_public),
-            |lowerer| {
-                crate::type_reference::lower_type_reference_into_table(
-                    lowerer,
-                    &declaration.declared_type,
-                )
-            },
+            |lowerer| lower_type_reference_into_table(lowerer, &declaration.declared_type),
         )?;
         self.typed_trees
             .push_const_declaration(typed_trees::constant::ConstDeclaration {
