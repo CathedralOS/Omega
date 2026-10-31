@@ -45,6 +45,7 @@ enum DescriptorEffect {
 pub(super) struct FilesystemCall {
     context: FilesystemContext,
     descriptor: DescriptorEffect,
+    namespace_admission: Result<(), &'static str>,
     paths: Vec<usize>,
     flags_without_mode: Option<usize>,
 }
@@ -256,39 +257,14 @@ impl FilesystemContext {
                 "no explicit host filesystem namespace was supplied",
             ));
         }
-        // Only exact toolchain-owned filesystem services are supplied. A
-        // similarly named package declaration or unrelated extra reach rejects.
-        for service in declaration
-            .fixed_service_reach
-            .iter()
-            .chain(&declaration.published_service_ceiling)
-        {
-            if Some(*service) == declaration.owning_service {
-                continue;
-            }
-            let supplied = program
-                .module()
-                .services
-                .iter()
-                .find(|row| row.id == *service)
-                .and_then(|row| program.module().identities.text(row.identity))
-                .is_some_and(|identity| {
-                    matches!(
-                        identity,
-                        "toolchain::FilesystemContentRead"
-                            | "toolchain::FilesystemContentWrite"
-                            | "toolchain::FilesystemMetadataQuery"
-                            | "toolchain::FilesystemMetadataMutation"
-                            | "toolchain::DirectoryEnumeration"
-                            | "toolchain::FilesystemNamespaceMutation"
-                    )
-                });
-            if !supplied {
-                return Err(TerminalRuntimeError::missing(
-                    "runtime-filesystem",
-                    "filesystem supply does not provide this exact additional service",
-                ));
-            }
+        // Standard streams use the independently supplied modeled I/O route.
+        // Only a call that enters the native descriptor namespace needs this
+        // namespace's additional services. Keep ordinary filesystem admission
+        // eager; descriptor I/O selects its route from the actual descriptor.
+        let namespace_admission = self.admit_services(program, declaration);
+        if !matches!(descriptor, DescriptorEffect::Io) {
+            namespace_admission
+                .map_err(|reason| TerminalRuntimeError::missing("runtime-filesystem", reason))?;
         }
         if parameters
             .is_some_and(|parameters| !matches_signature(program, declaration, parameters, result))
@@ -319,9 +295,48 @@ impl FilesystemContext {
         Ok(Some(FilesystemCall {
             context: self.clone(),
             descriptor,
+            namespace_admission,
             paths,
             flags_without_mode,
         }))
+    }
+    fn admit_services(
+        &self,
+        program: &TerminalProgram,
+        declaration: &BoundaryMachineDeclaration,
+    ) -> Result<(), &'static str> {
+        // Only exact toolchain-owned filesystem services are supplied. A
+        // similarly named package declaration or unrelated extra reach rejects.
+        for service in declaration
+            .fixed_service_reach
+            .iter()
+            .chain(&declaration.published_service_ceiling)
+        {
+            if Some(*service) == declaration.owning_service {
+                continue;
+            }
+            let supplied = program
+                .module()
+                .services
+                .iter()
+                .find(|row| row.id == *service)
+                .and_then(|row| program.module().identities.text(row.identity))
+                .is_some_and(|identity| {
+                    matches!(
+                        identity,
+                        "toolchain::FilesystemContentRead"
+                            | "toolchain::FilesystemContentWrite"
+                            | "toolchain::FilesystemMetadataQuery"
+                            | "toolchain::FilesystemMetadataMutation"
+                            | "toolchain::DirectoryEnumeration"
+                            | "toolchain::FilesystemNamespaceMutation"
+                    )
+                });
+            if !supplied {
+                return Err("filesystem supply does not provide this exact additional service");
+            }
+        }
+        Ok(())
     }
 }
 
@@ -429,6 +444,10 @@ impl FilesystemCall {
         &self,
         arguments: &[TerminalScalarValue],
     ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
+        // Called only for the native route, after modeled standard streams
+        // have been selected. Refuse before translating descriptors or invoking
+        // the worker; stream supply never grants host namespace authority.
+        self.namespace_admission.map_err(rejection)?;
         if let Some(index) = self.flags_without_mode {
             let Some(TerminalScalarValue::Integer {
                 value: IntegerValue::Signed(flags),
@@ -539,5 +558,63 @@ impl FilesystemCall {
             _ => {}
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::IntegerType;
+
+    fn descriptor(value: i32) -> TerminalScalarValue {
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+            value: IntegerValue::Signed(i128::from(value)),
+        }
+    }
+
+    fn call(namespace_admission: Result<(), &'static str>) -> FilesystemCall {
+        FilesystemCall {
+            context: FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace),
+            descriptor: DescriptorEffect::Io,
+            namespace_admission,
+            paths: Vec::new(),
+            flags_without_mode: None,
+        }
+    }
+
+    #[test]
+    fn modeled_stream_supply_does_not_authorize_native_descriptor_namespace() {
+        let call = call(Err("unprovided extra service"));
+        for stream in 0..=2 {
+            assert!(call.modeled_stream(&[descriptor(stream)]));
+        }
+        call.context
+            .descriptors
+            .borrow_mut()
+            .insert(3, NativeDescriptor::Open(91));
+        assert!(!call.modeled_stream(&[descriptor(3)]));
+        // Even a previously admitted guest descriptor cannot acquire the
+        // authority missing from this particular boundary declaration.
+        assert!(call.arguments(&[descriptor(3)]).is_err());
+        assert!(call.arguments(&[descriptor(-1)]).is_err());
+    }
+
+    #[test]
+    fn authorized_native_route_translates_only_guest_namespace_descriptors() {
+        let call = call(Ok(()));
+        call.context
+            .descriptors
+            .borrow_mut()
+            .insert(3, NativeDescriptor::Open(91));
+        assert_eq!(call.arguments(&[descriptor(3)]).unwrap(), [descriptor(91)]);
+        assert_eq!(
+            call.arguments(&[descriptor(999)]).unwrap(),
+            [descriptor(-1)]
+        );
+        // This route must never borrow the worker's real standard streams.
+        for stream in 0..=2 {
+            assert!(call.arguments(&[descriptor(stream)]).is_err());
+        }
     }
 }
