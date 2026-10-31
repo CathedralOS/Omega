@@ -1,26 +1,20 @@
-// A public top-level boundary requirement is its own provider slot: the
-// `boundary requirement` form (no operator token, no `operator` introducer)
-// declares the required operation, a checked adapter `satisfies` it, and the
-// unique covering adapter is the declaration-era default. Checking retains
-// the public requirement contract and the exact ProviderPlan identity;
-// the direct call stays on the requirement through Terminal Psi, and Omega
-// installs the selected adapter; the interpreter dispatches the same row.
+// CheckedMath::offset_zero is a one-member boundary trait with an empty
+// reach. Build selects the checked adapter. The direct call stays on that
+// trait through Terminal Psi, and both engines return the adapter's result.
+// Expected exit: 70.
 use omega_language_std::console;
 
-public data CheckedMath {}
-
-public boundary requirement CheckedMath::offset_zero(value: i32) -> i32
-requires value == value
-ensures result == value + 0 && value == value;
+public boundary trait CheckedMath {
+    machine offset_zero(value: i32) -> i32
+    reaches;
+}
 
 data CheckedMathProvider {}
 
-machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+machine CheckedMathProvider::offset_zero_impl(value: i32) -> i32
 satisfies CheckedMath::offset_zero
-requires input == input
-ensures result == input + 0 && input == input
 {
-    transition { _ -> (input + 0) }
+    value
 }
 
 machine length() -> i32 { CheckedMath::offset_zero(9) }
