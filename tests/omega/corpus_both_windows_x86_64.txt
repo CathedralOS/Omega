@@ -380,6 +380,9 @@ pass/borrows/runtime_direct_immutable_scalar_loan_exit built 2594ms exit:0 inter
 pass/borrows/runtime_discarded_reference_release_exit built 7392ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit built 3113ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_dropped_reference_qualification_exit built 2602ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/borrows/runtime_dyn_image_result_snapshot_exit built 9688ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @68b6f6ba6c2f
+pass/borrows/runtime_dyn_multi_input_window_snapshot_exit built 6665ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
+pass/borrows/runtime_dyn_result_region_snapshot_exit built 7680ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/borrows/runtime_expired_call_carrier_selection_exit built 3097ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit built 2762ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_fixed_byte_view_forwarding_exit built 3485ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -1596,6 +1599,7 @@ pass/dependent/runtime_borrowed_coupled_last_store_exit built 2398ms exit:0 inte
 pass/dependent/runtime_computed_slice_index_relation_exit built 3015ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/dependent/runtime_dependent_subtract_exit built 8317ms exit:2 interpreter-exit:2 interpreter:agrees @5f668826adf3+wt
 pass/dependent/runtime_dynamic_record_replacement_exit built 2756ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/dependent/runtime_index_forwarded_to_inferred_region_callee_exit built 11790ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/dependent/runtime_requires_guarded_call_exit built 8236ms exit:6 interpreter-exit:6 interpreter:agrees @5f668826adf3+wt
 pass/dependent/runtime_reserved_container_domain_establishment_exit built 3171ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/dependent/runtime_sibling_len_index_exit built 9505ms exit:7 interpreter-exit:7 interpreter:agrees @5f668826adf3+wt
@@ -8832,7 +8836,10 @@ pass/traits/prepared_callable_nested_borrow_paths_exit incomplete 4400ms interpr
 pass/traits/public_nested_machine_contract_scopes built 5559ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/renamed_invocation_contract_binders checked 3928ms @5f668826adf3+wt
 pass/traits/ring_requirement_satisfies_exit built 10428ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_array_assignments_establishment_exit built 12946ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
+pass/traits/runtime_dyn_array_literal_establishment_exit built 9837ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_array_result_exit built 5563ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_array_whole_after_stores_exit built 7349ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_byte_record_result rejected 4533ms interpreter:unchecked @5f668826adf3+wt
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
@@ -8841,24 +8848,33 @@ pass/traits/runtime_dyn_byte_subview_join built 5228ms exit:0 interpreter-exit:0
 pass/traits/runtime_dyn_data_argument_counts_exit built 12250ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_family_nested_result built 13022ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_family_scalar_continuation built 2448ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_field_assignment_establishment_exit built 7139ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_guarded_result_exit built 3024ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_image_incoming_backing_exit built 7273ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_joined_selector_exit built 15317ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_linear_result_exit built 3277ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_local_selection_exit built 17740ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit built 18806ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_mutable_byte_result built 4656ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_nested_result_exit built 8730ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_post_write_alternatives_exit built 7209ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_qualified_byte_result built 5803ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_ranked_dispatch_cycle_exit built 7564ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
+pass/traits/runtime_dyn_ranked_self_dispatch_exit built 6609ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit built 18598ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_requirement_contract_exit built 26534ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_selector_and_literal_addresses_exit built 25072ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit built 25599ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 24978ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_selector_crash_refined_exit built 4217ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_selector_record_field_exit built 22529ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_selector_record_post_write_exit built 4903ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
+pass/traits/runtime_dyn_slot_metadata_exit built 4095ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_stored_byte_input rejected 4574ms interpreter:unchecked @5f668826adf3+wt
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 pass/traits/runtime_dyn_structural_result_exit built 14047ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/traits/runtime_dyn_suspending_borrowed_parameter_exit built 4028ms exit:0 interpreter-exit:0 interpreter:agrees @68b6f6ba6c2f
 pass/traits/runtime_dyn_suspending_parameter_envelope_exit built 2426ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
 pass/traits/runtime_dyn_suspending_retained_envelope_exit built 2450ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
 pass/traits/runtime_dyn_suspending_retained_record_exit built 2637ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
