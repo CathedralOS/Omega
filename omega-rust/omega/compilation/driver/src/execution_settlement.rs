@@ -406,7 +406,6 @@ fn prepare_target_provider_selection(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
-    let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
         &source.program,
