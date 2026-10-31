@@ -16,7 +16,7 @@ use selected_instructions::SelectedInstructionKind;
 /// The `PhysicalAddressOperation` family an address-routed row binds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AddressOperationFamily {
-    PlacedScalarAccess,
+    AccessorScalarAccess,
     Store,
     AddressOffset,
     Load64,
@@ -43,8 +43,8 @@ impl AddressOperationFamily {
         matches!(
             (self, operation),
             (
-                Self::PlacedScalarAccess,
-                Operation::PlacedScalarAccess { .. }
+                Self::AccessorScalarAccess,
+                Operation::AccessorScalarAccess { .. }
             ) | (Self::Store, Operation::Store { .. })
                 | (Self::AddressOffset, Operation::AddressOffset { .. })
                 | (Self::Load64, Operation::Load64 { .. })
@@ -121,7 +121,9 @@ pub(super) fn route_of(kind: SelectedInstructionKind) -> RowRoute {
         channel: HostedChannel::None,
     };
     match kind {
-        Kind::PlacedScalarAccess { .. } => addressed(AddressOperationFamily::PlacedScalarAccess),
+        Kind::AccessorScalarAccess { .. } => {
+            addressed(AddressOperationFamily::AccessorScalarAccess)
+        }
         Kind::Store { .. } => addressed(AddressOperationFamily::Store),
         Kind::AddressOffset { .. } => addressed(AddressOperationFamily::AddressOffset),
         Kind::Load64 { .. } => addressed(AddressOperationFamily::Load64),

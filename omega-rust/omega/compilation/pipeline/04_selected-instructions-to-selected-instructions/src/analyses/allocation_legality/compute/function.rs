@@ -86,7 +86,10 @@ fn unchanged_point_limit(
         Some(0) => return LiveRangePoint(0),
         Some(diff_idx) => current.block_domains[diff_idx - 1].end,
         None => {
-            let min_len = previous.block_domains.len().min(current.block_domains.len());
+            let min_len = previous
+                .block_domains
+                .len()
+                .min(current.block_domains.len());
             if min_len == 0 {
                 return LiveRangePoint(0);
             }

@@ -1215,10 +1215,10 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
         {
             return Ok(None);
         }
-        let placed_pointer_word = placement
+        let access_pointer_word = placement
             .single_word_byte_size()
             .ok_or("normalized foreign D41 child changed its structural call custody")?;
-        if placement.shape != pointer_shape || placed_pointer_word != pointer_shape.byte_size {
+        if placement.shape != pointer_shape || access_pointer_word != pointer_shape.byte_size {
             return Err("normalized foreign D41 child changed its structural call custody");
         }
         shapes.push(pointer_shape);

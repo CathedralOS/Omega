@@ -288,10 +288,10 @@ impl crate::execution::TerminalExecution<'_> {
                 .iter()
                 .map(|(_, _, value)| value.opaque_identity),
         );
-        // A placed view lends an explicit qualified backing. Preserve its
+        // A access view lends an explicit qualified backing. Preserve its
         // whole containing identity, including paths outside the lent subtree;
         // the occurrence's custody and retirement remain unchanged.
-        for occurrence in self.placed_view_occurrences.values() {
+        for occurrence in self.access_view_occurrences.values() {
             roots.insert(occurrence.referent.opaque_identity);
         }
         for value in self.structural_values.values().chain(
@@ -302,7 +302,7 @@ impl crate::execution::TerminalExecution<'_> {
             roots.insert(value.opaque_identity);
         }
         for frame in &self.call_stack {
-            for occurrence in frame.placed_view_occurrences.values() {
+            for occurrence in frame.access_view_occurrences.values() {
                 roots.insert(occurrence.referent.opaque_identity);
             }
             for value in frame.structural_values.values().chain(

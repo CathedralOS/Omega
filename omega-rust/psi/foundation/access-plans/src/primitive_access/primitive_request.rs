@@ -1,25 +1,25 @@
 use extents::ResidentClaimId;
 
-use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::plan_policy::authorization::authorize_descriptor;
-use crate::{AccessFieldKey, AuthorizedFieldAccess, FieldAccessDescriptor};
 use crate::{
-    AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, BorrowPolarity,
-    BoundaryReach, EffectFootprint, EffectiveFieldSupply, LogicalFieldExtent, ObservationModel,
-    PlacedOccurrenceId, PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
+    AccessAdmissionId, AccessOccurrenceId, AccessOperation, AccessPlanDiagnostic, AccessPlanId,
+    AdmittedSchemaDeviceCorrespondence, BorrowPolarity, BoundaryReach, EffectFootprint,
+    EffectiveFieldSupply, LogicalFieldExtent, ObservationModel, ResourceProfileReceiptId,
 };
+use crate::{AccessFieldKey, AuthorizedFieldAccess, FieldAccessDescriptor};
 
 /// Canonical input to target-specific placed-memory lowering.
 ///
-/// Construction is sealed behind `PlacedFieldAccess::into_primitive_request`.
+/// Construction is sealed behind `AccessFieldAccess::into_primitive_request`.
 /// Target lowering may choose a stronger instruction where architecture law
 /// requires it, but may not weaken the exact event recorded here.
 #[derive(Debug)]
 pub struct PrimitiveAccessRequest<'view, 'extent> {
-    pub(crate) plan: PlacementPlanId,
+    pub(crate) plan: AccessPlanId,
     pub(crate) profile_receipt: ResourceProfileReceiptId,
     pub(crate) effective_supply: EffectiveFieldSupply,
-    pub(crate) admission: PlacementAdmissionId,
+    pub(crate) admission: AccessAdmissionId,
     pub(crate) primitive_address: u64,
     pub(crate) key: AccessFieldKey,
     pub(crate) field: String,
@@ -32,18 +32,18 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     pub(crate) operation: AccessOperation,
     pub(crate) reach: BoundaryReach,
     pub(crate) resident_claim: Option<ResidentClaimId>,
-    pub(crate) placed_occurrence: Option<PlacedOccurrenceId>,
+    pub(crate) access_occurrence: Option<AccessOccurrenceId>,
     pub(crate) descriptor: FieldAccessDescriptor,
     pub(crate) authorization: AuthorizedFieldAccess,
-    pub(crate) _authority: PlacementAuthorityRef<'view, 'extent>,
+    pub(crate) _authority: AccessAuthorityRef<'view, 'extent>,
 }
 
 impl PrimitiveAccessRequest<'_, '_> {
-    pub const fn plan(&self) -> PlacementPlanId {
+    pub const fn plan(&self) -> AccessPlanId {
         self.plan
     }
 
-    pub const fn admission(&self) -> PlacementAdmissionId {
+    pub const fn admission(&self) -> AccessAdmissionId {
         self.admission
     }
 
@@ -95,7 +95,7 @@ impl PrimitiveAccessRequest<'_, '_> {
         &self.reach
     }
 
-    placed_authority_accessors!();
+    authority_accessors!();
 
     pub(super) fn validate_effective_supply_binding(&self) -> Result<(), AccessPlanDiagnostic> {
         if self.effective_supply.key != self.key
@@ -180,7 +180,7 @@ impl PrimitiveAccessRequest<'_, '_> {
 
     pub(super) fn validate_authority_binding(&self) -> Result<(), AccessPlanDiagnostic> {
         let authority = self._authority;
-        let placement = authority.placement_plan();
+        let placement = authority.access_plan();
         if placement.identity() != self.plan
             || authority.profile_receipt() != self.profile_receipt
             || authority.profile().receipt() != self.profile_receipt
@@ -188,7 +188,7 @@ impl PrimitiveAccessRequest<'_, '_> {
             || placement.reach() != &self.reach
         {
             return Err(AccessPlanDiagnostic(
-                "primitive lowering requires the copied plan, profile, admission, and reach to match the retained placement authority"
+                "primitive lowering requires the copied plan, profile, admission, and reach to match the retained access authority"
                     .into(),
             ));
         }
@@ -198,7 +198,7 @@ impl PrimitiveAccessRequest<'_, '_> {
             || placement.access().field_descriptor(self.key) != Some(&self.descriptor)
         {
             return Err(AccessPlanDiagnostic(
-                "primitive lowering requires the retained resource row and field descriptor to belong to the exact placement authority"
+                "primitive lowering requires the retained resource row and field descriptor to belong to the exact access authority"
                     .into(),
             ));
         }
@@ -210,7 +210,7 @@ impl PrimitiveAccessRequest<'_, '_> {
         })?;
         if &replayed_resources != authority.resources() {
             return Err(AccessPlanDiagnostic(
-                "primitive lowering replayed resource compatibility differs from the retained placement authority"
+                "primitive lowering replayed resource compatibility differs from the retained access authority"
                     .into(),
             ));
         }
@@ -219,10 +219,10 @@ impl PrimitiveAccessRequest<'_, '_> {
 
         if authority.source_loan() != self.source_loan
             || authority.resident_claim() != self.resident_claim
-            || authority.placed_occurrence() != self.placed_occurrence
+            || authority.access_occurrence() != self.access_occurrence
         {
             return Err(AccessPlanDiagnostic(
-                "primitive lowering requires source-loan and resident identities to match the retained placement authority"
+                "primitive lowering requires source-loan and resident identities to match the retained access authority"
                     .into(),
             ));
         }

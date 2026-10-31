@@ -7,7 +7,7 @@ pub enum LegalizedScalarCallShapeError {
     ArgumentPlacement { argument: usize },
     Result,
     CallControl,
-    PlacedBinding { binding: usize },
+    AccessBinding { binding: usize },
 }
 impl LegalizedScalarCall {
     /// Raw ABI consistency only; source, types and canonical target ABI require replay.
@@ -55,11 +55,11 @@ impl LegalizedScalarCall {
             })
             .collect::<Vec<_>>();
         let mut previous = None;
-        for (index, binding) in self.placed_bindings.iter().enumerate() {
+        for (index, binding) in self.access_bindings.iter().enumerate() {
             let position = usize::try_from(binding.argument_index)
-                .map_err(|_| Error::PlacedBinding { binding: index })?;
+                .map_err(|_| Error::AccessBinding { binding: index })?;
             let Some(argument) = structural.get(position) else {
-                return Err(Error::PlacedBinding { binding: index });
+                return Err(Error::AccessBinding { binding: index });
             };
             if previous.is_some_and(|previous| previous >= binding.argument_index)
                 || binding.argument_index != binding.input.runtime_position
@@ -68,10 +68,10 @@ impl LegalizedScalarCall {
                 || argument.access != binding.input.access
                 || argument.access == terminal_psi::StructuralAccess::Owned
                 || match &binding.association {
-                    target_operations::TargetPlacedCallAssociation::Captured {
+                    target_operations::TargetAccessCallAssociation::Captured {
                         carrier, ..
                     } => *carrier != argument.structural_type,
-                    target_operations::TargetPlacedCallAssociation::CallerFormal(input) => {
+                    target_operations::TargetAccessCallAssociation::CallerFormal(input) => {
                         input.carrier_identity != binding.input.carrier_identity
                             || input.view_identity != binding.input.view_identity
                             || input.policy_identity != binding.input.policy_identity
@@ -83,7 +83,7 @@ impl LegalizedScalarCall {
                     }
                 }
             {
-                return Err(Error::PlacedBinding { binding: index });
+                return Err(Error::AccessBinding { binding: index });
             }
             previous = Some(binding.argument_index);
         }
@@ -214,7 +214,7 @@ mod tests {
                 .unwrap();
                 let mut call = LegalizedScalarCall {
                     descriptor_origins: Vec::new(),
-                    placed_bindings: Vec::new(),
+                    access_bindings: Vec::new(),
                     structural_result: None,
                     source: crate::NativeCallOrigin::Authored,
                     claim_transfers: Vec::new(),

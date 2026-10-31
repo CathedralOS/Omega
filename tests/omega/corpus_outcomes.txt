@@ -8,6 +8,10 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
+	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
+fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
+	native binding requires the exact compiler-owned `ForeignBinding` declaration
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
 	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
 fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
@@ -431,6 +435,18 @@ fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expec
 fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected @b852a38544d0
+	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[0] requires u8::Small
+	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small
+	array literal element is not proven in domain `u8::Small` in program state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `u8::Small` in program state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/generics/native_locator_inconsistent_byte_extents rejected 500ms expected @b852a38544d0
+	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
+	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
+fail/generics/native_locator_undefined_user_coordinate rejected 516ms expected @b852a38544d0
+	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
+fail/generics/native_locator_wrong_explicit_extent rejected 306ms expected @b852a38544d0
+	quoted byte literal has 26 source byte(s), but owned fixed byte array `[u8; 25]` requires exactly 25; fixed-array literal copying neither truncates nor pads
 fail/layouts/fixed_layout_closed_requirement_policy_rejected rejected 604ms expected @2ba727eefb59+wt
 	demanded premise closure checking failed: machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
 fail/layouts/fixed_layout_computed_const_policy_rejected rejected 592ms expected @2ba727eefb59+wt
@@ -445,6 +461,11 @@ fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 818ms expe
 	recast has no complete exact layout alternative roster
 fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 566ms expected @2ba727eefb59+wt
 	policy `Policy::plan$specialized$d6370627ca0e1e1b$0` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected @b43a5fa574e6
+	duplicate data `Access`
+	generic data `Access` expected 0 arguments but got 2
+	data `AccessPlan` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	duplicate data `Access`
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
@@ -460,6 +481,17 @@ fail/traits/dyn_slot_metadata_unqualified rejected 685ms expected @e7be0895dec5+
 	argument `packet` for state `view` expects `&[u8][in Utf8]`, got `named value`
 fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expected @60879b0bca31+wt
 	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
+	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
+fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
+	static machine argument `wrong_callback` for nominal parameter `Worker` retains 0 authored satisfaction row(s) for exact requirement `Callback::call`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [NeedsMachine::choose::T=u64], contextual demand true, operand mismatch unresolved source correspondence
+fail/traits/public_method_const_prefix_wrong_carrier rejected 701ms expected @b852a38544d0
+	const parameter `Prefix` of `mirror` has an invalid canonical value: expected carrier `u64`, but the canonical value names `bool`
+	const parameter `Prefix` of `SelectedEcho::mirror` has an invalid canonical value: expected carrier `u64`, but the canonical value names `bool`
+fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a38544d0
+	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
+	argument `right` for state `pair` expects `&u32`, got `named value`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -11014,6 +11046,7 @@ pass/generics/const_index_active_case_predicates_exit checked 3729ms check-targe
 pass/generics/const_index_boolean_predicate_composition_exit checked 3441ms check-target:linux_x86_64 @ccdb99ca2214
 pass/generics/const_index_gated_default_domain_exit checked 3347ms check-target:linux_x86_64 @ccdb99ca2214
 pass/generics/const_index_nested_default_domain_exit checked 4319ms check-target:linux_x86_64 @ccdb99ca2214
+pass/generics/constructor_inferred_cooked_byte_extent_exit checked 3058ms check-target:macos_arm64 @b852a38544d0
 pass/generics/contextual_static_machine_applications_exit checked 3622ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_captured_operand_return_exit checked 3435ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_captured_operand_scope_exit checked 5353ms check-target:macos_arm64 @ccdb99ca2214
@@ -11412,6 +11445,7 @@ pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 3198ms ex
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(3)), operation: Some(OperationId(48)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 pass/host/scalar_reference_narrow_backing_foreign_export rejected 3974ms expected check-target:linux_x86_64 native-rejection:match @ccdb99ca2214
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(3)), operation: Some(OperationId(41)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+pass/host/std_clock_explicit_override_exit checked 8639ms check-target:macos_arm64 @b852a38544d0
 pass/host/std_clock_sleep_exit checked 11855ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/user32_window_procedure_registration rejected 22915ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$9d83dc47a040b23a$0 state entry after statement 0: value does not establish Registration::drop clause `registration.atom == 0 && registration.released`
@@ -11459,7 +11493,7 @@ pass/inline_asm/port_write_terminal_sequences rejected 5496ms terminal-inspectio
 	inspection emit_sequence admission: [Diagnostic { severity: Error, message: "machine `emit` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/inline_asm/target_family_control_observation checked 3733ms check-target:linux_x86_64 @ccdb99ca2214
 pass/inline_asm/target_family_instruction_exit checked 3668ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/access_plan_inaccessible_seed checked 2866ms @ccdb99ca2214
+pass/layouts/access_plan_inaccessible_seed checked 4395ms @b43a5fa574e6
 pass/layouts/alternating_member_padding_layout_compile checked 2796ms @ccdb99ca2214
 pass/layouts/array_align_queries_compile checked 2386ms @ccdb99ca2214
 pass/layouts/array_member_layout_queries_compile checked 2669ms @ccdb99ca2214
@@ -11482,9 +11516,9 @@ pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content rejected 1671ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @ccdb99ca2214
 	provider choice must supply the declaration's complete static application
 	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 109, end: 124 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_content/build.omg", line: 3, column: 12 }) }]
-pass/layouts/extent_view_external_write rejected 2012ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @ccdb99ca2214
+pass/layouts/extent_view_external_write rejected 5166ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b43a5fa574e6
 	provider choice must supply the declaration's complete static application
-	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_write/build.omg", line: 3, column: 12 }) }]
+	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "\\\\\\\\?\\\\C:\\\\Projects\\\\Omega\\\\.agents\\\\worktree\\\\access-vocab\\\\tests\\\\omega\\\\pass\\\\layouts\\\\extent_view_external_write\\\\build.omg", line: 3, column: 12 }) }]
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 2539ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_computed_const_policy_exit checked 2288ms check-target:macos_arm64 @2ba727eefb59+wt
@@ -11499,19 +11533,20 @@ pass/layouts/guarded_policy_state_premise checked 6243ms @ccdb99ca2214
 pass/layouts/integer_at_owned_local_borrow_call_exit checked 3675ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/invariant_record_layout_compile checked 2579ms @ccdb99ca2214
 pass/layouts/layout_queries checked 3155ms @ccdb99ca2214
+pass/layouts/local_access_declaration_resolves_ordinarily checked 4632ms @b43a5fa574e6
 pass/layouts/mixed_alignment_layout_queries_compile checked 2936ms @ccdb99ca2214
 pass/layouts/nested_record_layout_queries_compile checked 3124ms @ccdb99ca2214
 pass/layouts/nested_reference_carrier_geometry_exit checked 1412ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/nested_sum_member_layout_compile checked 2368ms @ccdb99ca2214
 pass/layouts/odd_array_then_byte_layout_compile checked 2365ms @ccdb99ca2214
-pass/layouts/placed_factory_accepts_source_interval rejected 522ms @ccdb99ca2214
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_factory_child_retains_parent rejected 828ms @ccdb99ca2214
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_factory_preserves_independent_source_predicate rejected 1086ms @ccdb99ca2214
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_policy_owner_selection rejected 1078ms regressed-from:checked @ccdb99ca2214
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+pass/layouts/placed_factory_accepts_source_interval rejected 1105ms @b43a5fa574e6
+	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+pass/layouts/placed_factory_child_retains_parent rejected 1105ms @b43a5fa574e6
+	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+pass/layouts/placed_factory_preserves_independent_source_predicate rejected 1132ms @b43a5fa574e6
+	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+pass/layouts/placed_policy_owner_selection rejected 1082ms regressed-from:checked @b43a5fa574e6
+	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 pass/layouts/placed_primitive_aligned_backing checked 4748ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_authored_name checked 3262ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_callback rejected 4065ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -11522,15 +11557,16 @@ pass/layouts/placed_primitive_mixed_backing_rejected rejected 4782ms expected ch
 pass/layouts/placed_primitive_returned_backing checked 4447ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_stored_backing checked 4659ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_unused_valid checked 5047ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_ram_mixed_callback rejected 14616ms regressed-from:checked @ccdb99ca2214
+pass/layouts/placed_ram_mixed_callback rejected 20382ms regressed-from:checked @b43a5fa574e6
 	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
+	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
 	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 pass/layouts/placed_reference_results/forwarded checked 4722ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/nested checked 4971ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/returned checked 5093ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/two_live checked 4345ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_view_call_custody checked 8787ms terminal-inspections:match @ccdb99ca2214
+pass/layouts/placed_view_call_custody rejected 18261ms terminal-inspections:failed regressed-from:checked+terminal-inspections:match @b43a5fa574e6
+	inspection unit_delegate production: [Diagnostic { severity: Error, message: "`unit_delegate` calls `observe`; `observe` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `observe::entry`", exceeded_provision: Some(ExceededProvision { resource: "coverage_state_signatures", limit: 0, requested: 1, coordinate: 2366 }), source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2366, end: 2373 } }), resolved_location: None }]
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
@@ -11575,7 +11611,7 @@ pass/layouts/runtime_multi_origin_encoded_reference_exit checked 3177ms check-ta
 pass/layouts/runtime_nested_restricted_field_read checked 3801ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_offset_encoded_reference_exit checked 3337ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_placed_accessor_writeback_exit checked 4637ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/runtime_placed_external_array_snapshot_exit checked 4843ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_placed_external_array_snapshot_exit checked 8103ms check-target:macos_arm64 @b43a5fa574e6
 pass/layouts/runtime_placed_external_nested_array_exit checked 4648ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_placed_outcome_array_read_exit rejected 3578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#87.view`: no captured source place is available
@@ -13406,7 +13442,10 @@ pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-targ
 pass/traits/nominal_machine_binder_static_dispatch checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/operator_machine_add checked 3752ms @ccdb99ca2214
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3586ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/private_generic_requirement_owned_exit checked 2993ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_guarantee_positional_formals_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/public_method_callback_prefix_inference_exit checked 2992ms check-target:macos_arm64 @b852a38544d0
+pass/traits/public_method_const_prefix_inference_exit checked 3056ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_nested_machine_contract_scopes checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/public_post_write_descriptor_guarantee_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/renamed_invocation_contract_binders checked 2489ms @ccdb99ca2214
@@ -14284,9 +14323,9 @@ fail/atomics/atomic_boolean_loaded_cell_reference rejected 1096ms expected @ccdb
 	argument `value` for state `entry` expects `&AtomicBool`, got `member access`
 fail/atomics/atomic_boolean_loaded_mutable_reference rejected 1404ms expected @ccdb99ca2214
 	argument `value` for state `entry` is declared `&mut` (`&mut bool`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/atomics/atomic_boolean_ordinary_bool_load rejected 1234ms expected @ccdb99ca2214
+fail/atomics/atomic_boolean_ordinary_bool_load rejected 1845ms expected @b43a5fa574e6
 	atomic load in machine `main` state `entry` requires dedicated atomic storage or an admitted placed atomic accessor
-fail/atomics/atomic_boolean_ordinary_mutable_store rejected 1642ms expected @ccdb99ca2214
+fail/atomics/atomic_boolean_ordinary_mutable_store rejected 1845ms expected @b43a5fa574e6
 	machine `publish` state `entry` assignment requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event
 fail/atomics/atomic_boolean_replacement rejected 621ms expected @ccdb99ca2214
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
@@ -14327,13 +14366,13 @@ fail/atomics/fence_runtime_ordering rejected 2020ms expected @ccdb99ca2214
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
 fail/atomics/fence_stale_ordering_case rejected 1848ms expected @ccdb99ca2214
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/placed_atomic_load_denied rejected 1299ms expected @ccdb99ca2214
-	placed atomic field `value` does not admit `load`
-fail/atomics/placed_atomic_store_denied rejected 1425ms expected @ccdb99ca2214
-	placed atomic field `value` does not admit `store`
+fail/atomics/placed_atomic_load_denied rejected 2496ms expected @b43a5fa574e6
+	atomic accessor field `value` does not admit `load`
+fail/atomics/placed_atomic_store_denied rejected 2659ms expected @b43a5fa574e6
+	atomic accessor field `value` does not admit `store`
 fail/atomics/shared_receiver_plain_field_write rejected 944ms expected @ccdb99ca2214
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/stored_reference_non_atomic_shared_store rejected 709ms expected @ccdb99ca2214
+fail/atomics/stored_reference_non_atomic_shared_store rejected 1099ms expected @b43a5fa574e6
 	machine `reject` state `entry` assignment cannot write `packet` because it is not mutable in this state (if `packet` is undeclared -- a typo -- no such field or local exists)
 	machine `reject` state `entry` assignment requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event
 fail/blockexec/blocking_executor_ticket_scope_loss rejected 1510ms expected @ccdb99ca2214
@@ -15151,8 +15190,8 @@ fail/borrows/owned_mutable_float_live_shared_loan rejected 4019ms expected @ccdb
 fail/borrows/parent_use_before_disjoint_sibling_ends rejected 2031ms expected @ccdb99ca2214
 	state `observe` receives `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 reads `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
-fail/borrows/placed_helper_exclusive_alias_rejected rejected 2097ms expected @ccdb99ca2214
-	argument `view` for state `entry` is declared `&mut` (`&mut Placed<RegPlacement,Registers>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/placed_helper_exclusive_alias_rejected rejected 2457ms expected @b43a5fa574e6
+	argument `view` for state `entry` is declared `&mut` (`&mut Access<RegPlacement,Registers>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/placed_shared_write_rejected rejected 1380ms expected @ccdb99ca2214
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/plain_read_during_live_exclusive_loan rejected 2608ms expected @ccdb99ca2214
@@ -15694,7 +15733,7 @@ fail/build/installed_entry_ram_invalid_extent rejected 5528ms expected @ccdb99ca
 fail/build/installed_entry_ram_invalid_padding rejected 4500ms expected @ccdb99ca2214
 	private entry RAM padding must be initialized to canonical zero
 fail/build/installed_entry_ram_missing_backing rejected 4904ms expected @ccdb99ca2214
-	native artifact native artifact lowering failed: PlacedViewInputsRequireCustodyLowering
+	native artifact native artifact lowering failed: AccessViewInputsRequireCustodyLowering
 fail/build/installed_entry_ram_overlapping_exclusive_roots rejected 4046ms expected @ccdb99ca2214
 	state `touch` receives `view` as mutable more than once
 fail/build/installed_entry_ram_wrong_occurrence rejected 5158ms expected @ccdb99ca2214
@@ -17348,8 +17387,8 @@ fail/core/owned_content_partition_without_theorem rejected 1674ms expected @ccdb
 	cannot prove default-domain field requirement for return from split, state entry, at statement 2: Pieces.left requires Extent::Granted
 	cannot prove default-domain field requirement for return from split, state entry, at statement 2: Pieces.right requires Extent::Granted
 	linear value `whole` reaches scope exit without being consumed or transferred in machine `split` state `entry`
-fail/core/placed_construction_rejected rejected 34ms expected @ccdb99ca2214
-	`Placed<Native, Packet>` must select one exact `Native::plan` machine
+fail/core/placed_construction_rejected rejected 254ms expected @b43a5fa574e6
+	`Access<Native, Packet>` must select one exact `Native::plan` machine
 fail/core/qualified_integer_cast_argument_requires_representability rejected 676ms expected @ccdb99ca2214
 	Exact integer cast in machine `caller` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/core/qualified_integer_cast_call_all_returns_require_fit rejected 757ms expected @ccdb99ca2214
@@ -28663,24 +28702,24 @@ fail/facts/owned_qualified_reference_result_reuse rejected 2282ms expected @ccdb
 	cannot use `raw.reference` in machine `main` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
 fail/facts/owned_qualified_reference_selection_reuse rejected 2817ms expected @ccdb99ca2214
 	cannot use `raw.reference` in machine `exercise` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
-fail/facts/placed_stable_write_through_call_result_rejected rejected 1936ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_const_name_rejected rejected 1540ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_field_rejected rejected 1679ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_local_rejected rejected 1739ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_match_join_rejected rejected 1711ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_other_machine_rejected rejected 1639ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_other_state_rejected rejected 1966ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_parameter_rejected rejected 1642ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_target_body_rejected rejected 1710ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write_through_call_result_rejected rejected 3638ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_const_name_rejected rejected 3108ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_field_rejected rejected 2956ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_local_rejected rejected 2405ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_match_join_rejected rejected 2158ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_other_machine_rejected rejected 2847ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_other_state_rejected rejected 2128ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_parameter_rejected rejected 2811ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/facts/placed_stable_write_through_target_body_rejected rejected 2259ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
 fail/facts/positional_implementation_binder_through_call_result_rejected rejected 528ms expected @ccdb99ca2214
 	`Other` implements `Loose<>`, which neither is nor inherits `Reading`, the trait that declares `Reading::floor`
 fail/facts/positional_implementation_binder_through_const_name_rejected rejected 747ms expected @ccdb99ca2214
@@ -35979,9 +36018,9 @@ fail/layouts/callee_integer_at_write_requires_fit rejected 1937ms expected @ccdb
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/captured_encoded_reference_replacement_requires_fit rejected 2804ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/layouts/closed_callback_contract_unproved_ram rejected 13167ms unexpected @ccdb99ca2214
+fail/layouts/closed_callback_contract_unproved_ram rejected 18699ms unexpected @b43a5fa574e6
 	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
+	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
 	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/layouts/completed_integer_at_result_rejects_later_source_donation rejected 2612ms expected @ccdb99ca2214
 	IntegerAt call in main requires every performed value to fit its physical storage: performed write cannot transport its actual value relation
@@ -36014,14 +36053,14 @@ fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 1430m
 	cannot prove ensures contract for exit from corrupt at statement 2: storage in Extent::Registered
 fail/layouts/extent_view_exclusive_source_overlap rejected 2161ms expected @ccdb99ca2214
 	statement 1 reads `storage.length` while local borrow `outcome` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/layouts/extent_view_nested_record_predicate rejected 1365ms expected @ccdb99ca2214
-	nonresident placement View cannot establish record predicates for `Inner`; independent content-validity evidence is required
+fail/layouts/extent_view_nested_record_predicate rejected 3557ms expected @b43a5fa574e6
+	nonresident access View cannot establish record predicates for `Inner`; independent content-validity evidence is required
 fail/layouts/extent_view_shared_cannot_mutate rejected 947ms expected @ccdb99ca2214
 	argument `storage` for state `view_extent_mut` is declared `&mut` (`&mut Extent[in Granted]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/layouts/extent_view_unproved_field_domain rejected 1468ms expected @ccdb99ca2214
-	nonresident placement View cannot establish field qualifications; independent content-validity evidence is required
-fail/layouts/extent_view_unproved_record_predicate rejected 2480ms expected @ccdb99ca2214
-	nonresident placement View cannot establish record predicates for `Word`; independent content-validity evidence is required
+fail/layouts/extent_view_unproved_field_domain rejected 2425ms expected @b43a5fa574e6
+	nonresident access View cannot establish field qualifications; independent content-validity evidence is required
+fail/layouts/extent_view_unproved_record_predicate rejected 2942ms expected @b43a5fa574e6
+	nonresident access View cannot establish record predicates for `Word`; independent content-validity evidence is required
 fail/layouts/extent_view_unrelated_result_lifetime rejected 4728ms expected @ccdb99ca2214
 	machine `attempt` returns a view borrowing input `right`, which is not permitted by the declared result lifetime relation
 fail/layouts/false_constant_layout_contract rejected 3746ms expected @ccdb99ca2214
@@ -36047,25 +36086,25 @@ fail/layouts/layout_query_private_arrival_unknown_input rejected 1055ms expected
 	constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]
 fail/layouts/nested_reference_carrier_geometry rejected 2688ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_geometry from main: size_of() == 24
-fail/layouts/ordinary_placed_write_retires_owner_qualification rejected 3127ms expected @ccdb99ca2214
+fail/layouts/ordinary_placed_write_retires_owner_qualification rejected 3988ms expected @b43a5fa574e6
 	cannot prove ensures contract for exit from corrupt at statement 2: words in Words::Registered
 	cannot prove ensures contract for exit from corrupt at statement 2: words.entries[1] == 41
-fail/layouts/placed_external_array_denied_read rejected 1310ms expected @ccdb99ca2214
-	placed read application: the placement plan does not permit this operation
+fail/layouts/placed_external_array_denied_read rejected 1330ms expected @b43a5fa574e6
+	accessor read application: the access plan does not permit this operation
 fail/layouts/placed_external_nested_array_shared_write rejected 2194ms expected @ccdb99ca2214
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placed_factory_child_blocks_parent rejected 3123ms expected @ccdb99ca2214
 	state `observe` receives `view` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 5)
 	statement 4 reads `view` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/layouts/placed_factory_generic_preserves_source_predicate rejected 1289ms expected @ccdb99ca2214
-	placed write to schema field `transmit` does not preserve its source declaration predicate
-	placed write to schema field `transmit` does not preserve its source declaration predicate
+fail/layouts/placed_factory_generic_preserves_source_predicate rejected 2061ms expected @b43a5fa574e6
+	accessor write to schema field `transmit` does not preserve its source declaration predicate
+	accessor write to schema field `transmit` does not preserve its source declaration predicate
 fail/layouts/placed_factory_parent_storage_conflict rejected 2883ms expected @ccdb99ca2214
 	statement 2 reads `registers.status` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/layouts/placed_factory_preserves_source_predicate rejected 1089ms expected @ccdb99ca2214
-	placed write to schema field `transmit` does not preserve its source declaration predicate
-fail/layouts/placed_factory_requires_complete_source_guard rejected 1338ms expected @ccdb99ca2214
-	placed write to schema field `transmit` requires a complete source declaration predicate guard
+fail/layouts/placed_factory_preserves_source_predicate rejected 2037ms expected @b43a5fa574e6
+	accessor write to schema field `transmit` does not preserve its source declaration predicate
+fail/layouts/placed_factory_requires_complete_source_guard rejected 2199ms expected @b43a5fa574e6
+	accessor write to schema field `transmit` requires a complete source declaration predicate guard
 fail/layouts/placed_factory_requires_exclusive_source rejected 1753ms expected @ccdb99ca2214
 	argument `source` for state `view_mut` is declared `&mut` (`&mut Registers`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
@@ -36074,27 +36113,27 @@ fail/layouts/placed_factory_requires_initialized_descriptor rejected 1501ms expe
 	machine `bad` state `entry` uses reference local `source` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
 fail/layouts/placed_factory_result_cannot_upgrade_source rejected 1826ms expected @ccdb99ca2214
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
-fail/layouts/placed_policy_requires_exact_attached_owner rejected 57ms expected @ccdb99ca2214
-	`Placed<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
-fail/layouts/placed_primitive_denied_write rejected 1478ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/layouts/placed_primitive_generic_wrapper rejected 2373ms expected @ccdb99ca2214
-	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
-fail/layouts/placed_primitive_lookalike rejected 1840ms expected @ccdb99ca2214
-	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
+fail/layouts/placed_policy_requires_exact_attached_owner rejected 372ms expected @b43a5fa574e6
+	`Access<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
+fail/layouts/placed_primitive_denied_write rejected 2797ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/layouts/placed_primitive_generic_wrapper rejected 3358ms expected @b43a5fa574e6
+	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
+fail/layouts/placed_primitive_lookalike rejected 2482ms expected @b43a5fa574e6
+	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
 fail/layouts/placed_primitive_private_unused rejected 1353ms unexpected @ccdb99ca2214
 	generic machine `ignore` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/layouts/placed_primitive_reference_accessor rejected 2062ms expected @ccdb99ca2214
-	argument `field` for state `entry` expects `&PlacedField<Placed<StablePlacement,Value>,number>`, got `member access`
+fail/layouts/placed_primitive_reference_accessor rejected 2913ms expected @b43a5fa574e6
+	argument `field` for state `entry` expects `&Accessor<Access<StablePlacement,Value>,number>`, got `member access`
 fail/layouts/placed_primitive_shared_source rejected 2717ms expected @ccdb99ca2214
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
-fail/layouts/placed_primitive_unused_invalid rejected 2242ms expected @ccdb99ca2214
-	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
-fail/layouts/placed_primitive_wrong_value rejected 1760ms expected @ccdb99ca2214
-	placed read application: value type does not match the placed field's exact value type
-fail/layouts/placed_ram_mixed_callback rejected 12909ms unexpected @ccdb99ca2214
+fail/layouts/placed_primitive_unused_invalid rejected 2185ms expected @b43a5fa574e6
+	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
+fail/layouts/placed_primitive_wrong_value rejected 2443ms expected @b43a5fa574e6
+	accessor read application: value type does not match the accessor's exact value type
+fail/layouts/placed_ram_mixed_callback rejected 17726ms unexpected @b43a5fa574e6
 	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
+	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
 	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/layouts/placed_reference_results/overlapping_loans rejected 4514ms expected @ccdb99ca2214
 	state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -36112,16 +36151,16 @@ fail/layouts/placed_shared_formal_cannot_write rejected 1512ms expected @ccdb99c
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placed_stable_array_index_unbounded rejected 2528ms expected @ccdb99ca2214
 	cannot prove index `selected` is within length 2 in replace::entry
-fail/layouts/placed_stable_array_readonly_write rejected 1047ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
+fail/layouts/placed_stable_array_readonly_write rejected 1321ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
 fail/layouts/placed_stable_array_shared_write rejected 1603ms expected @ccdb99ca2214
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
-fail/layouts/placed_transition_result_type_mismatch rejected 763ms expected @ccdb99ca2214
-	placed read application: value type does not match the placed field's exact value type
-fail/layouts/placed_view_source_access_denied_write rejected 1722ms expected @ccdb99ca2214
-	placed write application: the placement plan does not permit this operation
-fail/layouts/placement_policy_unproved_callee_premise rejected 194ms expected @ccdb99ca2214
-	placed view `Placed<CheckedPolicy,Register>`: demanded premise closure checking failed: machine `CheckedPolicy::plan` state `plan` value call to `CheckedPolicy::limit` violates required fact `value <= 7`: the instantiated fact is structurally false (`8 <= 7`)
+fail/layouts/placed_transition_result_type_mismatch rejected 1155ms expected @b43a5fa574e6
+	accessor read application: value type does not match the accessor's exact value type
+fail/layouts/placed_view_source_access_denied_write rejected 1965ms expected @b43a5fa574e6
+	accessor write application: the access plan does not permit this operation
+fail/layouts/placement_policy_unproved_callee_premise rejected 364ms expected @b43a5fa574e6
+	access view `Access<CheckedPolicy,Register>`: demanded premise closure checking failed: machine `CheckedPolicy::plan` state `plan` value call to `CheckedPolicy::limit` violates required fact `value <= 7`: the instantiated fact is structurally false (`8 <= 7`)
 fail/layouts/plan_laid_dynamic_plan rejected 12723ms expected @ccdb99ca2214
 	plan-laid value type `Streamy<Pairish>`: error: policy `Streamy::plan` produced a dynamic plan: a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 7440ms expected @ccdb99ca2214
@@ -36141,8 +36180,8 @@ fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 1861ms expe
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value has no fitting bounds or entry relation
 fail/layouts/reference_layout_carrier rejected 4193ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_reference_layout from main: size_of() == 8
-fail/layouts/resident_external_array_requires_restoration rejected 3215ms expected @ccdb99ca2214
-	resident placed view with destructive read requires tracked content restoration before loan return
+fail/layouts/resident_external_array_requires_restoration rejected 5286ms expected @b43a5fa574e6
+	resident access view with destructive read requires tracked content restoration before loan return
 fail/layouts/resident_extraction_requires_ended_view rejected 5377ms expected @ccdb99ca2214
 	state `move_out` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	state `move_out` receives `retained` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
@@ -36150,10 +36189,10 @@ fail/layouts/resident_extraction_requires_ended_view rejected 5377ms expected @c
 	statement 2 mutates `retained` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/layouts/resident_extraction_requires_plan rejected 686ms expected @ccdb99ca2214
 	policy `WordPlacement::plan` produced an invalid plan: field `value` ends at bit 128, past the fixed size 64 bits
-fail/layouts/resident_field_write_preserves_qualification rejected 2115ms expected @ccdb99ca2214
-	placed write application: value type does not match the placed field's exact value type
-fail/layouts/resident_field_write_preserves_schema_predicate rejected 4077ms expected @ccdb99ca2214
-	placed write to schema field `value` does not preserve its source declaration predicate
+fail/layouts/resident_field_write_preserves_qualification rejected 2199ms expected @b43a5fa574e6
+	accessor write application: value type does not match the accessor's exact value type
+fail/layouts/resident_field_write_preserves_schema_predicate rejected 5157ms expected @b43a5fa574e6
+	accessor write to schema field `value` does not preserve its source declaration predicate
 fail/layouts/resident_initialization_requires_plan rejected 1248ms expected @ccdb99ca2214
 	policy `WordPlacement::plan` produced an invalid plan: field `value` ends at bit 128, past the fixed size 64 bits
 fail/layouts/resident_selected_lifecycle_requires_plan rejected 1016ms expected @ccdb99ca2214
@@ -36279,8 +36318,8 @@ fail/memory/native_allocation_double_release_rejected rejected 1765ms expected @
 fail/memory/native_allocation_unissued_release_rejected rejected 2952ms expected @ccdb99ca2214
 	cannot prove requires contract for call release from main: Allocation in Allocation::Held in state `entry`
 	construction value is not proven in domain `Allocation::Held` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/memory/resident_content_destructive_view rejected 3970ms expected @ccdb99ca2214
-	resident placed view with destructive read requires tracked content restoration before loan return
+fail/memory/resident_content_destructive_view rejected 5078ms expected @b43a5fa574e6
+	resident access view with destructive read requires tracked content restoration before loan return
 fail/memory/resident_content_opaque_carrier_handback rejected 2515ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from exercise, state entry, at statement 1: storage requires Extent::Granted
 	cannot prove default-domain field requirement for return from exercise, state entry, at statement 1: storage requires Resident
@@ -39490,72 +39529,72 @@ run/facts/float_comparison_route_through_target_body_traps checked 5367ms check-
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms check-target:macos_arm64 @ccdb99ca2214
 run/float/folded_anonymous_operator_custody_exit checked 12880ms check-target:macos_arm64 @ccdb99ca2214
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
-run/layouts/placed_ram_capture_forwarding rejected 7506ms check-target:macos_arm64 @ccdb99ca2214
+run/layouts/placed_ram_capture_forwarding rejected 17802ms check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_helper rejected 7872ms check-target:macos_arm64 @ccdb99ca2214
+run/layouts/placed_ram_capture_helper rejected 17427ms check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_retirement rejected 7879ms check-target:macos_arm64 @ccdb99ca2214
+run/layouts/placed_ram_capture_retirement rejected 17601ms check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_return rejected 8180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+run/layouts/placed_ram_capture_return rejected 15978ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_original_backing rejected 7309ms check-target:macos_arm64 @ccdb99ca2214
+run/layouts/placed_ram_original_backing rejected 16680ms check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_scalar_types rejected 8674ms check-target:macos_arm64 @ccdb99ca2214
-	machine `mutate` state `entry` reads a nested member `signed`, but data `Placed` has no field `signed` (check the spelling of the field name)
+run/layouts/placed_ram_scalar_types rejected 16091ms check-target:macos_arm64 @b43a5fa574e6
+	machine `mutate` state `entry` reads a nested member `signed`, but data `Access` has no field `signed` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `flag`, but data `Placed` has no field `flag` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `flag`, but data `Access` has no field `flag` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `narrow`, but data `Placed` has no field `narrow` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `narrow`, but data `Access` has no field `narrow` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `wide`, but data `Placed` has no field `wide` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `wide`, but data `Access` has no field `wide` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `signed.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `mutate` state `entry`: value call `flag.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `mutate` state `entry`: value call `narrow.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `mutate` state `entry`: value call `wide.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-run/layouts/placed_ram_stored_field_return rejected 7916ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+run/layouts/placed_ram_stored_field_return rejected 14752ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Placed` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Placed` has no field `transmit` (check the spelling of the field name)
+	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
+	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 run/layouts/placed_stable_array checked 4633ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_distinct_fields checked 3994ms check-target:macos_arm64 @ccdb99ca2214

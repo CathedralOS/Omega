@@ -31,8 +31,8 @@ pub(crate) fn build_boundary_machine(
         return Err("boundary declaration requires one signature state");
     };
     let binders = machine_binders(program, machine);
-    for (_, operation) in program.placement_lifecycle_plans.iter() {
-        if matches!(operation, typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated { callable, .. }
+    for (_, operation) in program.access_lifecycle_plans.iter() {
+        if matches!(operation, typed_trees::typed_trees::AccessLifecyclePlan::Evaluated { callable, .. }
             if *callable == machine.symbol || *callable == state.symbol)
         {
             for definition in operation.storage_definitions(program.typed_program())? {

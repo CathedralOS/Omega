@@ -34,11 +34,11 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry);
     mechanisms.extend(
         [
-            terminal_psi::TerminalPlacementLifecycleOperation::Initialize,
-            terminal_psi::TerminalPlacementLifecycleOperation::MoveOut,
-            terminal_psi::TerminalPlacementLifecycleOperation::View,
+            terminal_psi::TerminalAccessLifecycleOperation::Initialize,
+            terminal_psi::TerminalAccessLifecycleOperation::MoveOut,
+            terminal_psi::TerminalAccessLifecycleOperation::View,
         ]
-        .map(CompilerIntrinsicExecutionIdentity::PlacementLifecycle),
+        .map(CompilerIntrinsicExecutionIdentity::AccessLifecycle),
     );
     mechanisms.extend(
         BuiltinFunction::ALL

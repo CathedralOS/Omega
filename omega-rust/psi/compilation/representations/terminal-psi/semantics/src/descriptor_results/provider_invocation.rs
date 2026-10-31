@@ -70,7 +70,7 @@ pub fn provider_invocation(
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
 ) -> Option<DescriptorInvocation> {
     if actuals.len() != declaration.structural_parameters.len()
-        || slot_kind == DescriptorSlotKind::PlacedOrigins
+        || slot_kind == DescriptorSlotKind::AccessOrigins
     {
         return None;
     }

@@ -1,0 +1,37 @@
+// Ordinary import rules apply to the core access-view name. Importing the
+// layout module brings `Access` into this file's scope, so a same-named local
+// declaration is an ordinary duplicate, and the generic core spelling
+// `Access<P, T>` cannot be resolved past it. No special rule rescues the core
+// name; a different local name or no import is the ordinary remedy, as the
+// pass twin `local_access_declaration_resolves_ordinarily` shows.
+use omega::language::core::layout;
+
+data Access {
+    level: u32;
+}
+
+public data Registers {
+    status: u32;
+    transmit: u32;
+}
+
+public data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 };
+    AccessPlan::with(
+        AccessPlan::inaccessible(layout),
+        schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: false, exposure: Exposure::Exported }
+    )
+}
+
+machine observe(view: &Access<RegPlacement, Registers>) -> u32 {
+    view.status.read(&view.status)
+}
+
+machine main() {
+}

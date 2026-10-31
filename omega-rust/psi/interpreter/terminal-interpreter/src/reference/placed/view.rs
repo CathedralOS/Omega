@@ -3,21 +3,21 @@
 //! the temporary profile's storage never becomes its referent. No byte read,
 //! initialization, claim transfer or content qualification occurs here.
 
-use super::{PlacedReference, PlacedStorage};
+use super::{AccessReference, AccessStorage};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::ConstructorStorage;
 use crate::values::StructuralRuntimePlace;
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralPathSegment,
-    TerminalPlacementLifecyclePlan,
+    TerminalAccessLifecyclePlan,
 };
 
 impl TerminalExecution<'_> {
-    pub(crate) fn establish_placement_view(
+    pub(crate) fn establish_access_view(
         &mut self,
         operation: &Operation,
-        plan: &TerminalPlacementLifecyclePlan,
+        plan: &TerminalAccessLifecyclePlan,
     ) -> Result<(), TerminalInterpretError> {
         operation_kind!(operation => BoundaryCall {
             structural_arguments, completion_receipts, ..
@@ -39,16 +39,16 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let program = std::sync::Arc::clone(&self.program);
-        terminal_semantics::validate_placement_view_content(&program.catalogs, plan)
+        terminal_semantics::validate_access_view_content(&program.catalogs, plan)
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
-        let terminal_semantics::PlacementResultContract::View {
+        let terminal_semantics::AccessResultContract::View {
             result: declared,
             ready,
             rejected,
             failures,
             carrier,
             access,
-        } = terminal_semantics::placement_result_contract(&program.catalogs, plan)
+        } = terminal_semantics::access_result_contract(&program.catalogs, plan)
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?
         else {
             return Err(malformed());
@@ -90,8 +90,8 @@ impl TerminalExecution<'_> {
                 presentation.structural_type = carrier;
                 presentation.qualifications.clear();
                 presentation.projected_qualifications.clear();
-                let captured = PlacedReference {
-                    storage: PlacedStorage::External {
+                let captured = AccessReference {
+                    storage: AccessStorage::External {
                         carrier,
                         owner: StructuralRuntimePlace::from(&backing),
                         binding,
@@ -103,7 +103,7 @@ impl TerminalExecution<'_> {
                     projection: Vec::new(),
                     source: backing.clone(),
                 };
-                self.validate_placed_backing(&captured)?;
+                self.validate_access_backing(&captured)?;
                 storage.stage_reference(
                     StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,

@@ -157,6 +157,7 @@ pub use proof_contracts::signature_ensures::{
     collect_parameter_bound_comparisons, ensures_contract_expressions,
 };
 use typed_trees::types::TypeReferenceHandle;
+pub use value_custody::access_atomic_observing_results;
 pub use value_custody::byte_observations::{ByteObservationCarrier, comparable_byte_carrier_type};
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
@@ -172,7 +173,6 @@ pub use value_custody::owned_value_source::{
     whole_owned_value_source,
 };
 pub use value_custody::permission_provenance::expression_permission_provenance;
-pub use value_custody::placed_atomic_observing_results;
 pub use value_custody::receiving_values::receiving_value;
 pub use value_custody::reference_shells::{
     ReferenceShell, SliceViewShell, byte_sequence_carrier, reference_shell, slice_view_shell,
@@ -427,7 +427,7 @@ pub use value_custody::recasts::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, ReferenceFormationInterpretation,
     ReferenceFormationSource, SliceRecastByteRegion, SliceRecastSource,
-    ValidatedLiteralIndexedRecastFootprint, placed_borrow_has_empty_write_frame,
+    ValidatedLiteralIndexedRecastFootprint, access_borrow_has_empty_write_frame,
     recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_geometry,
     recast_scalar_path_projection, recast_scalar_projection, reference_formation_source,
     reference_view_storage, slice_recast_byte_region, slice_recast_source,

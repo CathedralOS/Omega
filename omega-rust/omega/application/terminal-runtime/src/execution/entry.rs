@@ -13,7 +13,7 @@ pub(super) struct EstablishedEntry {
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
     private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
-    establishments: Vec<terminal_installation::TerminalPlacedViewEstablishment>,
+    establishments: Vec<terminal_installation::TerminalAccessViewEstablishment>,
 }
 
 impl EstablishedEntry {
@@ -23,7 +23,7 @@ impl EstablishedEntry {
             zero_initialized_arguments: &self.zero_initialized,
             established_erased_fields: &self.erased_fields,
             private_entry_ram: &self.private_entry_ram,
-            placed_view_establishments: &self.establishments,
+            access_view_establishments: &self.establishments,
             ..TerminalStructuralInputs::default()
         }
     }
@@ -40,10 +40,10 @@ pub(super) fn establish(
     let recipes = provisions
         .map(TerminalRuntimeProvisions::private_entry_ram)
         .unwrap_or_default();
-    if !entry.scalar_parameters.is_empty() || entry.placed_view_inputs().count() != recipes.len() {
+    if !entry.scalar_parameters.is_empty() || entry.access_view_inputs().count() != recipes.len() {
         return Err(TerminalRuntimeError::missing(
             "program-entry-arrival-values",
-            "isolated hosted entry does not supply scalar arguments or borrowed placed-view inputs",
+            "isolated hosted entry does not supply scalar arguments or borrowed access-view inputs",
         ));
     }
     if provisions.is_some_and(|provisions| {
@@ -96,7 +96,7 @@ pub(super) fn establish(
         ));
         arrival
             .establishments
-            .push(terminal_installation::TerminalPlacedViewEstablishment {
+            .push(terminal_installation::TerminalAccessViewEstablishment {
                 input: recipe.input().clone(),
                 referent: TerminalStructuralValue::minted(
                     original_identity,

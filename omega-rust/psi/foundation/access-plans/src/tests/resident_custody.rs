@@ -5,9 +5,9 @@ use super::{
     uart_extent_with_lineage,
 };
 use crate::{
-    AtomicAccessOperation, AtomicPermissions, BorrowPolarity, DormantOwnedAtomicResident,
-    ObservationModel, OwnedPlacementAdmission, PlacedOccurrenceId, PlacementAdmissionId,
-    admit_owned_placement, adopt_owned_atomic, adopt_owned_stable,
+    AccessAdmissionId, AccessOccurrenceId, AtomicAccessOperation, AtomicPermissions,
+    BorrowPolarity, DormantOwnedAtomicResident, ObservationModel, OwnedAccessAdmission,
+    admit_owned_access, adopt_owned_atomic, adopt_owned_stable,
 };
 use extents::LoanPolarity;
 use extents::ResidentClaimId;
@@ -23,8 +23,8 @@ fn provider_existing_content_establishes_owned_stable_placement() {
     let provenance = extent.provenance();
     let era = extent.era();
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(95).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(95).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -34,7 +34,7 @@ fn provider_existing_content_establishes_owned_stable_placement() {
     let dormant =
         adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
     assert_eq!(dormant.admission().normalized_identity(), 95);
-    assert_eq!(dormant.placement_plan().identity(), plan.identity());
+    assert_eq!(dormant.access_plan().identity(), plan.identity());
     assert_eq!(dormant.extent().base(), 0xa000);
     assert_eq!(dormant.extent().length(), 4);
     assert_eq!(dormant.extent().origin(), origin);
@@ -48,10 +48,10 @@ fn provider_existing_content_establishes_owned_stable_placement() {
     assert_eq!(dormant.custody_receipt().normalized_identity(), 94);
 
     let established = dormant
-        .view(PlacedOccurrenceId::from_normalized_identity(96).expect("placed occurrence"))
+        .view(AccessOccurrenceId::from_normalized_identity(96).expect("placed occurrence"))
         .expect("owned resident-view establishment");
     assert_eq!(established.admission().normalized_identity(), 95);
-    assert_eq!(established.placement_plan().identity(), plan.identity());
+    assert_eq!(established.access_plan().identity(), plan.identity());
     assert_eq!(established.extent().base(), 0xa000);
     assert_eq!(established.extent().length(), 4);
     assert_eq!(established.resident_claim().normalized_identity(), 95);
@@ -70,23 +70,23 @@ fn provider_existing_content_establishes_and_retires_owned_atomic_placement() {
         let loan = extent.loan(0, 4).expect("Atomic profile loan");
         atomic_word_profile(&loan)
     };
-    let admission_id = PlacementAdmissionId::from_normalized_identity(305).expect("admission");
-    let admission = admit_owned_placement(admission_id, extent, &plan, &profile)
-        .expect("owned Atomic admission");
+    let admission_id = AccessAdmissionId::from_normalized_identity(305).expect("admission");
+    let admission =
+        admit_owned_access(admission_id, extent, &plan, &profile).expect("owned Atomic admission");
     let dormant =
         adopt_owned_atomic(admission, content).expect("provider-evidenced Atomic adoption");
     let claim = dormant.resident_claim();
     let validity = dormant.validity_receipt();
     let custody = dormant.custody_receipt();
     assert_eq!(dormant.admission(), admission_id);
-    assert_eq!(dormant.placement_plan().identity(), plan.identity());
+    assert_eq!(dormant.access_plan().identity(), plan.identity());
     assert_eq!(dormant.profile_receipt().normalized_identity(), 155);
     assert_eq!(dormant.extent().origin(), origin);
     assert_eq!(dormant.extent().lineage_root(), lineage);
     assert_eq!(claim.normalized_identity(), 304);
 
     let first_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(306).expect("first Atomic occurrence");
+        AccessOccurrenceId::from_normalized_identity(306).expect("first Atomic occurrence");
     let established = dormant
         .view(first_occurrence)
         .expect("owned Atomic resident view");
@@ -102,14 +102,14 @@ fn provider_existing_content_establishes_and_retires_owned_atomic_placement() {
             .expect("resident Atomic field projection");
         assert_eq!(projection.observation(), ObservationModel::Atomic);
         assert_eq!(projection.resident_claim(), Some(claim));
-        assert_eq!(projection.placed_occurrence(), Some(first_occurrence));
+        assert_eq!(projection.access_occurrence(), Some(first_occurrence));
 
         let request = projection
             .atomic_compare_exchange_once(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
             .expect("resident Atomic single-attempt compare-exchange")
             .into_primitive_request();
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(first_occurrence));
+        assert_eq!(request.access_occurrence(), Some(first_occurrence));
         let atomic = request
             .into_atomic_primitive_access()
             .expect("resident Atomic specialization");
@@ -125,7 +125,7 @@ fn provider_existing_content_establishes_and_retires_owned_atomic_placement() {
             .expect("resident Atomic specialization replays exact custody");
         let request = atomic.into_primitive_request();
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(first_occurrence));
+        assert_eq!(request.access_occurrence(), Some(first_occurrence));
     }
 
     let dormant = established
@@ -138,7 +138,7 @@ fn provider_existing_content_establishes_and_retires_owned_atomic_placement() {
     assert_eq!(dormant.extent().lineage_root(), lineage);
 
     let second_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(307).expect("second Atomic occurrence");
+        AccessOccurrenceId::from_normalized_identity(307).expect("second Atomic occurrence");
     let second = dormant
         .view(second_occurrence)
         .expect("re-view of the same Atomic resident");
@@ -154,8 +154,8 @@ fn atomic_adoption_is_observation_specific_and_returns_both_inputs() {
     let origin = extent.origin();
     let claim = content.resident_claim();
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(315).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(315).expect("admission"),
         extent,
         &stable,
         &profile,
@@ -181,8 +181,8 @@ fn atomic_adoption_is_observation_specific_and_returns_both_inputs() {
         let loan = extent.loan(0, 4).expect("Atomic profile loan");
         atomic_word_profile(&loan)
     };
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(320).expect("Atomic admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(320).expect("Atomic admission"),
         extent,
         &atomic,
         &profile,
@@ -207,8 +207,8 @@ fn atomic_resident_lifecycle_returns_complete_carriers_on_authority_drift() {
         let loan = extent.loan(0, 4).expect("Atomic profile loan");
         atomic_word_profile(&loan)
     };
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(325).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(325).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -227,13 +227,13 @@ fn atomic_resident_lifecycle_returns_complete_carriers_on_authority_drift() {
         atomic_word_profile(&loan)
     };
     let retained_profile = std::mem::replace(&mut dormant.admission.profile, wrong_profile);
-    let occurrence = PlacedOccurrenceId::from_normalized_identity(327).expect("Atomic occurrence");
+    let occurrence = AccessOccurrenceId::from_normalized_identity(327).expect("Atomic occurrence");
     let rejection = dormant
         .view(occurrence)
-        .expect_err("Atomic view must replay exact retained placement authority");
-    assert!(rejection.diagnostic().0.contains("placement authority"));
+        .expect_err("Atomic view must replay exact retained access authority");
+    assert!(rejection.diagnostic().0.contains("access authority"));
     let (mut dormant, returned_occurrence, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains("placement authority"));
+    assert!(diagnostic.0.contains("access authority"));
     assert_eq!(returned_occurrence, occurrence);
     assert_eq!(dormant.resident_claim(), claim);
     assert_eq!(dormant.validity_receipt(), validity);
@@ -267,12 +267,12 @@ fn atomic_resident_lifecycle_returns_complete_carriers_on_authority_drift() {
         );
         request = expect_exact_atomic_rejection(request, "resident identities");
         request.resident_claim = Some(claim);
-        request.placed_occurrence = Some(
-            PlacedOccurrenceId::from_normalized_identity(332)
+        request.access_occurrence = Some(
+            AccessOccurrenceId::from_normalized_identity(332)
                 .expect("substituted placed occurrence"),
         );
         request = expect_exact_atomic_rejection(request, "resident identities");
-        request.placed_occurrence = Some(occurrence);
+        request.access_occurrence = Some(occurrence);
         request
             .into_atomic_primitive_access()
             .expect("repaired Atomic request preserves its original authority")
@@ -299,7 +299,7 @@ fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarit
     let profile_receipt = dormant.profile_receipt();
 
     let shared_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(345).expect("shared Atomic occurrence");
+        AccessOccurrenceId::from_normalized_identity(345).expect("shared Atomic occurrence");
     {
         let mut borrowed = dormant
             .borrow_view(shared_occurrence)
@@ -309,7 +309,7 @@ fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarit
         assert_eq!(borrowed.loan_polarity(), LoanPolarity::Shared);
         assert_eq!(borrowed.admission(), admission);
         assert_eq!(borrowed.profile_receipt(), profile_receipt);
-        assert_eq!(borrowed.placement_plan(), &plan);
+        assert_eq!(borrowed.access_plan(), &plan);
         assert_eq!(borrowed.resident_claim(), claim);
         assert_eq!(borrowed.occurrence(), shared_occurrence);
         assert_eq!(borrowed.validity_receipt(), validity);
@@ -325,7 +325,7 @@ fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarit
         assert_eq!(request.source_loan(), BorrowPolarity::Shared);
         assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(shared_occurrence));
+        assert_eq!(request.access_occurrence(), Some(shared_occurrence));
         assert_eq!(
             primitive_request_snapshot(&request).authority_kind,
             "borrowed-atomic-resident"
@@ -360,7 +360,7 @@ fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarit
     assert_eq!(dormant.custody_receipt(), custody);
 
     let inert_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(347).expect("inert borrowed occurrence");
+        AccessOccurrenceId::from_normalized_identity(347).expect("inert borrowed occurrence");
     let inert = dormant
         .borrow_view(inert_occurrence)
         .expect("borrowed Atomic view requires no operation or result carrier");
@@ -372,7 +372,7 @@ fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarit
     assert_eq!(dormant.resident_claim(), claim);
 
     let exclusive_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(346).expect("exclusive Atomic occurrence");
+        AccessOccurrenceId::from_normalized_identity(346).expect("exclusive Atomic occurrence");
     {
         let borrowed = dormant
             .borrow_view_mut(exclusive_occurrence)
@@ -388,7 +388,7 @@ fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarit
         assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
         assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(exclusive_occurrence));
+        assert_eq!(request.access_occurrence(), Some(exclusive_occurrence));
         borrowed
             .retire()
             .expect("exclusive borrowed Atomic retirement");
@@ -404,8 +404,8 @@ fn borrowed_atomic_resident_formation_rejects_non_atomic_lender_observation() {
     let stable = stable_word_placement();
     let (extent, content) = provider_existing_content(&stable, 0xa5a0, 4, 361, 362);
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(365).expect("Stable admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(365).expect("Stable admission"),
         extent,
         &stable,
         &profile,
@@ -417,7 +417,7 @@ fn borrowed_atomic_resident_formation_rejects_non_atomic_lender_observation() {
     // replay the complete lender and reject the Stable plan before issuing a
     // loan-bearing carrier.
     let corrupted = DormantOwnedAtomicResident { admission, content };
-    let occurrence = PlacedOccurrenceId::from_normalized_identity(366).expect("Atomic occurrence");
+    let occurrence = AccessOccurrenceId::from_normalized_identity(366).expect("Atomic occurrence");
     let diagnostic = corrupted
         .borrow_view(occurrence)
         .expect_err("Stable resident authority cannot form an Atomic borrowed view");
@@ -440,7 +440,7 @@ fn borrowed_atomic_resident_views_add_no_permissions_and_recover_from_authority_
     let validity = dormant.validity_receipt();
     let custody = dormant.custody_receipt();
     let occurrence =
-        PlacedOccurrenceId::from_normalized_identity(355).expect("borrowed Atomic occurrence");
+        AccessOccurrenceId::from_normalized_identity(355).expect("borrowed Atomic occurrence");
 
     let (_, foreign_content) = provider_existing_content(&once_only, 0xa5c0, 4, 356, 357);
     let coincident = uart_extent_with_lineage(0xa5c0, 4, 358);
@@ -457,7 +457,7 @@ fn borrowed_atomic_resident_views_add_no_permissions_and_recover_from_authority_
     let diagnostic = dormant
         .borrow_view_mut(occurrence)
         .expect_err("borrowed Atomic formation must replay the exact lender profile");
-    assert!(diagnostic.0.contains("placement authority"));
+    assert!(diagnostic.0.contains("access authority"));
     assert_eq!(dormant.resident_claim(), claim);
     assert_eq!(dormant.validity_receipt(), validity);
     assert_eq!(dormant.custody_receipt(), custody);
@@ -487,7 +487,7 @@ fn borrowed_atomic_resident_views_add_no_permissions_and_recover_from_authority_
     borrowed.replace_plan_for_test(exact_plan);
 
     let exact_admission = borrowed.replace_admission_for_test(
-        PlacementAdmissionId::from_normalized_identity(360).expect("foreign admission"),
+        AccessAdmissionId::from_normalized_identity(360).expect("foreign admission"),
     );
     let rejection = borrowed
         .retire()
@@ -524,7 +524,7 @@ fn borrowed_atomic_resident_views_add_no_permissions_and_recover_from_authority_
     assert_eq!(dormant.validity_receipt(), validity);
     assert_eq!(dormant.custody_receipt(), custody);
     let owned = dormant
-        .view(PlacedOccurrenceId::from_normalized_identity(359).expect("owned occurrence"))
+        .view(AccessOccurrenceId::from_normalized_identity(359).expect("owned occurrence"))
         .expect("borrowed retirement leaves lender custody available");
     assert_eq!(owned.resident_claim(), claim);
 }
@@ -536,8 +536,8 @@ fn stable_adoption_replays_profile_and_returns_both_inputs_for_retry() {
     let extent_origin = extent.origin();
     let extent_lineage = extent.lineage_root();
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(195).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(195).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -546,17 +546,17 @@ fn stable_adoption_replays_profile_and_returns_both_inputs_for_retry() {
 
     let coincident = uart_extent_with_lineage(0xad80, 4, 196);
     let wrong_profile = stable_word_profile(&coincident);
-    let OwnedPlacementAdmission {
+    let OwnedAccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile: _,
         resources,
         extent,
     } = admission;
-    let corrupt = OwnedPlacementAdmission {
+    let corrupt = OwnedAccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile: wrong_profile,
         resources,
@@ -580,17 +580,17 @@ fn stable_adoption_replays_profile_and_returns_both_inputs_for_retry() {
     assert_eq!(content.validity_receipt().normalized_identity(), 192);
     assert_eq!(content.custody_receipt().normalized_identity(), 193);
 
-    let OwnedPlacementAdmission {
+    let OwnedAccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile: _,
         resources,
         extent,
     } = returned;
-    let repaired = OwnedPlacementAdmission {
+    let repaired = OwnedAccessAdmission {
         identity,
-        placement_plan,
+        access_plan,
         profile_receipt,
         profile,
         resources,
@@ -607,8 +607,8 @@ fn owned_resident_lifecycle_replays_full_provider_content_grant() {
     let plan = stable_word_placement();
     let (extent, content) = provider_existing_content(&plan, 0xad90, 4, 204, 205);
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(208).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(208).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -622,8 +622,8 @@ fn owned_resident_lifecycle_replays_full_provider_content_grant() {
     let (replacement_extent, _replacement_content) =
         provider_existing_content(&plan, 0xad90, 4, 209, 210);
     let replacement_profile = stable_word_profile(&replacement_extent);
-    let replacement_admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(213).expect("replacement admission"),
+    let replacement_admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(213).expect("reaccess admission"),
         replacement_extent,
         &plan,
         &replacement_profile,
@@ -631,7 +631,7 @@ fn owned_resident_lifecycle_replays_full_provider_content_grant() {
     .expect("coincident replacement placement");
     let retained_admission = std::mem::replace(&mut dormant.admission, replacement_admission);
 
-    let occurrence = PlacedOccurrenceId::from_normalized_identity(214).expect("placed occurrence");
+    let occurrence = AccessOccurrenceId::from_normalized_identity(214).expect("placed occurrence");
     let rejection = dormant
         .view(occurrence)
         .expect_err("resident view must replay the complete provider content grant");
@@ -672,8 +672,8 @@ fn owned_resident_view_and_retirement_preserve_claim_and_rotate_occurrence() {
     let plan = stable_word_placement();
     let (extent, content) = provider_existing_content(&plan, 0xa080, 4, 97, 98);
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(101).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(101).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -686,17 +686,17 @@ fn owned_resident_view_and_retirement_preserve_claim_and_rotate_occurrence() {
     assert_eq!(claim.normalized_identity(), 100);
 
     let first_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(102).expect("first occurrence");
+        AccessOccurrenceId::from_normalized_identity(102).expect("first occurrence");
     let coincident = uart_extent_with_lineage(0xa080, 4, 199);
     dormant.admission.profile = stable_word_profile(&coincident);
     let rejection = dormant
         .view(first_occurrence)
-        .expect_err("owned resident view must replay retained placement authority");
+        .expect_err("owned resident view must replay retained access authority");
     assert!(
         rejection
             .diagnostic()
             .0
-            .contains("could not replay the retained placement authority"),
+            .contains("could not replay the retained access authority"),
         "{}",
         rejection.diagnostic()
     );
@@ -717,13 +717,13 @@ fn owned_resident_view_and_retirement_preserve_claim_and_rotate_occurrence() {
             .project(field_key(plan.access(), "word"))
             .expect("resident field projection");
         assert_eq!(projection.resident_claim(), Some(claim));
-        assert_eq!(projection.placed_occurrence(), Some(first_occurrence));
+        assert_eq!(projection.access_occurrence(), Some(first_occurrence));
         let access = projection.read().expect("resident Stable read");
         assert_eq!(access.resident_claim(), Some(claim));
-        assert_eq!(access.placed_occurrence(), Some(first_occurrence));
+        assert_eq!(access.access_occurrence(), Some(first_occurrence));
         let request = access.into_primitive_request();
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(first_occurrence));
+        assert_eq!(request.access_occurrence(), Some(first_occurrence));
     }
 
     let retained_profile = first.admission.profile.clone();
@@ -731,12 +731,12 @@ fn owned_resident_view_and_retirement_preserve_claim_and_rotate_occurrence() {
     first.admission.profile = stable_word_profile(&coincident);
     let rejection = first
         .retire_resident()
-        .expect_err("resident retirement must replay retained placement authority");
+        .expect_err("resident retirement must replay retained access authority");
     assert!(
         rejection
             .diagnostic()
             .0
-            .contains("could not replay the retained placement authority"),
+            .contains("could not replay the retained access authority"),
         "{}",
         rejection.diagnostic()
     );
@@ -753,10 +753,10 @@ fn owned_resident_view_and_retirement_preserve_claim_and_rotate_occurrence() {
     assert_eq!(dormant.validity_receipt(), validity);
     assert_eq!(dormant.custody_receipt(), custody);
     assert_eq!(dormant.extent().base(), 0xa080);
-    assert_eq!(dormant.placement_plan().identity(), plan.identity());
+    assert_eq!(dormant.access_plan().identity(), plan.identity());
 
     let second_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(103).expect("second occurrence");
+        AccessOccurrenceId::from_normalized_identity(103).expect("second occurrence");
     let second = dormant
         .view(second_occurrence)
         .expect("second owned resident-view establishment");
@@ -770,8 +770,8 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
     let plan = stable_word_placement();
     let (extent, content) = provider_existing_content(&plan, 0xa100, 4, 104, 105);
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(108).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(108).expect("admission"),
         extent,
         &plan,
         &profile,
@@ -784,14 +784,14 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
     let retained_profile = profile.clone();
 
     let shared_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(109).expect("shared occurrence");
+        AccessOccurrenceId::from_normalized_identity(109).expect("shared occurrence");
     let coincident = uart_extent_with_lineage(0xa100, 4, 201);
     dormant.admission.profile = stable_word_profile(&coincident);
     let diagnostic = dormant
         .borrow_view(shared_occurrence)
-        .expect_err("shared resident view must replay retained placement authority");
+        .expect_err("shared resident view must replay retained access authority");
     assert!(diagnostic.0.contains("shared-view establishment"));
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     assert_eq!(dormant.resident_claim(), claim);
     assert_eq!(dormant.validity_receipt(), validity);
     assert_eq!(dormant.custody_receipt(), custody);
@@ -818,7 +818,7 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
             .into_primitive_request();
         assert_eq!(request.source_loan(), BorrowPolarity::Shared);
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(shared_occurrence));
+        assert_eq!(request.access_occurrence(), Some(shared_occurrence));
         assert_eq!(
             primitive_request_snapshot(&request).authority_kind,
             "borrowed-resident"
@@ -844,7 +844,7 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
             rejection
                 .diagnostic()
                 .0
-                .contains("retained placement authority")
+                .contains("retained access authority")
         );
         let (mut borrowed, _) = rejection.into_parts();
         assert_eq!(borrowed.resident_claim(), claim);
@@ -878,14 +878,14 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
     assert_eq!(dormant.custody_receipt(), custody);
 
     let exclusive_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(110).expect("exclusive occurrence");
+        AccessOccurrenceId::from_normalized_identity(110).expect("exclusive occurrence");
     let coincident = uart_extent_with_lineage(0xa100, 4, 202);
     dormant.admission.profile = stable_word_profile(&coincident);
     let diagnostic = dormant
         .borrow_view_mut(exclusive_occurrence)
-        .expect_err("exclusive resident view must replay retained placement authority");
+        .expect_err("exclusive resident view must replay retained access authority");
     assert!(diagnostic.0.contains("exclusive-view establishment"));
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     assert_eq!(dormant.resident_claim(), claim);
     assert_eq!(dormant.validity_receipt(), validity);
     assert_eq!(dormant.custody_receipt(), custody);
@@ -905,7 +905,7 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
             .into_primitive_request();
         assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
         assert_eq!(request.resident_claim(), Some(claim));
-        assert_eq!(request.placed_occurrence(), Some(exclusive_occurrence));
+        assert_eq!(request.access_occurrence(), Some(exclusive_occurrence));
         drop(request);
         borrowed
             .retire()
@@ -915,7 +915,7 @@ fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
     assert_eq!(dormant.resident_claim(), claim);
     assert_eq!(dormant.extent().base(), 0xa100);
     let owned_occurrence =
-        PlacedOccurrenceId::from_normalized_identity(111).expect("owned occurrence");
+        AccessOccurrenceId::from_normalized_identity(111).expect("owned occurrence");
     let owned = dormant
         .view(owned_occurrence)
         .expect("owned resident-view establishment");

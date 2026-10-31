@@ -20,11 +20,11 @@ pub enum CheckedReferenceStorage {
     Declared,
     /// Exact factory formation over its captured initialized ordinary schema.
     /// The result carrier selects the retained placement at publication.
-    Placed,
+    Access,
     /// Borrow the exact resident owner, not its descriptor bytes. These are
-    /// the owner's closed qualifications, never memberships of the Placed
+    /// the owner's closed qualifications, never memberships of the Access
     /// schema. Publication must also retain its actual backing/profile receipt.
-    ResidentPlaced {
+    ResidentAccess {
         extent: SymbolHandle,
         granted: language_semantics::SemanticDomainId,
         resident: language_semantics::SemanticDomainId,
@@ -40,8 +40,8 @@ impl Ord for CheckedReferenceStorage {
         // not a relation between the theories named by these interned IDs.
         let key = |storage: &Self| match storage {
             Self::Declared => (0, 0, 0, 0, 0, None),
-            Self::Placed => (1, 0, 0, 0, 0, None),
-            Self::ResidentPlaced {
+            Self::Access => (1, 0, 0, 0, 0, None),
+            Self::ResidentAccess {
                 extent,
                 granted,
                 resident,

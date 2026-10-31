@@ -10,8 +10,8 @@ use semantic_vocabulary::IntegerValue;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalProgram, TerminalScalarValue, TerminalStructuralInputs,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    TerminalStorageObservationError, TerminalStorageObservationValue, TerminalStructuralInputs,
     TerminalStructuralValue,
 };
 
@@ -132,7 +132,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     }
     assert!(instance.result().is_some(), "bounded probe completes");
     assert!(saw_effect_pause);
-    let TerminalEntryStorageValue::Bytes(bytes) = instance
+    let TerminalStorageObservationValue::Bytes(bytes) = instance
         .observe_borrowed_entry(0, &identifier_path)
         .unwrap()
     else {
@@ -174,7 +174,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     assert!(format!("{error:?}").contains("not the original Build"));
     assert_eq!(
         instance.observe_borrowed_entry(0, &identifier_path),
-        Err(TerminalEntryStorageError::NormalReturnRequired)
+        Err(TerminalStorageObservationError::NormalReturnRequired)
     );
     drop(instance);
     assert!(observations.is_empty());

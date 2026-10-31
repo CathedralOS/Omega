@@ -362,10 +362,6 @@ pub(crate) fn close_typed_cohort(
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    crate::expressions::build_selections::normalize_native_locators(
-        &mut lowerer.typed_trees,
-        cohort.typed_expressions,
-    )?;
     crate::type_reference::normalize_const_argument_carriers(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
@@ -681,7 +677,7 @@ impl Lowerer<'_> {
 /// Rebuild the typed trees the fresh product route just produced, holding
 /// every table and root and re-deriving the storage a stage consumer must not
 /// inherit: lookup state derived from those tables, and the build-time
-/// deferrals, specializations and placement plans later phases produce.
+/// deferrals, specializations and access plans later phases produce.
 fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) -> TypedTrees {
     // The retained interner tables travel; restarting their handle space
     // would silently rebind rows that store their IDs.
@@ -708,10 +704,10 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         plan_laid_target_layouts: _,
         plan_laid_schema_fields: _,
         plan_laid_retired_field_identities: _,
-        placed_view_plans: _,
-        placement_lifecycle_plans: _,
-        placement_policy_invocations: _,
-        placed_borrow_factories,
+        access_view_plans: _,
+        access_lifecycle_plans: _,
+        access_policy_invocations: _,
+        access_borrow_factories,
         wire_placements: _,
         wire_encode_obligations: _,
         wire_schema_plans: _,
@@ -743,7 +739,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
-    trees.placed_borrow_factories = placed_borrow_factories;
+    trees.access_borrow_factories = access_borrow_factories;
     trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
     // The copied semantic interners survive the rebuild.
     trees.service_reaches = service_reaches;

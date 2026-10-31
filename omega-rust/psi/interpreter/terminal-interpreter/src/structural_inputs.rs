@@ -5,18 +5,18 @@
 //! `terminal_interpreter` accept. `scalar_fields` binds host field contents
 //! by runtime referent and validates entry restrictions, `byte_arrays` the
 //! explicit initialized fixed-array contents, `case_membership` the selected
-//! case of a bounded sum, and `placed_views` the established placed-view
+//! case of a bounded sum, and `access_views` the established access-view
 //! referents; each is bound only when it is given.
 
+pub(crate) mod access_views;
 pub(crate) mod byte_arrays;
 pub(crate) mod case_membership;
-pub(crate) mod placed_views;
 pub(crate) mod scalar_fields;
 pub(crate) mod zero_initialized;
 
+use crate::structural_inputs::access_views::TerminalAccessViewEstablishment;
 use crate::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 use crate::structural_inputs::case_membership::TerminalStructuralCaseValue;
-use crate::structural_inputs::placed_views::TerminalPlacedViewEstablishment;
 use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::{
     TerminalStructuralBooleanFieldValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -52,11 +52,11 @@ pub struct TerminalStructuralInputs<'input> {
     pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
     pub cases: &'input [TerminalStructuralCaseValue],
     pub byte_arrays: &'input [TerminalStructuralByteArrayValue],
-    /// Established placed-view inputs: one exact establishment per direct
+    /// Established access-view inputs: one exact establishment per direct
     /// entry roster row lends its qualified referent backing for the
-    /// invocation's duration. An entry declaring no placed-view inputs leaves
+    /// invocation's duration. An entry declaring no access-view inputs leaves
     /// this empty.
-    pub placed_view_establishments: &'input [TerminalPlacedViewEstablishment],
+    pub access_view_establishments: &'input [TerminalAccessViewEstablishment],
     /// Explicit checked demand to construct original private typed entry storage.
     pub private_entry_ram: &'input [terminal_installation::CheckedPrivateEntryRamRecipe],
 }

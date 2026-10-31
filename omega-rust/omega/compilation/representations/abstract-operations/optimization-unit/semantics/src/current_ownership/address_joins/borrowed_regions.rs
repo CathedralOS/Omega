@@ -418,7 +418,7 @@ impl BorrowedRegions {
                                 }
                                 DescriptorCallOrigin::Invocation { .. }
                                 | DescriptorCallOrigin::Literal { .. }
-                                | DescriptorCallOrigin::PlacedFormation { .. }
+                                | DescriptorCallOrigin::AccessFormation { .. }
                                 | DescriptorCallOrigin::Empty => None,
                             }));
                     } else {
@@ -586,7 +586,7 @@ impl BorrowedRegions {
                             }),
                             DescriptorCallOrigin::Literal { .. }
                             | DescriptorCallOrigin::Empty
-                            | DescriptorCallOrigin::PlacedFormation { .. } => None,
+                            | DescriptorCallOrigin::AccessFormation { .. } => None,
                         })
                         .collect();
                 }

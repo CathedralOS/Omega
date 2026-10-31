@@ -15,7 +15,7 @@
 use abstract_operations::AbstractOperationPlan;
 use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::{MachineId, PlaceId};
-use terminal_psi::{PlacedRamCorrespondence, StructuralAccess, StructuralArgument};
+use terminal_psi::{AccessRamCorrespondence, StructuralAccess, StructuralArgument};
 use terminal_semantics::descriptor_lifetimes::{
     descriptor_location, fixed_runtime_index_alternatives,
 };
@@ -67,7 +67,7 @@ pub(in crate::function_fragments::source) fn record_selected_formation_calls(
                     .any(|(_, origin)| {
                         matches!(
                             origin,
-                            DescriptorCallOrigin::PlacedFormation { operation, .. }
+                            DescriptorCallOrigin::AccessFormation { operation, .. }
                                 if operation == psi_operation
                         )
                     })
@@ -220,16 +220,16 @@ impl<'a> BackingGeometry<'a> {
         machine: MachineId,
         result: PlaceId,
         source: &StructuralArgument,
-        required: &abstract_operations::PlacedReferenceBacking,
+        required: &abstract_operations::AccessReferenceBacking,
     ) -> Result<(), &'static str> {
         let required = match required {
-            abstract_operations::PlacedReferenceBacking::OrdinaryRam(required) => required,
-            abstract_operations::PlacedReferenceBacking::BorrowedExtent(_) => {
+            abstract_operations::AccessReferenceBacking::OrdinaryRam(required) => required,
+            abstract_operations::AccessReferenceBacking::BorrowedExtent(_) => {
                 // View publishes its pointer only after the lifecycle's runtime
                 // checks. It cannot authorize unconditional reference formation.
                 return Err("borrowed extent requires a successful View lifecycle");
             }
-            abstract_operations::PlacedReferenceBacking::Resident(resident) => {
+            abstract_operations::AccessReferenceBacking::Resident(resident) => {
                 // Size/alignment were established when live content was
                 // introduced, not when this loan was formed. Requiring a local
                 // initializer here would reject ordinary parameters and checked
@@ -239,7 +239,7 @@ impl<'a> BackingGeometry<'a> {
                 let mut plans = self
                     .abstracted
                     .structural_types
-                    .placed_views()
+                    .access_views()
                     .iter()
                     .filter(|plan| plan.carrier == resident.carrier);
                 let (Some(plan), None) = (plans.next(), plans.next()) else {
@@ -293,7 +293,7 @@ impl<'a> BackingGeometry<'a> {
         &mut self,
         machine: MachineId,
         origin: DescriptorSourceOrigin,
-        required: &PlacedRamCorrespondence,
+        required: &AccessRamCorrespondence,
         pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
     ) -> Result<(), &'static str> {
         if pending

@@ -604,7 +604,7 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
-                O::EstablishPlacedReference {
+                O::EstablishAccessReference {
                     psi_operation,
                     result,
                     source,
@@ -614,7 +614,7 @@ pub(crate) fn validate_structural_root_operations(
                     // View boundary, never this unconditional reference opcode.
                     if matches!(
                         correspondence,
-                        abstract_operations::PlacedReferenceBacking::BorrowedExtent(_)
+                        abstract_operations::AccessReferenceBacking::BorrowedExtent(_)
                     ) {
                         return Err(catalog_mismatch(function));
                     }
@@ -625,15 +625,15 @@ pub(crate) fn validate_structural_root_operations(
                     );
                     let mut plans = unit
                         .structural_types
-                        .placed_views()
+                        .access_views()
                         .iter()
                         .filter(|plan| plan.carrier == correspondence.carrier());
                     let (Some(plan), None) = (plans.next(), plans.next()) else {
                         return Err(catalog_mismatch(function));
                     };
-                    let exact = crate::placed_references::validate_backing(
+                    let exact = crate::access_references::validate_backing(
                         unit.structural_types.as_slice(),
-                        unit.structural_types.placed_views(),
+                        unit.structural_types.access_views(),
                         plan,
                         correspondence.source_type(),
                         correspondence,
@@ -648,7 +648,7 @@ pub(crate) fn validate_structural_root_operations(
                                 | terminal_psi::StructuralAccess::MutableBorrow
                         )
                         || !actual.is_some_and(|actual| {
-                            crate::unit_validation::references::placed_reference_source_compatible(
+                            crate::unit_validation::references::access_reference_source_compatible(
                                 structural_types,
                                 actual,
                                 result.structural_type,

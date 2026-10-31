@@ -27,14 +27,14 @@ mod retirement;
 
 pub use artifacts::Artifact;
 pub use authority_digests::{
-    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, CodePlacementId,
+    AccessPlanId, AdmissionReceiptId, ArtifactContentDigest, ArtifactId, CodePlacementId,
     DeclaredFootprintDigest, DestinationPreparationReceiptId, EntryContractDigest,
     EntryReferenceFactDigest, EntrySetId, FinalBytesDigest, FinalValidationId,
     ImportedContractSetDigest, InstallationFactDigest, InstallationScopeDigest,
     InstallationScopeId, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MachineRegimeDigest, MappingQuarantineId, NonAuthoritativeContainerFingerprint64,
     NonAuthoritativeInformationalFingerprint64, NonAuthoritativeWriterContextFingerprint64,
-    PlacementPlanId, RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
+    RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
 };
 pub use installation::{InstallationError, InstalledCode};
 pub use post_handoff_writer::{

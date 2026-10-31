@@ -138,11 +138,11 @@ pub(super) fn build(
                 base_operand: 0,
                 index_operand: 1,
             }),
-            Kind::PlacedScalarAccess {
+            Kind::AccessorScalarAccess {
                 form,
                 contract,
                 byte_offset,
-            } => Some(Address::PlacedScalarAccess {
+            } => Some(Address::AccessorScalarAccess {
                 base_operand: 0,
                 byte_offset,
                 form,

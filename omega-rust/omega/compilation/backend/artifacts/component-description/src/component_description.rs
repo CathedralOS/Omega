@@ -273,8 +273,8 @@ pub struct InstallationServiceBound {
 /// Ownership, custody, and capability constraints the component carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CustodyKind {
-    /// A closure-wide direct entry input bound to one exact placed view.
-    PlacedViewInput,
+    /// A closure-wide direct entry input bound to one exact access view.
+    AccessViewInput,
     /// A whole-parent mutating call reactivating a direct mutable root.
     ReborrowRestoredCall,
     /// A live caller claim consumed by a successful boundary invocation.
@@ -296,7 +296,7 @@ pub enum CustodyKind {
 }
 
 wire_tagged!(CustodyKind {
-    PlacedViewInput = 1,
+    AccessViewInput = 1,
     ReborrowRestoredCall = 3,
     CompletionReceipt = 4,
     ProgramLocalRootIntroduction = 5,
@@ -671,7 +671,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::CallStructuralScalar { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::CallDynamic { .. } => {}
-                    OperationKind::EstablishPlacedReference { .. }
+                    OperationKind::EstablishAccessReference { .. }
         | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::EstablishScalarArray { .. }
@@ -802,11 +802,11 @@ pub(crate) fn derive_component_inventory(
     called_requirement_identities.sort();
     called_requirement_identities.dedup();
 
-    for input in &module.placed_view_inputs {
+    for input in &module.access_view_inputs {
         custody.push(CustodyConstraint {
-            kind: CustodyKind::PlacedViewInput,
+            kind: CustodyKind::AccessViewInput,
             identity: format!(
-                "placed-view:{}:{}:{}",
+                "access-view:{}:{}:{}",
                 input.machine.get(),
                 input.position,
                 identity_text(module, input.view_identity),

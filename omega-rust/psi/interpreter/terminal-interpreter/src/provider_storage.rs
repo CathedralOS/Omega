@@ -21,7 +21,7 @@ use crate::runtime_rows::RuntimeRows;
 use access_plans::{AdmittedResourceProfile, InitializationResourceCompatibility};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use extents::Extent;
-use terminal_psi::TerminalPlacementLifecyclePlan;
+use terminal_psi::TerminalAccessLifecyclePlan;
 
 mod entry;
 mod extraction;
@@ -161,7 +161,7 @@ impl TerminalExecution<'_> {
         resident: arena::Handle<ResidentStorageSlot>,
     ) -> Result<
         (
-            &TerminalPlacementLifecyclePlan,
+            &TerminalAccessLifecyclePlan,
             &StagedOwnedValue,
             &InitializationResourceCompatibility,
         ),
@@ -179,7 +179,7 @@ impl TerminalExecution<'_> {
         let initialized = self
             .program
             .catalogs
-            .placement_lifecycle_plans
+            .access_lifecycle_plans
             .iter()
             .find(|plan| plan.boundary == *initialized_by)
             .ok_or_else(malformed)?;

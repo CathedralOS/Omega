@@ -74,6 +74,25 @@ pub fn authored_selection_visibility(
     if !symbol.is_valid() {
         return None;
     }
+    // A closed public requirement has a generated root signature, not a
+    // containing source machine. Its producer retains the exact authored
+    // declaration independently of that executable symbol and its operands.
+    if let Some(application) = program.closed_requirement_application(symbol) {
+        if !application.application.is_valid() || application.template == symbol {
+            return None;
+        }
+        let (owner, _) = program.trait_machine_signature(application.template)?;
+        let source = program
+            .expression_table
+            .static_machine_application(application.application);
+        if owner.symbol != application.declaring_trait
+            || source.registration_operation != application.template
+            || source.binding_declaration != application.template
+        {
+            return None;
+        }
+        return declaration_visibility(program, application.template);
+    }
     let mut declaration = symbol;
     if program.symbols.get(declaration).kind == SymbolKind::State {
         declaration = program.symbols.get(declaration).parent;

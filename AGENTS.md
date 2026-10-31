@@ -358,7 +358,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   borrowed-storage restoration windows (`reborrow restored call uses`), lowering
   state transitions, crash routes, and strongly connected ranking/scalar-block-invariant
   edges, separating explicit `dyn` selector vs. data lanes, and retaining
-  boundary-application demands, placed/atomic observations, integer arithmetic
+  boundary-application demands, access-policy/atomic observations, integer arithmetic
   modes/certificates, and checked named implementation candidates
   ([product](wiki/spec/terminal-psi/product.md),
   [encoding](wiki/spec/terminal-psi/encoding.md),

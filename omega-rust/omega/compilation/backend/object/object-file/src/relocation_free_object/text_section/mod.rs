@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Placed text to object-format data.
+//! Optimizer module role: executable entrance. Access text to object-format data.
 //! The caller retains source admission; these functions grant no publication authority.
 use super::RelocationFreeObjectError;
 mod production;

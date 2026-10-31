@@ -15,7 +15,7 @@ use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::record::storage::ConstructorStorage;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
 use access_plans::{
-    InitializationResourceCompatibility, ValidatedPlacementPlan, ValidatedResourceProfile,
+    InitializationResourceCompatibility, ValidatedAccessPlan, ValidatedResourceProfile,
 };
 use semantic_vocabulary::IntegerValue;
 use terminal_psi::{StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralPathSegment};
@@ -43,7 +43,7 @@ impl RuntimeProviderStorage {
         &mut self,
         binding: ProviderStorageBinding,
         supplied: ValidatedResourceProfile,
-        placement: &ValidatedPlacementPlan,
+        placement: &ValidatedAccessPlan,
         image: ByteSequenceStorage,
     ) -> Result<Result<PreparedProviderImage, InitializationRejection>, TerminalInterpretError>
     {

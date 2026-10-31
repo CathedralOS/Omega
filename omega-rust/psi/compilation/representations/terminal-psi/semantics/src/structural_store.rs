@@ -96,8 +96,8 @@ fn disposable_storage<'types>(
         }
         StructuralTypeShape::Record {
             storage:
-                terminal_psi::StructuralRecordStorage::PlacedView(_)
-                | terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                terminal_psi::StructuralRecordStorage::AccessView(_)
+                | terminal_psi::StructuralRecordStorage::Accessor(_),
             ..
         } => false,
         StructuralTypeShape::Record { fields, .. } => {

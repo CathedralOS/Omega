@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    StructuralReferentIdentity, StructuralTypeDeclaration, TerminalPlacedViewInput,
-    TerminalPlacedViewPlan,
+    StructuralReferentIdentity, StructuralTypeDeclaration, TerminalAccessViewInput,
+    TerminalAccessViewPlan,
 };
 
 /// Immutable shared structural declarations at native compilation boundaries.
@@ -22,15 +22,15 @@ use terminal_psi::{
 pub struct StructuralTypeCatalog(
     Arc<Vec<StructuralTypeDeclaration>>,
     Arc<Vec<StructuralReferentIdentity>>,
-    Arc<Vec<TerminalPlacedViewPlan>>,
-    Arc<Vec<TerminalPlacedViewInput>>,
+    Arc<Vec<TerminalAccessViewPlan>>,
+    Arc<Vec<TerminalAccessViewInput>>,
     Option<Arc<RetainedQuotients>>,
-    Option<Arc<RetainedPlacementLifecycles>>,
+    Option<Arc<RetainedAccessLifecycles>>,
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct RetainedPlacementLifecycles {
-    plans: Vec<terminal_psi::TerminalPlacementLifecyclePlan>,
+struct RetainedAccessLifecycles {
+    plans: Vec<terminal_psi::TerminalAccessLifecyclePlan>,
     canonical: Vec<u8>,
 }
 
@@ -68,26 +68,26 @@ impl StructuralTypeCatalog {
     /// as field views, including fields with no exposed accessor. Share this
     /// immutable catalog across native functions instead of rediscovering a
     /// lifecycle from an accessor roster or copying plans into instructions.
-    pub fn with_placement_lifecycles(
+    pub fn with_access_lifecycles(
         mut self,
-        plans: Vec<terminal_psi::TerminalPlacementLifecyclePlan>,
+        plans: Vec<terminal_psi::TerminalAccessLifecyclePlan>,
     ) -> Result<Self, terminal_codec::CodecError> {
         self.5 = if plans.is_empty() {
             None
         } else {
-            let canonical = terminal_codec::encode_placement_lifecycle_catalog(&plans)?;
-            Some(Arc::new(RetainedPlacementLifecycles { plans, canonical }))
+            let canonical = terminal_codec::encode_access_lifecycle_catalog(&plans)?;
+            Some(Arc::new(RetainedAccessLifecycles { plans, canonical }))
         };
         Ok(self)
     }
 
-    pub fn placement_lifecycles(&self) -> &[terminal_psi::TerminalPlacementLifecyclePlan] {
+    pub fn access_lifecycles(&self) -> &[terminal_psi::TerminalAccessLifecyclePlan] {
         self.5
             .as_ref()
             .map_or(&[], |catalog| catalog.plans.as_slice())
     }
 
-    pub fn placement_lifecycle_identity_bytes(&self) -> &[u8] {
+    pub fn access_lifecycle_identity_bytes(&self) -> &[u8] {
         self.5
             .as_ref()
             .map_or(&[], |catalog| catalog.canonical.as_slice())
@@ -133,36 +133,36 @@ impl StructuralTypeCatalog {
 
     /// Retain the checked placement interpretation separately from ordinary
     /// storage declarations. Geometry and pointer transport cannot recreate it.
-    pub fn with_placed_views(mut self, plans: Vec<TerminalPlacedViewPlan>) -> Self {
+    pub fn with_access_views(mut self, plans: Vec<TerminalAccessViewPlan>) -> Self {
         self.2 = Arc::new(plans);
         self
     }
 
-    pub fn placed_views(&self) -> &[TerminalPlacedViewPlan] {
+    pub fn access_views(&self) -> &[TerminalAccessViewPlan] {
         self.2.as_slice()
     }
 
     /// Exact formal demands survive independently of carrier geometry. This
     /// roster is data; only the caller or physical entry can supply its loan.
-    pub fn with_placed_view_inputs(mut self, inputs: Vec<TerminalPlacedViewInput>) -> Self {
+    pub fn with_access_view_inputs(mut self, inputs: Vec<TerminalAccessViewInput>) -> Self {
         self.3 = Arc::new(inputs);
         self
     }
 
-    pub fn placed_view_inputs(&self) -> &[TerminalPlacedViewInput] {
+    pub fn access_view_inputs(&self) -> &[TerminalAccessViewInput] {
         self.3.as_slice()
     }
 
     /// Rejoin one formal demand to its exact carrier and complete plan seal.
     /// This does not establish a backing: every call or host entry still owes
     /// an independently checked occurrence answering this demand.
-    pub fn placed_parameter_demand(
+    pub fn access_parameter_demand(
         &self,
         machine: semantic_vocabulary::MachineId,
         runtime_position: usize,
         parameter: &terminal_psi::StructuralParameterDeclaration,
-    ) -> Option<(&TerminalPlacedViewInput, &TerminalPlacedViewPlan)> {
-        let mut inputs = self.placed_view_inputs().iter().filter(|input| {
+    ) -> Option<(&TerminalAccessViewInput, &TerminalAccessViewPlan)> {
+        let mut inputs = self.access_view_inputs().iter().filter(|input| {
             input.machine == machine
                 && usize::try_from(input.runtime_position).ok() == Some(runtime_position)
         });
@@ -182,7 +182,7 @@ impl StructuralTypeCatalog {
             return None;
         }
         let mut plans = self
-            .placed_views()
+            .access_views()
             .iter()
             .filter(|plan| plan.carrier == carrier.id);
         let (Some(plan), None) = (plans.next(), plans.next()) else {
@@ -247,8 +247,8 @@ impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
         self.4.is_none()
             && self.5.is_none()
             && self.referents().is_empty()
-            && self.placed_views().is_empty()
-            && self.placed_view_inputs().is_empty()
+            && self.access_views().is_empty()
+            && self.access_view_inputs().is_empty()
             && self.as_slice() == other.as_slice()
     }
 }
@@ -258,8 +258,8 @@ impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
         other.4.is_none()
             && other.5.is_none()
             && other.referents().is_empty()
-            && other.placed_views().is_empty()
-            && other.placed_view_inputs().is_empty()
+            && other.access_views().is_empty()
+            && other.access_view_inputs().is_empty()
             && self.as_slice() == other.as_slice()
     }
 }

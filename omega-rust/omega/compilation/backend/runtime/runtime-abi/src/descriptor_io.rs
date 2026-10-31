@@ -52,20 +52,18 @@ pub fn descriptor_import_identity(
                 library: b"msvcrt.dll".to_vec(),
                 export: symbol.to_vec(),
             },
-            DescriptorAbi::LinuxLibc => {
-                ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libc.so.6".to_vec(),
-                    symbol: match operation {
-                        DescriptorOperation::Read => b"read".to_vec(),
-                        DescriptorOperation::Write => b"write".to_vec(),
-                    },
-                    version: match target {
-                        TargetProfile::LinuxX64 => b"GLIBC_2.2.5".to_vec(),
-                        TargetProfile::LinuxArm64 => b"GLIBC_2.17".to_vec(),
-                        _ => return None,
-                    },
-                }
-            }
+            DescriptorAbi::LinuxLibc => ForeignLocatorCandidate::ElfVersioned {
+                object: b"libc.so.6".to_vec(),
+                symbol: match operation {
+                    DescriptorOperation::Read => b"read".to_vec(),
+                    DescriptorOperation::Write => b"write".to_vec(),
+                },
+                version: match target {
+                    TargetProfile::LinuxX64 => b"GLIBC_2.2.5".to_vec(),
+                    TargetProfile::LinuxArm64 => b"GLIBC_2.17".to_vec(),
+                    _ => return None,
+                },
+            },
             DescriptorAbi::LinuxKernel => continue,
         };
         if target::normalize_foreign_locator(candidate, target)

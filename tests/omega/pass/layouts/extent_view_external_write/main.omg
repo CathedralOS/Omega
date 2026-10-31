@@ -20,16 +20,16 @@ ensures result in Registered
 public data Words { entries: [u64; 2]; }
 public data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut fields: [FieldEntry; 64];
-    fields[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    fields[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
             FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine update_existing(storage: &mut Extent in Granted) -> bool
@@ -37,19 +37,19 @@ requires storage in Registered & Vacant
 ensures storage in Registered & Vacant
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent_mut<WordPlacement, Words, TestMemory>(storage) {
-        PlacementOutcome::Ready { view } -> check(view)
-        PlacementOutcome::Rejected { returned, reason } -> false
+    transition Access::view_extent_mut<WordPlacement, Words, TestMemory>(storage) {
+        AccessOutcome::Ready { view } -> check(view)
+        AccessOutcome::Rejected { returned, reason } -> false
     }
-    machine check(view: &mut Placed<WordPlacement, Words>) -> bool {
-        let first: u64 = placed_read(&view.entries[0]);
-        let second: u64 = placed_read(&view.entries[1]);
+    machine check(view: &mut Access<WordPlacement, Words>) -> bool {
+        let first: u64 = read(&view.entries[0]);
+        let second: u64 = read(&view.entries[1]);
         transition first == 17 && second == 41 {
-            true -> write(view, 0)
+            true -> store_from(view, 0)
             _ -> false
         }
     }
-    machine write(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
+    machine store_from(view: &mut Access<WordPlacement, Words>, next: u64) -> bool
     requires next <= 1
     {
         transition next < 1 {
@@ -57,15 +57,15 @@ reaches ResourceProfileSupply
             _ -> verify(view)
         }
     }
-    machine store(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
+    machine store(view: &mut Access<WordPlacement, Words>, next: u64) -> bool
     requires next < 1
     {
-        placed_write(&mut view.entries[next + 1], 73u64);
-        transition { _ -> write(view, next + 1) }
+        write(&mut view.entries[next + 1], 73u64);
+        transition { _ -> store_from(view, next + 1) }
     }
-    machine verify(view: &mut Placed<WordPlacement, Words>) -> bool {
-        let first: u64 = placed_read(&view.entries[0]);
-        let second: u64 = placed_read(&view.entries[1]);
+    machine verify(view: &mut Access<WordPlacement, Words>) -> bool {
+        let first: u64 = read(&view.entries[0]);
+        let second: u64 = read(&view.entries[1]);
         first == 17 && second == 73
     }
 }
@@ -114,13 +114,13 @@ reaches ResourceProfileSupply crashes Trap
 machine observe_existing(storage: &Extent in Granted & Vacant) -> bool
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent<WordPlacement, Words, TestMemory>(storage as &Extent in Granted) {
-        PlacementOutcome::Ready { view } -> check(view)
-        PlacementOutcome::Rejected { returned, reason } -> false
+    transition Access::view_extent<WordPlacement, Words, TestMemory>(storage as &Extent in Granted) {
+        AccessOutcome::Ready { view } -> check(view)
+        AccessOutcome::Rejected { returned, reason } -> false
     }
-    machine check(view: &Placed<WordPlacement, Words>) -> bool {
-        let first: u64 = placed_read(&view.entries[0]);
-        let second: u64 = placed_read(&view.entries[1]);
+    machine check(view: &Access<WordPlacement, Words>) -> bool {
+        let first: u64 = read(&view.entries[0]);
+        let second: u64 = read(&view.entries[1]);
         first == 17 && second == 73
     }
 }

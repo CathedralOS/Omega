@@ -2,19 +2,18 @@
 //!
 //! The lender retains resident custody. This module binds one fresh active
 //! occurrence to an exact whole-range `ExtentLoan` and forwards the lender's
-//! claim and provider receipts through placed field access.
+//! claim and provider receipts through access field access.
 
+use crate::placements::access_admission::validate_access_admission;
+use crate::placements::access_authority::AccessAuthorityRef;
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::owned_resident_custody::validate_provider_content_binding;
 use crate::placements::owned_resident_custody::validate_resident_observation;
-use crate::placements::placement_admission::validate_placement_admission;
-use crate::placements::placement_authority::PlacementAuthorityRef;
-use crate::primitive_access::field_projection::project_placed_field;
+use crate::primitive_access::field_projection::project_access_field;
 use crate::{
-    AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
-    DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
-    PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
-    ValidatedPlacementPlan,
+    AccessAdmissionId, AccessFieldKey, AccessFieldProjection, AccessOccurrenceId,
+    AccessPlanDiagnostic, AccessResourceCompatibility, AdmittedResourceProfile, BorrowPolarity,
+    DormantOwnedResident, ObservationModel, ResourceProfileReceiptId, ValidatedAccessPlan,
 };
 use extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
@@ -29,8 +28,8 @@ impl DormantOwnedResident {
     /// authorize only operations compatible with shared placed access.
     pub fn borrow_view(
         &self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
+        occurrence: AccessOccurrenceId,
+    ) -> Result<EstablishedBorrowedResidentAccess<'_>, AccessPlanDiagnostic> {
         validate_owned_resident_authority(
             &self.admission,
             &self.content,
@@ -46,8 +45,8 @@ impl DormantOwnedResident {
                     "borrowed resident whole-range loan rejected: {diagnostic}"
                 ))
             })?;
-        Ok(EstablishedBorrowedResidentPlacement {
-            plan: self.admission.placement_plan.clone(),
+        Ok(EstablishedBorrowedResidentAccess {
+            plan: self.admission.access_plan.clone(),
             profile_receipt: self.admission.profile_receipt,
             profile: self.admission.profile.clone(),
             resources: self.admission.resources.clone(),
@@ -63,14 +62,14 @@ impl DormantOwnedResident {
     /// does not retire, replace, or remint the lender's resident claim.
     pub fn borrow_view_mut(
         &mut self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
+        occurrence: AccessOccurrenceId,
+    ) -> Result<EstablishedBorrowedResidentAccess<'_>, AccessPlanDiagnostic> {
         validate_owned_resident_authority(
             &self.admission,
             &self.content,
             "borrowed resident exclusive-view establishment",
         )?;
-        let plan = self.admission.placement_plan.clone();
+        let plan = self.admission.access_plan.clone();
         let profile_receipt = self.admission.profile_receipt;
         let profile = self.admission.profile.clone();
         let resources = self.admission.resources.clone();
@@ -86,7 +85,7 @@ impl DormantOwnedResident {
                     "borrowed resident whole-range loan rejected: {diagnostic}"
                 ))
             })?;
-        Ok(EstablishedBorrowedResidentPlacement {
+        Ok(EstablishedBorrowedResidentAccess {
             plan,
             profile_receipt,
             profile,
@@ -107,15 +106,15 @@ impl DormantOwnedResident {
 /// or retiring resident custody.
 #[derive(Debug)]
 #[must_use = "active borrowed placed content retains an exact resident loan"]
-pub struct EstablishedBorrowedResidentPlacement<'resident> {
-    plan: ValidatedPlacementPlan,
+pub struct EstablishedBorrowedResidentAccess<'resident> {
+    plan: ValidatedAccessPlan,
     profile_receipt: ResourceProfileReceiptId,
     profile: AdmittedResourceProfile,
-    resources: PlacementResourceCompatibility,
-    admission: PlacementAdmissionId,
+    resources: AccessResourceCompatibility,
+    admission: AccessAdmissionId,
     loan: ExtentLoan<'resident>,
     content: &'resident ProviderExistingContentGrant,
-    occurrence: PlacedOccurrenceId,
+    occurrence: AccessOccurrenceId,
 }
 
 /// Failed borrowed-resident retirement returns the complete active carrier.
@@ -123,7 +122,7 @@ pub struct EstablishedBorrowedResidentPlacement<'resident> {
 /// reconstructed from copied fields on rejection.
 #[derive(Debug)]
 pub struct BorrowedResidentRetirementError<'resident> {
-    established: EstablishedBorrowedResidentPlacement<'resident>,
+    established: EstablishedBorrowedResidentAccess<'resident>,
     diagnostic: AccessPlanDiagnostic,
 }
 
@@ -133,19 +132,19 @@ impl<'resident> BorrowedResidentRetirementError<'resident> {
     pub fn into_parts(
         self,
     ) -> (
-        EstablishedBorrowedResidentPlacement<'resident>,
+        EstablishedBorrowedResidentAccess<'resident>,
         AccessPlanDiagnostic,
     ) {
         (self.established, self.diagnostic)
     }
 }
 
-impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
+impl<'resident> EstablishedBorrowedResidentAccess<'resident> {
     pub(super) const fn profile(&self) -> &AdmittedResourceProfile {
         &self.profile
     }
 
-    pub(super) const fn resources(&self) -> &PlacementResourceCompatibility {
+    pub(super) const fn resources(&self) -> &AccessResourceCompatibility {
         &self.resources
     }
 
@@ -155,9 +154,9 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
         &'view self,
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
-    ) -> Result<PlacedFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
+    ) -> Result<AccessFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
         let source_loan = BorrowPolarity::from(self.loan.polarity());
-        project_placed_field(
+        project_access_field(
             &self.plan,
             self.profile_receipt,
             &self.resources,
@@ -167,7 +166,7 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
             current_borrow,
             source_loan,
             Some(ObservationModel::Stable),
-            PlacementAuthorityRef::BorrowedResident(self),
+            AccessAuthorityRef::BorrowedResident(self),
         )
     }
 
@@ -178,10 +177,10 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
                     .into(),
             ));
         }
-        let replayed = validate_placement_admission(&self.loan, &self.plan, &self.profile)
+        let replayed = validate_access_admission(&self.loan, &self.plan, &self.profile)
             .map_err(|diagnostic| {
                 AccessPlanDiagnostic(format!(
-                    "borrowed resident retirement could not replay the retained placement authority: {diagnostic}"
+                    "borrowed resident retirement could not replay the retained access authority: {diagnostic}"
                 ))
             })?;
         if replayed != self.resources {

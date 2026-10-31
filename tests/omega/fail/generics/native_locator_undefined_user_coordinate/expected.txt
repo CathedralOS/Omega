@@ -1,0 +1,1 @@
+its width must be a compile-known resolved integer literal

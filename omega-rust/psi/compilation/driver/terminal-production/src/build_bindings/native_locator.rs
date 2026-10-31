@@ -71,15 +71,12 @@ pub(super) fn capture(
         .map(|root| root.type_reference)
         .or_else(|| validation::expression_result_type_reference(checked, machine, state, *value))
         .ok_or_else(|| Diagnostic::error("native binding locator has no exact produced type"))?;
-    let vocabulary =
-        validation::native_locators::vocabulary(&checked.typed, |_| true).map_err(|errors| {
+    let widths = validation::native_locators::application_widths(&checked.typed, reference)
+        .map_err(|errors| {
             errors.into_iter().next().unwrap_or_else(|| {
-                Diagnostic::error("native locator vocabulary failed without a diagnostic")
+                Diagnostic::error("native locator admission failed without a diagnostic")
             })
         })?;
-    let widths =
-        validation::native_locators::binding_widths(&checked.typed, vocabulary.binding, reference)
-            .map_err(Diagnostic::error)?;
     let declaration = lowered
         .semantic_module
         .boundary_machines

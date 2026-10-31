@@ -30,7 +30,7 @@ pub(super) fn validate(
         result,
         scalar_arguments,
         arguments,
-        placed_bindings,
+        access_bindings,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
@@ -112,7 +112,7 @@ pub(super) fn validate(
                 .structural_parameter(position)
                 .is_some_and(|formal| {
                     plan.structural_types
-                        .placed_views()
+                        .access_views()
                         .iter()
                         .any(|plan| plan.carrier == formal.structural_type)
                 })
@@ -121,7 +121,7 @@ pub(super) fn validate(
         return Err(LegalizationError::custody());
     }
     let expected_bindings = if let Some(callee) = callee_function {
-        super::super::super::reference_custody::placed_call_custody(
+        super::super::super::reference_custody::access_call_custody(
             optimized,
             callee,
             &plan.structural_types,
@@ -131,7 +131,7 @@ pub(super) fn validate(
     } else {
         Vec::new()
     };
-    if placed_bindings != &expected_bindings {
+    if access_bindings != &expected_bindings {
         return Err(LegalizationError::custody());
     }
     results::validate(

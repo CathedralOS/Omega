@@ -14,7 +14,7 @@ use register_model::ValidatedRegisterConstraintCatalog;
 use validation::validate_declaration;
 
 use crate::{
-    AtomicForm, FloatResultPolicyForm, IeeeFloatArithmeticForm, PlacedScalarForm,
+    AccessorScalarForm, AtomicForm, FloatResultPolicyForm, IeeeFloatArithmeticForm,
     SaturatingCarrier, SelectedConstraintKeys, TrappingForm,
 };
 pub use identity::{
@@ -244,7 +244,7 @@ machine_semantic_kinds! {
     { dynamic AtomicAccess(AtomicForm) },
     { dynamic NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm) },
     { dynamic FloatResultPolicy(FloatResultPolicyForm) },
-    { dynamic PlacedScalarAccess(PlacedScalarForm) },
+    { dynamic AccessorScalarAccess(AccessorScalarForm) },
 }
 
 impl MachineSemanticKind {
@@ -256,14 +256,14 @@ impl MachineSemanticKind {
             + AtomicForm::COUNT
             + IeeeFloatArithmeticForm::COUNT
             + FloatResultPolicyForm::COUNT
-            + PlacedScalarForm::COUNT] = {
+            + AccessorScalarForm::COUNT] = {
         let mut all = [Self::Crash;
             Self::FIXED.len()
                 + TrappingForm::COUNT
                 + AtomicForm::COUNT
                 + IeeeFloatArithmeticForm::COUNT
                 + FloatResultPolicyForm::COUNT
-                + PlacedScalarForm::COUNT];
+                + AccessorScalarForm::COUNT];
         let mut index = 0;
         while index < Self::FIXED.len() {
             all[index] = Self::FIXED[index];
@@ -296,13 +296,13 @@ impl MachineSemanticKind {
             policy += 1;
         }
         let mut placed = 0;
-        while placed < PlacedScalarForm::COUNT {
+        while placed < AccessorScalarForm::COUNT {
             all[Self::FIXED.len()
                 + TrappingForm::COUNT
                 + AtomicForm::COUNT
                 + IeeeFloatArithmeticForm::COUNT
                 + FloatResultPolicyForm::COUNT
-                + placed] = Self::PlacedScalarAccess(PlacedScalarForm::ALL[placed]);
+                + placed] = Self::AccessorScalarAccess(AccessorScalarForm::ALL[placed]);
             placed += 1;
         }
         all
@@ -326,7 +326,7 @@ pub enum MachineAlternativeFamily {
 
     AtomicFence,
     AtomicAccess(AtomicForm),
-    PlacedScalarAccess(PlacedScalarForm),
+    AccessorScalarAccess(AccessorScalarForm),
     Crash,
     CopyBytes,
     BitwiseAndI64,
@@ -538,7 +538,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::PortWrite => Self::PortWrite,
             MachineSemanticKind::AtomicFence => Self::AtomicFence,
             MachineSemanticKind::AtomicAccess(form) => Self::AtomicAccess(form),
-            MachineSemanticKind::PlacedScalarAccess(form) => Self::PlacedScalarAccess(form),
+            MachineSemanticKind::AccessorScalarAccess(form) => Self::AccessorScalarAccess(form),
             MachineSemanticKind::FloatResultPolicy(form) => Self::FloatResultPolicy(form),
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
                 Self::NearestIeeeFloatArithmetic(form)

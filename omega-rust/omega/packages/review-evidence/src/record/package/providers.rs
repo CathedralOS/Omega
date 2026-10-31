@@ -5,17 +5,17 @@ use crate::record::accessors::field_projection_accessors;
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
-    PlacementLifecycle(terminal_psi::TerminalPlacementLifecycleOperation),
+    AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,
     ProgramImageRetainedSuffixStart,
     ProgramStorageEntry,
-    PlacedScalarAccess {
+    AccessorScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
         access_slot: u32,
-        operation: effects::CompilerPlacedScalarOperation,
+        operation: effects::CompilerAccessorScalarOperation,
     },
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {

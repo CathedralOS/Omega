@@ -1,4 +1,4 @@
-use crate::access_plan::diagnostic::reject_when;
+use crate::access_fields::diagnostic::reject_when;
 use crate::plan_policy::normalized_identities::non_authoritative_resource_profile_compatibility_fingerprint;
 use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalReadBehavior,

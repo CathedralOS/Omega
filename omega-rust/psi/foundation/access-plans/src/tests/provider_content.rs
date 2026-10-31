@@ -1,11 +1,11 @@
 use super::{
-    provider_existing_content, stable_word_placement, stable_word_profile,
-    uart_extent_with_lineage, uart_placement_plan, uart_reach, uart_resource_profile_for_extent,
+    provider_existing_content, stable_word_placement, stable_word_profile, uart_access_plan,
+    uart_extent_with_lineage, uart_reach, uart_resource_profile_for_extent,
     uart_root_grant_with_mapping,
 };
 use crate::{
-    AccessPlan, BoundaryReach, PlacementAdmissionId, PlacementPlan, admit_owned_placement,
-    adopt_owned_stable, validate_placement_plan,
+    AccessAdmissionId, AccessFields, AccessPlan, BoundaryReach, admit_owned_access,
+    adopt_owned_stable, validate_access_plan,
 };
 
 #[test]
@@ -16,8 +16,8 @@ fn provider_existing_content_cannot_replay_across_extent_roots() {
     let returned_origin = coincident.origin();
     let returned_lineage = coincident.lineage_root();
     let profile = stable_word_profile(&coincident);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(99).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(99).expect("admission"),
         coincident,
         &plan,
         &profile,
@@ -53,8 +53,8 @@ fn provider_existing_content_cannot_replay_after_mapping_era_drift() {
     assert_eq!(content.provenance(), drifted.provenance());
     assert_ne!(content.era(), drifted.era());
     let profile = stable_word_profile(&drifted);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(111).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(111).expect("admission"),
         drifted,
         &plan,
         &profile,
@@ -73,8 +73,8 @@ fn provider_existing_content_cannot_replay_after_mapping_era_drift() {
 fn provider_content_rejects_compact_equal_structural_substitution() {
     let original = stable_word_placement();
     let layout = original.layout().clone();
-    let mut substituted = validate_placement_plan(PlacementPlan {
-        access: AccessPlan::inaccessible(&layout).expect("inaccessible alternate access policy"),
+    let mut substituted = validate_access_plan(AccessPlan {
+        access: AccessFields::inaccessible(&layout).expect("inaccessible alternate access policy"),
         layout,
         reach: BoundaryReach::default(),
     })
@@ -110,8 +110,8 @@ fn provider_content_rejects_compact_equal_structural_substitution() {
 
     let (extent, content) = provider_existing_content(&original, 0xa240, 4, 108, 109);
     let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(112).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(112).expect("admission"),
         extent,
         &substituted,
         &profile,
@@ -132,11 +132,11 @@ fn provider_content_rejects_compact_equal_structural_substitution() {
 
 #[test]
 fn provider_content_does_not_turn_external_placement_into_stable_adoption() {
-    let plan = uart_placement_plan();
+    let plan = uart_access_plan();
     let (extent, content) = provider_existing_content(&plan, 0xa300, 12, 104, 105);
     let profile = uart_resource_profile_for_extent(&extent, &uart_reach());
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(107).expect("admission"),
+    let admission = admit_owned_access(
+        AccessAdmissionId::from_normalized_identity(107).expect("admission"),
         extent,
         &plan,
         &profile,

@@ -20,16 +20,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAccess,
     StructuralAffineDiscard, StructuralOperationResult, StructuralPathSegment,
-    StructuralResultClaimBinding, TerminalPlacementLifecyclePlan,
+    StructuralResultClaimBinding, TerminalAccessLifecyclePlan,
 };
-use terminal_semantics::{PlacementResultContract, placement_result_contract};
+use terminal_semantics::{AccessResultContract, access_result_contract};
 
 impl TerminalExecution<'_> {
-    pub(crate) fn complete_placement_initialization(
+    pub(crate) fn complete_access_initialization(
         &mut self,
         operation: &Operation,
         boundary: &BoundaryMachineDeclaration,
-        plan: &TerminalPlacementLifecyclePlan,
+        plan: &TerminalAccessLifecyclePlan,
         prepared: PreparedProviderImage,
     ) -> Result<(), TerminalInterpretError> {
         let (vacant, resident_domain) = plan
@@ -53,11 +53,11 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let program = std::sync::Arc::clone(&self.program);
-        let PlacementResultContract::Initialize {
+        let AccessResultContract::Initialize {
             result: declaration,
             ready,
             ..
-        } = placement_result_contract(&program.catalogs, plan)
+        } = access_result_contract(&program.catalogs, plan)
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?
         else {
             return Err(malformed());
@@ -244,11 +244,11 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    pub(crate) fn reject_placement_initialization(
+    pub(crate) fn reject_access_initialization(
         &mut self,
         operation: &Operation,
         boundary: &BoundaryMachineDeclaration,
-        plan: &TerminalPlacementLifecyclePlan,
+        plan: &TerminalAccessLifecyclePlan,
         rejection: InitializationRejection,
     ) -> Result<(), TerminalInterpretError> {
         operation_kind!(operation => BoundaryCall {
@@ -271,13 +271,13 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let program = std::sync::Arc::clone(&self.program);
-        let PlacementResultContract::Initialize {
+        let AccessResultContract::Initialize {
             result: declaration,
             rejected,
             returned,
             failures,
             ..
-        } = placement_result_contract(&program.catalogs, plan)
+        } = access_result_contract(&program.catalogs, plan)
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?
         else {
             return Err(malformed());
@@ -317,7 +317,7 @@ impl TerminalExecution<'_> {
             if child.structural_type() != parameter.structural_type {
                 return Err(malformed());
             }
-            if let ConstructorValue::Placed(placed) = &child
+            if let ConstructorValue::Access(placed) = &child
                 && crate::custody::has_live_loan(self.reference_referents.as_map(), placed)
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(

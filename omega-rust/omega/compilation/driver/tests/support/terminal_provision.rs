@@ -80,7 +80,7 @@ pub(super) fn admitted_supplies(
 /// storage coordinates as its two scalar fields, valued at `length_value`.
 pub(super) fn storage_inputs(
     program: &TerminalProgram<'_>,
-    plan: &terminal_psi::TerminalPlacementLifecyclePlan,
+    plan: &terminal_psi::TerminalAccessLifecyclePlan,
     length_value: u64,
 ) -> (
     Vec<TerminalStructuralValue>,

@@ -129,9 +129,9 @@ pub(super) fn settle_boundary<'request>(
         }
         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
             let completion = match builtin {
-                target_operations::BoundaryRealization::PlacementLifecycle { .. } => {
+                target_operations::BoundaryRealization::AccessLifecycle { .. } => {
                     return Err(vec![Diagnostic::error(
-                        "provider execution cannot replace a private placement lifecycle",
+                        "provider execution cannot replace a private access lifecycle",
                     )]);
                 }
                 target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
@@ -146,7 +146,7 @@ pub(super) fn settle_boundary<'request>(
                 | target_operations::BoundaryRealization::HostedReadByte(_)
                 | target_operations::BoundaryRealization::HostedWriteByteI32(_)
                 | target_operations::BoundaryRealization::ClaimCompletionOnly(_)
-                | target_operations::BoundaryRealization::PlacedScalarAccess(_)
+                | target_operations::BoundaryRealization::AccessorScalarAccess(_)
                 | target_operations::BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
                     semantic_vocabulary::BoundaryCompletion::NormalReturn
                 }

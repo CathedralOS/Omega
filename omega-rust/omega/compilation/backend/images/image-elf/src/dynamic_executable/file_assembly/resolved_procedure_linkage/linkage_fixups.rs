@@ -46,7 +46,7 @@ pub(crate) enum ElfAppliedProcedureLinkageTarget {
     ProcedureGotSlot {
         logical_ordinal: u32,
     },
-    /// Placed address of one retained source-image section slot: the resolved
+    /// Access address of one retained source-image section slot: the resolved
     /// `r_offset` written into a `.rela.dyn` row.
     RelocatedImageSection {
         section: image::FinalImageSection,

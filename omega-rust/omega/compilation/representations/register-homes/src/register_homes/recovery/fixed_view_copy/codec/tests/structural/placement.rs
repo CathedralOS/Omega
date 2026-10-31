@@ -2,15 +2,15 @@
 //! wire preservation, not evidence that any resource or operation was admitted.
 
 use abstract_operations::StructuralTypeCatalog;
-use access_plans::{AccessPlan, BoundaryReach, PlacementPlan, validate_placement_plan};
+use access_plans::{AccessFields, AccessPlan, BoundaryReach, validate_access_plan};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use semantic_vocabulary::{
     BoundaryMachineId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
-    NominalDeclarationIdentity, TerminalIdentityIndex, TerminalPlacedViewPlan,
-    TerminalPlacementLifecycleExecution, TerminalPlacementLifecycleOperation,
-    TerminalPlacementLifecyclePlan, TerminalPlacementProfileRequirement, TerminalPlacementStorage,
+    NominalDeclarationIdentity, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
+    TerminalAccessLifecyclePlan, TerminalAccessProfileRequirement, TerminalAccessStorage,
+    TerminalAccessViewPlan, TerminalIdentityIndex,
 };
 
 use super::{FixedViewCopyPlan, FixedViewCopyPolicy, plan, structural_function};
@@ -27,14 +27,14 @@ fn catalog() -> StructuralTypeCatalog {
             placement: LayoutPlacementReport::At { offset: 0 },
         }],
     };
-    let placement = validate_placement_plan(PlacementPlan {
-        access: AccessPlan::inaccessible(&layout).unwrap(),
+    let placement = validate_access_plan(AccessPlan {
+        access: AccessFields::inaccessible(&layout).unwrap(),
         layout,
         reach: BoundaryReach::default(),
     })
     .unwrap();
     let schema = StructuralTypeId::new(1).unwrap();
-    let view = TerminalPlacedViewPlan {
+    let view = TerminalAccessViewPlan {
         carrier: StructuralTypeId::new(2).unwrap(),
         schema,
         view_identity: TerminalIdentityIndex(3),
@@ -44,12 +44,12 @@ fn catalog() -> StructuralTypeCatalog {
         placement: placement.clone(),
         fields: vec![],
     };
-    let initialize = TerminalPlacementLifecyclePlan {
+    let initialize = TerminalAccessLifecyclePlan {
         boundary: BoundaryMachineId::new(7).unwrap(),
-        operation: TerminalPlacementLifecycleOperation::Initialize,
-        execution: TerminalPlacementLifecycleExecution::CompilerPrimitive {
+        operation: TerminalAccessLifecycleOperation::Initialize,
+        execution: TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: Some(StructuralTypeId::new(8).unwrap()),
-            profile_requirement: Some(TerminalPlacementProfileRequirement {
+            profile_requirement: Some(TerminalAccessProfileRequirement {
                 boundary: BoundaryMachineId::new(9).unwrap(),
                 owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(10)),
                 callable: TerminalIdentityIndex(11),
@@ -57,7 +57,7 @@ fn catalog() -> StructuralTypeCatalog {
         },
         schema,
         image_fields: vec![StructuralFieldId::new(12).unwrap()],
-        storage: TerminalPlacementStorage {
+        storage: TerminalAccessStorage {
             carrier: StructuralTypeId::new(13).unwrap(),
             base: StructuralFieldId::new(14).unwrap(),
             length: StructuralFieldId::new(15).unwrap(),
@@ -72,13 +72,13 @@ fn catalog() -> StructuralTypeCatalog {
     };
     let mut extraction = initialize.clone();
     extraction.boundary = BoundaryMachineId::new(20).unwrap();
-    extraction.operation = TerminalPlacementLifecycleOperation::MoveOut;
+    extraction.operation = TerminalAccessLifecycleOperation::MoveOut;
     let mut selected = initialize.clone();
     selected.boundary = BoundaryMachineId::new(21).unwrap();
-    selected.execution = TerminalPlacementLifecycleExecution::SelectedProvider;
+    selected.execution = TerminalAccessLifecycleExecution::SelectedProvider;
     StructuralTypeCatalog::default()
-        .with_placed_views(vec![view])
-        .with_placement_lifecycles(vec![initialize, extraction, selected])
+        .with_access_views(vec![view])
+        .with_access_lifecycles(vec![initialize, extraction, selected])
         .unwrap()
 }
 
@@ -105,23 +105,17 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
     // Every retained role contributes, including inaccessible whole-image fields
     // and the selected profile requirement rather than just geometric bytes.
     for changed_catalog in [
-        catalog.clone().with_placed_views(vec![]),
-        catalog.clone().with_placement_lifecycles(vec![]).unwrap(),
+        catalog.clone().with_access_views(vec![]),
+        catalog.clone().with_access_lifecycles(vec![]).unwrap(),
         {
-            let mut lifecycle = catalog.placement_lifecycles().to_vec();
+            let mut lifecycle = catalog.access_lifecycles().to_vec();
             lifecycle[0].storage.base = StructuralFieldId::new(22).unwrap();
-            catalog
-                .clone()
-                .with_placement_lifecycles(lifecycle)
-                .unwrap()
+            catalog.clone().with_access_lifecycles(lifecycle).unwrap()
         },
         {
-            let mut lifecycle = catalog.placement_lifecycles().to_vec();
+            let mut lifecycle = catalog.access_lifecycles().to_vec();
             lifecycle[0].image_fields.clear();
-            catalog
-                .clone()
-                .with_placement_lifecycles(lifecycle)
-                .unwrap()
+            catalog.clone().with_access_lifecycles(lifecycle).unwrap()
         },
     ] {
         let mut changed = source.clone();
@@ -150,30 +144,30 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
 fn standalone_catalogs_reject_truncation_and_trailing_bytes() {
     let catalog = catalog();
     let lifecycle =
-        terminal_codec::encode_placement_lifecycle_catalog(catalog.placement_lifecycles()).unwrap();
-    let views = terminal_codec::encode_placed_view_catalog(catalog.placed_views()).unwrap();
+        terminal_codec::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
+    let views = terminal_codec::encode_access_view_catalog(catalog.access_views()).unwrap();
     for end in 0..lifecycle.len() {
         assert!(
-            terminal_codec::decode_placement_lifecycle_catalog(&lifecycle[..end]).is_err(),
+            terminal_codec::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
             "truncated lifecycle catalog accepted at {end}"
         );
     }
     for end in 0..views.len() {
         assert!(
-            terminal_codec::decode_placed_view_catalog(&views[..end]).is_err(),
+            terminal_codec::decode_access_view_catalog(&views[..end]).is_err(),
             "truncated view catalog accepted at {end}"
         );
     }
     let mut trailing = lifecycle;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_placement_lifecycle_catalog(&trailing),
+        terminal_codec::decode_access_lifecycle_catalog(&trailing),
         Err(terminal_codec::CodecError::TrailingBytes(1))
     );
     let mut trailing = views;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_placed_view_catalog(&trailing),
+        terminal_codec::decode_access_view_catalog(&trailing),
         Err(terminal_codec::CodecError::TrailingBytes(1))
     );
 }

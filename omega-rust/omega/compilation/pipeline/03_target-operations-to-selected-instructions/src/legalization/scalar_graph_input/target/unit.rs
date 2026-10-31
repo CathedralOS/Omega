@@ -125,7 +125,7 @@ pub(super) fn validate_operation(
     }
     match (target, abstracted) {
         (
-            TargetUnitOperation::PlacementLifecycle {
+            TargetUnitOperation::AccessLifecycle {
                 psi_operation,
                 boundary,
                 operands,
@@ -142,16 +142,15 @@ pub(super) fn validate_operation(
         ) => {
             let lifecycle = unit
                 .structural_types
-                .placement_lifecycles()
+                .access_lifecycles()
                 .iter()
                 .find(|lifecycle| lifecycle.boundary == *boundary)
                 .ok_or(LegalizationError::custody())?;
-            let expected_operands =
-                abstract_operations::PlacementLifecycleOperands::from_arguments(
-                    lifecycle.operation,
-                    structural_arguments,
-                )
-                .map_err(|_| LegalizationError::custody())?;
+            let expected_operands = abstract_operations::AccessLifecycleOperands::from_arguments(
+                lifecycle.operation,
+                structural_arguments,
+            )
+            .map_err(|_| LegalizationError::custody())?;
             let (_, retained_result) = result_home
                 .operation_result()
                 .ok_or(LegalizationError::custody())?;
@@ -162,7 +161,7 @@ pub(super) fn validate_operation(
                 || retained_result != result
                 || !matches!(
                     lifecycle.execution,
-                    terminal_psi::TerminalPlacementLifecycleExecution::CompilerPrimitive { .. }
+                    terminal_psi::TerminalAccessLifecycleExecution::CompilerPrimitive { .. }
                 )
                 || *result_home
                     != super::super::aggregate_results::result_home(optimized, result.place, plan)?
@@ -220,7 +219,7 @@ pub(super) fn validate_operation(
             sources.push((result.value, Source::Home(*result_home)));
         }
         (
-            TargetUnitOperation::PlacedScalarAccess {
+            TargetUnitOperation::AccessorScalarAccess {
                 psi_operation,
                 boundary,
                 realization,
@@ -238,10 +237,10 @@ pub(super) fn validate_operation(
                 completion_receipts,
             },
         ) => {
-            let demand = terminal_semantics::placed_scalar_boundary_demand(
+            let demand = terminal_semantics::accessor_scalar_boundary_demand(
                 unit.structural_types.as_slice(),
                 &plan.identities,
-                unit.structural_types.placed_views(),
+                unit.structural_types.access_views(),
                 &plan.boundary_machines,
                 *boundary,
             )
@@ -259,7 +258,7 @@ pub(super) fn validate_operation(
             {
                 return Err(LegalizationError::custody());
             }
-            super::super::reference_custody::placed_scalar_custody(
+            super::super::reference_custody::accessor_scalar_custody(
                 optimized,
                 custody,
                 unit.structural_types.as_slice(),
@@ -274,7 +273,7 @@ pub(super) fn validate_operation(
                 result_home,
             ) {
                 (
-                    terminal_psi::TerminalPlacedAccessorKind::Read,
+                    terminal_psi::TerminalAccessorKind::Read,
                     [],
                     None,
                     abstract_operations::AbstractBoundaryResult::Scalar(result),
@@ -288,7 +287,7 @@ pub(super) fn validate_operation(
                     sources.push((result.value, Source::Home(*home)));
                 }
                 (
-                    terminal_psi::TerminalPlacedAccessorKind::Write,
+                    terminal_psi::TerminalAccessorKind::Write,
                     [value],
                     Some(operand),
                     abstract_operations::AbstractBoundaryResult::Unit,
@@ -527,13 +526,13 @@ pub(super) fn validate_operation(
             ieee_float::validate(target, abstracted, sources)?;
         }
         (
-            TargetUnitOperation::EstablishPlacedReference {
+            TargetUnitOperation::EstablishAccessReference {
                 psi_operation,
                 result_home,
                 source,
                 correspondence,
             },
-            AbstractOperation::EstablishPlacedReference {
+            AbstractOperation::EstablishAccessReference {
                 psi_operation: expected_operation,
                 result,
                 source: expected_source,

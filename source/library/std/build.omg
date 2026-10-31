@@ -1,4 +1,30 @@
+use omega::language::core::external_binding;
 
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
+    configure_clock(builder);
+}
+
+// Package-local raw supply follows the checked provider closure. Applications
+// use Clock without repeating imports or naming the dependency's private seams.
+// Forward the activation's original Build value through this ordinary helper.
+machine configure_clock(builder: &mut Build) {
+    Build::bind<Clock::sleep>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "Sleep"
+        } });
+
+    Build::select_provider<Clock, DarwinClock>(builder, macos_arm64);
+    Build::bind<DarwinClockWait::poll>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
+        } });
+
+    Build::select_provider<Clock, LinuxX8664Clock>(builder, linux_x86_64);
+    Build::bind<LinuxClockWait::poll>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 7 });
+
+    Build::select_provider<Clock, LinuxArm64Clock>(builder, linux_arm64);
+    Build::bind<LinuxArmClockWait::nanosleep>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 101 });
 }

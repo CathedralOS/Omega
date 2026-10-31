@@ -326,7 +326,7 @@ impl OperationKind {
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
-            | Self::EstablishPlacedReference { source, .. }
+            | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
@@ -502,7 +502,7 @@ impl OperationKind {
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
-            | Self::EstablishPlacedReference { source, .. }
+            | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
             | Self::ElementViewLength { source }
             | Self::ByteSequenceLength { source }
@@ -707,7 +707,7 @@ impl OperationKind {
             | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
-            | Self::EstablishPlacedReference { source, .. }
+            | Self::EstablishAccessReference { source, .. }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }

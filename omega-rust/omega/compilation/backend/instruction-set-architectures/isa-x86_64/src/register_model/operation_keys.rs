@@ -405,8 +405,8 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 9
     X86_64_MODEL_SPECIFIC_WRITE,
     X86_64_PROCESSOR_HALT,
     X86_64_INTERRUPT_CONTROL,
-    X86_64_PLACED_READ,
-    X86_64_PLACED_WRITE,
+    X86_64_ACCESSOR_READ,
+    X86_64_ACCESSOR_WRITE,
     X86_64_FLAGS_SNAPSHOT,
     X86_64_CONTROL_REGISTER_READ,
     X86_64_CONTROL_REGISTER_WRITE,
@@ -445,9 +445,9 @@ pub(crate) fn x86_64_required_register_constraints() -> Vec<RegisterConstraintKe
     required
 }
 
-pub const X86_64_PLACED_READ: RegisterConstraintKey = RegisterConstraintKey::instruction(900);
+pub const X86_64_ACCESSOR_READ: RegisterConstraintKey = RegisterConstraintKey::instruction(900);
 
-pub const X86_64_PLACED_WRITE: RegisterConstraintKey = RegisterConstraintKey::instruction(901);
+pub const X86_64_ACCESSOR_WRITE: RegisterConstraintKey = RegisterConstraintKey::instruction(901);
 
 pub const X86_64_FLAGS_SNAPSHOT: RegisterConstraintKey = RegisterConstraintKey::instruction(902);
 

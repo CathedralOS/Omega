@@ -57,7 +57,7 @@ pub(super) fn validated(
 }
 
 /// Reconstruct every loop-carried custody the transformed unit still owns.
-/// Counted-loop, invariant-constant, and placement custody reconstruct for
+/// Counted-loop, invariant-constant, and access custody reconstruct for
 /// each surviving certificate-bearing component; uncertified Natural and
 /// unranked components keep their component and freeze custody through
 /// `from_transformed` alone.

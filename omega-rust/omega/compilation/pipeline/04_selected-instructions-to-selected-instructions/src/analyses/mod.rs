@@ -253,21 +253,29 @@ impl UnsealedRecoveryFacts {
                     .functions
                     .shares_function_storage(&next_plan.functions, index)
                     || anchor_plan.functions.get(index) == Some(function))
-                    && anchor_liveness.plan().functions.get(index).is_some_and(|a| {
-                        liveness_functions
-                            .get(index)
-                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
-                    })
+                    && anchor_liveness
+                        .plan()
+                        .functions
+                        .get(index)
+                        .is_some_and(|a| {
+                            liveness_functions
+                                .get(index)
+                                .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                        })
                     && anchor_ranges.plan().functions.get(index).is_some_and(|a| {
                         self.range_functions
                             .get(index)
                             .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
                     })
-                    && anchor_legality.plan().functions.get(index).is_some_and(|a| {
-                        self.legality_functions
-                            .get(index)
-                            .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
-                    })
+                    && anchor_legality
+                        .plan()
+                        .functions
+                        .get(index)
+                        .is_some_and(|a| {
+                            self.legality_functions
+                                .get(index)
+                                .is_some_and(|b| std::sync::Arc::ptr_eq(a, b) || a == b)
+                        })
             })
             .collect();
         let liveness_plan = selected_instructions::LivenessPlan {

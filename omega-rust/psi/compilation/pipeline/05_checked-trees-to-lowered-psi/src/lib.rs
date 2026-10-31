@@ -30,7 +30,7 @@
 //!    into what a body needs; [`emission`] writes the operations and stores
 //!    every body shares.
 //! 3. [`retention`] installs the checked custody the assembled module must
-//!    keep: closed reaches, placed view inputs, restored reborrow call uses,
+//!    keep: closed reaches, access view inputs, restored reborrow call uses,
 //!    suspension call plans, foreign borrow custody and operation crash
 //!    contracts.
 //! 4. [`proofs`] lowers authored propositions, contracts, evidence terms,

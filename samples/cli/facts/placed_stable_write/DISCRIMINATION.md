@@ -41,7 +41,7 @@ Probe G: permission folded to false via `write: 1u64 == 0u64`:
 Probe D: seeding the permission from a runtime parameter is not admissible at
 all — the plan machine signature rejects the extra argument:
 
-    error: placed view `Placed<StablePlacement,Value>`: policy
+    error: access view `Access<StablePlacement,Value>`: policy
     `StablePlacement::plan` needs one unique declared data context in addition
     to its 1 supplied argument(s)
 

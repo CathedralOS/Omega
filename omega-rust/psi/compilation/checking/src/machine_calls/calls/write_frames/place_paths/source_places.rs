@@ -31,7 +31,7 @@ pub enum ReferenceViewFormation {
     Expression(ExpressionHandle),
     /// The sealed primitive lends external content, not its Extent descriptor.
     /// Declaration authentication names the operation, not a grant or profile.
-    ExtentView(typed_trees::typed_trees::PlacementExecutionDeclaration),
+    ExtentView(typed_trees::typed_trees::AccessExecutionDeclaration),
 }
 
 impl ReferenceViewFormation {

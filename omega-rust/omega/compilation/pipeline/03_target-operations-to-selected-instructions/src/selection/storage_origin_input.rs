@@ -556,7 +556,7 @@ fn collect_calls(
                     result,
                     ..
                 }
-                | I::EstablishPlacedReference {
+                | I::EstablishAccessReference {
                     source: parent,
                     result,
                     ..

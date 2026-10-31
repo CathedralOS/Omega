@@ -36,7 +36,7 @@ totals repeat exactly in both modes. This establishes work avoided by the
 diagnostic bypass; it does not establish that the bypass is valid generally.
 
 The consumer in
-[`applied_results.rs`](../../../../../omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs)
+[`applied_results.rs`](../../../../../omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs)
 needs selected call targets, declared return types, exact static actuals, and
 sealed borrowed-View prototype validation. It does not consume executable body
 semantics. However, resolving call targets still needs ordinary lexical and
@@ -45,7 +45,7 @@ that contract. The existing const-argument lexical-input selector only lowers
 type/index inputs, not these ordinary call-result occurrences, so it is not a
 drop-in replacement either.
 
-[`placed_views.rs`](../../../../../omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs)
+[`access_views.rs`](../../../../../omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs)
 retains the invocation locations and passes each to
 `require_common_floor_for_invocation` before evaluating the placement policy.
 The [placed-access contract](../../../../../wiki/spec/resources/access.md)

@@ -51,7 +51,7 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
         unit.structural_types.quotient_identity_bytes(),
         |bytes, value| bytes.u8(*value),
     );
-    encode_placed_view_catalog(bytes, &unit.structural_types);
+    encode_access_view_catalog(bytes, &unit.structural_types);
     bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
     bytes.slice(unit.services.as_ref(), encode_service_declaration);
     encode_root_service_reach(bytes, &unit.root_service_reach);
@@ -658,9 +658,9 @@ fn encode_fact(bytes: &mut CanonicalBytes, fact: &OptimizationFact) {
     }
 }
 
-fn encode_placed_view_plans(
+fn encode_access_view_plans(
     bytes: &mut CanonicalBytes,
-    plans: &[terminal_psi::TerminalPlacedViewPlan],
+    plans: &[terminal_psi::TerminalAccessViewPlan],
 ) {
     if !plans.is_empty() {
         bytes.bytes(b"placed-interpretations-v1");
@@ -684,9 +684,9 @@ fn encode_placed_view_plans(
                 bytes.slice(&field.operations, |bytes, operation| {
                     bytes.id(operation.boundary);
                     bytes.u8(match operation.kind {
-                        terminal_psi::TerminalPlacedAccessorKind::Read => 0,
-                        terminal_psi::TerminalPlacedAccessorKind::Take => 1,
-                        terminal_psi::TerminalPlacedAccessorKind::Write => 2,
+                        terminal_psi::TerminalAccessorKind::Read => 0,
+                        terminal_psi::TerminalAccessorKind::Take => 1,
+                        terminal_psi::TerminalAccessorKind::Write => 2,
                     });
                 });
             });
@@ -694,18 +694,18 @@ fn encode_placed_view_plans(
     }
 }
 
-fn encode_placed_view_catalog(
+fn encode_access_view_catalog(
     bytes: &mut CanonicalBytes,
     catalog: &abstract_operations::StructuralTypeCatalog,
 ) {
-    encode_placed_view_plans(bytes, catalog.placed_views());
-    if !catalog.placement_lifecycles().is_empty() {
+    encode_access_view_plans(bytes, catalog.access_views());
+    if !catalog.access_lifecycles().is_empty() {
         bytes.bytes(b"placement-lifecycle-demands-v1");
-        bytes.bytes(catalog.placement_lifecycle_identity_bytes());
+        bytes.bytes(catalog.access_lifecycle_identity_bytes());
     }
-    if !catalog.placed_view_inputs().is_empty() {
+    if !catalog.access_view_inputs().is_empty() {
         bytes.bytes(b"placed-formal-demands-v1");
-        bytes.slice(catalog.placed_view_inputs(), |bytes, input| {
+        bytes.slice(catalog.access_view_inputs(), |bytes, input| {
             bytes.id(input.machine);
             bytes.u32(input.position);
             bytes.u32(input.runtime_position);
@@ -732,10 +732,10 @@ fn encode_placed_view_catalog(
 
 /// Complete source-free placed interpretation and formal-demand identity.
 /// The same grammar binds the optimization unit and legalized contracts.
-pub fn placed_view_catalog_identity_bytes(
+pub fn access_view_catalog_identity_bytes(
     catalog: &abstract_operations::StructuralTypeCatalog,
 ) -> Vec<u8> {
     let mut bytes = CanonicalBytes::collect();
-    encode_placed_view_catalog(&mut bytes, catalog);
+    encode_access_view_catalog(&mut bytes, catalog);
     bytes.finish()
 }

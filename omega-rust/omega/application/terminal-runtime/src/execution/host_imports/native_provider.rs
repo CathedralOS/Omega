@@ -111,9 +111,32 @@ impl<'host> NativeImport<'host> {
                 .chain(&declaration.published_service_ceiling)
                 .any(|service| Some(*service) != declaration.owning_service)
         {
-            return Err(missing(
-                "private native sponsor supplies no additional service capability".into(),
-            ));
+            let additional = declaration
+                .fixed_service_reach
+                .iter()
+                .chain(&declaration.published_service_ceiling)
+                .filter(|service| Some(**service) != declaration.owning_service)
+                .map(|service| {
+                    let identity = program
+                        .module()
+                        .service(*service)
+                        .and_then(|row| program.module().identities.text(row.identity));
+                    format!(
+                        "{service:?}({})",
+                        identity.unwrap_or("<missing service identity>")
+                    )
+                })
+                .collect::<Vec<_>>();
+            return Err(missing(format!(
+                "private native sponsor supplies no additional service capability for boundary {:?} `{}` (owning service {:?}, additional {additional:?})",
+                declaration.id,
+                program
+                    .module()
+                    .identities
+                    .text(declaration.identity)
+                    .unwrap_or("<missing boundary identity>"),
+                declaration.owning_service,
+            )));
         }
         if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn
             || !declaration.program_local_root_introductions.is_empty()

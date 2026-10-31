@@ -311,7 +311,7 @@ fn resident_owners_in_type(
                 validation::ContentsRequirement::NumericOwned,
             )
         };
-        // A sealed placed accessor is an operation token for its retained
+        // A sealed accessor is an operation token for its retained
         // value type, not an arbitrary opaque capability. Its admitted scalar
         // contents cannot hide another resident owner. Other unresolved
         // storage keeps an unknown ceiling instead of an empty inventory.
@@ -321,7 +321,7 @@ fn resident_owners_in_type(
                 .peeled_type_reference(unresolved),
         );
         if !plain(unresolved)
-            && !program.placed_view_plans.iter().any(|plan| {
+            && !program.access_view_plans.iter().any(|plan| {
                 plan.fields
                     .iter()
                     .any(|field| field.accessor_data_symbol == symbol && plain(field.value_type))

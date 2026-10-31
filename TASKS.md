@@ -1134,6 +1134,12 @@ defines the complete product bar.
     calls and structured const value/equation combinations, and unblock the
     Std-backed customers
     `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`.
+  - Infer later method type operands through const-dependent array carriers:
+    `first<const Count: u64, T>(bytes: &[T; Count])` must accept
+    `first<3u64>(&bytes)` for `bytes: [u8; 3]`. At `35f1a81701f`, that partial
+    tuple still refuses while `first<3u64, u8>(&bytes)` checks. Keep the
+    matching-count positive and wrong-count reject together; the hosted Clock
+    migration does not qualify this remaining matcher lane.
   Acceptance: `samples/cli/facts/inferred_array_equation_call` (all nine places)
   and `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`
   pass `omega run --both`, while repeated/explicit conflicts, missing indices,
@@ -1512,47 +1518,6 @@ defines the complete product bar.
   overlapping partition, and unauthorized exit controls reject.
 
 ## P2 - Materialization and access policies
-
-- **ACCESS-POLICY-VOCABULARY.** Migrate the core/compiler surface to the
-  ratified [access-policy contract](wiki/spec/resources/access.md), without a
-  parallel legacy API or changed authority model. This smaller surface migration
-  follows the board's existing blast-radius ordering; it does not promote itself
-  above the broader language migrations.
-  - Migrate `source/library/core/{layout,extent}.omg` and all `.omg` consumers:
-    `Plan` to `LayoutPlan`, composite `PlacementPlan` to
-    `AccessPlan { layout, fields, reach }`, policy `Placement` to `AccessPolicy`,
-    `Placed<P, T>` to `Access<P, T>`, `PlacedField<T>` to `Accessor<T>`, and
-    `placed_read`/`placed_write` to `read`/`write`. Rename the seven access
-    lifecycle/result `Placement*` carriers to `Access*` and
-    `FieldEntry.placement` to `representation`; retain the distinct
-    `view`/`view_mut`/`view_resident_mut` routes.
-  - Implement the layout-seeded inaccessible decisions (distinct field keys,
-    empty required reach), checked updates, and independent final schema/layout/
-    access validation. Remove the two-argument `Access::plan(schema, layout)`
-    trait, migrating `access_plan_inaccessible_seed` and `layout_access_plan`
-    to ordinary policy/helper composition. Reject jointly omitted layout/access
-    fields, foreign/erased keys and invalid operations; fragmentation still gets
-    one decision per field. Pin ordinary name resolution with a local `Access`
-    declaration/import collision control.
-  - Carry the vocabulary through compile-time layout evaluation, typed-tree
-    access plans, both foundations and their headers, interpreter reference/
-    provider storage, Omega establishment/legalization/selection, and diagnostics.
-    Rename Terminal access identifiers (including `TerminalPlacedViewPlan` and
-    `PlacedOccurrenceId`); audit serialized tags and canonical commitments
-    separately rather than changing encoding identity merely for a Rust rename.
-    Leave physical materialization `placement/` and installation terminology alone.
-  - Migrate layout/borrow/atomic/build fixtures, probes, and the existing
-    `samples/cli/facts/placed_stable_write` row with its reject twins. If paths
-    change, update corpus rows and references in the same change; update diagnostic
-    expectations without weakening their asserted obligations.
-  Acceptance: retired source-facing spellings and the two-argument trait are
-  absent; the migrated nine-place fact row and executable positive fixtures run
-  `omega run --both` with their authored results; compile-time probes retain their
-  appropriate checks; affected crate tests and filtered corpus pass. Reject
-  controls `placed_shared_write_rejected`, `placed_helper_exclusive_alias_rejected`,
-  `placed_atomic_load_denied`, `placed_atomic_store_denied`,
-  `placed_external_array_denied_read`, and `placed_factory_*` still reject the
-  same semantic obligations under the new names, not merely any diagnostic.
 
 - **DEFERRED-RECAST-ESTABLISHMENT.** Implement the ratified
   [exclusive storage-cast window](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)

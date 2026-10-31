@@ -1,0 +1,5 @@
+public trait Reading { machine read() -> u64; }
+public OnlyReading satisfies Reading { machine read() -> u64 { 7 } }
+machine choose<Implementation satisfies Reading, T>(value: &T) -> u64
+{ Implementation::read() }
+machine program() { let value: u64 = 7; let ignored: u64 = choose(&value); }
