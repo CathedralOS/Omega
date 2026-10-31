@@ -6,7 +6,6 @@ use diagnostics::Diagnostic;
 use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::service_declarations::{ServiceDeclaration, ServiceDeclarations};
 use std::sync::Arc;
-use symbols::SymbolHandle;
 
 /// One consumer-supplied semantic binding after exact selected-plan
 /// settlement. The raw row remains visible for persistence/review, while the
@@ -196,6 +195,38 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 rows.push(None);
                 continue;
             };
+            let exit_process = &declarations.exit_process;
+            // Console and canonical ProcessExit roles are independent: a row
+            // consumes at most one of them, and every consuming site tallies
+            // it here.
+            let mut accumulate = |diagnostics: &mut Vec<Diagnostic>| {
+                let checked = !completion_leaves.is_empty();
+                let schema_symbol = retained.provider.schema.symbol();
+                if let Some(binding) = accepted_console_binding {
+                    match exit_process.matches(
+                        crate::compiler_intrinsic::HostedService::Console,
+                        plan,
+                        checked,
+                        binding,
+                    ) {
+                        Ok(true) => console_accepted_matches.push(schema_symbol),
+                        Ok(false) => {}
+                        Err(diagnostic) => diagnostics.push(diagnostic),
+                    }
+                }
+                if let Some(binding) = accepted_process_exit_binding {
+                    match exit_process.matches(
+                        crate::compiler_intrinsic::HostedService::ProcessExit,
+                        plan,
+                        checked,
+                        binding,
+                    ) {
+                        Ok(true) => process_exit_accepted_matches.push(schema_symbol),
+                        Ok(false) => {}
+                        Err(diagnostic) => diagnostics.push(diagnostic),
+                    }
+                }
+            };
             if !matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -205,17 +236,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 // Console or ProcessExit binding exactly as an intrinsic
                 // exit row does; the binding names the requirement and the
                 // provider row, not the realization behind them.
-                accumulate_accepted_row_match(
-                    &declarations.exit_process,
-                    plan,
-                    retained.provider.schema.symbol(),
-                    !completion_leaves.is_empty(),
-                    accepted_console_binding,
-                    accepted_process_exit_binding,
-                    &mut console_accepted_matches,
-                    &mut process_exit_accepted_matches,
-                    &mut diagnostics,
-                );
+                accumulate(&mut diagnostics);
                 rows.push(None);
                 continue;
             }
@@ -257,32 +278,12 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 Ok(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => {
                     if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                     {
-                        accumulate_accepted_row_match(
-                            &declarations.exit_process,
-                            plan,
-                            retained.provider.schema.symbol(),
-                            !completion_leaves.is_empty(),
-                            accepted_console_binding,
-                            accepted_process_exit_binding,
-                            &mut console_accepted_matches,
-                            &mut process_exit_accepted_matches,
-                            &mut diagnostics,
-                        );
+                        accumulate(&mut diagnostics);
                     }
                     rows.push((!identity.is_numeric()).then_some(identity))
                 }
                 Ok(SelectedCompilerIntrinsicExecutionIdentity::Unsupported) => {
-                    accumulate_accepted_row_match(
-                        &declarations.exit_process,
-                        plan,
-                        retained.provider.schema.symbol(),
-                        !completion_leaves.is_empty(),
-                        accepted_console_binding,
-                        accepted_process_exit_binding,
-                        &mut console_accepted_matches,
-                        &mut process_exit_accepted_matches,
-                        &mut diagnostics,
-                    );
+                    accumulate(&mut diagnostics);
                     rows.push(None)
                 }
                 Err(diagnostic) => {
@@ -436,47 +437,6 @@ pub(crate) fn produce_direct_boundary_leaves(
         }
     }
     Ok(leaves)
-}
-
-/// Console and canonical ProcessExit roles are independent: a row can consume
-/// at most one of them, and each binding must be consumed by exactly one
-/// declaration below.
-#[allow(clippy::too_many_arguments)]
-fn accumulate_accepted_row_match(
-    declaration: &provider_planning::intrinsic_declarations::ExitProcessDeclaration,
-    plan: &effects::provider_plan::ProviderPlan,
-    schema_symbol: SymbolHandle,
-    checked_external_completion: bool,
-    accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    console_matches: &mut Vec<SymbolHandle>,
-    process_exit_matches: &mut Vec<SymbolHandle>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if let Some(binding) = accepted_console_binding {
-        match declaration.matches(
-            crate::compiler_intrinsic::HostedService::Console,
-            plan,
-            checked_external_completion,
-            binding,
-        ) {
-            Ok(true) => console_matches.push(schema_symbol),
-            Ok(false) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
-        }
-    }
-    if let Some(binding) = accepted_process_exit_binding {
-        match declaration.matches(
-            crate::compiler_intrinsic::HostedService::ProcessExit,
-            plan,
-            checked_external_completion,
-            binding,
-        ) {
-            Ok(true) => process_exit_matches.push(schema_symbol),
-            Ok(false) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
-        }
-    }
 }
 
 fn validate_terminal_authority_permissions(
