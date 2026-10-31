@@ -6,6 +6,8 @@ public boundary trait LocalEntry: Calling<RetainedCalling> {
     machine value() -> u64 reaches;
 }
 LocalMap satisfies LocalEntry { machine value() -> u64 { 73 } }
+public boundary trait NoResult { machine value() reaches; }
+NoResultMap satisfies NoResult { machine value() {} }
 public RetainedCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         retained_plan(signature)

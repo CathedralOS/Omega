@@ -520,8 +520,12 @@ pub(super) fn validate_call_structural(
                 machine: format!("{:?}", machine.id),
                 operation: operation.id,
                 reason: format!(
-                    "structural call adds an unpreserved caller membership: callee {:?}, extra {unpreserved:?}, declared {:?}, preserved {preserved:?}",
-                    callee.id, expected_result.projected_qualifications,
+                    "structural call adds an unpreserved caller membership: callee {:?} {:?}, extra {unpreserved:?}, declared {:?}, preserved {preserved:?}",
+                    callee.id,
+                    callee.declaration.as_ref().and_then(|declaration| module
+                        .identities
+                        .text(declaration.machine.identity())),
+                    expected_result.projected_qualifications,
                 ),
             });
         }

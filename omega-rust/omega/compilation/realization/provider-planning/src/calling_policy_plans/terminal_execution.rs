@@ -80,7 +80,7 @@ pub fn evaluate_terminal_calling_policy(
         .structural()
         .ok_or("calling policy result must be structural")?
         .structural_type;
-    let argument = build_boundary_signature(signature);
+    let argument = build_boundary_signature(signature)?;
     let contents = [input_contents(
         &program,
         parameter.structural_type,

@@ -66,9 +66,13 @@ fn write_structural(
             },
         ) => write_fields(program, fields, supplied, path, values),
         (StructuralTypeShape::Sum { cases }, BuildTimeValue::Case { variant, payload }) => {
-            let mut matching = cases.iter().filter(|case| {
-                program.module().identities.text(case.identity) == Some(variant.as_str())
-            });
+            // These are compiler-owned descriptor labels. The exact formal
+            // type already owns the case namespace; an enum prefix does not
+            // resolve or select another source declaration.
+            let variant = variant.rsplit("::").next().unwrap_or(variant);
+            let mut matching = cases
+                .iter()
+                .filter(|case| program.module().identities.text(case.identity) == Some(variant));
             let selected = matching
                 .next()
                 .ok_or_else(|| format!("calling input has no `{variant}` case"))?;
