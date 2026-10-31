@@ -39,35 +39,32 @@ pub(super) fn render_resolution(
                 GitObjectIdAlgorithm::Sha1 => "sha1\n",
                 GitObjectIdAlgorithm::Sha256 => "sha256\n",
             })?;
-            output.push(side)?;
-            output.push("_git_commit ")?;
-            output.push(&commit.to_hex())?;
-            output.push("\n")?;
-            output.push(side)?;
-            output.push("_git_tree ")?;
-            output.push(&tree.to_hex())?;
-            output.push("\n")?;
-            output.push(side)?;
-            output.push("_source_content ")?;
-            output.push(&content.to_hex())?;
-            output.push("\n")?;
+            push_hex_row(output, side, "_git_commit ", &commit.to_hex())?;
+            push_hex_row(output, side, "_git_tree ", &tree.to_hex())?;
+            push_hex_row(output, side, "_source_content ", &content.to_hex())?;
         }
         Some(ImmutableSourceResolution::Workspace { content }) => {
             output.push("workspace\n")?;
-            output.push(side)?;
-            output.push("_source_content ")?;
-            output.push(&content.to_hex())?;
-            output.push("\n")?;
+            push_hex_row(output, side, "_source_content ", &content.to_hex())?;
         }
         Some(ImmutableSourceResolution::ExternalLocal { content }) => {
             output.push("external_local\n")?;
-            output.push(side)?;
-            output.push("_source_content ")?;
-            output.push(&content.to_hex())?;
-            output.push("\n")?;
+            push_hex_row(output, side, "_source_content ", &content.to_hex())?;
         }
     }
     Ok(())
+}
+
+fn push_hex_row(
+    output: &mut BoundedOutput,
+    side: &str,
+    field: &str,
+    value: &str,
+) -> Result<(), PackageSourcePatchError> {
+    output.push(side)?;
+    output.push(field)?;
+    output.push(value)?;
+    output.push("\n")
 }
 
 pub(super) fn capture_snapshot(
