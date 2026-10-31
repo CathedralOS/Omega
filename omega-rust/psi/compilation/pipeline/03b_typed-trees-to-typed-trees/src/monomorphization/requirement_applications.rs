@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 mod calls;
 mod demands;
+mod inference;
 use typed_trees::finite_family::FamilyProbe;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 use typed_trees::typed_trees::{ClosedConformanceApplication, StaticRequirementDispatch};
@@ -33,6 +34,7 @@ pub(crate) fn instantiate_requirement_applications(
                 "applied logical signatures: {message}"
             ))]
         })?;
+    inference::prepare(program)?;
     let demands = demands::collect(program);
     for demand in demands {
         let requirement = demand.requirement;

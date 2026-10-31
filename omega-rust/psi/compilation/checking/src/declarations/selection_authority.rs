@@ -99,6 +99,12 @@ pub fn validate_authored_declaration_selections(
             }
             AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
         };
+        // A closed public requirement is a derived signature, not a new source
+        // declaration. Its retained template owns visibility and package
+        // custody; the occurrence's other operand selections remain independent.
+        let selected = program
+            .closed_requirement_application(selected)
+            .map_or(selected, |application| application.template);
         // A selection recorded inside a target sibling's body was checked for
         // that target and pruned with it; it is not a selection this
         // realization admits.
