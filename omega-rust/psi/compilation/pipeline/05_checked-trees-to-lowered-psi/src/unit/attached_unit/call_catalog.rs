@@ -13,6 +13,10 @@ use super::{
     checked_unit_provider_candidates, unsupported,
 };
 use crate::checked_facts::value_facts;
+use crate::expression_preparation::computation_graph::call_targets;
+use crate::expression_preparation::computation_graph::structural_call_targets;
+use crate::expression_preparation::computation_graph::value_call_operations;
+use crate::lowering_error::unit_machine_plan_error;
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) source_machines: Vec<symbols::SymbolHandle>,
@@ -46,13 +50,11 @@ pub(super) fn discover(
         }
     }
     for boundary in &retained_boundary_roots {
-        super::unique_unit_boundary(plans, *boundary).map_err(
-            crate::lowering_error::unit_machine_plan_error(
-                checked,
-                checked.symbols.name(*boundary),
-                *boundary,
-            ),
-        )?;
+        super::unique_unit_boundary(plans, *boundary).map_err(unit_machine_plan_error(
+            checked,
+            checked.symbols.name(*boundary),
+            *boundary,
+        ))?;
     }
     // Authored roots and target families are portable product surface, not
     // reachability from whichever application happens to be requested first.
@@ -119,13 +121,11 @@ pub(super) fn discover(
             }
         }
         if !machine.supplies_checked_body() {
-            super::unique_unit_boundary(plans, callable).map_err(
-                crate::lowering_error::unit_machine_plan_error(
-                    checked,
-                    machine.name.as_str(),
-                    callable,
-                ),
-            )?;
+            super::unique_unit_boundary(plans, callable).map_err(unit_machine_plan_error(
+                checked,
+                machine.name.as_str(),
+                callable,
+            ))?;
             if !retained_boundary_roots.contains(&callable) {
                 retained_boundary_roots.push(callable);
             }
@@ -217,15 +217,8 @@ pub(super) fn discover(
             }
         }
         for machine_symbol in &source_machines {
-            let computed_structural_roots =
-                crate::expression_preparation::computation_graph::structural_call_targets(
-                    checked,
-                    *machine_symbol,
-                )?;
-            for target in crate::expression_preparation::computation_graph::call_targets(
-                checked,
-                *machine_symbol,
-            )? {
+            let computed_structural_roots = structural_call_targets(checked, *machine_symbol)?;
+            for target in call_targets(checked, *machine_symbol)? {
                 if computed_structural_roots.contains(&target) {
                     CheckedScalarCallee::find_for_unit_call(checked, target)?;
                     if !structural_scalar_roots.contains(&target) {
@@ -276,11 +269,7 @@ pub(super) fn discover(
                     new_roots.push(target);
                 }
             }
-            for operation in
-                crate::expression_preparation::computation_graph::value_call_operations(
-                    checked, *source, None,
-                )?
-            {
+            for operation in value_call_operations(checked, *source, None)? {
                 if let Some(call) = operation
                     .call()
                     .filter(|call| call.is_module() && call.scalar_result().is_none())

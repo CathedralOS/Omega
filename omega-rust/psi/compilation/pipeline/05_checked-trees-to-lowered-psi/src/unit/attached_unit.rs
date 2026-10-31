@@ -52,9 +52,13 @@ use super::{
     obligation_id, place_id, terminal_scalar_type, unsupported, validate_direct_parameter_types,
     value_id,
 };
+use crate::activation_storage::prepare_operation;
 use crate::checked_facts::flow_facts;
+use crate::emission::structural_byte_sequence_store::prepare_types;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::contracts::indexed_theorems;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
+use crate::unit::dynamic_dispatch::DynamicDispatchIndex;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,
 // admission, providers, catalogs, boundaries, claims and signatures.
@@ -295,11 +299,7 @@ pub(crate) fn lower_unit_closure(
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
         for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-            crate::activation_storage::prepare_operation(
-                identities,
-                &mut structural_types,
-                operation,
-            )?;
+            prepare_operation(identities, &mut structural_types, operation)?;
             if operation.call().is_some_and(|call| {
                 call.structural_arguments.iter().any(|argument| {
                     argument.byte_sequence_literal().is_some()
@@ -314,11 +314,7 @@ pub(crate) fn lower_unit_closure(
                 crate::emission::structural_byte_sequence_store::literal_view_type(identities, &mut structural_types)?;
             }
             if let Some(value) = operation.stored_bytes() {
-                crate::emission::structural_byte_sequence_store::prepare_types(
-                    identities,
-                    value,
-                    &mut structural_types,
-                )?;
+                prepare_types(identities, value, &mut structural_types)?;
             }
             // An owned bounded literal local copies its octets from a
             // generated literal view into its declared owner.
@@ -330,11 +326,7 @@ pub(crate) fn lower_unit_closure(
                     declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence()
                 })
             {
-                crate::emission::structural_byte_sequence_store::prepare_types(
-                    identities,
-                    value,
-                    &mut structural_types,
-                )?;
+                prepare_types(identities, value, &mut structural_types)?;
             }
         }
     }
@@ -458,9 +450,7 @@ pub(crate) fn lower_unit_closure(
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut machines = Vec::with_capacity(closure.len());
     let mut occurrences = ClosureOccurrences::default();
-    let dynamic_dispatch = std::sync::Arc::new(
-        crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked),
-    );
+    let dynamic_dispatch = std::sync::Arc::new(DynamicDispatchIndex::new(checked));
     let catalog = ordinary_machine::ClosureCatalog {
         scalar_applications: &scalar_applications,
         type_ids: &type_ids,
@@ -669,12 +659,8 @@ pub(crate) fn lower_unit_closure(
     }
     let mathematical_carriers =
         crate::scalar_lowering::contracts::mathematical_carriers(&checked, identities)?;
-    let indexed_theorems = crate::scalar_lowering::contracts::indexed_theorems(
-        checked,
-        identities,
-        exact_toolchain_sources,
-        &machine_ids,
-    )?;
+    let indexed_theorems =
+        indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
     let lowered = LoweredPsi {
         source_boundary_declarations: Vec::new(),
         build_provider_requirements: Vec::new(),

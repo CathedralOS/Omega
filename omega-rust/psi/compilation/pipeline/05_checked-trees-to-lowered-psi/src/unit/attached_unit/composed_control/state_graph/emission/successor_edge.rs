@@ -20,13 +20,18 @@ use super::super::{
 };
 use super::StateGraphEmission;
 use crate::checked_facts::value_facts;
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, StorageObservations, structural_result_declaration,
 };
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
+use crate::expression_preparation::bindings::structural_fields::establish_case_payloads;
+use crate::proofs::crash_routes::lowered_erased_scalar_term;
+use crate::scalar_lowering::contracts::lowered_proof_term;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::terminal_identities::lookup_type_id;
 use crate::unit::attached_unit::composed_control::emission::{
     FrameValues, StateFrame, with_call_namespace,
 };
@@ -100,10 +105,7 @@ impl StateGraphEmission<'_, '_> {
         for (_, value) in payload_values {
             edge_values.push(*value);
         }
-        crate::expression_preparation::bindings::structural_fields::establish_case_payloads(
-            &mut edge_evaluation.structural_fields,
-            established,
-        );
+        establish_case_payloads(&mut edge_evaluation.structural_fields, established);
         edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
         let copied_values = self.capture_dispatch_copies(
             identities,
@@ -516,7 +518,7 @@ impl StateGraphEmission<'_, '_> {
                                 && let Some(group) = self.captured_loans.group(target, target_index as u32)
                             {
                                 let carrier_type = if carrier_type_identity.is_valid() {
-                                    crate::terminal_identities::lookup_type_id(
+                                    lookup_type_id(
                                         &self.catalogs.type_ids, &carrier_type_identity,
                                     )?
                                 } else {
@@ -628,7 +630,7 @@ impl StateGraphEmission<'_, '_> {
                             // domains as its membership evidence.
                             let destination =
                                 place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            let structural_type = crate::terminal_identities::lookup_type_id(
+                            let structural_type = lookup_type_id(
                                 &self.catalogs.type_ids,
                                 &target_parameter.type_identity,
                             )?;
@@ -700,7 +702,7 @@ impl StateGraphEmission<'_, '_> {
                                 source
                             } else {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            let structural_type = crate::terminal_identities::lookup_type_id(
+                            let structural_type = lookup_type_id(
                                 &self.catalogs.type_ids,
                                 &target_parameter.type_identity,
                             )?;
@@ -979,13 +981,11 @@ impl StateGraphEmission<'_, '_> {
                     position: u32::try_from(capture_parameters.len()).map_err(|_| {
                         LoweringError::Unsupported("cleanup capture structural roster exceeds u32")
                     })?,
-                    structural_type: crate::terminal_identities::lookup_type_id(
+                    structural_type: lookup_type_id(
                         &self.catalogs.type_ids,
                         &target_parameter.type_identity,
                     )?,
-                    multiplicity: crate::emission::borrowed_window::terminal_multiplicity(
-                        target_parameter.multiplicity,
-                    ),
+                    multiplicity: terminal_multiplicity(target_parameter.multiplicity),
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
@@ -1201,11 +1201,7 @@ impl StateGraphEmission<'_, '_> {
                         argument_ordinal: argument.argument_ordinal,
                     },
                 )?;
-                crate::proofs::crash_routes::lowered_erased_scalar_term(
-                    &expression,
-                    &edge_values,
-                    &self.state_erased[position],
-                )
+                lowered_erased_scalar_term(&expression, &edge_values, &self.state_erased[position])
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         // Proof actuals keep the same rule: each checked term resolves
@@ -1222,12 +1218,7 @@ impl StateGraphEmission<'_, '_> {
                     &self.state_erased_proof[position],
                 )
                 .and_then(|term| {
-                    crate::scalar_lowering::contracts::lowered_proof_term(
-                        checked,
-                        &term,
-                        &edge_values,
-                        &self.state_erased[position],
-                    )
+                    lowered_proof_term(checked, &term, &edge_values, &self.state_erased[position])
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -1283,10 +1274,7 @@ impl StateGraphEmission<'_, '_> {
                     };
                     Ok((
                         argument,
-                        crate::terminal_identities::lookup_type_id(
-                            &self.catalogs.type_ids,
-                            &formal.type_identity,
-                        )?,
+                        lookup_type_id(&self.catalogs.type_ids, &formal.type_identity)?,
                     ))
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;

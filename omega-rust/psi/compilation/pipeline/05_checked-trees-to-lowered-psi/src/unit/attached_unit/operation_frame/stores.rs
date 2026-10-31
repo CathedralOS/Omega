@@ -32,7 +32,9 @@ use super::{
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::indexed_write::IndexedWriteTarget;
+use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::emission::structural_byte_sequence_store::prepare_types;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::unit::{
@@ -406,9 +408,7 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::prepare_types(
-                identities, value, types,
-            )?;
+            prepare_types(identities, value, types)?;
         }
         if descriptor {
             let mut destination =
@@ -1670,12 +1670,8 @@ impl OperationFrame<'_, '_> {
                     .map(|value| value.scalar_type)
                     .collect::<Vec<_>>(),
             )?;
-            let value = crate::emission::operation_emission::expressions::emit_direct_expression(
-                &expression,
-                self.values,
-                self.next_value,
-                self.operations,
-            );
+            let value =
+                emit_direct_expression(&expression, self.values, self.next_value, self.operations);
             push_initialized_scalar_field(
                 &mut initialized,
                 position,

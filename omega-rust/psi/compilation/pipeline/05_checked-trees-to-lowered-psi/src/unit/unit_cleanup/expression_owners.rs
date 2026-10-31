@@ -6,6 +6,7 @@
 
 use super::{CleanupRegion, LoweringError, unsupported};
 use crate::expression_preparation::bindings::{StructuralLocalBinding, structural_local_by_root};
+use crate::terminal_identities::structural_declaration_by_identity;
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 pub(crate) fn expression_cleanup_regions<'action>(
@@ -28,16 +29,14 @@ pub(crate) fn expression_cleanup_regions<'action>(
         control,
         types,
         |identities, identity| {
-            Ok(
-                crate::terminal_identities::structural_declaration_by_identity(
-                    types,
-                    identities,
-                    checked,
-                    identity,
-                    "value completion has no structural type",
-                )?
-                .id,
-            )
+            Ok(structural_declaration_by_identity(
+                types,
+                identities,
+                checked,
+                identity,
+                "value completion has no structural type",
+            )?
+            .id)
         },
         |identities, source, path| {
             let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =

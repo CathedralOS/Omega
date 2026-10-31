@@ -19,11 +19,19 @@ use super::{
 use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::buffer::ComputedValueBinding;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::value_successor;
+use crate::expression_preparation::bindings::ScalarBindings;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding;
+use crate::expression_preparation::bindings::structural_local_by_root;
+use crate::expression_preparation::bindings::view_locals::ViewCarrier;
+use crate::expression_preparation::bindings::view_locals::ViewLocalBinding;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
+use crate::scalar_lowering::contracts::LoweredProofTerm;
 use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
 use crate::unit::attached_unit::OperationEnvironment;
 use checked_trees::CheckedCallScalarArgument;
@@ -80,8 +88,7 @@ pub(crate) struct Evaluation {
     pub(crate) structural_types: std::sync::Arc<[StructuralTypeDeclaration]>,
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
-    pub(crate) structural_locals:
-        Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    pub(crate) structural_locals: Vec<StructuralLocalBinding>,
     /// Lexically enclosing completed operands dominate fresh scalar expansions.
     /// Unlike the physical-home inventory, this scope never merges sibling
     /// producers or retains a captured dependency beyond its consuming body.
@@ -90,8 +97,7 @@ pub(crate) struct Evaluation {
     /// cleanup after a sibling restores its executable source frontier. This
     /// catalogue is never installed in the operand namespace and grants no
     /// access, claims, or permission to use a sibling's value.
-    pub(crate) completed_cleanup_homes:
-        Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    pub(crate) completed_cleanup_homes: Vec<StructuralLocalBinding>,
     /// Exact source bindings removed by completed whole-home retirement. These
     /// negative correspondences belong to the emitted prefix, not a replay of
     /// later permission events from the same source statement.
@@ -101,8 +107,7 @@ pub(crate) struct Evaluation {
     pub(crate) retired_structural_homes: Vec<PlaceId>,
     /// The view family of each established immutable view local, so scalar
     /// observations rooted at one pick its length and read operations.
-    pub(crate) view_locals:
-        Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
+    pub(crate) view_locals: Vec<ViewLocalBinding>,
     /// Element views among the structural parameters, resolved once where the
     /// parameters and type roster are bound, so every namespace this
     /// evaluation builds reads and measures an element-view parameter with
@@ -133,7 +138,7 @@ pub(crate) struct Evaluation {
     /// The body's scalar binding namespace: authored formals and locals on
     /// their dense values. Each route installs its entry namespace before it
     /// emits a statement; state-local storage has its own rows in it.
-    pub scalar_bindings: crate::expression_preparation::bindings::ScalarBindings,
+    pub scalar_bindings: ScalarBindings,
     /// Current formal bindings, keyed by authored position. Owned replacement
     /// changes this source namespace, never the machine's entry declarations.
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
@@ -142,8 +147,7 @@ pub(crate) struct Evaluation {
     /// or grant access to a retired home.
     pub(crate) previous_parameter_homes: Vec<StructuralParameterDeclaration>,
     pub structural_fields: crate::expression_preparation::bindings::StructuralFieldBindings,
-    pub structural_cases:
-        Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
+    pub structural_cases: Vec<StructuralCaseBinding>,
     /// The enclosing signature's erased scalar formals, for `ErasedParameter`
     /// positions inside proof-only call actuals lowered in this namespace.
     pub erased_scalar_formals: Vec<ValueDeclaration>,
@@ -186,14 +190,14 @@ pub(crate) struct RetiredStructuralBinding {
 /// same incoming source names, not the previous sibling's completed transfers.
 pub(crate) struct StructuralSourceFrontier {
     owners: Vec<StructuralValueOwner>,
-    locals: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    locals: Vec<StructuralLocalBinding>,
     retired_bindings: Vec<RetiredStructuralBinding>,
     retired_homes: Vec<PlaceId>,
-    views: Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
+    views: Vec<ViewLocalBinding>,
     parameters: Vec<(u32, StructuralParameterDeclaration)>,
     previous_parameters: Vec<StructuralParameterDeclaration>,
     fields: crate::expression_preparation::bindings::StructuralFieldBindings,
-    cases: Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
+    cases: Vec<StructuralCaseBinding>,
 }
 
 /// One checked value production captures its complete residual-source roster
@@ -285,14 +289,12 @@ impl Evaluation {
         }
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.structural_locals,
-            &[
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: None,
-                    root: facts::PlaceRoot::Expression(alias),
-                    argument: completed.argument,
-                    structural_type: completed.structural_type,
-                },
-            ],
+            &[StructuralLocalBinding {
+                result_binding_ordinal: None,
+                root: facts::PlaceRoot::Expression(alias),
+                argument: completed.argument,
+                structural_type: completed.structural_type,
+            }],
         )
     }
     /// Resolve an exact completed value's physical name in this execution
@@ -302,10 +304,7 @@ impl Evaluation {
         &self,
         value: checked_trees::CheckedStructuralValueHandle,
         operations: &'operations OperationBuffer,
-    ) -> Result<
-        &'operations crate::emission::operation_emission::buffer::ComputedValueBinding,
-        LoweringError,
-    > {
+    ) -> Result<&'operations ComputedValueBinding, LoweringError> {
         let binding = operations
             .computed_values
             .iter()
@@ -329,9 +328,7 @@ impl Evaluation {
 
     /// The evaluation's scalar bindings extended with the storage, local,
     /// parameter and observation context every lowering walker needs.
-    pub(crate) fn contextual_bindings(
-        &self,
-    ) -> crate::expression_preparation::bindings::ScalarBindings {
+    pub(crate) fn contextual_bindings(&self) -> ScalarBindings {
         self.scalar_bindings
             .clone()
             .with_primitive_storage(&self.primitive_storage)
@@ -368,7 +365,7 @@ impl Evaluation {
         &self,
         operations: &OperationBuffer,
         declarations: impl IntoIterator<Item = terminal_psi::StructuralPlaceDeclaration>,
-    ) -> crate::expression_preparation::bindings::ScalarBindings {
+    ) -> ScalarBindings {
         self.contextual_bindings()
             .with_completed_place_declarations(
                 declarations.into_iter().chain(
@@ -468,13 +465,9 @@ impl Evaluation {
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
-                let local = crate::expression_preparation::bindings::structural_local_by_root(
-                    &self.structural_locals,
-                    root,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "value storage local is not established",
-                ))?;
+                let local = structural_local_by_root(&self.structural_locals, root).ok_or(
+                    LoweringError::Unsupported("value storage local is not established"),
+                )?;
                 StructuralValueStorage {
                     place: local.argument.place,
                     path: local.argument.path.clone(),
@@ -503,16 +496,8 @@ impl Evaluation {
         } = *source
         {
             let root = facts::PlaceRoot::Expression(expression);
-            if crate::expression_preparation::bindings::structural_local_by_root(
-                &self.structural_locals,
-                root,
-            )
-            .is_none()
-                && let Some(home) =
-                    crate::expression_preparation::bindings::structural_local_by_root(
-                        &self.completed_cleanup_homes,
-                        root,
-                    )
+            if structural_local_by_root(&self.structural_locals, root).is_none()
+                && let Some(home) = structural_local_by_root(&self.completed_cleanup_homes, root)
             {
                 return Ok(StructuralValueStorage {
                     place: home.argument.place,
@@ -620,11 +605,7 @@ impl Evaluation {
                 &parameters,
                 structural_types,
             );
-        self.structural_cases =
-            crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding::collect(
-                &parameters,
-                structural_types,
-            );
+        self.structural_cases = StructuralCaseBinding::collect(&parameters, structural_types);
         self.element_views =
             crate::expression_preparation::bindings::element_views(&parameters, structural_types);
         self.structural_parameters = parameters;
@@ -806,43 +787,35 @@ impl Evaluation {
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. });
             self.structural_fields
                 .adopt_declarations(produced.structural_type(), structural_types);
-            self.bind_structural_local(
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: Some(result.binding_ordinal),
-                    root: facts::PlaceRoot::Symbol(local.symbol),
-                    structural_type: produced.structural_type(),
-                    argument:
-                        crate::expression_preparation::bindings::structural_paths::structural_argument(
-                            produced.place(),
-                            produced.path().to_vec(),
-                            if reference_carrier {
-                                StructuralAccess::Owned
-                            } else {
-                                access
-                            },
-                        ),
-                },
-            );
+            self.bind_structural_local(StructuralLocalBinding {
+                result_binding_ordinal: Some(result.binding_ordinal),
+                root: facts::PlaceRoot::Symbol(local.symbol),
+                structural_type: produced.structural_type(),
+                argument:
+                    crate::expression_preparation::bindings::structural_paths::structural_argument(
+                        produced.place(),
+                        produced.path().to_vec(),
+                        if reference_carrier {
+                            StructuralAccess::Owned
+                        } else {
+                            access
+                        },
+                    ),
+            });
             // A view local's published place is what its lengths and element
             // reads observe; record the family its produced type declares.
             // A view observes the place it names; an alias names a subtree
             // of another place, which this roster cannot express.
             if produced.path().is_empty()
-                && let Some(carrier) =
-                    crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
-                        produced.structural_type(),
-                        structural_types,
-                    )
+                && let Some(carrier) = ViewCarrier::of(produced.structural_type(), structural_types)
             {
-                self.view_locals.push(
-                    crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
-                        symbol: local.symbol,
-                        place: produced.place(),
-                        structural_type: produced.structural_type(),
-                        carrier,
-                        access,
-                    },
-                );
+                self.view_locals.push(ViewLocalBinding {
+                    symbol: local.symbol,
+                    place: produced.place(),
+                    structural_type: produced.structural_type(),
+                    carrier,
+                    access,
+                });
             }
         }
         // Residual cleanup tracks values this statement established. A
@@ -870,10 +843,7 @@ impl Evaluation {
     /// Publish one actual source binding in the current execution namespace.
     /// A new occurrence of a retired name supersedes its negative correspondence;
     /// earlier captured operands retain their own physical homes.
-    pub(crate) fn bind_structural_local(
-        &mut self,
-        binding: crate::expression_preparation::bindings::StructuralLocalBinding,
-    ) {
+    pub(crate) fn bind_structural_local(&mut self, binding: StructuralLocalBinding) {
         if let Some(symbol) = binding.root.as_symbol() {
             self.retired_structural_bindings
                 .retain(|retired| retired.symbol != symbol);
@@ -1143,9 +1113,7 @@ impl Evaluation {
             computation_address_roots: Vec::new(),
             primitive_storage: Vec::new(),
             parameter_storage: Vec::new(),
-            scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
-                std::iter::empty(),
-            ),
+            scalar_bindings: ScalarBindings::new(std::iter::empty()),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
@@ -1165,14 +1133,11 @@ impl Evaluation {
     /// arguments a private join passes when it redeclares the caller roster.
     /// The forwarding is a lowering-stage term list: it resolves against the
     /// caller's value namespaces wherever the edge is emitted.
-    fn proof_formal_forwarding(&self) -> Vec<crate::scalar_lowering::contracts::LoweredProofTerm> {
+    fn proof_formal_forwarding(&self) -> Vec<LoweredProofTerm> {
         (0..self.erased_proof_formals.len())
-            .map(
-                |position| crate::scalar_lowering::contracts::LoweredProofTerm::Formal {
-                    position: u32::try_from(position)
-                        .expect("erased-proof roster positions fit u32"),
-                },
-            )
+            .map(|position| LoweredProofTerm::Formal {
+                position: u32::try_from(position).expect("erased-proof roster positions fit u32"),
+            })
             .collect()
     }
 

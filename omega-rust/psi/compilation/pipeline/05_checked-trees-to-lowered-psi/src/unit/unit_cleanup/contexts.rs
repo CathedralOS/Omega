@@ -8,6 +8,7 @@ use super::{
     SymbolHandle, unsupported,
 };
 use crate::checked_facts::flow_facts;
+use crate::terminal_identities::place_id;
 use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, find_structural_type,
 };
@@ -201,9 +202,7 @@ pub(crate) fn prepare_signature(
             // parameter/place: this receiver exists only to substitute clauses
             // at each consuming cleanup action.
             predicate_parameters.push(StructuralParameterDeclaration {
-                place: crate::terminal_identities::place_id(
-                    crate::terminal_identities::allocate_dense(next_place)?,
-                ),
+                place: place_id(crate::terminal_identities::allocate_dense(next_place)?),
                 position: 0,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

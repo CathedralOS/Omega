@@ -11,6 +11,12 @@ use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::emission::structural_byte_sequence_store::prepare_types;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
+use crate::expression_preparation::bindings::view_locals::ViewCarrier;
+use crate::expression_preparation::qualifications::type_atoms;
+use crate::reference_custody::result_multiplicity;
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
@@ -148,10 +154,7 @@ impl OperationFrame<'_, '_> {
         }
         // Numeric predicates do not stand in for declared membership:
         // retain the catalog's independent rejection of unsupported theories.
-        crate::expression_preparation::qualifications::type_atoms(
-            self.checked,
-            local.declared_type,
-        )?;
+        type_atoms(self.checked, local.declared_type)?;
         let predicates = value_facts(&self.checked)
             .scalar_type_refinement_predicates(local.declared_type)
             .ok_or(LoweringError::Unsupported(
@@ -224,11 +227,7 @@ impl OperationFrame<'_, '_> {
         let qualifications = qualifications
             .iter()
             .map(|domain| {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    self.callees.domain_ids,
-                    *domain,
-                    structural_type,
-                )
+                lookup_domain_id_for_carrier(self.callees.domain_ids, *domain, structural_type)
             })
             .collect::<Result<Vec<_>, _>>()?;
         let declaration = super::super::scalar_arrays::emit(
@@ -471,11 +470,7 @@ impl OperationFrame<'_, '_> {
         let mut qualifications = qualifications
             .iter()
             .map(|domain| {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    self.callees.domain_ids,
-                    *domain,
-                    structural_type,
-                )
+                lookup_domain_id_for_carrier(self.callees.domain_ids, *domain, structural_type)
             })
             .collect::<Result<Vec<_>, _>>()?;
         qualifications.sort();
@@ -570,9 +565,7 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; a published roster must already hold it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::prepare_types(
-                identities, value, types,
-            )?;
+            prepare_types(identities, value, types)?;
         }
         let (declaration, produced) =
             crate::emission::structural_byte_sequence_store::emit_owned_value(
@@ -737,11 +730,7 @@ impl OperationFrame<'_, '_> {
         let mut qualifications = qualifications
             .iter()
             .map(|domain| {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    self.callees.domain_ids,
-                    *domain,
-                    structural_type,
-                )
+                lookup_domain_id_for_carrier(self.callees.domain_ids, *domain, structural_type)
             })
             .collect::<Result<Vec<_>, _>>()?;
         qualifications.sort();
@@ -819,14 +808,12 @@ impl OperationFrame<'_, '_> {
                 ))?
         };
         let mut path = storage.path;
-        path.extend(
-            crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                identities,
-                &value.path,
-                storage.selected_type,
-                self.structural_types.declarations(),
-            )?,
-        );
+        path.extend(lower_static_argument_path(
+            identities,
+            &value.path,
+            storage.selected_type,
+            self.structural_types.declarations(),
+        )?);
         let mut repair = BorrowedWindowRepairValue {
             place: storage.place,
             structural_type: root_type,
@@ -1229,10 +1216,7 @@ impl OperationFrame<'_, '_> {
                     // pointer descriptor owns an affine lifetime obligation.
                     // Views retain their separate descriptor multiplicity.
                     parameter.multiplicity = crate::terminal_identities::structural_multiplicity(
-                        crate::reference_custody::result_multiplicity(
-                            self.checked,
-                            formal.type_reference,
-                        ),
+                        result_multiplicity(self.checked, formal.type_reference),
                     );
                 } else if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != replacement.structural_type
@@ -1276,13 +1260,11 @@ impl OperationFrame<'_, '_> {
         }
         let replacement_view_carrier = previous_view
             .map(|_| {
-                crate::expression_preparation::bindings::view_locals::ViewCarrier::observation_of(
-                    replacement.structural_type,
-                    types,
+                ViewCarrier::observation_of(replacement.structural_type, types).ok_or(
+                    LoweringError::Unsupported(
+                        "owned rebind replacement has no view observation family",
+                    ),
                 )
-                .ok_or(LoweringError::Unsupported(
-                    "owned rebind replacement has no view observation family",
-                ))
             })
             .transpose()?;
         let binding_access = old

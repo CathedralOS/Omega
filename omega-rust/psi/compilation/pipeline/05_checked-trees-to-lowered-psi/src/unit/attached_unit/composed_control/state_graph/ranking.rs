@@ -32,6 +32,7 @@ use super::super::super::{TerminalMachine, Terminator, unsupported};
 use super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::checked_facts::value_facts;
+use crate::expression_preparation::bindings::CapturedStructuralFormal;
 use std::collections::BTreeMap;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -149,14 +150,12 @@ pub(super) fn formal_bindings(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph observation lost its exact structural formal",
                     ))?;
-            Ok(
-                crate::expression_preparation::bindings::CapturedStructuralFormal {
-                    source_position: formal.position,
-                    symbol: parameter.symbol,
-                    argument: argument.clone(),
-                    structural_type: *structural_type,
-                },
-            )
+            Ok(CapturedStructuralFormal {
+                source_position: formal.position,
+                symbol: parameter.symbol,
+                argument: argument.clone(),
+                structural_type: *structural_type,
+            })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     bindings.capture_formal_observations(scalar_slots, &formals)

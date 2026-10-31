@@ -19,6 +19,7 @@ use crate::emission::operation_emission::buffer::{
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::scalar_lowering::contracts::lowered_proof_term;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
@@ -137,7 +138,7 @@ pub(super) fn prepare(
                 caller_erased_proof_parameters,
             )
             .and_then(|term| {
-                crate::scalar_lowering::contracts::lowered_proof_term(
+                lowered_proof_term(
                     checked,
                     &term,
                     caller_scalar_values,
@@ -301,14 +302,7 @@ pub(crate) fn prepare_computed_module_call(
     };
     let erased_proof_arguments = erased_proof_arguments
         .iter()
-        .map(|term| {
-            crate::scalar_lowering::contracts::lowered_proof_term(
-                checked,
-                term,
-                source_values,
-                caller_erased_formals,
-            )
-        })
+        .map(|term| lowered_proof_term(checked, term, source_values, caller_erased_formals))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let emitted_structural_arguments = structural_arguments
         .iter()

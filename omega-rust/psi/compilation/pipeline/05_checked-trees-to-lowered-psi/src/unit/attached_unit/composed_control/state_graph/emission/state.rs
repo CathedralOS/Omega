@@ -18,12 +18,20 @@ use super::super::super::LoweringError;
 use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking};
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
+use crate::emission::case_payload_dispatch::PlannedGuard;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
 use crate::emission::value_successor;
+use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
+use crate::scalar_lowering::computations::observations::prepare;
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::unit::attached_unit::composed_control::emission::OperationSequence;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
+use crate::unit::attached_unit::signatures::find;
 
 impl StateGraphEmission<'_, '_> {
     /// Standalone and selected crash exits share the exact authored crash site.
@@ -62,10 +70,7 @@ impl StateGraphEmission<'_, '_> {
         }
         let owner = self.admitted.authored[position].0;
         if owner.symbol == self.plan.machine {
-            let signature = crate::unit::attached_unit::signatures::find(
-                &self.catalogs.signatures,
-                owner.symbol,
-            )?;
+            let signature = find(&self.catalogs.signatures, owner.symbol)?;
             return lower_structural_crash_predicates(
                 identities,
                 predicates,
@@ -165,9 +170,7 @@ impl StateGraphEmission<'_, '_> {
                 .catalogs
                 .prepared_scalar_qualifications
                 .cloned()
-                .unwrap_or_else(
-                crate::expression_preparation::qualifications::PreparedScalarQualifications::empty,
-            ),
+                .unwrap_or_else(PreparedScalarQualifications::empty),
             machine: Some(self.terminal_machine),
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
@@ -197,11 +200,7 @@ impl StateGraphEmission<'_, '_> {
                 &mut self.catalogs.next_place,
             )?,
             produced_values: self.produced_values.clone(),
-            observations: crate::scalar_lowering::computations::observations::prepare(
-                checked,
-                &self.owners,
-                &mut self.catalogs.next_place,
-            )?,
+            observations: prepare(checked, &self.owners, &mut self.catalogs.next_place)?,
             call_views: crate::scalar_lowering::computations::call_views::prepare(
                 identities,
                 checked,
@@ -225,9 +224,7 @@ impl StateGraphEmission<'_, '_> {
             )?,
             primitive_storage: Vec::new(),
             parameter_storage: Vec::new(),
-            scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
-                std::iter::empty(),
-            ),
+            scalar_bindings: ScalarBindings::new(std::iter::empty()),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             previous_parameter_homes: Vec::new(),
@@ -301,17 +298,14 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .map(|storage| storage.local)
             .collect();
-        let mut sequence =
-            crate::unit::attached_unit::composed_control::emission::OperationSequence::new(
-                &evaluation,
-            );
+        let mut sequence = OperationSequence::new(&evaluation);
         let mut next_value = self.catalogs.next_value;
         let mut next_block = self.catalogs.next_block;
         let mut next_edge = self.catalogs.next_edge;
         // The state's namespace starts from its scalar formals, its arriving
         // referents and its formal storage; its statements, immutable locals
         // included, lower through the one operation sequence.
-        evaluation.scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::entry(
+        evaluation.scalar_bindings = ScalarBindings::entry(
             values.iter().map(|value| value.scalar_type),
             &evaluation.primitive_storage,
             &evaluation.structural_parameters,
@@ -1389,12 +1383,11 @@ impl StateGraphEmission<'_, '_> {
                         id,
                         parameters,
                         erased_scalar_formals: self.state_erased[position].clone(),
-                        erased_proof_formals:
-                            crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                                identities,
-                                self.checked,
-                                &self.state_erased_proof[position],
-                            ),
+                        erased_proof_formals: erased_proof_formal_declarations(
+                            identities,
+                            self.checked,
+                            &self.state_erased_proof[position],
+                        ),
                         structural_parameters,
                         operations: operations_draft,
                         terminator,
@@ -1491,12 +1484,10 @@ impl StateGraphEmission<'_, '_> {
             }
         };
         if let Terminator::Return { edge, .. } = terminator {
-            operations.source_returns.push(
-                crate::expression_preparation::qualifications::SourceScalarReturn {
-                    edge,
-                    exits: scalar_return_exits,
-                },
-            );
+            operations.source_returns.push(SourceScalarReturn {
+                edge,
+                exits: scalar_return_exits,
+            });
         }
         sequence.finish_state(checked, state)?;
         let dispatches = condition.is_some() || branch_guard.is_some() || prepared_cases.is_some();
@@ -1560,13 +1551,7 @@ pub(super) fn plan_short_circuit_guard(
     qualifications: &terminal_psi::ScalarQualificationCatalog,
     next_value: &mut u64,
     successor_reads_payloads: bool,
-) -> Result<
-    (
-        crate::emission::case_payload_dispatch::PlannedGuard,
-        Vec<ValueDeclaration>,
-    ),
-    LoweringError,
-> {
+) -> Result<(PlannedGuard, Vec<ValueDeclaration>), LoweringError> {
     let decision = crate::emission::boolean_control::lower_boolean_control_decision(
         expression,
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }),
@@ -1600,12 +1585,7 @@ pub(super) fn plan_short_circuit_guard(
 /// short-circuit decision planned with the namespace its true edge reads.
 pub(super) enum ChainGuard {
     Value(semantic_vocabulary::ValueId),
-    Decision(
-        (
-            crate::emission::case_payload_dispatch::PlannedGuard,
-            Vec<ValueDeclaration>,
-        ),
-    ),
+    Decision((PlannedGuard, Vec<ValueDeclaration>)),
 }
 
 /// The state-level facts a short-circuit decision's outcome blocks repeat.
@@ -1628,7 +1608,7 @@ struct ShortCircuitFrame<'a> {
 fn emit_short_circuit_decision(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
-    planned: &crate::emission::case_payload_dispatch::PlannedGuard,
+    planned: &PlannedGuard,
     guard_values: &[ValueDeclaration],
     [when_true, when_false]: [SuccessorEdge; 2],
     frame: ShortCircuitFrame<'_>,
@@ -1665,12 +1645,11 @@ fn emit_short_circuit_decision(
             id,
             parameters: Vec::new(),
             erased_scalar_formals: frame.erased_scalar_formals.to_vec(),
-            erased_proof_formals:
-                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                    identities,
-                    checked,
-                    frame.erased_proof_formals,
-                ),
+            erased_proof_formals: erased_proof_formal_declarations(
+                identities,
+                checked,
+                frame.erased_proof_formals,
+            ),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
