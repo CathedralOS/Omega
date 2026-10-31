@@ -2,7 +2,10 @@
 //! service binding and retaining the selected review identities.
 
 use crate::SelectedCompilerIntrinsicExecutionIdentity;
+use crate::compiler_intrinsic::AcceptedRowBinding;
+use crate::compiler_intrinsic::HostedService;
 use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderBinding;
 use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::service_declarations::{ServiceDeclaration, ServiceDeclarations};
 use std::sync::Arc;
@@ -173,10 +176,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             let Some(realization_symbol) = realization_symbol.authored() else {
                 // Neither a Build locator nor a settlement table supplies a
                 // sealed intrinsic execution identity or an authored completion.
-                if matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                ) {
+                if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
                     diagnostics.push(Diagnostic::error(
                         "intrinsic row has no exact authored realization",
                     ));
@@ -199,34 +199,21 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 let checked = !completion_leaves.is_empty();
                 let schema_symbol = retained.provider.schema.symbol();
                 if let Some(binding) = accepted_console_binding {
-                    match exit_process.matches(
-                        crate::compiler_intrinsic::HostedService::Console,
-                        plan,
-                        checked,
-                        binding,
-                    ) {
+                    match exit_process.matches(HostedService::Console, plan, checked, binding) {
                         Ok(true) => console_accepted_matches.push(schema_symbol),
                         Ok(false) => {}
                         Err(diagnostic) => diagnostics.push(diagnostic),
                     }
                 }
                 if let Some(binding) = accepted_process_exit_binding {
-                    match exit_process.matches(
-                        crate::compiler_intrinsic::HostedService::ProcessExit,
-                        plan,
-                        checked,
-                        binding,
-                    ) {
+                    match exit_process.matches(HostedService::ProcessExit, plan, checked, binding) {
                         Ok(true) => process_exit_accepted_matches.push(schema_symbol),
                         Ok(false) => {}
                         Err(diagnostic) => diagnostics.push(diagnostic),
                     }
                 }
             };
-            if !matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-            ) {
+            if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
                 // A hosted exit realized through the target's DLL linkage
                 // (Windows: kernel32 `ExitProcess`) consumes the accepted
                 // Console or ProcessExit binding exactly as an intrinsic
@@ -236,7 +223,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 rows.push(None);
                 continue;
             }
-            let unresolved = |accepted| crate::compiler_intrinsic::AcceptedRowBinding {
+            let unresolved = |accepted| AcceptedRowBinding {
                 accepted,
                 declaration_identity: None,
                 public_plan: None,
@@ -374,10 +361,7 @@ pub(crate) fn produce_direct_boundary_leaves(
                     let source = candidate
                         .direct_source(input)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                    let accepted = |role| -> Result<
-                        Option<crate::compiler_intrinsic::AcceptedRowBinding<'_>>,
-                        Diagnostic,
-                    > {
+                    let accepted = |role| -> Result<Option<AcceptedRowBinding<'_>>, Diagnostic> {
                         let Some(binding) = bindings.iter().find(|binding| binding.role() == role)
                         else {
                             return Ok(None);
@@ -390,7 +374,7 @@ pub(crate) fn produce_direct_boundary_leaves(
                         }) else {
                             return Ok(None);
                         };
-                        Ok(Some(crate::compiler_intrinsic::AcceptedRowBinding {
+                        Ok(Some(AcceptedRowBinding {
                             accepted: binding.accepted(),
                             declaration_identity: Some(
                                 binding.declaration().nominal_identity.as_str(),
