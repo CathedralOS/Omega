@@ -1,9 +1,9 @@
 //! Provider establishment supplies bound at the executable input boundary.
 //!
-//! A `Placed<P, T>` direct-entry input is custody, not data: the roster row
+//! A `Access<P, T>` direct-entry input is custody, not data: the roster row
 //! seals the placement the view interprets, and neither the roster nor a
 //! pointer is the authority that lends the referent. The ordinary
-//! establishment route supplies one [`TerminalPlacedViewEstablishment`] per
+//! establishment route supplies one [`TerminalAccessViewEstablishment`] per
 //! declared direct-entry roster row — the provider's loan of the exact
 //! qualified backing — and admission binds each supply to its row so the
 //! realized executable's entry boundary can lend it for the invocation's
@@ -26,7 +26,7 @@
 //! qualifications cannot rejoin the module's own catalogs is a stale or
 //! substituted establishment and rejects before access.
 
-pub use terminal_installation::TerminalPlacedViewEstablishment;
+pub use terminal_installation::TerminalAccessViewEstablishment;
 
 use super::ArtifactLoweringError;
 use std::collections::BTreeSet;
@@ -44,7 +44,7 @@ fn referent_overlaps(
         && (left.path.starts_with(&right.path) || right.path.starts_with(&left.path))
 }
 
-/// Join each direct-entry placed-view roster row to one supplied provider
+/// Join each direct-entry access-view roster row to one supplied provider
 /// establishment and return the bound set in roster order.
 ///
 /// Only rows on the installed entry machine are entry inputs; unrealized
@@ -56,13 +56,13 @@ fn referent_overlaps(
 /// interpreter additionally checks each exclusive referent against the
 /// invocation's structural arguments; this boundary admits no argument
 /// channel, so establishments are the only live carriers to check.
-pub(super) fn establish_native_placed_view_inputs(
+pub(super) fn establish_native_access_view_inputs(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
-    establishments: &[TerminalPlacedViewEstablishment],
-) -> Result<Vec<TerminalPlacedViewEstablishment>, ArtifactLoweringError> {
+    establishments: &[TerminalAccessViewEstablishment],
+) -> Result<Vec<TerminalAccessViewEstablishment>, ArtifactLoweringError> {
     let entry_rows = module
-        .placed_view_inputs
+        .access_view_inputs
         .iter()
         .filter(|row| row.machine == entry)
         .collect::<Vec<_>>();
@@ -71,58 +71,58 @@ pub(super) fn establish_native_placed_view_inputs(
     let mut seen = BTreeSet::new();
     for establishment in establishments {
         if !entry_rows.contains(&&establishment.input) {
-            return Err(ArtifactLoweringError::PlacedViewEstablishmentUnexpected {
+            return Err(ArtifactLoweringError::AccessViewEstablishmentUnexpected {
                 machine: establishment.input.machine,
                 position: establishment.input.position,
             });
         }
         if !seen.insert(&establishment.input) {
-            return Err(ArtifactLoweringError::PlacedViewEstablishmentDuplicate {
+            return Err(ArtifactLoweringError::AccessViewEstablishmentDuplicate {
                 machine: establishment.input.machine,
                 position: establishment.input.position,
             });
         }
         let referent = &establishment.referent;
-        terminal_semantics::validate_placed_view_referent(
+        terminal_semantics::validate_access_view_referent(
             module,
             referent.structural_type,
             &referent.path,
             &referent.qualifications,
         )
         .map_err(|error| match error {
-            terminal_semantics::PlacedViewReferentError::QualificationsNonCanonical => {
-                ArtifactLoweringError::PlacedViewEstablishmentQualificationsNonCanonical
+            terminal_semantics::AccessViewReferentError::QualificationsNonCanonical => {
+                ArtifactLoweringError::AccessViewEstablishmentQualificationsNonCanonical
             }
-            terminal_semantics::PlacedViewReferentError::BackingUndeclared(carrier) => {
-                ArtifactLoweringError::PlacedViewEstablishmentBackingUndeclared(carrier)
+            terminal_semantics::AccessViewReferentError::BackingUndeclared(carrier) => {
+                ArtifactLoweringError::AccessViewEstablishmentBackingUndeclared(carrier)
             }
-            terminal_semantics::PlacedViewReferentError::RangeUnresolved => {
-                ArtifactLoweringError::PlacedViewEstablishmentRangeUnresolved
+            terminal_semantics::AccessViewReferentError::RangeUnresolved => {
+                ArtifactLoweringError::AccessViewEstablishmentRangeUnresolved
             }
-            terminal_semantics::PlacedViewReferentError::QualificationUndeclared(domain) => {
-                ArtifactLoweringError::PlacedViewEstablishmentQualificationUndeclared(domain)
+            terminal_semantics::AccessViewReferentError::QualificationUndeclared(domain) => {
+                ArtifactLoweringError::AccessViewEstablishmentQualificationUndeclared(domain)
             }
-            terminal_semantics::PlacedViewReferentError::QualificationCarrier(domain) => {
-                ArtifactLoweringError::PlacedViewEstablishmentQualificationCarrier(domain)
+            terminal_semantics::AccessViewReferentError::QualificationCarrier(domain) => {
+                ArtifactLoweringError::AccessViewEstablishmentQualificationCarrier(domain)
             }
         })?;
     }
     let mut bound: Vec<(
-        &terminal_psi::TerminalPlacedViewInput,
-        &TerminalPlacedViewEstablishment,
+        &terminal_psi::TerminalAccessViewInput,
+        &TerminalAccessViewEstablishment,
     )> = Vec::with_capacity(entry_rows.len());
     for row in entry_rows {
         let Some(establishment) = establishments
             .iter()
             .find(|establishment| establishment.input == *row)
         else {
-            return Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering);
+            return Err(ArtifactLoweringError::AccessViewInputsRequireCustodyLowering);
         };
         for (previous_row, previous) in &bound {
             if (exclusive(row.access) || exclusive(previous_row.access))
                 && referent_overlaps(&establishment.referent, &previous.referent)
             {
-                return Err(ArtifactLoweringError::PlacedViewEstablishmentAliasing(
+                return Err(ArtifactLoweringError::AccessViewEstablishmentAliasing(
                     establishment.referent.opaque_identity,
                 ));
             }

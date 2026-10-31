@@ -123,8 +123,8 @@ fn decode_kind(
     }
 
     Ok(match cursor.byte()? {
-        crate::PlacedScalarForm::FAMILY_TAG => SelectedInstructionKind::PlacedScalarAccess {
-            form: crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
+        crate::AccessorScalarForm::FAMILY_TAG => SelectedInstructionKind::AccessorScalarAccess {
+            form: crate::AccessorScalarForm::from_machine_payload(cursor.byte()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             contract: cursor.array()?,
             byte_offset: cursor.u32()?,
@@ -523,9 +523,9 @@ fn decode_alternative_for_version(
     let trapping = u8::try_from(tag).ok().and_then(trapping_form);
     let saturating = u8::try_from(tag).ok().and_then(saturating_kind);
     let family = match tag {
-        tag if tag == u16::from(crate::PlacedScalarForm::FAMILY_TAG) => {
-            MachineAlternativeFamily::PlacedScalarAccess(
-                crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
+        tag if tag == u16::from(crate::AccessorScalarForm::FAMILY_TAG) => {
+            MachineAlternativeFamily::AccessorScalarAccess(
+                crate::AccessorScalarForm::from_machine_payload(cursor.byte()?)
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             )
         }

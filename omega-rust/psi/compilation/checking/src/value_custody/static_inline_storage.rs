@@ -118,7 +118,7 @@ impl Search<'_> {
 
     fn independent_storage(&self, data: SymbolHandle) -> bool {
         self.program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .any(|view| view.data_symbol == data)
     }

@@ -22,15 +22,15 @@ impl<'program> LayoutBuilder<'program> {
         definition: &DataDefinition,
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
-        // A compiler-derived placed accessor is opaque to source construction,
+        // A compiler-derived accessor is opaque to source construction,
         // but it is not zero-sized at runtime: helpers may receive one without
-        // the enclosing Placed view, so the value must retain its exact field
+        // the enclosing Access view, so the value must retain its exact field
         // address. The typed placed-plan table is the authority for this
         // classification; generated-name patterns are not.
-        if self.is_compiler_placed_accessor_definition(definition) {
+        if self.is_compiler_accessor_definition(definition) {
             if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque {
                 return Err(Diagnostic::error(format!(
-                    "compiler-derived placed accessor `{}` lost its opaque supply mode",
+                    "compiler-derived accessor `{}` lost its opaque supply mode",
                     definition.name
                 )));
             }

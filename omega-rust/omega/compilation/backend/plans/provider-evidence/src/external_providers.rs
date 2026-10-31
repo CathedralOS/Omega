@@ -75,7 +75,7 @@ pub fn matches_requirement_schema(
 /// Select one numeric satisfaction edge using nominal requirement identity,
 /// the exact callable, package owners, binding kind and deployment target.
 /// Absence is not authorization: a consumer requiring numeric execution must
-/// reject it. Host and placement authority are independent of this catalog.
+/// reject it. Host and access authority are independent of this catalog.
 /// A declaration review also nominates its exact realization; a portable
 /// consumer without that coordinate must have one candidate in its admitted
 /// catalog. Never choose a family head or a sibling merely by display name.

@@ -17,22 +17,22 @@ SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord
 
 UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, UnusedProcedure::call> { }
 
-machine Spread::plan(schema: Schema) -> Plan {
+machine Spread::plan(schema: Schema) -> LayoutPlan {
     let mut owned_entries: [FieldEntry; 64];
     owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
-    let plan: Plan = Plan {
+    let plan: LayoutPlan = LayoutPlan {
         entries: owned_entries,
         entry_count: 1,
         size_fixed: 24,
         size_is_dynamic: false,
         align: 8,
     };
-    let placed: Plan =
-        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);
-    Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)
+    let placed: LayoutPlan =
+        LayoutPlan::place_private<WndClassWindowProcedureSlot>(plan, 8);
+    LayoutPlan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)
 }
 
 data ForeignRecord {

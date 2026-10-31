@@ -68,7 +68,7 @@ pub struct FunctionFragmentTextSectionManifest {
     pub target: NativeTarget,
     pub semantic_entry: MachineId,
     pub semantic_entry_offset: u64,
-    pub placement_policy: TextSectionPlacementPolicy,
+    pub access_policy: TextSectionPlacementPolicy,
     pub text_section: TerminalRelocationFreeTextSectionIdentity,
     pub relocation_requirements: TextSectionRelocationRequirements,
     pub statistics: FunctionFragmentTextSectionStatistics,

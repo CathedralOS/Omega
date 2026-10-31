@@ -16,6 +16,12 @@ pub use terminal_psi::{
 };
 pub mod selected_instructions;
 pub use selected_instructions::{
+    AccessorScalarForm, AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm,
+    FloatResultPolicyKind, IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation,
+    IeeeFloatBinaryOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
+    IeeeFloatToIntegerDomain, ieee_float_arithmetic_is_trapping,
+};
+pub use selected_instructions::{
     AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,
     ArchitecturalUnitLiveRange, BlockLiveness, BlockMachineEffects, BlockPointDomain,
     ConstantBooleanIdentity, ConstantBranchIdentity, CopiedCallOperandIdentity, CopyAffinity,
@@ -62,12 +68,6 @@ pub use selected_instructions::{
     terminator_instruction, terminator_instruction_mut, terminator_return_edge,
     terminator_successors, terminator_successors_mut, trapping_family_tag,
     validate_isa_machine_effect_catalog, validate_machine_effect_catalog, values,
-};
-pub use selected_instructions::{
-    AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,
-    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
-    IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
-    PlacedScalarForm, ieee_float_arithmetic_is_trapping,
 };
 pub use selected_instructions::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
 pub use terminal_psi::ByteSequencePredicate;

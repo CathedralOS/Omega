@@ -15,10 +15,10 @@ pub(super) fn establish(
     let address = crate::selection::reference_input::establishment(source, row).ok_or(invalid())?;
     let result = match &row.kind {
         LegalizedScalarInstructionKind::EstablishReference { result, .. }
-        | LegalizedScalarInstructionKind::EstablishPlacedReference { result, .. } => result,
+        | LegalizedScalarInstructionKind::EstablishAccessReference { result, .. } => result,
         _ => return Err(invalid()),
     };
-    // Placed and ordinary references select the same runtime pointer path.
+    // Access and ordinary references select the same runtime pointer path.
     // Physical backing geometry is established once the full caller unit and
     // its actual allocations are available at object construction.
     if builder

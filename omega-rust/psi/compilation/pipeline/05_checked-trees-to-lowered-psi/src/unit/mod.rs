@@ -65,7 +65,7 @@ use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
     lower_structural_crash_route_buckets, substitute_structural_crash_route_roots,
 };
-use crate::retention::placed_view_inputs::lower_placed_view_input;
+use crate::retention::access_view_inputs::lower_access_view_input;
 use crate::scalar_lowering::scalar_carriers;
 use crate::structural_types::{
     lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,

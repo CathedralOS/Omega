@@ -71,7 +71,7 @@ pub fn prepare<'input>(
         for initializer in request.private_entry_ram {
             let row = artifact
                 .semantic_module()
-                .placed_view_inputs
+                .access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry && row.position == initializer.position)
                 .ok_or_else(|| {

@@ -50,7 +50,7 @@ impl TerminalExecution<'_> {
         if child.structural_type() != structural_type {
             return Err(malformed());
         }
-        if let ConstructorValue::Placed(value) = &child
+        if let ConstructorValue::Access(value) = &child
             && crate::custody::has_live_loan(self.reference_referents.as_map(), value)
         {
             return Err(TerminalInterpretError::ContentTransformationMismatch(

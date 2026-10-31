@@ -69,7 +69,7 @@ pub(super) fn admit_c_word_record<const FIELD_COUNT: usize>(
     if shape.quotient_carrier.is_some()
         || matches!(
             storage,
-            StructuralRecordStorage::PlacedView(_) | StructuralRecordStorage::PlacedAccessor(_)
+            StructuralRecordStorage::AccessView(_) | StructuralRecordStorage::Accessor(_)
         )
         || fields.len() != FIELD_COUNT
         || fields

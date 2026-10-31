@@ -164,7 +164,7 @@ pub(in crate::borrow) fn append_reference_custody(
 
 /// A definite transferred slot replaces exactly the descriptor occurrences
 /// stored beneath that destination. May-select destinations keep unselected
-/// occurrences. Backing address equality supplies no replacement authority.
+/// occurrences. Backing address equality supplies no reaccess authority.
 pub(crate) fn replaces_reference_loan(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,

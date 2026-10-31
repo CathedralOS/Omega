@@ -30,7 +30,7 @@ pub(crate) enum StorageRegion {
     /// it does not establish backing/profile authority or a qualification.
     NonresidentContent {
         owner: CanonicalPlace,
-        formation: typed_trees::typed_trees::PlacementExecutionDeclaration,
+        formation: typed_trees::typed_trees::AccessExecutionDeclaration,
     },
 }
 

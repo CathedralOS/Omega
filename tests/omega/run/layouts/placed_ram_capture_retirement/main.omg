@@ -9,24 +9,30 @@ public data Registers {
 
 public data RegPlacement {}
 
-machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+machine RegPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
     entries[1] = FieldEntry {
         key: schema.fields[1].key,
-        placement: FieldPlan::At { offset: 4 },
+        representation: FieldPlan::At { offset: 4 },
     };
-    let access: AccessPlan = AccessPlan::inaccessible(&schema);
-    transition { _ -> place_status(schema, access, entries) }
+    let layout: LayoutPlan = LayoutPlan {
+            entries: entries,
+            entry_count: 2,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4,
+        };
+    let access: AccessPlan = AccessPlan::inaccessible(layout);
+    transition { _ -> place_status(schema, access) }
 
     machine place_status(
         schema: Schema,
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         transition { _ -> place_transmit(
             schema,
             AccessPlan::with(
@@ -37,16 +43,13 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                     write: false,
                     exposure: Exposure::Exported,
                 },
-            ),
-            entries
-        ) }
+            )) }
     }
 
     machine place_transmit(
         schema: Schema,
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         transition { _ -> finish(
             AccessPlan::with(
                 access,
@@ -56,62 +59,52 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
                     write: true,
                     exposure: Exposure::Exported,
                 },
-            ),
-            entries
-        ) }
+            )) }
     }
 
     machine finish(
-        access: AccessPlan,
-        entries: [FieldEntry; 64]
-    ) -> PlacementPlan {
+        access: AccessPlan
+    ) -> AccessPlan {
         let mut services: [u64; 32];
         services[0] = 7;
-        PlacementPlan {
-            layout: Plan {
-                entries: entries,
-                entry_count: 2,
-                size_fixed: 8,
-                size_is_dynamic: false,
-                align: 4,
-            },
-            access: access,
-            reach: BoundaryReach {
+        AccessPlan::with_reach(
+            access,
+            BoundaryReach {
                 services: services,
                 service_count: 0,
-            },
-        }
+            }
+        )
     }
 }
 
 // The host establishes the backing and binds these exact generated accessors.
 // Delegation retains the original backing; neither wrapper stages contents.
-machine observe(view: &Placed<RegPlacement, Registers>) -> u32 {
+machine observe(view: &Access<RegPlacement, Registers>) -> u32 {
     view.status.read(&view.status)
 }
 
-machine delegate(view: &Placed<RegPlacement, Registers>) -> u32 { observe(view) }
+machine delegate(view: &Access<RegPlacement, Registers>) -> u32 { observe(view) }
 
-machine mutate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+machine mutate(view: &mut Access<RegPlacement, Registers>) -> u32 {
     view.transmit.write(&mut view.transmit, 9);
     view.status.read(&view.status)
 }
 
-machine delegate_mutable(view: &mut Placed<RegPlacement, Registers>) -> u32 { mutate(view) }
+machine delegate_mutable(view: &mut Access<RegPlacement, Registers>) -> u32 { mutate(view) }
 
-machine forward(view: &mut Placed<RegPlacement, Registers>) -> u32 { delegate_mutable(view) }
+machine forward(view: &mut Access<RegPlacement, Registers>) -> u32 { delegate_mutable(view) }
 
-machine ordered(first: &Placed<RegPlacement, Registers>, second: &Placed<RegPlacement, Registers>) -> u64 {
+machine ordered(first: &Access<RegPlacement, Registers>, second: &Access<RegPlacement, Registers>) -> u64 {
     let first_status: u32 = observe(first);
     let second_status: u32 = observe(second);
     (first_status as u64) * 1000 + (second_status as u64)
 }
 
-machine reordered(left: &Placed<RegPlacement, Registers>, right: &Placed<RegPlacement, Registers>) -> u64 {
+machine reordered(left: &Access<RegPlacement, Registers>, right: &Access<RegPlacement, Registers>) -> u64 {
     ordered(right, left)
 }
 
-machine alias_entry(shared: &Placed<RegPlacement, Registers>, exclusive: &mut Placed<RegPlacement, Registers>) -> u64 {
+machine alias_entry(shared: &Access<RegPlacement, Registers>, exclusive: &mut Access<RegPlacement, Registers>) -> u64 {
     let first: u32 = observe(shared);
     let second: u32 = mutate(exclusive);
     (first as u64) + (second as u64)
@@ -119,27 +112,27 @@ machine alias_entry(shared: &Placed<RegPlacement, Registers>, exclusive: &mut Pl
 
 public data Plain { value: u32; }
 
-machine mixed(seed: u32, plain: &Plain, view: &mut Placed<RegPlacement, Registers>) -> u64 {
+machine mixed(seed: u32, plain: &Plain, view: &mut Access<RegPlacement, Registers>) -> u64 {
     let status: u32 = delegate_mutable(view);
     (seed as u64) + (plain.value as u64) + (status as u64)
 }
 
-machine ordinary_alias(view: &Placed<RegPlacement, Registers>, storage: &mut Plain) -> u32 {
+machine ordinary_alias(view: &Access<RegPlacement, Registers>, storage: &mut Plain) -> u32 {
     observe(view)
 }
 
-machine later(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+machine later(view: &mut Access<RegPlacement, Registers>) -> u32 {
     transition { _ -> next(view) }
-    machine next(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    machine next(view: &mut Access<RegPlacement, Registers>) -> u32 {
         delegate_mutable(view)
     }
 }
 
 // Unit-returning helpers use the same structural telescope and occurrence.
-machine write_only(view: &mut Placed<RegPlacement, Registers>) {
+machine write_only(view: &mut Access<RegPlacement, Registers>) {
     view.transmit.write(&mut view.transmit, 9);
 }
-machine unit_delegate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+machine unit_delegate(view: &mut Access<RegPlacement, Registers>) -> u32 {
     write_only(view);
     observe(view)
 }
@@ -148,7 +141,7 @@ machine unit_delegate(view: &mut Placed<RegPlacement, Registers>) -> u32 {
 // Runtime acceptance is 41 with transmit changed to 9 in the same backing.
 machine ram_borrow() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers);
     let observed: u32 = mutate(view);
     observed
 }
@@ -156,7 +149,7 @@ machine ram_borrow() -> u32 {
 machine ram_descriptor() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let source: &mut Registers = &mut registers;
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(source);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(source);
     mutate(view)
 }
 
@@ -177,7 +170,7 @@ machine ram_indexed() -> u64 {
         Registers { status: 73, transmit: 5 }
     ];
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers[choose_register(&mut counter)]);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers[choose_register(&mut counter)]);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (counter.count as u64)
 }
@@ -186,18 +179,18 @@ machine ram_indexed() -> u64 {
 // Frozen interpreter result: 41 from the original storage after retirement.
 machine ram_capture_only() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers);
     registers.status
 }
 
-machine retain_ram(view: &mut Placed<RegPlacement, Registers>, counter: &mut SelectionCounter)
+machine retain_ram(view: &mut Access<RegPlacement, Registers>, counter: &mut SelectionCounter)
 requires counter.count < 1
 ensures counter.count <= 1
 {
     counter.count = counter.count + 1;
 }
 
-machine return_ram<'a>(view: &'a mut Placed<RegPlacement, Registers>, counter: &mut SelectionCounter) -> &'a mut Placed<RegPlacement, Registers>
+machine return_ram<'a>(view: &'a mut Access<RegPlacement, Registers>, counter: &mut SelectionCounter) -> &'a mut Access<RegPlacement, Registers>
 requires counter.count < 1
 ensures counter.count <= 1
 {
@@ -209,7 +202,7 @@ ensures counter.count <= 1
 machine ram_capture_helper() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers);
     retain_ram(view, &mut counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
@@ -217,15 +210,15 @@ machine ram_capture_helper() -> u64 {
 machine ram_capture_return() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
-    let returned: &mut Placed<RegPlacement, Registers> = return_ram(view, &mut counter);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers);
+    let returned: &mut Access<RegPlacement, Registers> = return_ram(view, &mut counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
 
 // Frozen result4109 observes the original RAM after the write/read pair.
 machine ram_original_backing() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: &mut Placed<RegPlacement, Registers> = Placed::view_mut<RegPlacement, Registers>(&mut registers);
+    let view: &mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(&mut registers);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }

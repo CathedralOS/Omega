@@ -1,7 +1,7 @@
-use crate::{AccessFieldKey, PlacementPlanId, ResourceProfileId};
+use crate::{AccessFieldKey, AccessPlanId, ResourceProfileId};
 use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalRead, ExternalReadBehavior,
-    FieldAccess, FieldRegion, ResourceRegion, ValidatedPlacementPlan, ValidatedResourceProfile,
+    FieldAccess, FieldRegion, ResourceRegion, ValidatedAccessPlan, ValidatedResourceProfile,
 };
 
 /// Normalized power-of-two constraint on the concrete loan base.
@@ -31,8 +31,8 @@ pub struct EffectiveFieldSupply {
 /// Sealed result of joining one normalized placement demand with one
 /// normalized provider profile before a concrete loan is admitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlacementResourceCompatibility {
-    pub(crate) placement: PlacementPlanId,
+pub struct AccessResourceCompatibility {
+    pub(crate) placement: AccessPlanId,
     profile: ResourceProfileId,
     pub(crate) base: BaseCongruence,
     pub(crate) fields: Vec<EffectiveFieldSupply>,
@@ -44,12 +44,12 @@ pub struct PlacementResourceCompatibility {
 /// owned input custody, or a completed write. Those belong to establishment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitializationResourceCompatibility {
-    placement: PlacementResourceCompatibility,
+    placement: AccessResourceCompatibility,
     byte_length: u64,
 }
 
 impl InitializationResourceCompatibility {
-    pub const fn placement(&self) -> &PlacementResourceCompatibility {
+    pub const fn placement(&self) -> &AccessResourceCompatibility {
         &self.placement
     }
 
@@ -68,10 +68,10 @@ impl InitializationResourceCompatibility {
 /// may supply different additional capabilities; no single-region assumption
 /// is justified for a sequence of ordinary Stable writes.
 pub fn validate_initialization_resources(
-    plan: &ValidatedPlacementPlan,
+    plan: &ValidatedAccessPlan,
     profile: &ValidatedResourceProfile,
 ) -> Result<InitializationResourceCompatibility, AccessPlanDiagnostic> {
-    let placement = validate_placement_resources(plan, profile)?;
+    let placement = validate_access_resources(plan, profile)?;
     let byte_length = plan.access.layout_size_bytes;
     require_stable_region_supply(
         profile,
@@ -185,8 +185,8 @@ impl EffectiveFieldSupply {
     }
 }
 
-impl PlacementResourceCompatibility {
-    pub const fn placement(&self) -> PlacementPlanId {
+impl AccessResourceCompatibility {
+    pub const fn placement(&self) -> AccessPlanId {
         self.placement
     }
 
@@ -216,10 +216,10 @@ impl PlacementResourceCompatibility {
 /// This is the pure resource-compatibility judgment. Concrete loan admission
 /// separately discharges its returned base congruence and retains the selected
 /// field rows as evidence for later specialization replay.
-pub fn validate_placement_resources(
-    plan: &ValidatedPlacementPlan,
+pub fn validate_access_resources(
+    plan: &ValidatedAccessPlan,
     profile: &ValidatedResourceProfile,
-) -> Result<PlacementResourceCompatibility, AccessPlanDiagnostic> {
+) -> Result<AccessResourceCompatibility, AccessPlanDiagnostic> {
     if plan.access.layout_size_bytes > profile.length {
         return Err(AccessPlanDiagnostic(format!(
             "{}-byte placed layout exceeds {}-byte resource profile",
@@ -342,7 +342,7 @@ pub fn validate_placement_resources(
             region.byte_alignment,
         )?;
     }
-    Ok(PlacementResourceCompatibility {
+    Ok(AccessResourceCompatibility {
         placement: plan.identity,
         profile: profile.identity,
         base: congruence.value,

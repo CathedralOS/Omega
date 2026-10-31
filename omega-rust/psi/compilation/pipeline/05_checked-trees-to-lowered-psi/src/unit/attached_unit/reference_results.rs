@@ -29,8 +29,8 @@ pub(crate) struct Formation<'checked> {
 pub(crate) enum PublishedReferenceStorage {
     Declared,
     RepresentationView(terminal_psi::ReferenceStorageView),
-    Placed,
-    ResidentPlaced {
+    Access,
+    ResidentAccess {
         extent: symbols::SymbolHandle,
         granted: language_semantics::SemanticDomainId,
         resident: language_semantics::SemanticDomainId,
@@ -55,12 +55,12 @@ pub(crate) fn publish_storage(
     let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
         return Ok((
             match storage {
-                checked_trees::CheckedReferenceStorage::Placed => PublishedReferenceStorage::Placed,
-                checked_trees::CheckedReferenceStorage::ResidentPlaced {
+                checked_trees::CheckedReferenceStorage::Access => PublishedReferenceStorage::Access,
+                checked_trees::CheckedReferenceStorage::ResidentAccess {
                     extent,
                     granted,
                     resident,
-                } => PublishedReferenceStorage::ResidentPlaced {
+                } => PublishedReferenceStorage::ResidentAccess {
                     extent,
                     granted,
                     resident,
@@ -132,7 +132,7 @@ pub(crate) fn emit_carrier(
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
     let parameters = evaluation.structural_root_parameters().collect::<Vec<_>>();
-    let resident_source = if let PublishedReferenceStorage::ResidentPlaced {
+    let resident_source = if let PublishedReferenceStorage::ResidentAccess {
         extent,
         granted,
         resident,
@@ -159,7 +159,7 @@ pub(crate) fn emit_carrier(
         .ok_or(LoweringError::Unsupported(
             "resident reference lost its supplying owner",
         ))?;
-        let (base, length) = crate::retention::placement_lifecycles::storage_fields(
+        let (base, length) = crate::retention::access_lifecycles::storage_fields(
             identities,
             formation.checked,
             extent,
@@ -192,9 +192,9 @@ pub(crate) fn emit_carrier(
     let (kind, multiplicity) = match declaration.shape {
         terminal_psi::StructuralTypeShape::Reference { .. } => (
             match storage {
-                PublishedReferenceStorage::Placed
-                | PublishedReferenceStorage::ResidentPlaced { .. } => {
-                    OperationKind::EstablishPlacedReference {
+                PublishedReferenceStorage::Access
+                | PublishedReferenceStorage::ResidentAccess { .. } => {
+                    OperationKind::EstablishAccessReference {
                         source: source.clone(),
                         resident: resident_source,
                     }

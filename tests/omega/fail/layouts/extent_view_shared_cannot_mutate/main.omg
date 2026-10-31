@@ -5,8 +5,8 @@ use omega::language::core::layout;
 data TestMemory {}
 
 machine widen<'storage, P, T>(storage: &'storage Extent in Granted)
-    -> PlacementOutcome<&'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure>
+    -> AccessOutcome<&'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure>
 reaches ResourceProfileSupply
 {
-    Placed::view_extent_mut<P, T, TestMemory>(storage)
+    Access::view_extent_mut<P, T, TestMemory>(storage)
 }

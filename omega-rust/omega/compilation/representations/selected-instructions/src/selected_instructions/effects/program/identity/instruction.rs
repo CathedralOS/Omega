@@ -157,7 +157,7 @@ pub(crate) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::RegisterAccess { .. } => 247,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::Float32ToBits => 26,

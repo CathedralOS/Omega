@@ -13,7 +13,7 @@ use typed_trees::signature::StateSignature;
 use typed_trees::statement::TableCall;
 
 /// Rejoin the selected declaration rather than searching a value's type or
-/// the last spelling in its path. Generated placed accessors retain their
+/// the last spelling in its path. Generated accessors retain their
 /// independent plan authority; they are memory operations, not data methods.
 pub(super) fn validate_receiver_call(
     scope: &CallScope<'_>,
@@ -134,7 +134,7 @@ fn validate_signature_result_and_arguments(
 
 /// The exact target owns the call's signature. Namespace and runtime-place
 /// calls share explicit argument checks. The only value-qualified machine
-/// target is an accessor selected by its exact compiler-owned placement plan.
+/// target is an accessor selected by its exact compiler-owned access plan.
 fn validate_resolved_receiver_call(
     scope: &CallScope<'_>,
     arguments: &[ExpressionHandle],
@@ -158,7 +158,7 @@ fn validate_resolved_receiver_call(
     if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol) {
         if !namespace
             && !current_state.is_some_and(|state| {
-                crate::value_custody::placed_views::statement_call_target(
+                crate::value_custody::access_views::statement_call_target(
                     program,
                     current_machine,
                     state,

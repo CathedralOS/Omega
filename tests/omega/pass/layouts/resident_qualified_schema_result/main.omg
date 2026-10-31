@@ -10,37 +10,37 @@ domain Word::Tagged;
 data Payload { word: Word in Tagged; }
 data PayloadPlacement {}
 
-machine PayloadPlacement::plan(schema: Schema) -> PlacementPlan {
+machine PayloadPlacement::plan(schema: Schema) -> AccessPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+        representation: FieldPlan::At { offset: 0 },
     };
-    let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan {
+    let layout: LayoutPlan = LayoutPlan {
             entries: entries, entry_count: 1, size_fixed: 8,
             size_is_dynamic: false, align: 8,
-        },
-        access: AccessPlan::inaccessible(&schema),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine initialize(storage: Extent in Granted & Vacant, value: Payload)
-    -> PlacementOutcome<
+    -> AccessOutcome<
         Extent in Granted & Resident<PayloadPlacement, Payload>,
-        PlacementReturn<Extent in Granted & Vacant, Payload>,
-        PlacementInitializationFailure
+        AccessReturn<Extent in Granted & Vacant, Payload>,
+        AccessInitializationFailure
     >
 reaches ResourceProfileSupply
 {
-    NativePlacement<PayloadPlacement, Payload, TestMemory>::initialize(storage, value)
+    NativeAccess<PayloadPlacement, Payload, TestMemory>::initialize(storage, value)
 }
 
 machine extract(storage: Extent in Granted & Resident<PayloadPlacement, Payload>)
-    -> PlacementExtraction<Extent in Granted & Vacant, Payload>
+    -> AccessExtraction<Extent in Granted & Vacant, Payload>
 reaches ResourceProfileSupply
 {
-    NativePlacement<PayloadPlacement, Payload, TestMemory>::move_out(storage)
+    NativeAccess<PayloadPlacement, Payload, TestMemory>::move_out(storage)
 }

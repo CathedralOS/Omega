@@ -20,10 +20,10 @@ use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::runtime_rows::RuntimeRows;
 use crate::structural_identities::LocalStructuralIdentities;
-use crate::structural_inputs::case_membership::StructuralCaseContents;
-use crate::structural_inputs::placed_views::{
-    PlacedViewOccurrence, TerminalPlacedViewEstablishment, establish_placed_view_inputs,
+use crate::structural_inputs::access_views::{
+    AccessViewOccurrence, TerminalAccessViewEstablishment, establish_access_view_inputs,
 };
+use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::structural_inputs::scalar_fields;
 use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::{
@@ -42,7 +42,7 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    TerminalPlacedViewInput, Terminator,
+    TerminalAccessViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -184,10 +184,10 @@ pub struct TerminalExecution<'artifact> {
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
-    /// Current frame's placed-view presentations, retaining the entry's original
+    /// Current frame's access-view presentations, retaining the entry's original
     /// backing. Suspended frames preserve their presentations across a helper;
     /// completion returns the same loans without reminting custody.
-    pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
+    pub(crate) access_view_occurrences: BTreeMap<TerminalAccessViewInput, AccessViewOccurrence>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
     pub(crate) current_machine: MachineId,
     pub(crate) current: BlockId,
@@ -229,7 +229,7 @@ pub struct TerminalExecution<'artifact> {
 }
 
 pub(crate) struct SuspendedCall {
-    pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
+    pub(crate) access_view_occurrences: BTreeMap<TerminalAccessViewInput, AccessViewOccurrence>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
@@ -539,7 +539,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         structural_arguments: &[TerminalStructuralValue],
         structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
-        placed_view_establishments: &[TerminalPlacedViewEstablishment],
+        access_view_establishments: &[TerminalAccessViewEstablishment],
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         zero_initialized_arguments: &[u32],
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
@@ -565,17 +565,17 @@ impl<'artifact> TerminalExecution<'artifact> {
             .map(|account| account.reserve_storage(1, 0))
             .transpose()
             .map_err(TerminalInterpretError::Storage)?;
-        // A nonempty placed-view roster declares direct entry inputs whose
+        // A nonempty access-view roster declares direct entry inputs whose
         // referent custody must be established beside the ordinary inputs: one
         // exact establishment per entry row lends the qualified backing for
         // the invocation's duration. A row left unsupplied, a supply that
         // answers no declared row both fail closed. Ordinary calls reborrow
         // the same established backing; another retained target's roster does
         // not describe this invocation's host input.
-        let placed_view_occurrences = establish_placed_view_inputs(
+        let access_view_occurrences = establish_access_view_inputs(
             &program.catalogs,
             current_machine,
-            placed_view_establishments,
+            access_view_establishments,
             structural_arguments,
         )?;
         // Descriptor homes and their separately established backing are both
@@ -583,7 +583,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let identity_roots = structural_arguments
             .iter()
             .chain(
-                placed_view_establishments
+                access_view_establishments
                     .iter()
                     .map(|establishment| &establishment.referent),
             )
@@ -692,7 +692,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             element_view_values: RuntimeRows::new(account.as_ref()),
             live_affine_frontier,
             live_claims,
-            placed_view_occurrences,
+            access_view_occurrences,
             current_machine,
             current,
             next_operation: 0,
@@ -778,7 +778,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             scalar_fields,
             zero_initialized_arguments,
         )?;
-        execution.establish_private_entry_ram(private_entry_ram, placed_view_establishments)?;
+        execution.establish_private_entry_ram(private_entry_ram, access_view_establishments)?;
         Ok(execution)
     }
 
@@ -1049,7 +1049,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             ));
         }
         if self.result.is_some() {
-            self.retire_placed_view_occurrences();
+            self.retire_access_view_occurrences();
             let result = self.result.clone().expect("checked above");
             return Ok(TerminalExecutionStatus::Complete(result));
         }
@@ -1143,8 +1143,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         self.execute_storage_address(operation, source)?;
                                         OperationFlow::Advance
                                     }
-                                    OperationKind::EstablishPlacedReference { ref source, .. } => {
-                                        self.establish_placed_reference(operation, source)?;
+                                    OperationKind::EstablishAccessReference { ref source, .. } => {
+                                        self.establish_access_reference(operation, source)?;
                                         OperationFlow::Advance
                                     }
                                     OperationKind::EstablishReference {
@@ -1326,7 +1326,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     OperationFlow::Redispatch => continue,
                     OperationFlow::Yield(status) => {
                         if matches!(status, TerminalExecutionStatus::Complete(_)) {
-                            self.retire_placed_view_occurrences();
+                            self.retire_access_view_occurrences();
                         }
                         return Ok(status);
                     }
@@ -1362,7 +1362,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 TerminatorFlow::Continue => {}
                 TerminatorFlow::Yield(status) => {
                     if matches!(status, TerminalExecutionStatus::Complete(_)) {
-                        self.retire_placed_view_occurrences();
+                        self.retire_access_view_occurrences();
                     }
                     return Ok(status);
                 }
@@ -1370,10 +1370,10 @@ impl<'artifact> TerminalExecution<'artifact> {
         }
     }
 
-    /// Release the entry invocation's placed-view loans. The provider's
+    /// Release the entry invocation's access-view loans. The provider's
     /// qualified backing is returned untouched — custody is lent, never
     /// reminted — so a crash leaves occurrences recorded rather than retired.
-    fn retire_placed_view_occurrences(&mut self) {
-        self.placed_view_occurrences.clear();
+    fn retire_access_view_occurrences(&mut self) {
+        self.access_view_occurrences.clear();
     }
 }

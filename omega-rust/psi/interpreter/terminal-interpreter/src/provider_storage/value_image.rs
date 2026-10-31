@@ -23,7 +23,7 @@ use layout_plans::{
 use semantic_vocabulary::{AuthoredFieldStorage, IntegerSign, ScalarType, StructuralTypeId};
 use terminal_psi::{
     StructuralArgument, StructuralFieldDeclaration, StructuralPathSegment, StructuralRecordStorage,
-    StructuralTypeShape, TerminalPlacementLifecyclePlan,
+    StructuralTypeShape, TerminalAccessLifecyclePlan,
 };
 
 mod decoding;
@@ -31,7 +31,7 @@ pub(crate) use decoding::restore;
 
 pub(crate) fn prepare(
     execution: &TerminalExecution<'_>,
-    plan: &TerminalPlacementLifecyclePlan,
+    plan: &TerminalAccessLifecyclePlan,
     source: &StructuralArgument,
     byte_order: ByteOrder,
 ) -> Result<ByteSequenceStorage, TerminalInterpretError> {
@@ -384,7 +384,7 @@ fn record_layout(
     Ok(layout)
 }
 
-/// The current private primitive has no authored PlacementCustody argument.
+/// The current private primitive has no authored AccessCustody argument.
 /// Retaining a snapshot would conserve these fields, but cannot substitute for
 /// the specification's explicit agreement. Refuse before initialization writes
 /// until that agreement has a checked producer and a retained consumer. This

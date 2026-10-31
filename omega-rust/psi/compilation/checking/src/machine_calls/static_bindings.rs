@@ -6,8 +6,8 @@
 //! closure still requires a closed tuple. Runtime Value carriers keep ordinary
 //! value checking.
 
+mod accessor_primitives;
 mod forwarded_evidence;
-mod placed_primitives;
 
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
@@ -344,7 +344,7 @@ pub fn validate_static_machine_bindings(
         let application = expression_table(program).static_machine_application(handle);
         let bindings = expression_table(program).static_machine_application_bindings(handle);
         let lifetimes = expression_table(program).static_machine_application_lifetimes(handle);
-        if let Err(diagnostic) = placed_primitives::validate(
+        if let Err(diagnostic) = accessor_primitives::validate(
             program,
             application,
             bindings,

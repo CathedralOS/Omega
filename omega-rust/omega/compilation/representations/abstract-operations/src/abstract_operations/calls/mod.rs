@@ -3,8 +3,8 @@
 //! These modules own the related program facts; lowering algorithms live in
 //! pipeline stages and consume these data types.
 
-mod placed_inputs;
-pub use placed_inputs::AbstractOperationPlanWithPlacedViewInputs;
+mod access_inputs;
+pub use access_inputs::AbstractOperationPlanWithAccessViewInputs;
 mod results;
 pub use results::{AbstractBoundaryResult, AbstractStructuralCallResult};
 mod targets;

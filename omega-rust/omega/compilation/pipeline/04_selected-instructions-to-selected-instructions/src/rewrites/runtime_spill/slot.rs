@@ -39,8 +39,8 @@
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterClassId, RegisterOperandAccess};
 use selected_instructions::{
-    LocalStorageSlotId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
+    LocalStorageSlotId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
 };
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
 
@@ -99,14 +99,12 @@ pub(super) fn instruction_block(
     function: &SelectedFunction,
     instruction: SelectedInstructionId,
 ) -> Option<usize> {
-    function
-        .blocks
-        .instruction_block(instruction)
-        .or_else(|| {
-            function.blocks.iter().position(|block| {
-                super::control(&block.terminator).0.id == instruction
-            })
-        })
+    function.blocks.instruction_block(instruction).or_else(|| {
+        function
+            .blocks
+            .iter()
+            .position(|block| super::control(&block.terminator).0.id == instruction)
+    })
 }
 
 /// The slot resolution the rewrite commits to: every emitted store and every
@@ -327,8 +325,9 @@ pub(super) fn assign(
     }
     // Definitions anchored at each instruction index, in `definitions` order;
     // boundary definitions open their block ahead of every instruction.
-    let mut anchored: Vec<std::collections::BTreeMap<usize, Vec<usize>>> =
-        (0..block_count).map(|_| std::collections::BTreeMap::new()).collect();
+    let mut anchored: Vec<std::collections::BTreeMap<usize, Vec<usize>>> = (0..block_count)
+        .map(|_| std::collections::BTreeMap::new())
+        .collect();
     let mut boundary: Vec<Vec<usize>> = vec![Vec::new(); block_count];
     for (definition, storage) in definitions.iter().enumerate() {
         match storage.position {
@@ -677,9 +676,11 @@ fn summarize_window(
         if block_has_loads {
             load_blocks.push(block_index);
             if !has_boundary
-                && !stores
-                    .first()
-                    .is_some_and(|&s_idx| load_marks[block_index].first().is_none_or(|&l_idx| s_idx < l_idx))
+                && !stores.first().is_some_and(|&s_idx| {
+                    load_marks[block_index]
+                        .first()
+                        .is_none_or(|&l_idx| s_idx < l_idx)
+                })
             {
                 is_entry_insensitive = false;
             }
@@ -922,12 +923,9 @@ impl RawCandidateSlots {
             for (block_index, (block_accesses, &term_load)) in
                 slot_accesses.iter().zip(&slot_terminal_loads).enumerate()
             {
-                let last_store = block_accesses
-                    .iter()
-                    .rev()
-                    .find_map(|&(index, event)| {
-                        matches!(event, Event::ExistingStore).then_some(index)
-                    });
+                let last_store = block_accesses.iter().rev().find_map(|&(index, event)| {
+                    matches!(event, Event::ExistingStore).then_some(index)
+                });
                 last_existing_store.push(last_store);
                 if last_store.is_some() {
                     store_blocks.push(block_index);

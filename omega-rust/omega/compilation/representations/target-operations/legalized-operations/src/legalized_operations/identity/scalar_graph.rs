@@ -75,7 +75,7 @@ pub(super) fn encode(
                 encode_value_definition_site_identity(bytes, result.definition_site);
             });
             match &instruction.kind {
-                LegalizedScalarInstructionKind::PlacementLifecycle {
+                LegalizedScalarInstructionKind::AccessLifecycle {
                     boundary,
                     operands,
                     indices,
@@ -84,9 +84,9 @@ pub(super) fn encode(
                     bytes.push(249);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
                     bytes.push(match operands.operation() {
-                        terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
-                        terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
-                        terminal_psi::TerminalPlacementLifecycleOperation::View => 2,
+                        terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
+                        terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
+                        terminal_psi::TerminalAccessLifecycleOperation::View => 2,
                     });
                     for argument in operands.arguments() {
                         super::structural_types::encode_structural_argument(bytes, argument);
@@ -216,7 +216,7 @@ pub(super) fn encode(
                         terminal_psi::FenceOrdering::ReceivePublish => 3,
                     });
                 }
-                LegalizedScalarInstructionKind::PlacedScalarAccess {
+                LegalizedScalarInstructionKind::AccessorScalarAccess {
                     boundary,
                     realization,
                     location,
@@ -227,7 +227,7 @@ pub(super) fn encode(
                     encode_runtime_indices(bytes, indices);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
                     bytes.extend_from_slice(&realization.contract);
-                    super::boundary_invocations::encode_placed_scalar_demand(
+                    super::boundary_invocations::encode_accessor_scalar_demand(
                         bytes,
                         realization.demand,
                     );
@@ -374,7 +374,7 @@ pub(super) fn encode(
                     super::structural_types::encode_record_initializers(bytes, fields);
                     super::read_byte::encode_layout(bytes, layout);
                 }
-                LegalizedScalarInstructionKind::EstablishPlacedReference {
+                LegalizedScalarInstructionKind::EstablishAccessReference {
                     result,
                     source,
                     correspondence,
@@ -385,7 +385,7 @@ pub(super) fn encode(
                     super::structural_result::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
                     match correspondence {
-                        abstract_operations::PlacedReferenceBacking::OrdinaryRam(
+                        abstract_operations::AccessReferenceBacking::OrdinaryRam(
                             correspondence,
                         ) => {
                             bytes.push(0);
@@ -410,7 +410,7 @@ pub(super) fn encode(
                                 encode_scalar_type(bytes, field.stored_scalar);
                             }
                         }
-                        abstract_operations::PlacedReferenceBacking::Resident(resident) => {
+                        abstract_operations::AccessReferenceBacking::Resident(resident) => {
                             bytes.push(1);
                             for identity in [
                                 resident.owner.get(),
@@ -425,7 +425,7 @@ pub(super) fn encode(
                             }
                             bytes.extend_from_slice(&resident.placement_commitment);
                         }
-                        abstract_operations::PlacedReferenceBacking::BorrowedExtent(backing) => {
+                        abstract_operations::AccessReferenceBacking::BorrowedExtent(backing) => {
                             bytes.push(2);
                             for identity in [
                                 backing.owner.get(),

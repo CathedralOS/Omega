@@ -134,8 +134,8 @@ pub enum SelectedInstructionKind {
         value: u8,
     },
     /// One sealed external event with exact-width transfer and retained contract.
-    PlacedScalarAccess {
-        form: super::PlacedScalarForm,
+    AccessorScalarAccess {
+        form: super::AccessorScalarForm,
         contract: [u8; 32],
         byte_offset: u32,
     },
@@ -606,7 +606,7 @@ macro_rules! layout_dependent_selected_transfers {
 #[macro_export]
 macro_rules! dedicated_selected_forms {
     () => {
-        $crate::SelectedInstructionKind::PlacedScalarAccess { .. }
+        $crate::SelectedInstructionKind::AccessorScalarAccess { .. }
             | $crate::SelectedInstructionKind::Float32ToBits
             | $crate::SelectedInstructionKind::Float64ToBits
             | $crate::SelectedInstructionKind::BitsToFloat32

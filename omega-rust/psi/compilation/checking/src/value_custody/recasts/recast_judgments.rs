@@ -176,19 +176,19 @@ fn form_scalar_recast(
     // referent constraints intact for scalar implication in both directions.
     let source_type = source_type
         .map(|source| crate::value_custody::places::assignment_value_type(program, source));
-    let source_placed = source_type
-        .and_then(|type_reference| program.placed_view_plan_for_type_reference(type_reference));
-    let target_placed = program.placed_view_plan_for_type_reference(cast.target_type);
-    if source_placed.is_some() || target_placed.is_some() {
-        let source_name = source_placed
+    let source_access = source_type
+        .and_then(|type_reference| program.access_view_plan_for_type_reference(type_reference));
+    let target_access = program.access_view_plan_for_type_reference(cast.target_type);
+    if source_access.is_some() || target_access.is_some() {
+        let source_name = source_access
             .map(|view| view.data_name.as_str())
             .unwrap_or("non-placed storage");
-        let target_name = target_placed
+        let target_name = target_access
             .map(|view| view.data_name.as_str())
             .unwrap_or("non-placed storage");
         diagnostics.push(
             recast_refusal(source_span, format!(
-                "{context}: placed-view recast from `{source_name}` to `{target_name}` is unavailable; retain the underlying qualified extent borrow and explicitly admit the intended placement"
+                "{context}: access-view recast from `{source_name}` to `{target_name}` is unavailable; retain the underlying qualified extent borrow and explicitly admit the intended placement"
             )),
         );
         return None;

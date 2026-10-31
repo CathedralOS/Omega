@@ -24,7 +24,7 @@ pub enum LoweringError {
         actual: Option<optimization_unit_semantics::StructuralStorageProjection>,
         origin_carrier: Option<StructuralTypeId>,
     },
-    InvalidPlacementLifecycle {
+    InvalidAccessLifecycle {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -32,20 +32,20 @@ pub enum LoweringError {
     },
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
-    PlacedViewInput(PlacedViewInputTranslationError),
+    AccessViewInput(AccessViewInputTranslationError),
     /// A call demand cannot be discharged by pointer geometry or a matching
     /// carrier alone. The caller must retain its captured interpretation.
-    PlacedCallCustody {
+    AccessCallCustody {
         caller: MachineId,
         callee: MachineId,
         invocation: semantic_vocabulary::InvocationSite,
         runtime_position: usize,
-        reason: PlacedCallCustodyError,
+        reason: AccessCallCustodyError,
     },
-    PlacedReturnRequiresWholeView {
+    AccessReturnRequiresWholeView {
         machine: MachineId,
     },
-    PlacedDynamicCallRequiresBinding {
+    AccessDynamicCallRequiresBinding {
         caller: MachineId,
         operation: OperationId,
     },
@@ -274,21 +274,21 @@ pub enum LoweringError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PlacedCallCustodyError {
+pub enum AccessCallCustodyError {
     FormalDemandMismatch,
     CapturedInterpretationMissing,
     CapturedInterpretationMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PlacedViewInputTranslationError {
+pub enum AccessViewInputTranslationError {
     UnsupportedInputCount(usize),
     SelectionCountMismatch { expected: usize, actual: usize },
     InputIsNotDirectEntry,
     UnsupportedEntryFunctionShape(MachineId),
     SelectionRowMismatch,
-    PlacementPlanIdentityMismatch,
-    PlacementPlanHasNoConcreteSize,
+    AccessPlanIdentityMismatch,
+    AccessPlanHasNoConcreteSize,
     TargetPointerShapeUnsupported,
     AbiPlan(PlanDiagnostic),
     CandidatePlanMismatch,
@@ -296,9 +296,9 @@ pub enum PlacedViewInputTranslationError {
     CandidateInputRosterMismatch,
 }
 
-impl From<PlacedViewInputTranslationError> for LoweringError {
-    fn from(error: PlacedViewInputTranslationError) -> Self {
-        Self::PlacedViewInput(error)
+impl From<AccessViewInputTranslationError> for LoweringError {
+    fn from(error: AccessViewInputTranslationError) -> Self {
+        Self::AccessViewInput(error)
     }
 }
 

@@ -3,7 +3,7 @@ use omega::language::core::layout;
 // access row beside the External materialization kind.
 public data Pair { readable: u32; hidden: u32; }
 data PairAccess {}
-machine PairAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
+machine PairAccess::plan(schema: Schema, layout: LayoutPlan) -> AccessPlan
 satisfies Access::plan
 {
     let plan: AccessPlan = AccessPlan::inaccessible(&schema);

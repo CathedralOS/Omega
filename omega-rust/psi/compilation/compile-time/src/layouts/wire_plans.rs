@@ -1,5 +1,5 @@
 //! Derived WIRE PLANS (mint arc rung 2): every numbered schema gets a
-//! placement plan -- `Varint(tag)` for scalar fields, `LengthPrefixed(tag)`
+//! access plan -- `Varint(tag)` for scalar fields, `LengthPrefixed(tag)`
 //! for text/byte-slice/nested/repeated fields -- recorded on `TypedTrees`
 //! (arena + span storage) and consumed by the wire encode/decode selection,
 //! which takes each field's TAG from the plan.

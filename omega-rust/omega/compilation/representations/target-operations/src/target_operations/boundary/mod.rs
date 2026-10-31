@@ -11,13 +11,12 @@ pub use execution::{
 };
 mod realizations;
 pub use realizations::{
-    BoundaryRealization, BoundarySettlementRealization, ClaimCompletionOnlyRealization,
-    DirectPortReadU8Realization, ForeignCallOperands, HostedExitProcessI32Realization,
-    HostedReadByteRealization, HostedWriteByteI32Realization, LinuxWriteLineRealization,
-    MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
+    AccessorScalarAccessRealization, BoundaryRealization, BoundarySettlementRealization,
+    ClaimCompletionOnlyRealization, DirectPortReadU8Realization, ForeignCallOperands,
+    HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
+    LinuxWriteLineRealization, MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
-    PlacedScalarAccessRealization,
 };
 mod arguments;
 pub use arguments::{

@@ -1,4 +1,4 @@
-//! Placing a plan over a concrete range: the placement plan, admission and
+//! Placing a plan over a concrete range: the access plan, admission and
 //! authority, owned and borrowed resident custody, stable and atomic
 //! resident views, and schema correspondence.
 
@@ -11,11 +11,11 @@
 /// retirement) stay in each impl.
 macro_rules! resident_view_accessors {
     () => {
-        pub const fn admission(&self) -> PlacementAdmissionId {
+        pub const fn admission(&self) -> AccessAdmissionId {
             self.admission
         }
 
-        pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
+        pub const fn access_plan(&self) -> &ValidatedAccessPlan {
             &self.plan
         }
 
@@ -47,7 +47,7 @@ macro_rules! resident_view_accessors {
             self.content.resident_claim()
         }
 
-        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+        pub const fn occurrence(&self) -> AccessOccurrenceId {
             self.occurrence
         }
 
@@ -62,14 +62,14 @@ macro_rules! resident_view_accessors {
         pub fn project<'view>(
             &'view self,
             key: AccessFieldKey,
-        ) -> Result<PlacedFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
+        ) -> Result<AccessFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
             self.project_with(key, BorrowPolarity::Shared)
         }
 
         pub fn project_mut<'view>(
             &'view mut self,
             key: AccessFieldKey,
-        ) -> Result<PlacedFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
+        ) -> Result<AccessFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
             self.project_with(key, BorrowPolarity::Exclusive)
         }
 
@@ -84,24 +84,24 @@ macro_rules! resident_view_accessors {
 }
 
 /// The owned-placement carrier surface every admission-holding record
-/// reports under the same names: the `OwnedPlacementAdmission`-held base
-/// accessors — admission identity, placement plan, profile receipt, resource
+/// reports under the same names: the `OwnedAccessAdmission`-held base
+/// accessors — admission identity, access plan, profile receipt, resource
 /// compatibility, and extent — plus the carrier-specific tails each arm adds:
 /// `occurrence` for placed carriers, `resident` for the provider content
 /// receipts (validity/custody/claim), and `correspondence` for the retained
-/// schema/device route. The `OwnedPlacementAdmission` leaf keeps its
+/// schema/device route. The `OwnedAccessAdmission` leaf keeps its
 /// direct-field accessors; every other carrier emits this block and keeps
 /// divergent members (view establishment, retirement, adoption) in its impl.
-macro_rules! owned_placement_accessors {
+macro_rules! owned_view_accessors {
     (resident, occurrence) => {
-        owned_placement_accessors!(resident);
+        owned_view_accessors!(resident);
 
-        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+        pub const fn occurrence(&self) -> AccessOccurrenceId {
             self.occurrence
         }
     };
     (resident) => {
-        owned_placement_accessors!();
+        owned_view_accessors!();
 
         pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
             self.content.validity_receipt()
@@ -116,40 +116,40 @@ macro_rules! owned_placement_accessors {
         }
     };
     (correspondence, occurrence) => {
-        owned_placement_accessors!(correspondence);
+        owned_view_accessors!(correspondence);
 
-        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+        pub const fn occurrence(&self) -> AccessOccurrenceId {
             self.occurrence
         }
     };
     (correspondence) => {
-        owned_placement_accessors!();
+        owned_view_accessors!();
 
         pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
             &self.correspondence
         }
     };
     (occurrence) => {
-        owned_placement_accessors!();
+        owned_view_accessors!();
 
-        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+        pub const fn occurrence(&self) -> AccessOccurrenceId {
             self.occurrence
         }
     };
     () => {
-        pub const fn admission(&self) -> PlacementAdmissionId {
+        pub const fn admission(&self) -> AccessAdmissionId {
             self.admission.identity
         }
 
-        pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-            &self.admission.placement_plan
+        pub const fn access_plan(&self) -> &ValidatedAccessPlan {
+            &self.admission.access_plan
         }
 
         pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
             self.admission.profile_receipt
         }
 
-        pub const fn resources(&self) -> &PlacementResourceCompatibility {
+        pub const fn resources(&self) -> &AccessResourceCompatibility {
             &self.admission.resources
         }
 
@@ -159,15 +159,15 @@ macro_rules! owned_placement_accessors {
     };
 }
 
+pub(crate) mod access_admission;
+pub(crate) mod access_authority;
+pub(crate) mod access_plan;
 pub(crate) mod atomic_resident_views;
 pub(crate) mod borrowed_view;
+pub(crate) mod owned_access_lifecycle;
 pub(crate) mod owned_atomic_resident_custody;
 pub(crate) mod owned_external_correspondence;
-pub(crate) mod owned_placement_lifecycle;
 pub(crate) mod owned_resident_custody;
-pub(crate) mod placement_admission;
-pub(crate) mod placement_authority;
-pub(crate) mod placement_plan;
 pub(crate) mod resident_views;
 pub(crate) mod schema_correspondence;
 
@@ -179,12 +179,12 @@ macro_rules! field_projection_accessors {
     ($extent:lifetime) => {
         /// Project one accepted field through a shared borrow.
         ///
-        /// The returned accessor retains this carrier's placement authority
+        /// The returned accessor retains this carrier's access authority
         /// through any sealed primitive request derived from it.
         pub fn project<'view>(
             &'view self,
             key: AccessFieldKey,
-        ) -> Result<PlacedFieldProjection<'view, $extent>, AccessPlanDiagnostic> {
+        ) -> Result<AccessFieldProjection<'view, $extent>, AccessPlanDiagnostic> {
             self.project_with(key, BorrowPolarity::Shared)
         }
 
@@ -192,7 +192,7 @@ macro_rules! field_projection_accessors {
         pub fn project_mut<'view>(
             &'view mut self,
             key: AccessFieldKey,
-        ) -> Result<PlacedFieldProjection<'view, $extent>, AccessPlanDiagnostic> {
+        ) -> Result<AccessFieldProjection<'view, $extent>, AccessPlanDiagnostic> {
             self.project_with(key, BorrowPolarity::Exclusive)
         }
     };

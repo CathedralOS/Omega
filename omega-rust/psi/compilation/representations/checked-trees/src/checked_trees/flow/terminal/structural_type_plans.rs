@@ -83,11 +83,11 @@ pub struct CheckedUnitStructuralTypePlan {
 pub enum CheckedUnitRecordStorage {
     Packed,
     /// Logical placed interpretation; schema storage is an independent root.
-    PlacedView {
+    AccessView {
         schema_type_identity: TypeIdentityId,
         storage: semantic_vocabulary::AuthoredRecordStorage,
     },
-    PlacedAccessor(semantic_vocabulary::AuthoredRecordStorage),
+    Accessor(semantic_vocabulary::AuthoredRecordStorage),
     Authored(semantic_vocabulary::AuthoredRecordStorage),
     TargetLayout {
         application: typed_trees::types::TypeReferenceHandle,

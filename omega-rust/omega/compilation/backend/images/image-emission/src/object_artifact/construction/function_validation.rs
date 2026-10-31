@@ -1521,8 +1521,8 @@ fn validate_boundary_settlements(
             // Inline float arithmetic never forms a settlement row.
             BoundaryRealization::ProgramImageRetainedSuffixStart
                 | BoundaryRealization::NearestIeeeFloatArithmetic(_)
-                | BoundaryRealization::PlacedScalarAccess(_)
-                | BoundaryRealization::PlacementLifecycle { .. } => false,
+                | BoundaryRealization::AccessorScalarAccess(_)
+                | BoundaryRealization::AccessLifecycle { .. } => false,
         };
         if !valid_realization
             || !boundary_result_is_exact(

@@ -10,7 +10,7 @@ mod tests {
         BoundaryExecutionBinding, CompilerBuiltinExecution, encode_boundary_execution_identity,
     };
     use semantic_vocabulary::BoundaryMachineId;
-    use terminal_psi::TerminalPlacementLifecycleOperation;
+    use terminal_psi::TerminalAccessLifecycleOperation;
 
     #[test]
     fn lifecycle_execution_identity_binds_boundary_and_operation() {
@@ -19,7 +19,7 @@ mod tests {
             encode_boundary_execution_identity(
                 &mut bytes,
                 BoundaryExecutionBinding::CompilerBuiltin(
-                    CompilerBuiltinExecution::PlacementLifecycle {
+                    CompilerBuiltinExecution::AccessLifecycle {
                         boundary: BoundaryMachineId::new(boundary).expect("boundary"),
                         operation,
                     },
@@ -27,18 +27,18 @@ mod tests {
             );
             bytes
         };
-        let initialize = encode(1, TerminalPlacementLifecycleOperation::Initialize);
+        let initialize = encode(1, TerminalAccessLifecycleOperation::Initialize);
         assert_eq!(
             initialize,
-            encode(1, TerminalPlacementLifecycleOperation::Initialize)
+            encode(1, TerminalAccessLifecycleOperation::Initialize)
         );
         assert_ne!(
             initialize,
-            encode(2, TerminalPlacementLifecycleOperation::Initialize)
+            encode(2, TerminalAccessLifecycleOperation::Initialize)
         );
         assert_ne!(
             initialize,
-            encode(1, TerminalPlacementLifecycleOperation::MoveOut)
+            encode(1, TerminalAccessLifecycleOperation::MoveOut)
         );
         let mut hosted = Vec::new();
         encode_boundary_execution_identity(
@@ -54,18 +54,16 @@ pub fn encode_boundary_execution_identity(
     execution: BoundaryExecutionBinding,
 ) {
     match execution {
-        BoundaryExecutionBinding::CompilerBuiltin(
-            CompilerBuiltinExecution::PlacementLifecycle {
-                boundary,
-                operation,
-            },
-        ) => {
+        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::AccessLifecycle {
+            boundary,
+            operation,
+        }) => {
             bytes.push(8);
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.push(match operation {
-                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
-                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
-                terminal_psi::TerminalPlacementLifecycleOperation::View => 2,
+                terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
+                terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
+                terminal_psi::TerminalAccessLifecycleOperation::View => 2,
             });
         }
         BoundaryExecutionBinding::CompilerBuiltin(
@@ -75,7 +73,7 @@ pub fn encode_boundary_execution_identity(
             CompilerBuiltinExecution::ProgramImageRetainedSuffixStart,
         ) => bytes.push(6),
         BoundaryExecutionBinding::CompilerBuiltin(
-            CompilerBuiltinExecution::PlacedScalarAccess {
+            CompilerBuiltinExecution::AccessorScalarAccess {
                 contract,
                 placement_commitment,
                 access_slot,
@@ -124,15 +122,15 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
             super::normalized_foreign::encode_call_binding(bytes, call);
         }
         BoundarySettlementRealization::Builtin(realization) => match realization {
-            BoundaryRealization::PlacementLifecycle { boundary } => {
+            BoundaryRealization::AccessLifecycle { boundary } => {
                 bytes.push(11);
                 bytes.extend_from_slice(&boundary.get().to_le_bytes());
             }
             BoundaryRealization::ProgramImageRetainedSuffixStart => bytes.push(10),
-            BoundaryRealization::PlacedScalarAccess(access) => {
+            BoundaryRealization::AccessorScalarAccess(access) => {
                 bytes.push(9);
                 bytes.extend_from_slice(&access.contract);
-                encode_placed_scalar_demand(bytes, access.demand);
+                encode_accessor_scalar_demand(bytes, access.demand);
             }
 
             BoundaryRealization::MetadataOnlyPort(port) => {
@@ -164,9 +162,9 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
     }
 }
 
-pub fn encode_placed_scalar_demand(
+pub fn encode_accessor_scalar_demand(
     bytes: &mut Vec<u8>,
-    demand: terminal_psi::PlacedScalarBoundaryDemand,
+    demand: terminal_psi::AccessorScalarBoundaryDemand,
 ) {
     for identity in [
         demand.boundary.get(),

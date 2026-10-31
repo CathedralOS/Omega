@@ -435,7 +435,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
                 | abstract_operations::establish_case_or_record_result_pattern!(result)
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
-                | O::EstablishPlacedReference { result, .. }
+                | O::EstablishAccessReference { result, .. }
                 | O::MoveStructuralField { result, .. }
                 | O::CallStructural {
                     result: AbstractStructuralCallResult::Structural { result, .. },

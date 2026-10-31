@@ -45,7 +45,7 @@
 //! - conservative whole-surface retention for provider-selected identities a
 //!   root cannot bound: closed-conformance realization machines, boundary
 //!   calling plans, nominal machine-use selections, fact-call-projection
-//!   targets, boundary adapter realizations, placed-view policy machines,
+//!   targets, boundary adapter realizations, access-view policy machines,
 //!   open-index providers, fused service erasures, and every machine
 //!   referenced by a retained non-machine declaration (data, trait,
 //!   conformance, proposition, measure, const, operator, domain, wire).

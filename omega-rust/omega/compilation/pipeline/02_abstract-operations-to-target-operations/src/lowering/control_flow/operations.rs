@@ -361,8 +361,8 @@ pub(super) fn lower_operation(
         | abstract_operations::structural_array_or_case_pattern!(..) => {
             super::records::establish(operation, site)
         }
-        AbstractOperation::EstablishPlacedReference { .. } => {
-            super::references::establish_placed(operation, site)
+        AbstractOperation::EstablishAccessReference { .. } => {
+            super::references::establish_access(operation, site)
         }
         AbstractOperation::EstablishReference { .. } => {
             super::references::establish(operation, site)
@@ -590,17 +590,14 @@ pub(super) fn lower_operation(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             match realization {
+                BoundarySettlementRealization::Builtin(BoundaryRealization::AccessLifecycle {
+                    ..
+                }) => {
+                    super::access_lifecycles::lower(operation, site, boundary_machines, settlements)
+                }
                 BoundarySettlementRealization::Builtin(
-                    BoundaryRealization::PlacementLifecycle { .. },
-                ) => super::placement_lifecycles::lower(
-                    operation,
-                    site,
-                    boundary_machines,
-                    settlements,
-                ),
-                BoundarySettlementRealization::Builtin(
-                    BoundaryRealization::PlacedScalarAccess(_),
-                ) => super::placed_scalar_access::lower(operation, site, settlements),
+                    BoundaryRealization::AccessorScalarAccess(_),
+                ) => super::accessor_scalar_access::lower(operation, site, settlements),
                 BoundarySettlementRealization::Builtin(
                     BoundaryRealization::ProgramImageRetainedSuffixStart,
                 ) => super::program_image::lower(

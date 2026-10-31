@@ -225,7 +225,7 @@ pub(super) fn reference_local_borrow_loans(
         return Vec::new();
     };
 
-    let is_call_result = !is_placed_formation(program, local_data.initial_value)
+    let is_call_result = !is_access_formation(program, local_data.initial_value)
         && matches!(
             expressions(program).expression(local_data.initial_value),
             checked_trees::expression::ExpressionNode::Call(_)
@@ -289,10 +289,10 @@ pub(super) fn direct_reborrow_target(
 
 /// The sealed placed factory forms a borrow from its captured source; it does
 /// not return a descriptor whose parent was lost at an ordinary call boundary.
-pub(super) fn is_placed_formation(
+pub(super) fn is_access_formation(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     validation::reference_formation_source(program, expression)
-        .is_some_and(|formation| formation.interpretation.is_placed())
+        .is_some_and(|formation| formation.interpretation.is_access_view())
 }

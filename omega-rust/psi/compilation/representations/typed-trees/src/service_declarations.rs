@@ -17,7 +17,7 @@ pub enum ProviderSchemaDeclaration {
     BoundaryTrait(symbols::SymbolHandle),
     BoundaryRequirement(symbols::SymbolHandle),
     BoundaryOperator(symbols::SymbolHandle),
-    SealedPlacedAccessor(symbols::SymbolHandle),
+    SealedAccessor(symbols::SymbolHandle),
 }
 
 impl ProviderSchemaDeclaration {
@@ -26,7 +26,7 @@ impl ProviderSchemaDeclaration {
             Self::BoundaryTrait(symbol)
             | Self::BoundaryRequirement(symbol)
             | Self::BoundaryOperator(symbol)
-            | Self::SealedPlacedAccessor(symbol) => symbol,
+            | Self::SealedAccessor(symbol) => symbol,
         }
     }
 }

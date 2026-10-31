@@ -126,7 +126,7 @@ fn apply_fact_pruning(
         .activation_wide_carry
         .retain(|row| retained.contains(&row.machine));
     facts
-        .placed_view_inputs
+        .access_view_inputs
         .retain(|row| retained.contains(&row.machine));
     facts
         .provider_closed_requirements

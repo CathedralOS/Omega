@@ -54,10 +54,10 @@ fn ordinary_carrier(
         .type_reference_table
         .unconstrained_type_reference(carrier);
     if program
-        .placed_view_plan_for_type_reference(declared)
+        .access_view_plan_for_type_reference(declared)
         .is_some()
         || program
-            .placed_view_field_plan_for_type_reference(declared)
+            .access_view_field_plan_for_type_reference(declared)
             .is_some()
         || matches!(program.type_reference_table.type_reference(declared),
             TypeReferenceNode::Named { symbol, .. } if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_atomic()))

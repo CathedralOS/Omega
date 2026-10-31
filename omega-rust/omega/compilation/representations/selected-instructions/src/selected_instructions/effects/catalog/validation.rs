@@ -57,7 +57,7 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
             | MachineSemanticKind::MemoryFence
             | MachineSemanticKind::AtomicFence
             | MachineSemanticKind::AtomicAccess(_)
-            | MachineSemanticKind::PlacedScalarAccess(_)
+            | MachineSemanticKind::AccessorScalarAccess(_)
     )
 }
 
@@ -251,7 +251,7 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
-        MachineSemanticKind::PlacedScalarAccess(form) => {
+        MachineSemanticKind::AccessorScalarAccess(form) => {
             if form.write {
                 crate::MachineMemoryEffect::WritePointerV1
             } else {
@@ -308,7 +308,7 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::ProcessorHalt
         | MachineSemanticKind::InterruptControl
         | MachineSemanticKind::AtomicAccess(_)
-        | MachineSemanticKind::PlacedScalarAccess(_) => {
+        | MachineSemanticKind::AccessorScalarAccess(_) => {
             crate::MachineTrapBehavior::MayArchitecturalFaultV1
         }
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
@@ -1177,7 +1177,7 @@ fn validate_encoded_effects(
             },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if matches!(declaration.semantic, MachineSemanticKind::PlacedScalarAccess(form) if !form.write && form.ordinary_semantic().is_some() && u16::from(form.bytes) == byte_count)
+        ) if matches!(declaration.semantic, MachineSemanticKind::AccessorScalarAccess(form) if !form.write && form.ordinary_semantic().is_some() && u16::from(form.bytes) == byte_count)
             && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && encoded.external_operand_reads == [0]
             && encoded.external_operand_writes == [1]
@@ -1186,7 +1186,7 @@ fn validate_encoded_effects(
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if matches!(declaration.semantic, MachineSemanticKind::PlacedScalarAccess(form) if form.write && form.ordinary_semantic().is_some())
+        ) if matches!(declaration.semantic, MachineSemanticKind::AccessorScalarAccess(form) if form.write && form.ordinary_semantic().is_some())
             && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes.is_empty()

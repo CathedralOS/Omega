@@ -1,10 +1,10 @@
 use extents::{ExtentLoan, ProviderExistingContentGrant};
 
-use crate::access_plan::diagnostic::reject_when;
-use crate::placements::placement_admission::validate_placement_admission;
+use crate::access_fields::diagnostic::reject_when;
+use crate::placements::access_admission::validate_access_admission;
 use crate::{
-    AccessPlanDiagnostic, DormantOwnedResident, ObservationModel, OwnedPlacementAdmission,
-    OwnedStableAdoptionError, PlacementResourceCompatibility, ValidatedPlacementPlan,
+    AccessPlanDiagnostic, AccessResourceCompatibility, DormantOwnedResident, ObservationModel,
+    OwnedAccessAdmission, OwnedStableAdoptionError, ValidatedAccessPlan,
 };
 
 /// Establish provider-validated existing content through the Stable adoption
@@ -16,7 +16,7 @@ use crate::{
 /// origin, lineage, or geometry. External and Atomic observations use their
 /// own future adoption routes and cannot pass through this Stable transition.
 pub fn adopt_owned_stable(
-    admission: OwnedPlacementAdmission,
+    admission: OwnedAccessAdmission,
     content: ProviderExistingContentGrant,
 ) -> Result<DormantOwnedResident, OwnedStableAdoptionError> {
     if let Err(diagnostic) = validate_owned_stable_adoption(&admission, &content) {
@@ -30,7 +30,7 @@ pub fn adopt_owned_stable(
 }
 
 fn validate_owned_stable_adoption(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
     let replayed_resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
@@ -47,14 +47,14 @@ fn validate_owned_stable_adoption(
 
     validate_owned_content_binding(admission, content)?;
     validate_resident_observation(
-        &admission.placement_plan,
+        &admission.access_plan,
         ObservationModel::Stable,
         "Stable adoption",
     )
 }
 
 pub(super) fn validate_owned_content_binding(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
     let extent = &admission.extent;
@@ -63,11 +63,11 @@ pub(super) fn validate_owned_content_binding(
             "owned content binding could not replay its whole-range loan: {diagnostic}"
         ))
     })?;
-    validate_provider_content_binding(&admission.placement_plan, &loan, content)
+    validate_provider_content_binding(&admission.access_plan, &loan, content)
 }
 
 pub(super) fn validate_provider_content_binding(
-    plan: &ValidatedPlacementPlan,
+    plan: &ValidatedAccessPlan,
     loan: &ExtentLoan<'_>,
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
@@ -91,7 +91,7 @@ pub(super) fn validate_provider_content_binding(
 }
 
 pub(super) fn validate_resident_observation(
-    plan: &ValidatedPlacementPlan,
+    plan: &ValidatedAccessPlan,
     required: ObservationModel,
     route: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
@@ -111,8 +111,8 @@ pub(super) fn validate_resident_observation(
 }
 
 pub(super) fn replay_owned_admission_resources(
-    admission: &OwnedPlacementAdmission,
-) -> Result<PlacementResourceCompatibility, AccessPlanDiagnostic> {
+    admission: &OwnedAccessAdmission,
+) -> Result<AccessResourceCompatibility, AccessPlanDiagnostic> {
     if admission.profile.receipt() != admission.profile_receipt {
         return Err(AccessPlanDiagnostic(
             "owned placement profile receipt differs from its retained admitted profile".into(),
@@ -124,21 +124,21 @@ pub(super) fn replay_owned_admission_resources(
             "owned placement could not replay its whole-range loan: {diagnostic}"
         ))
     })?;
-    validate_placement_admission(&loan, &admission.placement_plan, &admission.profile)
+    validate_access_admission(&loan, &admission.access_plan, &admission.profile)
 }
 
-/// The owned-placement authority replay every model carries: the admission's
+/// The owned-access authority replay every model carries: the admission's
 /// resources replay verbatim, then the model's own `binding` (content grant
 /// or schema correspondence), then its resident observation.
 pub(super) fn validate_owned_admission_authority(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     model: ObservationModel,
     binding: impl FnOnce(&str) -> Result<(), AccessPlanDiagnostic>,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
     let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
         AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained placement authority: {diagnostic}"
+            "{transition} could not replay the retained access authority: {diagnostic}"
         ))
     })?;
     if resources != admission.resources {
@@ -147,11 +147,11 @@ pub(super) fn validate_owned_admission_authority(
         )));
     }
     binding(transition)?;
-    validate_resident_observation(&admission.placement_plan, model, transition)
+    validate_resident_observation(&admission.access_plan, model, transition)
 }
 
 pub(super) fn validate_owned_resident_authority(
-    admission: &OwnedPlacementAdmission,
+    admission: &OwnedAccessAdmission,
     content: &ProviderExistingContentGrant,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {

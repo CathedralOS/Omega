@@ -90,9 +90,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Descriptor cleanup admits exclusive pointers without disposal of their referees.
 // Whole byte operands retain their exact descriptor projection and access.
 // Returned storage origins retain admitted declaration-relative interpretations.
-// Placed input rows retain their dense formal coordinate and carrier identity.
+// Access input rows retain their dense formal coordinate and carrier identity.
 // Returned origins distinguish precise projections from public input regions.
-// Placed views, quotients and captured closed conformances share this schema.
+// Access views, quotients and captured closed conformances share this schema.
 // Conditional descriptor origins share immediate supplier dependencies.
 // Mixed structural calls carry outcome-specific selections.
 // Element writes retain full descriptor operands; stored element descriptors

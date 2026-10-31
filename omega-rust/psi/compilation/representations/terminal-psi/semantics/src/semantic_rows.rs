@@ -169,7 +169,7 @@ operation_semantic_rows! {
     SplitActivationClaim => ("schema:operation:split-activation-claim", LeafDenotation, None),
     MergeActivationClaim => ("schema:operation:merge-activation-claim", LeafDenotation, None),
     StorageAddress => ("schema:operation:storage-address", LeafDenotation, None),
-    EstablishPlacedReference => ("schema:operation:establish-placed-reference", LeafDenotation, None),
+    EstablishAccessReference => ("schema:operation:establish-placed-reference", LeafDenotation, None),
     EstablishReference => ("schema:operation:establish-reference", LeafDenotation, None),
     ReleaseReference => ("schema:operation:release-reference", LeafDenotation, None),
     EstablishPrimitiveLocal => ("schema:operation:establish-primitive-local", LeafDenotation, None),
