@@ -178,12 +178,10 @@ fn canonical_prefix(path: &[CanonicalStructuralPathSegment]) -> Vec<PlaceAccessS
         .collect()
 }
 
-fn canonical_field(field: StructuralFieldId) -> PlaceAccessStep {
-    PlaceAccessStep::Canonical(CanonicalStructuralPathSegment::Field(field))
-}
-
 fn with_field(path: &mut Vec<PlaceAccessStep>, field: StructuralFieldId) {
-    path.push(canonical_field(field));
+    path.push(PlaceAccessStep::Canonical(
+        CanonicalStructuralPathSegment::Field(field),
+    ));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

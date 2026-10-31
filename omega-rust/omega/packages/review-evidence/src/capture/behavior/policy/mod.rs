@@ -6,14 +6,11 @@ mod mutation;
 mod receivers;
 mod termination;
 
+use crate::capture::refusal;
 pub(crate) use crash::{crash, crash_routes};
 pub(crate) use flow::{CapabilityFlowProjection, capability_flows};
 pub(crate) use mutation::mutation;
 pub(crate) use receivers::validate_call_receiver_roots;
 pub(crate) use termination::{declared_termination, termination};
 
-fn rejected(message: &str) -> Vec<diagnostics::Diagnostic> {
-    vec![diagnostics::Diagnostic::error(format!(
-        "callable behavior policy: {message}"
-    ))]
-}
+refusal!(message, "callable behavior policy: {message}");
