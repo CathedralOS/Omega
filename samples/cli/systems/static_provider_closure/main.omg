@@ -22,8 +22,12 @@ machine OtherRawProvider::fill(destination: &mut Observation) satisfies RawSourc
     destination.value = 99;
 }
 RawImplementation satisfies RawSource {
-    RawSource::read = RawProvider::read;
-    RawSource::fill = RawProvider::fill;
+    machine read() -> i32 reaches {
+        RawProvider::read()
+    }
+    machine fill(destination: &mut Observation) reaches {
+        RawProvider::fill(destination)
+    }
 }
 machine through_evidence<Selected satisfies RawSource>() -> i32 {
     RawSource::read<Selected>()
