@@ -1,8 +1,9 @@
 //! Independently reconstructed successor edges and edge custody.
+use abstract_operations::AbstractOperation;
 use optimization_unit::{OptimizationEdge, PsiProvenance};
 
 pub(crate) fn successors_match_operation(
-    operation: &abstract_operations::AbstractOperation,
+    operation: &AbstractOperation,
     actual: &[OptimizationEdge],
 ) -> bool {
     let expected = expected_edges(operation);
@@ -21,9 +22,7 @@ pub(crate) fn successors_match_operation(
         })
 }
 
-pub(crate) fn expected_edges(
-    operation: &abstract_operations::AbstractOperation,
-) -> Vec<OptimizationEdge> {
+pub(crate) fn expected_edges(operation: &AbstractOperation) -> Vec<OptimizationEdge> {
     use abstract_operations::AbstractOperation as O;
     match operation {
         O::Jump {
