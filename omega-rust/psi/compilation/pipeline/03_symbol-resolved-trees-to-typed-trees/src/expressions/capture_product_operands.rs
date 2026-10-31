@@ -1,4 +1,6 @@
 //! Capture only the selected static operand's reachable source graph.
+use crate::tables::resolved_expressions;
+use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::product_operands::*;
@@ -245,10 +247,7 @@ impl Capture<'_> {
                 .collect::<Result<Vec<_>, _>>()?;
             let arguments = self.graph.static_arguments.insert_many(arguments);
             let member = if application.member.is_valid() {
-                let member = source
-                    .tables
-                    .bodies
-                    .expressions
+                let member = resolved_expressions(source)
                     .static_member(application.member)
                     .ok_or_else(|| {
                         Diagnostic::error("designated operand has a foreign member handle")
@@ -349,14 +348,7 @@ impl Capture<'_> {
             },
             Source::Constrained(value) => {
                 let base = self.ty_handle(value.base_type)?;
-                let constraints = source
-                    .tables
-                    .types
-                    .constraints
-                    .span_or_empty(value.constraints)
-                    .iter()
-                    .map(|constraint| self.constraint(constraint))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let constraints = type_constraints(source).span_or_empty(value.constraints).iter().map(|constraint| self.constraint(constraint)).collect::<Result<Vec<_>, _>>()?;
                 ProductOperandType::Constrained {
                     base,
                     constraints: self.graph.constraints.insert_many(constraints),
@@ -408,10 +400,7 @@ impl Capture<'_> {
         span: HandleSpan<source_expression::ExpressionHandle>,
     ) -> Result<HandleSpan<Handle<ProductOperandExpression>>, Diagnostic> {
         let source = self.source;
-        let values = source
-            .tables
-            .bodies
-            .expressions
+        let values = resolved_expressions(source)
             .expression_handles(span)
             .iter()
             .map(|value| self.expression(*value))
@@ -429,11 +418,7 @@ impl Capture<'_> {
         {
             return Ok(*value);
         }
-        let subject = self
-            .source
-            .tables
-            .bodies
-            .expressions
+        let subject = resolved_expressions(self.source)
             .match_subject(capture)
             .subject;
         let subject = self.expression(subject)?;
@@ -451,12 +436,7 @@ impl Capture<'_> {
         let source = self.source;
         let ledger = source.authored_declaration_selections();
         let mut selections = Vec::new();
-        for occurrence in source
-            .tables
-            .bodies
-            .expressions
-            .authored_selection_occurrences(expression)
-        {
+        for occurrence in resolved_expressions(source).authored_selection_occurrences(expression) {
             let selection = ledger.get(occurrence).ok_or_else(|| {
                 Diagnostic::error(
                     "designated source expression retains an unknown authored selection",
@@ -522,16 +502,10 @@ impl Capture<'_> {
             Source::UndeterminedNaN(value) => ProductExpressionKind::UndeterminedNaN(*value),
             Source::Boolean(value) => ProductExpressionKind::Boolean(*value),
             Source::String(value) => ProductExpressionKind::Text(value.to_vec()),
-            Source::Name(value) => ProductExpressionKind::Name(
-                self.names(
-                    source
-                        .tables
-                        .bodies
-                        .expressions
-                        .name_path_members(value.members),
-                    value.symbol,
-                ),
-            ),
+            Source::Name(value) => ProductExpressionKind::Name(self.names(
+                resolved_expressions(source).name_path_members(value.members),
+                value.symbol,
+            )),
             Source::ArrayLiteral(values) => {
                 ProductExpressionKind::Array(self.expression_span(*values)?)
             }
@@ -577,11 +551,7 @@ impl Capture<'_> {
             Source::Membership(value) => ProductExpressionKind::Membership {
                 value: self.expression(value.value)?,
                 domain: self.names(
-                    source
-                        .tables
-                        .bodies
-                        .expressions
-                        .name_path_members(value.domain),
+                    resolved_expressions(source).name_path_members(value.domain),
                     value.domain_symbol,
                 ),
                 declaration: self.declaration(value.domain_symbol),
@@ -606,10 +576,7 @@ impl Capture<'_> {
                     .map(|value| {
                         self.operand(
                             value,
-                            &source
-                                .tables
-                                .bodies
-                                .expressions
+                            &resolved_expressions(source)
                                 .authored_selection_occurrences(expression)
                                 .collect::<Vec<_>>(),
                             false,
@@ -634,11 +601,7 @@ impl Capture<'_> {
                 target: self.ty_handle(value.target_type)?,
                 policy: value.domain,
                 domain: self.names(
-                    source
-                        .tables
-                        .bodies
-                        .expressions
-                        .name_path_members(value.semantic_domain),
+                    resolved_expressions(source).name_path_members(value.semantic_domain),
                     value.semantic_domain_symbol,
                 ),
                 domain_arguments: self.types(value.semantic_domain_arguments)?,
@@ -650,10 +613,7 @@ impl Capture<'_> {
                     .case_name
                     .as_ref()
                     .map(|name| self.name(name, value.case_symbol.unwrap_or_default()));
-                let fields = source
-                    .tables
-                    .bodies
-                    .expressions
+                let fields = resolved_expressions(source)
                     .struct_fields(value.fields)
                     .iter()
                     .map(|field| {
@@ -676,10 +636,7 @@ impl Capture<'_> {
             Source::Match(value) => {
                 let subject = self.expression(value.subject)?;
                 let capture = self.capture_subject(value.capture)?;
-                let arms = source
-                    .tables
-                    .bodies
-                    .expressions
+                let arms = resolved_expressions(source)
                     .match_arms(value.arms)
                     .iter()
                     .map(|arm| {
@@ -720,10 +677,7 @@ impl Capture<'_> {
             }
             source_expression::MatchPattern::Destructure(value) => {
                 let head = self.expression(value.head)?;
-                let fields = source
-                    .tables
-                    .bodies
-                    .expressions
+                let fields = resolved_expressions(source)
                     .match_fields(value.fields)
                     .iter()
                     .map(|field| {
@@ -746,10 +700,7 @@ impl Capture<'_> {
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
                 let fields = self.graph.match_fields.insert_many(fields);
-                let selectors = source
-                    .tables
-                    .bodies
-                    .expressions
+                let selectors = resolved_expressions(source)
                     .match_proof_selectors(value.proof_selectors)
                     .iter()
                     .map(|selector| ProductProofSelector {

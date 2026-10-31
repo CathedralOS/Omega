@@ -9,6 +9,7 @@ use typed_trees::types::PrimitiveType;
 use super::PendingMembership;
 use super::fact_expression::{ConstProofValue, evaluate_domain_fact_expression};
 use crate::BuildTimeAdmissionPlan;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 
 pub(super) fn evaluate_membership(
     typed: &TypedTrees,
@@ -18,10 +19,7 @@ pub(super) fn evaluate_membership(
     let Some(domain) = typed.domain_definition(pending.membership.domain_symbol) else {
         return Ok(None);
     };
-    let Some(literal) = typed
-        .expression_table
-        .integer_node(pending.membership.value)
-    else {
+    let Some(literal) = expression_table(typed).integer_node(pending.membership.value) else {
         return Ok(None);
     };
     let value = literal.value_i64().ok_or_else(|| {
@@ -154,9 +152,7 @@ fn evaluate_machine_fact(
     if parameters.len() != 1
         || parameters[0].is_mutable
         || matches!(
-            typed
-                .type_reference_table
-                .type_reference(parameters[0].type_reference),
+            type_reference_table(typed).type_reference(parameters[0].type_reference),
             typed_trees::types::TypeReferenceNode::Reference { .. }
         )
     {

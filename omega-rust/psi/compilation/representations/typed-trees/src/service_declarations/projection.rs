@@ -569,10 +569,7 @@ fn for_each_establishing_domain<'scope, Visitor>(
 {
     use crate::types::{TypeConstraintNode, TypeReferenceNode};
 
-    match program
-        .type_reference_table
-        .type_reference(reference.reference)
-    {
+    match program.type_reference_node(reference.reference) {
         TypeReferenceNode::Reference { referee, .. } => {
             for_each_establishing_domain(
                 program,
@@ -762,8 +759,7 @@ fn boundary_trait_name_for_type(
     type_reference: crate::types::TypeReferenceHandle,
 ) -> Option<String> {
     let symbol = program
-        .type_reference_table
-        .type_reference(type_reference)
+        .type_reference_node(type_reference)
         .type_symbol(&program.type_reference_table);
     program
         .traits()

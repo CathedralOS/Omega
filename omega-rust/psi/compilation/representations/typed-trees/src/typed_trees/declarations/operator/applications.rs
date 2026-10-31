@@ -307,8 +307,7 @@ pub fn symbolic_operator_type_application_for_operands(
                 (*symbol == operator_parameter.symbol).then_some(*argument)
             })?;
             let symbol = program
-                .type_reference_table
-                .type_reference(type_reference)
+                .type_reference_node(type_reference)
                 .as_named_symbol()?;
             let (machine_binder_ordinal, machine_parameter) = machine_parameters
                 .iter()
@@ -440,7 +439,6 @@ fn closed_boundary_application_type(
             lifetime_arguments.is_empty()
                 && closed_boundary_application_nominal(program, *base_symbol, base_name.as_str())
                 && program
-                    .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
                     .all(|argument| closed_boundary_application_type(program, *argument))

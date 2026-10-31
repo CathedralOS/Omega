@@ -62,10 +62,7 @@ pub(crate) fn collect_type_parameter_occurrences(
             ..
         } => {
             normalizer.canonical_index(*base_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 collect_type_parameter_occurrences(program, *argument, normalizer);
             }
         }

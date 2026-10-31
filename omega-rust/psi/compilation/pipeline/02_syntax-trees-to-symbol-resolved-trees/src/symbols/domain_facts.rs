@@ -2,6 +2,8 @@
 //! closed type names. Complete source-visible paths retain semantic namespace
 //! ancestry, including declarations physically stored at root, so authored
 //! selection custody survives generic equation discharge.
+use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use language_semantics::byte_predicates::ByteSequencePredicate;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
@@ -74,9 +76,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             // The carrier subject is a value binder, not a generic index.
             // Both use this declaration's lexical scope; indexed membership
             // arguments retain only the generic telescope below.
-            let local_symbols = program
-                .tables
-                .declarations
+            let local_symbols = resolved_declarations(&program)
                 .data_type_parameters
                 .span_or_empty(domain.type_parameters)
                 .iter()
@@ -95,9 +95,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         })
         .collect::<Vec<_>>();
     proof_fact_scopes.extend(
-        program
-            .tables
-            .declarations
+        resolved_declarations(&program)
             .signature_contracts
             .iter()
             .map(|(_, contract)| (contract.facts, Vec::new(), None, false)),
@@ -127,9 +125,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let mut local_symbols = program
-            .tables
-            .declarations
+        let mut local_symbols = resolved_declarations(&program)
             .data_type_parameters
             .span_or_empty(definition.type_parameters)
             .iter()
@@ -137,9 +133,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
             .collect::<Vec<_>>();
         local_symbols.extend(
-            program
-                .tables
-                .declarations
+            resolved_declarations(&program)
                 .data_members
                 .span_or_empty(definition.members)
                 .iter()
@@ -157,9 +151,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         // case's payload fields; payload names shadow same-named common
         // entries (the scope lookup refuses ambiguous duplicates, so shadowed
         // commons are dropped rather than listed twice).
-        let variant_scopes = program
-            .tables
-            .declarations
+        let variant_scopes = resolved_declarations(&program)
             .data_members
             .span_or_empty(definition.members)
             .iter()
@@ -167,9 +159,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 symbol_resolved_trees::data::DataMember::Variant(variant)
                     if !variant.where_facts.is_empty() =>
                 {
-                    let mut scope = program
-                        .tables
-                        .declarations
+                    let mut scope = resolved_declarations(&program)
                         .data_payload_fields
                         .span_or_empty(variant.payload)
                         .iter()
@@ -272,9 +262,7 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
         .data_definitions
         .iter()
         .map(|definition| {
-            let facts = program
-                .tables
-                .declarations
+            let facts = resolved_declarations(&program)
                 .proof_facts
                 .span_or_empty(definition.where_facts);
             let mut saw_membership = false;
@@ -306,9 +294,7 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
             // value violates the case constraint and the data cannot be born
             // established. A fact merely false AT ZERO keeps its ordinary
             // construction-side proof instead of this gate.
-            let first_variant_gates_zero = program
-                .tables
-                .declarations
+            let first_variant_gates_zero = resolved_declarations(&program)
                 .data_members
                 .span_or_empty(definition.members)
                 .iter()
@@ -318,9 +304,7 @@ fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
                 })
                 .next()
                 .is_some_and(|variant| {
-                    program
-                        .tables
-                        .declarations
+                    resolved_declarations(&program)
                         .proof_facts
                         .span_or_empty(variant.where_facts)
                         .iter()
@@ -363,10 +347,7 @@ fn zero_fold(
 ) -> Option<i128> {
     use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
     match program.tables.bodies.expressions.expression(expression) {
-        ExpressionNode::Name(path) => program
-            .tables
-            .declarations
-            .data_members
+        ExpressionNode::Name(path) => resolved_declarations(&program).data_members
             .span_or_empty(definition.members)
             .iter()
             .any(|member| {
@@ -443,12 +424,7 @@ fn resolved_domain_byte_predicate(
         return None;
     }
     let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
-    let [argument] = program
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(call.arguments)
-    else {
+    let [argument] = body_expressions(&program).expression_handles(call.arguments) else {
         return None;
     };
     let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
@@ -456,11 +432,7 @@ fn resolved_domain_byte_predicate(
     else {
         return None;
     };
-    let members = program
-        .tables
-        .bodies
-        .expressions
-        .name_path_members(path.members);
+    let members = body_expressions(&program).name_path_members(path.members);
     matches!(members, [member] if member.is_self_receiver()).then_some(predicate)
 }
 

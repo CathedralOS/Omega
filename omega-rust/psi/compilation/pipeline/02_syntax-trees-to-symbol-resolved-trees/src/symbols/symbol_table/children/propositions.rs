@@ -1,3 +1,4 @@
+use crate::tables::resolved_declarations;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
@@ -12,9 +13,7 @@ pub(in crate::symbols) fn insert_proposition_symbol_children(
 ) {
     builder.insert_children(
         proposition_symbol,
-        program
-            .tables
-            .declarations
+        resolved_declarations(&program)
             .proposition_binders
             .span_or_empty(proposition.binders)
             .iter()

@@ -13,6 +13,8 @@ use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::GenericDataShape;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::type_reference_mentions_parameter;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
@@ -47,9 +49,7 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
     let Some(shape) = generic_data_shape(syntax, base_info) else {
         return false;
     };
-    syntax
-        .tables
-        .items
+    syntax_items(&syntax)
         .data_members(base_info.members)
         .iter()
         .all(|member| match member {
@@ -71,9 +71,7 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
                     GenericDataShape::PureSum | GenericDataShape::MixedSum
                 ) =>
             {
-                syntax
-                    .tables
-                    .items
+                syntax_items(&syntax)
                     .data_payload_fields(variant.payload)
                     .iter()
                     .all(|field| {
@@ -156,11 +154,7 @@ pub(in crate::preparation::generic_data) fn generic_inline_data_edges(
                 ..
             } => {
                 edges.push(base_name.clone());
-                for argument in syntax
-                    .tables
-                    .type_references
-                    .type_reference_handles(*arguments)
-                {
+                for argument in syntax_type_references(&syntax).type_reference_handles(*arguments) {
                     collect(syntax, *argument, edges);
                 }
             }
@@ -255,9 +249,7 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
             // lexical boundary before recursing into an application.
             !parameters.contains_key(head)
                 && selected_generic_data(syntax, generic_data, selection, base_name).is_some()
-                && syntax
-                    .tables
-                    .type_references
+                && syntax_type_references(&syntax)
                     .type_reference_handles(*arguments)
                     .iter()
                     .all(|&argument| {
@@ -355,16 +347,12 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                 base_info,
                 *base_type,
                 parameters,
-            ) && syntax
-                .tables
-                .type_references
+            ) && syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .all(|constraint| match constraint {
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => true,
-                    TypeConstraintNode::Domain(domain) => syntax
-                        .tables
-                        .type_references
+                    TypeConstraintNode::Domain(domain) => syntax_type_references(&syntax)
                         .type_reference_handles(domain.arguments)
                         .iter()
                         .all(|&argument| {

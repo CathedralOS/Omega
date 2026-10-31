@@ -515,10 +515,7 @@ mod tests {
             .unwrap();
         let state = predecessor.machine_state(predecessor.machine_state_handles(machine.states)[0]);
         let retained_nodes = state.statement_nodes;
-        let retained_statements = predecessor
-            .tables
-            .bodies
-            .statements
+        let retained_statements = crate::tables::body_statements(&predecessor)
             .statements(retained_nodes)
             .to_vec();
         assert!(!retained_statements.is_empty());

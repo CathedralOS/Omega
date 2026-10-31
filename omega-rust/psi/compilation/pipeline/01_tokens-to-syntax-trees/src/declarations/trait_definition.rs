@@ -6,6 +6,7 @@ use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{
     parse_optional_parameters, parse_optional_return_type, parse_parameter,
 };
+use crate::tables::{items, items_of, type_refs, type_refs_of};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -224,8 +225,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             )
         };
         signature.default_body = default_body;
-        let handle = syntax_trees.items.insert_state_signature(&signature);
-        let handle = syntax_trees.items.append_state_signature_handle(handle);
+        let handle = items(syntax_trees).insert_state_signature(&signature);
+        let handle = items(syntax_trees).append_state_signature_handle(handle);
         machines.push(handle);
         input = next;
     }
@@ -279,7 +280,7 @@ fn parse_refinement_clause<'tokens, 'source>(
         if !qualifier.is_empty() {
             let base_name =
                 refines.and_then(
-                    |base| match syntax_trees.type_references.type_reference(base) {
+                    |base| match type_refs_of(syntax_trees).type_reference(base) {
                         syntax_trees::types::TypeReferenceNode::Named(name) => Some(name.clone()),
                         syntax_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
                             Some(base_name.clone())
@@ -334,7 +335,7 @@ fn parse_refinement_clause<'tokens, 'source>(
             let mut reach = crate::handle_spans::HandleSpanBuilder::new();
             while !input.at_punctuation(PunctuationKind::Semicolon) {
                 let (row, rest) = input.take_identifier()?;
-                reach.push(syntax_trees.items.append_identifier_path_member(row));
+                reach.push(items(syntax_trees).append_identifier_path_member(row));
                 input = rest;
                 if input.at_punctuation(PunctuationKind::Plus) {
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
@@ -452,7 +453,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
                 name.as_str(syntax_trees),
             )));
         };
-        match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
+        match &items_of(syntax_trees).type_parameters(type_parameters)[parameter_index].kind {
             syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
             syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
@@ -470,7 +471,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         }
         let (parameters, rest) = parse_optional_parameters(syntax_trees, after_name)?;
         let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index].kind =
+        items(syntax_trees).type_parameters_mut(type_parameters)[parameter_index].kind =
             syntax_trees::item::TypeParameterKind::Proposition {
                 contract: Some(syntax_trees::item::PropositionParameterSignature {
                     name,
@@ -520,9 +521,7 @@ fn parse_trait_parents<'tokens, 'source>(
         input = input.take_punctuation(PunctuationKind::Plus, "+")?;
     }
     Ok((
-        syntax_trees
-            .type_references
-            .insert_type_reference_handles(parents),
+        type_refs(syntax_trees).insert_type_reference_handles(parents),
         input,
     ))
 }
@@ -605,7 +604,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
             input = rest;
         } else {
             let (parameter, rest) = parse_parameter(syntax_trees, input)?;
-            let handle = syntax_trees.items.append_state_parameter_handle(parameter);
+            let handle = items(syntax_trees).append_state_parameter_handle(parameter);
             parameters.push(handle);
             input = rest;
         }

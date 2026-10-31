@@ -7,6 +7,7 @@ use typed_trees::TypedTrees;
 
 use super::schema_reflection::{build_schema_value, schema_fields};
 use crate::BuildTimeAdmissionPlan;
+use crate::build_time_evaluation::type_reference_table;
 
 mod plan_validation;
 pub(crate) use plan_validation::validate_plan;
@@ -149,9 +150,7 @@ pub(crate) fn normalize_private_callback_demands(
                 selected.display_name()
             ));
         }
-        let arguments = typed
-            .type_reference_table
-            .type_reference_handles(conformance.arguments);
+        let arguments = type_reference_table(typed).type_reference_handles(conformance.arguments);
         let [_semantic_argument, layout_argument, requirement_argument] = arguments else {
             return Err(format!(
                 "private layout conformance `{}` must retain semantic type, fixed-layout implementation and callback requirement",
@@ -188,9 +187,7 @@ pub(crate) fn normalize_private_callback_demands(
         let typed_trees::types::TypeReferenceNode::Named {
             symbol: requirement,
             ..
-        } = typed
-            .type_reference_table
-            .type_reference(*requirement_argument)
+        } = type_reference_table(typed).type_reference(*requirement_argument)
         else {
             return Err(format!(
                 "private layout conformance `{}` callback argument is not one exact requirement declaration",

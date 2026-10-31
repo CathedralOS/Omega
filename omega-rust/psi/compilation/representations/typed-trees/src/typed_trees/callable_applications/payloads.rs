@@ -43,11 +43,7 @@ impl CallableApplication {
         let mut applied_owner = program
             .type_reference_table
             .operand_lifetime_owner(original);
-        let node = match program
-            .type_reference_table
-            .type_reference(original)
-            .clone()
-        {
+        let node = match program.type_reference_node(original).clone() {
             types::TypeReferenceNode::Named { symbol, name } => {
                 if let Some((_, argument)) = self
                     .static_arguments
@@ -352,10 +348,7 @@ impl CallableApplication {
         program: &mut TypedTrees,
         original: HandleSpan<types::TypeReferenceHandle>,
     ) -> Result<HandleSpan<types::TypeReferenceHandle>, &'static str> {
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(original)
-            .to_vec();
+        let arguments = program.type_reference_handles(original).to_vec();
         if arguments.len() != original.len() {
             return Err("applied callable has a stale type-argument span");
         }
@@ -494,7 +487,6 @@ impl CallableApplication {
                     let application = call.authored_machine_application;
                     if application.is_valid() {
                         let lifetimes = program
-                            .expression_table
                             .static_machine_application_lifetimes(application)
                             .iter()
                             .map(
@@ -508,7 +500,6 @@ impl CallableApplication {
                             .expression_table
                             .set_static_machine_application_lifetimes(application, &lifetimes);
                         let mut arguments = program
-                            .expression_table
                             .static_machine_application_arguments(application)
                             .to_vec();
                         self.static_arguments(program, &mut arguments)?;
@@ -526,7 +517,6 @@ impl CallableApplication {
                             .static_machine_application_selected_machines_mut(application)
                             .clone_from_slice(&selected);
                         let mut bindings = program
-                            .expression_table
                             .static_machine_application_bindings(application)
                             .to_vec();
                         for binding in &mut bindings {

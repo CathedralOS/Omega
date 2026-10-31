@@ -133,12 +133,7 @@ fn normalize_evidence_interface(
             base_symbol,
             arguments,
             ..
-        } => (
-            *base_symbol,
-            program
-                .type_reference_table
-                .type_reference_handles(*arguments),
-        ),
+        } => (*base_symbol, program.type_reference_handles(*arguments)),
         _ => return Some((label, None)),
     };
     if !trait_symbol.is_valid()
@@ -226,7 +221,6 @@ fn normalized_evidence_requirements(
             .collect::<Vec<_>>();
         for parent in program.trait_requirements(definition) {
             let parent_arguments = program
-                .type_reference_table
                 .type_reference_handles(parent.arguments)
                 .iter()
                 .map(|argument| {
@@ -316,7 +310,6 @@ fn type_reference_mentions_any(
             type_reference_mentions_any(program, *element_type, symbols)
         }
         TypeReferenceNode::Generic { arguments, .. } => program
-            .type_reference_table
             .type_reference_handles(*arguments)
             .iter()
             .any(|argument| type_reference_mentions_any(program, *argument, symbols)),
@@ -454,7 +447,6 @@ fn render_evidence_type(
         } => format!(
             "{base_name}<{}>",
             program
-                .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| render_evidence_type(program, *argument, substitutions))

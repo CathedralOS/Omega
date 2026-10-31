@@ -3,6 +3,7 @@
 //! Boolean and its two literals are transparent core definitions; integer,
 //! address and float vocabulary retains its independently audited assumptions.
 
+use crate::typed_expressions::expression_table;
 use numerics::bignum::BigInt;
 use numerics::literals::{FloatFormat, LandedIntegerType};
 
@@ -94,9 +95,7 @@ impl<'a> Elaborator<'a> {
             // disagreeing or indeterminate arms return no carrier.
             ExpressionNode::Match(matched) => {
                 let mut carrier = None;
-                for arm in self
-                    .program
-                    .expression_table
+                for arm in expression_table(self.program)
                     .match_arms(matched.arms)
                     .iter()
                 {
@@ -193,10 +192,7 @@ impl<'a> Elaborator<'a> {
             }
             return self.declaration_result_carrier(path.symbol);
         }
-        let members = self
-            .program
-            .expression_table
-            .name_path_members(path.members);
+        let members = expression_table(self.program).name_path_members(path.members);
         let [name] = members else { return None };
         let position = self.scope.iter().rposition(|entry| entry.name == *name)?;
         self.domain_carrier(position)

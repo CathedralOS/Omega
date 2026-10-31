@@ -249,10 +249,7 @@ pub fn repeated_element_type(
                     arguments,
                     ..
                 } if program.is_core_fixed_vec(*base_symbol) => {
-                    let [element, _] = program
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                    else {
+                    let [element, _] = program.type_reference_handles(*arguments) else {
                         return None;
                     };
                     return Some(*element);

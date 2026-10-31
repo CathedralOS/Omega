@@ -10,6 +10,7 @@ use crate::expressions::context::ExpressionContext;
 use crate::expressions::parse_expression::{has_unary_expression_prefix, parse_expression_handle};
 use crate::expressions::parse_postfix::parse_postfix_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{exprs, exprs_of, stmts};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -87,7 +88,7 @@ fn classify_transition_target_handle(
     expression: ExpressionHandle,
     target_shaped: bool,
 ) -> Result<TransitionTargetHandle, ParseError> {
-    let node = syntax_trees.expressions.expression(expression).clone();
+    let node = exprs_of(syntax_trees).expression(expression).clone();
     let target = match node {
         ExpressionNode::Call(call)
             if target_shaped && call.target_is_static && call.machine_arguments.is_empty() =>
@@ -97,7 +98,7 @@ fn classify_transition_target_handle(
         _ => TransitionTargetNode::Value(expression),
     };
 
-    Ok(syntax_trees.statements.insert_transition_target(target))
+    Ok(stmts(syntax_trees).insert_transition_target(target))
 }
 
 fn classify_call_target_handle(
@@ -111,12 +112,12 @@ fn classify_call_target_handle(
     };
     let Some(receiver_depth) = receiver_depth else {
         return Ok(TransitionTargetNode::Value(
-            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
+            exprs(syntax_trees).insert(ExpressionNode::Call(call)),
         ));
     };
     if receiver_depth > 1 {
         return Ok(TransitionTargetNode::Value(
-            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
+            exprs(syntax_trees).insert(ExpressionNode::Call(call)),
         ));
     }
     let path = if call.receiver.is_valid() {
@@ -147,13 +148,10 @@ fn expression_handle_identifier_depth(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => Some(
-            syntax_trees
-                .expressions
-                .identifier_path_members(*path)
-                .len(),
-        ),
+    match exprs_of(syntax_trees).expression(expression) {
+        ExpressionNode::Name(path) => {
+            Some(exprs_of(syntax_trees).identifier_path_members(*path).len())
+        }
         ExpressionNode::Member(member) => {
             let depth = expression_handle_identifier_depth(syntax_trees, member.receiver)?;
             Some(depth + 1)

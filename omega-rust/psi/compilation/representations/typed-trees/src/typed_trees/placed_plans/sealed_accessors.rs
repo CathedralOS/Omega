@@ -144,9 +144,7 @@ impl PlacedScalarAccessorDeclaration {
         else {
             return Err(invalid("view origin is not an application"));
         };
-        let operands = typed
-            .type_reference_table
-            .type_reference_handles(*arguments);
+        let operands = typed.type_reference_handles(*arguments);
         if *base_symbol != view.template_symbol
             || !lifetime_arguments.is_empty()
             || !matches!(operands, [policy, schema]
@@ -197,9 +195,7 @@ impl PlacedScalarAccessorDeclaration {
         };
         let TypeReferenceNode::Reference {
             referee, access, ..
-        } = typed
-            .type_reference_table
-            .type_reference(first.type_reference)
+        } = typed.type_reference_node(first.type_reference)
         else {
             return Err(invalid("accessor argument is not borrowed"));
         };

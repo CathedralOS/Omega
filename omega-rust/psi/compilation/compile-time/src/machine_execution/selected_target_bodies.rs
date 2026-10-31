@@ -5,6 +5,7 @@
 //! Source still selected the portable head. Its ordinary body, contracts,
 //! effects, termination and declaration custody remain evaluator obligations.
 
+use crate::build_time_evaluation::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, expression::ExpressionNode, name::Identifier};
 
@@ -172,10 +173,7 @@ pub fn prepare_selected_target_family_calls(
             continue;
         };
         let (symbol, name) = (*symbol, name.clone());
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+        for occurrence in expression_table(program).authored_selection_occurrences(expression) {
             use language_semantics::declaration_selection::{
                 AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
             };

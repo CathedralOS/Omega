@@ -5,6 +5,8 @@ use super::super::{
 };
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::uses::{ConstructorFrontier, closed_sum_path};
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::Instantiation;
@@ -191,8 +193,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     let expected_owner = if let Some(instance) = instance {
         instance.declaration
     } else {
-        let Some(name) = syntax
-            .type_references
+        let Some(name) = syntax_type_references(&syntax)
             .type_reference(expected_type)
             .as_named()
         else {
@@ -268,9 +269,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
             .replace_expression(expression, ExpressionNode::StructLiteral(literal.clone()));
     }
 
-    let mut declared_fields = syntax
-        .tables
-        .items
+    let mut declared_fields = syntax_items(&syntax)
         .data_members(definition.members)
         .iter()
         .filter_map(|member| match member {
@@ -281,9 +280,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
         })
         .collect::<Vec<_>>();
     if let Some(case_name) = case_name.as_ref()
-        && let Some(variant) = syntax
-            .tables
-            .items
+        && let Some(variant) = syntax_items(&syntax)
             .data_members(definition.members)
             .iter()
             .find_map(|member| match member {
@@ -296,9 +293,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
             })
     {
         declared_fields.extend(
-            syntax
-                .tables
-                .items
+            syntax_items(&syntax)
                 .data_payload_fields(variant.payload)
                 .iter()
                 .map(|field| (field.name.as_str(syntax).to_owned(), field.type_reference)),

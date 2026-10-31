@@ -65,8 +65,7 @@ pub fn boundary_requirement_symbol(
     type_reference: TypeReferenceHandle,
 ) -> SymbolHandle {
     program
-        .type_reference_table
-        .type_reference(type_reference)
+        .type_reference_node(type_reference)
         .type_symbol(&program.type_reference_table)
 }
 

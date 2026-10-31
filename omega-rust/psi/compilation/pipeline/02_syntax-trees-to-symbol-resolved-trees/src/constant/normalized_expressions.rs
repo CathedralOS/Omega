@@ -1,5 +1,6 @@
 //! Validation of normalized expressions and const arguments.
 
+use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 
 /// Named origins already retain their selected declaration's value. Direct
@@ -30,9 +31,7 @@ pub(crate) fn validate_normalized_expression(
         && (!syntax
             .expressions
             .contains_expression(normalization.authored_expression)
-            || syntax
-                .expressions
-                .source_span(normalization.authored_expression)
+            || syntax_expressions(&syntax).source_span(normalization.authored_expression)
                 != normalization.reference)
     {
         return Err(Diagnostic::error(

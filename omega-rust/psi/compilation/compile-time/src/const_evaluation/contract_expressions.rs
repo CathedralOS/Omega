@@ -6,6 +6,7 @@
 //! and every nested invocation. Their exact call roster retains formation
 //! obligations until the ordinary selected-provider evaluator admits them.
 
+use crate::build_time_evaluation::expression_table;
 use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::ConstantExpressionContext;
 use typed_trees::domain::ProofFact;
@@ -30,8 +31,7 @@ pub(super) fn roots(
             ProofFact::Expression(expression) => pending.push((owner, *expression)),
             ProofFact::Membership(membership) => pending.push((owner, membership.value)),
             ProofFact::Proposition(application) => pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(application.arguments)
                     .iter()
                     .map(|expression| (owner, *expression)),
@@ -459,8 +459,7 @@ mod tests {
         assert_eq!(program.constant_recipes.len(), 1);
         let (_, recipe) = program.constant_recipes.iter().next().expect("recipe");
         assert_eq!(
-            program
-                .expression_table
+            expression_table(&program)
                 .expression_handles(recipe.invocations)
                 .len(),
             1

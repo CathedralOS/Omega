@@ -7,6 +7,7 @@
 //! drives it; nothing here decides phase order. Seeding fills the same
 //! sidecars from a retained base so an extension resolves against it.
 
+use crate::tables::resolved_declarations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::{SourceMap, SourceSpan};
@@ -349,13 +350,13 @@ impl Lowerer {
         for row in &base.authored_service_reach_rows {
             authored_by_owner.entry(row.owner).or_insert(row);
         }
-        let retained_reach = |owner: symbols::SymbolHandle,
-                              row: language_semantics::ServiceReachRowId| {
-            crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
-                row,
-                authored: authored_by_owner.get(&owner).copied().cloned(),
-            }
-        };
+        let retained_reach =
+            |owner: symbols::SymbolHandle, row: language_semantics::ServiceReachRowId| {
+                crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+                    row,
+                    authored: authored_by_owner.get(&owner).copied().cloned(),
+                }
+            };
         self.pending_machine_service_reaches = base
             .machines
             .iter()
@@ -364,9 +365,7 @@ impl Lowerer {
         for definition in &base.traits {
             for offset in 0..definition.machines.len() {
                 let handle = handle_at_offset(definition.machines, offset);
-                let signature = base
-                    .tables
-                    .declarations
+                let signature = resolved_declarations(&base)
                     .trait_machine_signatures
                     .get(handle);
                 let reaches = retained_reach(signature.symbol, signature.service_reach_row);
@@ -542,18 +541,12 @@ impl Lowerer {
             .map(|pending| {
                 let symbol = match pending.location {
                     PendingSignatureLocation::Trait(handle) => {
-                        self.symbol_resolved_trees
-                            .tables
-                            .declarations
-                            .trait_machine_signatures
+                        resolved_declarations(&self.symbol_resolved_trees).trait_machine_signatures
                             .get(handle)
                             .symbol
                     }
                     PendingSignatureLocation::MachineParameter(handle) => {
-                        let parameter = self.symbol_resolved_trees
-                            .tables
-                            .declarations
-                            .data_type_parameters
+                        let parameter = resolved_declarations(&self.symbol_resolved_trees).data_type_parameters
                             .get(handle);
                         let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
                             return Err(vec![Diagnostic::error("pending service reach no longer names a machine parameter")]);

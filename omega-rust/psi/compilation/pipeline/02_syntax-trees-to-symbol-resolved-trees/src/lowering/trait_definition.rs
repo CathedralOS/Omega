@@ -6,6 +6,7 @@ use crate::lowering::name::lower_names;
 use crate::lowering::state::lower_state_signature_node;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::signature::StateSignature;
@@ -147,8 +148,7 @@ fn lower_trait_requirement_node(
     syntax_trees: &SyntaxTrees,
     handle: syntax::types::TypeReferenceHandle,
 ) -> Result<TraitRequirement, Diagnostic> {
-    let (name, lifetime_arguments, arguments) = match syntax_trees
-        .type_references
+    let (name, lifetime_arguments, arguments) = match syntax_type_references(&syntax_trees)
         .type_reference(handle)
     {
         syntax::types::TypeReferenceNode::Named(name) => (name, Vec::new(), HandleSpan::empty()),

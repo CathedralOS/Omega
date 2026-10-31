@@ -1,3 +1,4 @@
+use crate::tables::resolved_declarations;
 use arena::{Arena, Handle, HandleSpan};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
@@ -53,9 +54,7 @@ fn trait_parameter_slots(
         .map(|trait_definition| {
             (
                 trait_definition.symbol,
-                program
-                    .tables
-                    .declarations
+                resolved_declarations(&program)
                     .data_type_parameters
                     .span_or_empty(trait_definition.type_parameters)
                     .iter()

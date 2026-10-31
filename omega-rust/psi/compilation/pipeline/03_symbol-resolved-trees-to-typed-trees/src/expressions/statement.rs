@@ -23,6 +23,8 @@ mod root_bindings;
 mod transitions;
 
 use crate::lowerer::Lowerer;
+use crate::tables::expression_table_mut;
+use crate::tables::type_references;
 use crate::type_reference::lower_type_reference_handle_from_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -130,13 +132,9 @@ fn lower_statement_node(
                     operational_acknowledgement: call.operational_acknowledgement,
                 }),
             );
-            lowerer
-                .typed_trees
-                .expression_table
+            expression_table_mut(&mut lowerer.typed_trees)
                 .set_constructed_value_type_reference(expression, result);
-            lowerer
-                .typed_trees
-                .expression_table
+            expression_table_mut(&mut lowerer.typed_trees)
                 .set_source_span(expression, call.target.source_span());
             Ok(typed::statement::StatementNode::Expression(expression))
         }
@@ -158,12 +156,7 @@ fn lower_statement_node(
             // local type inference, so the temp needs a concrete declared type
             // for its place/domain/range/layout. Other locals lower as written.
             let declared_is_unit = matches!(
-                lowerer
-                    .source_trees
-                    .tables
-                    .types
-                    .references
-                    .type_reference(local_data.type_reference),
+                type_references(lowerer.source_trees).type_reference(local_data.type_reference),
                 resolved::types::TypeReferenceNode::Unit
             );
             // Resolution retains whether the binding had an annotation. A

@@ -17,6 +17,7 @@ use crate::lowering::statement::place_operand_capture::{
 };
 use crate::lowering::statement::value_call_hoisting::hoist_scalar_value_call_comparison;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_expressions;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
@@ -58,8 +59,7 @@ pub(crate) fn lower_statement_node(
                 // selections; their bodies execute in the build context.
                 implementation_operand: if binding.implementation_operand.is_valid() {
                     if !matches!(
-                        syntax_trees
-                            .expressions
+                        syntax_expressions(&syntax_trees)
                             .expression(binding.implementation_operand),
                         syntax::expression::ExpressionNode::Name(_)
                     ) {

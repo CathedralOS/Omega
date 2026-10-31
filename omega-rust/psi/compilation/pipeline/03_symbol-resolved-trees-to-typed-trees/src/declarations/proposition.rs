@@ -1,5 +1,6 @@
 use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
 use crate::lowerer::Lowerer;
+use crate::tables::resolved_expressions;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -75,12 +76,8 @@ pub(crate) fn lower_proposition_definition(
             }
         }
         resolved::proposition::PropositionBody::Transparent { proposition } => {
-            let formula = if let resolved::expression::ExpressionNode::Call(call) = lowerer
-                .source_trees
-                .tables
-                .bodies
-                .expressions
-                .expression(*proposition)
+            let formula = if let resolved::expression::ExpressionNode::Call(call) =
+                resolved_expressions(lowerer.source_trees).expression(*proposition)
                 && crate::expressions::proposition::is_proposition_call_target(
                     &lowerer.source_trees.symbols,
                     call.target_symbol,

@@ -1,5 +1,6 @@
 //! Constructing the semantic schema graph from nominal expectations.
 
+use crate::build_time_evaluation::type_reference_table;
 use crate::reflection::schema_graph::graph_replay::graph_revision;
 use crate::reflection::schema_graph::{
     CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
@@ -107,10 +108,7 @@ fn collect_nominal_expectations(
             ..
         } => {
             intern(*base_symbol, base_name.as_str(), type_reference, false)?;
-            for argument in typed
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in type_reference_table(typed).type_reference_handles(*arguments) {
                 collect_nominal_expectations(
                     typed,
                     *argument,

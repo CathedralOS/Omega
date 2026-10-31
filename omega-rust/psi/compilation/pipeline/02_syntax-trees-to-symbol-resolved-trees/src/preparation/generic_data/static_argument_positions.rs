@@ -8,6 +8,9 @@ use super::{
     HashSet, Identifier, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
 use syntax_trees::statement::StatementNode;
 
@@ -34,8 +37,7 @@ pub(super) fn collect(
                 else {
                     continue;
                 };
-                let prefix = syntax
-                    .expressions
+                let prefix = syntax_expressions(&syntax)
                     .identifier_path_members(*path)
                     .iter()
                     .map(|part| part.as_str(syntax))
@@ -50,10 +52,7 @@ pub(super) fn collect(
         }
     }
     for state in super::uses::selected_machine_state_handles(syntax, syntax.root_item_handles()) {
-        for statement in syntax
-            .items
-            .statements(syntax.items.state(state).statements)
-        {
+        for statement in syntax_items(&syntax).statements(syntax.items.state(state).statements) {
             if let StatementNode::Call(call) = syntax.statements.statement(*statement) {
                 if !has_const_expression_argument(syntax, &call.machine_arguments) {
                     continue;
@@ -94,9 +93,7 @@ fn has_const_expression_argument(
     arguments.iter().any(|argument| {
         (argument.type_reference.is_valid()
             && matches!(
-                syntax
-                    .type_references
-                    .type_reference(argument.type_reference),
+                syntax_type_references(&syntax).type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             ))
             || argument.application.as_ref().is_some_and(|application| {
@@ -118,9 +115,7 @@ fn collect_application(
     if arguments.iter().any(|argument| {
         argument.type_reference.is_valid()
             && matches!(
-                syntax
-                    .type_references
-                    .type_reference(argument.type_reference),
+                syntax_type_references(&syntax).type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             )
     }) && let Some(parameters) = selection.const_parameter_carriers(
@@ -137,9 +132,7 @@ fn collect_application(
             if let Some(destination) = *parameter
                 && positions.contains(&argument.type_reference)
                 && matches!(
-                    syntax
-                        .type_references
-                        .type_reference(argument.type_reference),
+                    syntax_type_references(&syntax).type_reference(argument.type_reference),
                     TypeReferenceNode::ConstExpression(_)
                 )
                 && !pending

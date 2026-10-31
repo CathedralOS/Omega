@@ -18,6 +18,8 @@
 //! synthesizes afterwards (the guard tag clamp survives only as that
 //! internal lowering of `in`).
 
+use crate::tables::resolved_expressions;
+use crate::tables::resolved_statements;
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};
@@ -39,12 +41,7 @@ pub(crate) fn validate_equality_operands_in(
 
         for state_handle in program.machine_state_handles(machine.states) {
             let state = program.machine_state(*state_handle);
-            for statement in program
-                .tables
-                .bodies
-                .statements
-                .statements(state.statement_nodes)
-            {
+            for statement in resolved_statements(program).statements(state.statement_nodes) {
                 scan_statement(program, statement)?;
             }
         }
@@ -99,12 +96,7 @@ fn scan_statement(
                 {
                     scan_expression(program, *expression, true)?;
                 }
-                for instruction in program
-                    .tables
-                    .bodies
-                    .statements
-                    .statements(block.statement_nodes)
-                {
+                for instruction in resolved_statements(program).statements(block.statement_nodes) {
                     scan_statement(program, instruction)?;
                 }
             }
@@ -123,12 +115,7 @@ fn scan_statement(
             scan_expression(program, assignment.value, false)
         }
         StatementNode::Call(call) => {
-            for argument in program
-                .tables
-                .bodies
-                .statements
-                .expression_handles(call.arguments)
-            {
+            for argument in resolved_statements(program).expression_handles(call.arguments) {
                 scan_expression(program, *argument, false)?;
             }
             Ok(())
@@ -159,12 +146,7 @@ fn scan_transition_target(
     }
     match program.tables.bodies.statements.transition_target(target) {
         TransitionTargetNode::Named { arguments, .. } => {
-            for argument in program
-                .tables
-                .bodies
-                .statements
-                .expression_handles(*arguments)
-            {
+            for argument in resolved_statements(program).expression_handles(*arguments) {
                 scan_expression(program, *argument, false)?;
             }
             Ok(())
@@ -275,11 +257,7 @@ fn check_equality_operand(
 ) -> Result<(), Diagnostic> {
     match program.tables.bodies.expressions.expression(operand) {
         ExpressionNode::Name(path) => {
-            let members = program
-                .tables
-                .bodies
-                .expressions
-                .name_path_members(path.members);
+            let members = resolved_expressions(program).name_path_members(path.members);
             let [type_name, case_name] = members else {
                 return Ok(());
             };

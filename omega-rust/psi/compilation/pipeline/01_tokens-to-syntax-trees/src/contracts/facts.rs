@@ -2,6 +2,7 @@ use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals_or_membership;
 use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, parse_path_handle_span};
+use crate::tables::{exprs, items};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -62,12 +63,12 @@ fn expand_carry_portable_item_paths(
 
         for permission in language_core::CarryPermission::ALL {
             let mut parts = permission.name().split("::");
-            let namespace = syntax_trees.items.append_identifier_path_member(
+            let namespace = items(syntax_trees).append_identifier_path_member(
                 syntax_trees::identifier::Identifier::generated(
                     parts.next().expect("carry permission has a namespace"),
                 ),
             );
-            let member = syntax_trees.items.append_identifier_path_member(
+            let member = items(syntax_trees).append_identifier_path_member(
                 syntax_trees::identifier::Identifier::generated(
                     parts.next().expect("carry permission has a member"),
                 ),
@@ -179,7 +180,7 @@ fn parse_fact_list<'tokens, 'source>(
             input = input.take_contextual("in")?;
             if input.at_name_like() {
                 let (first_domain, rest) = parse_path_handle_span(input, |member| {
-                    syntax_trees.items.append_identifier_path_member(member)
+                    items(syntax_trees).append_identifier_path_member(member)
                 })?;
                 let argument_start = rest;
                 let (first_arguments, rest) =
@@ -189,7 +190,7 @@ fn parse_fact_list<'tokens, 'source>(
 
                 let first_expression_domain =
                     copy_item_path_to_expression_path(syntax_trees, first_domain);
-                let first_membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                let first_membership = exprs(syntax_trees).insert(ExpressionNode::Membership(
                     TableMembershipExpression {
                         value,
                         domain: first_expression_domain,
@@ -216,7 +217,7 @@ fn parse_fact_list<'tokens, 'source>(
                         )
                     };
                     let (domain, rest) = parse_path_handle_span(rest, |member| {
-                        syntax_trees.items.append_identifier_path_member(member)
+                        items(syntax_trees).append_identifier_path_member(member)
                     })?;
                     let argument_start = rest;
                     let (domain_arguments, rest) =
@@ -227,19 +228,18 @@ fn parse_fact_list<'tokens, 'source>(
                     input = rest;
                     membership_domains.push((domain, domain_arguments));
                     let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
-                    let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                    let membership = exprs(syntax_trees).insert(ExpressionNode::Membership(
                         TableMembershipExpression {
                             value,
                             domain: expression_domain,
                         },
                     ));
-                    chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
-                        TableBinaryExpression {
+                    chain_expression =
+                        exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
                             left: chain_expression,
                             operator,
                             right: membership,
-                        },
-                    ));
+                        }));
                 }
 
                 if saw_pipe {
@@ -261,7 +261,7 @@ fn parse_fact_list<'tokens, 'source>(
                     for (domain, domain_arguments) in
                         expand_carry_portable_item_paths(syntax_trees, membership_domains)
                     {
-                        let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
+                        let handle = items(syntax_trees).append_proof_fact(ProofFact::Membership(
                             ProofMembershipFact {
                                 value,
                                 domain,
@@ -312,17 +312,15 @@ fn parse_fact_list<'tokens, 'source>(
             {
                 let (predicate, rest) = input.take_identifier()?;
                 input = rest;
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: value,
-                        target: predicate,
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }))
+                exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
+                    target_is_static: false,
+                    receiver: value,
+                    target: predicate,
+                    machine_arguments: Box::default(),
+                    arguments: HandleSpan::empty(),
+                    evidence_arguments: Box::default(),
+                    operational_acknowledgement: Default::default(),
+                }))
             } else {
                 value
             };
@@ -335,9 +333,7 @@ fn parse_fact_list<'tokens, 'source>(
 
         let authored_source_span = fact_input.source_span_until(input);
         for handle in authored_fact_handles {
-            syntax_trees
-                .items
-                .set_proof_fact_source_span(handle, authored_source_span);
+            items(syntax_trees).set_proof_fact_source_span(handle, authored_source_span);
         }
 
         if is_terminator(input) {
@@ -397,13 +393,11 @@ fn range_membership_expression(
             },
             right: end,
         }));
-    syntax_trees
-        .expressions
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: lower,
-            operator: BinaryOperator::And,
-            right: upper,
-        }))
+    exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+        left: lower,
+        operator: BinaryOperator::And,
+        right: upper,
+    }))
 }
 
 /// An indexed domain application after a proof-fact membership path

@@ -1,6 +1,7 @@
 //! Select a sealed borrowed View prototype. This request carries declaration
 //! identity only; checking must still establish an exact compatible source loan.
 
+use crate::tables::type_constraints;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -193,11 +194,7 @@ fn resident_backing(
     };
     let granted = domain("Granted")?;
     let resident = domain("Resident")?;
-    let constraints = program
-        .tables
-        .types
-        .constraints
-        .span(qualified.constraints)?;
+    let constraints = type_constraints(program).span(qualified.constraints)?;
     if constraints.len() != 2 {
         return None;
     }

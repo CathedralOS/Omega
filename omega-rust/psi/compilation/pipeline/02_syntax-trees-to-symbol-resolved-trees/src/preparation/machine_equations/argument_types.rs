@@ -10,6 +10,8 @@
 //! compatibility, formation, property and invocation-contract checks.
 
 use super::{ConstantSelection, SourceLinks};
+use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
@@ -216,9 +218,11 @@ fn expression_types<'trees>(
                     syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
                     _ => target,
                 };
-                let reference = syntax
-                    .type_references
-                    .insert_reference(referee, borrow.access);
+                let reference =
+                    syntax
+                        .tables
+                        .type_references
+                        .insert_reference(referee, borrow.access);
                 // The resolved declaration anchors nominal selection; the
                 // authored reference carries this expression's constructor.
                 borrowed.push((reference, declaration));
@@ -328,20 +332,14 @@ fn constraints(
     pending_diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle)> {
     let mut observations = Vec::new();
-    let Some((_, state)) = trees
-        .tables
-        .declarations
+    let Some((_, state)) = resolved_declarations(&trees)
         .machine_states
         .iter()
         .find(|(_, state)| state.symbol == target)
     else {
         return observations;
     };
-    let arguments = trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(arguments);
+    let arguments = body_expressions(&trees).expression_handles(arguments);
     if arguments.len() != state.parameters.count() as usize {
         return observations;
     }

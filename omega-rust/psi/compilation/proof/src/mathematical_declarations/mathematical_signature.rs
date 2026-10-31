@@ -50,6 +50,7 @@ mod source_evidence;
 mod source_families;
 mod term_order;
 
+use crate::typed_expressions::expression_table;
 use std::collections::{BTreeMap, HashMap};
 
 use numerics::bignum::BigInt;
@@ -499,9 +500,7 @@ impl<'a> Elaborator<'a> {
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Name(path) => {
                 let symbol = path.symbol;
-                let members = self
-                    .program
-                    .expression_table
+                let members = expression_table(self.program)
                     .name_path_members(path.members)
                     .to_vec();
                 if symbol.is_valid() {
@@ -570,9 +569,7 @@ impl<'a> Elaborator<'a> {
                     self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
                 let mut inputs = Vec::new();
                 let mut prefix = callee;
-                for argument in self
-                    .program
-                    .expression_table
+                for argument in expression_table(self.program)
                     .expression_handles(call.arguments)
                     .to_vec()
                 {

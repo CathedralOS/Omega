@@ -4,6 +4,7 @@
 //! application spine. This adds carrier/policy obligations, never value laws.
 
 use super::{Elaborator, ScalarCarrier};
+use crate::typed_expressions::type_reference_table;
 use diagnostics::Diagnostic;
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
@@ -206,9 +207,7 @@ impl Elaborator<'_> {
             constraints,
         } = self.program.type_reference_table.type_reference(reference)
         {
-            if !self
-                .program
-                .type_reference_table
+            if !type_reference_table(self.program)
                 .constraints(*constraints)
                 .iter()
                 .all(|constraint| {
@@ -279,10 +278,7 @@ impl Elaborator<'_> {
         &mut self,
         reference: TypeReferenceHandle,
     ) -> Result<Option<TermHandle>, Vec<Diagnostic>> {
-        let projected = self
-            .program
-            .type_reference_table
-            .unconstrained_type_reference(reference);
+        let projected = type_reference_table(self.program).unconstrained_type_reference(reference);
         self.source_alias_for_carrier(reference, projected)
     }
 
@@ -500,8 +496,7 @@ impl Elaborator<'_> {
     fn source_requires_exact_qualification(&self, reference: TypeReferenceHandle) -> bool {
         self.scalar_operand_carrier(reference).is_none()
             && matches!(
-                self.program
-                    .type_reference_table
+                type_reference_table(self.program)
                     .type_reference(validation::peel_arithmetic_policy(self.program, reference)),
                 TypeReferenceNode::Constrained { .. }
             )

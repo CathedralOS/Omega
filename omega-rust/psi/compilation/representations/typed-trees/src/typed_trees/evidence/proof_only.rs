@@ -215,7 +215,6 @@ fn proof_only_mention_in(
                 return Some(base_name.clone());
             }
             program
-                .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
                 .find_map(|argument| proof_only_mention_in(reasons, program, *argument))
@@ -325,7 +324,6 @@ impl ProofOnlyClassification {
                 self.borrows_proof_only_data(program, *element_type)
             }
             TypeReferenceNode::Generic { arguments, .. } => program
-                .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
                 .any(|argument| self.borrows_proof_only_data(program, *argument)),
@@ -521,10 +519,7 @@ fn collect_inline_data_edges(
             if base_symbol.is_valid() {
                 edge(*base_symbol, base_name.clone());
             }
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 collect_inline_data_edges(program, *argument, edge);
             }
         }

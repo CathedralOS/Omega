@@ -90,6 +90,7 @@
 
 use crate::SelectedBuildTimeOperators;
 use crate::build_time_evaluation::EvaluationDomain;
+use crate::build_time_evaluation::type_reference_table;
 use crate::unique::extend_unique;
 use diagnostics::Diagnostic;
 use numerics::{
@@ -139,9 +140,8 @@ pub(crate) fn deferred_endpoint_stand_ins(
 ) -> Vec<(ExpressionHandle, ExpressionNode)> {
     let mut stand_ins = Vec::new();
     for constrained_type in EvaluationDomain::all().references(program).type_references {
-        let TypeReferenceNode::Constrained { constraints, .. } = program
-            .type_reference_table
-            .type_reference(constrained_type)
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            type_reference_table(program).type_reference(constrained_type)
         else {
             continue;
         };

@@ -429,7 +429,6 @@ fn generic_reference_identity<'program>(
         name.as_str(),
         lifetimes,
         program
-            .type_reference_table
             .type_reference_handles(arguments)
             .iter()
             .enumerate()
@@ -737,7 +736,6 @@ pub(crate) fn normalize_type_reference(
             "dynamic-trait",
             std::iter::once(atom("name", &context.name(program, *symbol, name.as_str()))).chain(
                 program
-                    .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
                     .map(|argument| normalize_type_reference(program, *argument, context)),

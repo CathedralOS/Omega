@@ -28,6 +28,7 @@ use crate::obligations::plan::{
     BinaryValueOperands, IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner,
     ProofPlan,
 };
+use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
 use arena::HandleSpan;
 use std::fmt;
 use symbols::JoinedPath;
@@ -368,8 +369,7 @@ fn expression_occurrence_identity(
 ) -> String {
     let occurrence = (|| {
         let (_, state) = program.machine_state(machine, state)?;
-        let statement = program
-            .statement_table
+        let statement = statement_table(program)
             .statements(state.statement_nodes)
             .get(statement_index)?;
         let mut expressions = Vec::new();
@@ -547,9 +547,7 @@ fn name_path_identity(program: &IdentityContext<'_>, path: &TableNamePath) -> St
         return atom("name", symbol_identity(program, path.symbol));
     }
     let members = program.expression_table.name_path_members(path.members);
-    let member_symbols = program
-        .expression_table
-        .name_path_member_symbols(path.member_symbols);
+    let member_symbols = expression_table(program).name_path_member_symbols(path.member_symbols);
     // An unresolved path keeps its spelled members; resolved member symbols
     // take precedence over their spellings wherever they exist.
     let identity = members
@@ -600,11 +598,8 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
             let subject = expression_identity(program, node.subject);
             let mut captures = program.captures.to_vec();
             if node.capture.is_valid() {
-                if !program
-                    .expression_table
-                    .contains_value_capture(node.capture)
-                    || program
-                        .expression_table
+                if !expression_table(program).contains_value_capture(node.capture)
+                    || expression_table(program)
                         .value_capture(node.capture)
                         .definition
                         != expression
@@ -651,8 +646,7 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
         }
         ExpressionNode::ArrayLiteral(elements) => compound(
             "array",
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(*elements)
                 .iter()
                 .map(|element| expression_identity(program, *element)),
@@ -683,8 +677,7 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
                 atom!("domain-symbol" => symbol_identity(program, node.semantic_domain_symbol)),
                 compound(
                     "domain-arguments",
-                    program
-                        .type_reference_table
+                    type_reference_table(program)
                         .type_reference_handles(node.semantic_domain_arguments)
                         .iter()
                         .map(|type_reference| {
@@ -751,8 +744,7 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
             ]
             .into_iter()
             .chain(
-                program
-                    .expression_table
+                expression_table(program)
                     .struct_fields(node.fields)
                     .iter()
                     .map(|field| {
@@ -807,8 +799,7 @@ fn call_identity(program: &IdentityContext<'_>, call: &TableCallExpression) -> S
                 .unwrap_or_else(|| "private-layout:none".to_owned()),
             compound(
                 "arguments",
-                program
-                    .expression_table
+                expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .map(|argument| expression_identity(program, *argument)),

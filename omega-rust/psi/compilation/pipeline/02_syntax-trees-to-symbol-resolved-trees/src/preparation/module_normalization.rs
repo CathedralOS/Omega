@@ -27,6 +27,9 @@
 //! declaring source at this boundary; unselected or nongeneric spellings
 //! reject here rather than drifting to a later stage's weaker error.
 
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -54,8 +57,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             let Item::Module(module) = item else {
                 return None;
             };
-            syntax
-                .items
+            syntax_items(&syntax)
                 .identifier_path_members(module.path)
                 .first()
                 .map(|member| member.source_span().source_id)
@@ -101,9 +103,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             // admits every value after its dependencies have evaluated.
         } else if module_literal_constant(syntax, constant) {
             if matches!(
-                syntax
-                    .type_references
-                    .type_reference(constant.type_reference),
+                syntax_type_references(&syntax).type_reference(constant.type_reference),
                 TypeReferenceNode::FixedArray { .. }
             ) {
                 crate::preparation::generic_data::canonicalize_declared_const_definition(
@@ -246,8 +246,7 @@ fn scalar_literal_tree(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_) => true,
-        ExpressionNode::ArrayLiteral(elements) => syntax
-            .expressions
+        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(&syntax)
             .expression_handles(*elements)
             .iter()
             .all(|element| scalar_literal_tree(syntax, *element)),

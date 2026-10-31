@@ -433,7 +433,6 @@ pub(crate) fn data_definition_snapshot(
                         trait_name: selection.trait_name.to_string(),
                         trait_symbol: selection.trait_symbol.arena_index(),
                         trait_arguments: program
-                            .type_reference_table
                             .type_reference_handles(selection.trait_arguments)
                             .iter()
                             .map(|argument| type_reference_snapshot(program, *argument))
@@ -618,7 +617,6 @@ pub(crate) fn fact_snapshots_for_span(
                     domain: to_strings(program.domain_path_members(membership.domain).iter()),
                     domain_symbol: membership.domain_symbol.arena_index(),
                     domain_arguments: program
-                        .type_reference_table
                         .type_reference_handles(membership.domain_arguments)
                         .iter()
                         .map(|argument| type_reference_snapshot(program, *argument))
@@ -855,15 +853,12 @@ fn cleanup_selection_snapshot(
     program: &TypedTrees,
     selection: &crate::domain::CleanupSelection,
 ) -> CleanupSelectionSnapshot {
-    let application = program
-        .expression_table
-        .static_machine_application(selection.application);
+    let application = program.static_machine_application(selection.application);
     CleanupSelectionSnapshot {
         target: program
             .symbols
             .display_path(application.registration_operation, "::"),
         arguments: program
-            .expression_table
             .static_machine_application_arguments(selection.application)
             .iter()
             .map(|argument| {
