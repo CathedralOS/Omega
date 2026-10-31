@@ -9,9 +9,12 @@ use crate::selected_form_encoding::trapping_forms::{
 use crate::selected_form_encoding::{X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint};
 use register_model::RegisterViewId;
 use selected_instructions::{
-    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    SaturatingCarrier, SaturatingOperation, SelectedInstructionKind, TrappingForm,
+    AtomicOperation, AtomicWidth, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineSemanticKind, SaturatingCarrier, SaturatingOperation,
+    SelectedInstructionKind, TrappingForm, dedicated_selected_forms, exact_add_or_sub_pair_pattern,
+    exact_shift_i64_pair_pattern, exact_wrapping_divrem_set_pattern,
+    layout_dependent_selected_transfers, saturating_add_or_subtract_pattern,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,7 +222,7 @@ pub(crate) enum DecodedInstruction {
     /// `lock cmpxchg` of the replacement register against the atomic cell,
     /// with the expected input and observed output fixed in RAX.
     AtomicBitwise {
-        operation: selected_instructions::AtomicOperation,
+        operation: AtomicOperation,
         source: u8,
         destination: u8,
         bits: u16,
@@ -809,9 +812,9 @@ fn decode_atomic(bytes: &[u8]) -> Option<(DecodedInstruction, usize)> {
     match opcode {
         0x20 | 0x21 | 0x08 | 0x09 | 0x30 | 0x31 if !locked && modrm >> 6 == 3 => {
             let operation = match opcode & !1 {
-                0x20 => selected_instructions::AtomicOperation::FetchAnd,
-                0x08 => selected_instructions::AtomicOperation::FetchOr,
-                0x30 => selected_instructions::AtomicOperation::FetchXor,
+                0x20 => AtomicOperation::FetchAnd,
+                0x08 => AtomicOperation::FetchOr,
+                0x30 => AtomicOperation::FetchXor,
                 _ => unreachable!(),
             };
             // Existing 64-bit scalar operations keep their ordinary decoded
@@ -933,13 +936,13 @@ pub(crate) fn validate_decoded(
                 ordinary,
                 selected_instructions::MachineAlternativeKey {
                     family: (if form.write {
-                        selected_instructions::MachineSemanticKind::Store
+                        MachineSemanticKind::Store
                     } else {
                         match form.bytes {
-                            1 => selected_instructions::MachineSemanticKind::Load8,
-                            2 => selected_instructions::MachineSemanticKind::Load16,
-                            4 => selected_instructions::MachineSemanticKind::Load32,
-                            _ => selected_instructions::MachineSemanticKind::Load64,
+                            1 => MachineSemanticKind::Load8,
+                            2 => MachineSemanticKind::Load16,
+                            4 => MachineSemanticKind::Load32,
+                            _ => MachineSemanticKind::Load64,
                         }
                     })
                     .into(),
@@ -952,13 +955,13 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::AtomicAccess { form } => {
             let base = registers[0];
             let bits = match form.width {
-                selected_instructions::AtomicWidth::Bits8 => 8,
-                selected_instructions::AtomicWidth::Bits16 => 16,
-                selected_instructions::AtomicWidth::Bits32 => 32,
-                selected_instructions::AtomicWidth::Bits64 => 64,
+                AtomicWidth::Bits8 => 8,
+                AtomicWidth::Bits16 => 16,
+                AtomicWidth::Bits32 => 32,
+                AtomicWidth::Bits64 => 64,
             };
             match form.operation {
-                selected_instructions::AtomicOperation::Load => {
+                AtomicOperation::Load => {
                     decoded
                         == [DecodedInstruction::AtomicLoad {
                             destination: registers[1],
@@ -966,7 +969,7 @@ pub(crate) fn validate_decoded(
                             bits,
                         }]
                 }
-                selected_instructions::AtomicOperation::Store => {
+                AtomicOperation::Store => {
                     decoded
                         == [
                             DecodedInstruction::AtomicStore {
@@ -977,7 +980,7 @@ pub(crate) fn validate_decoded(
                             DecodedInstruction::MemoryFence,
                         ]
                 }
-                selected_instructions::AtomicOperation::Swap => {
+                AtomicOperation::Swap => {
                     decoded
                         == [
                             mov(registers[1], registers[2]),
@@ -988,7 +991,7 @@ pub(crate) fn validate_decoded(
                             },
                         ]
                 }
-                selected_instructions::AtomicOperation::FetchAdd => {
+                AtomicOperation::FetchAdd => {
                     decoded
                         == [
                             mov(registers[1], registers[2]),
@@ -999,7 +1002,7 @@ pub(crate) fn validate_decoded(
                             },
                         ]
                 }
-                selected_instructions::AtomicOperation::FetchSub => {
+                AtomicOperation::FetchSub => {
                     decoded
                         == [
                             mov(registers[1], registers[2]),
@@ -1013,7 +1016,7 @@ pub(crate) fn validate_decoded(
                             },
                         ]
                 }
-                selected_instructions::AtomicOperation::CompareExchange => {
+                AtomicOperation::CompareExchange => {
                     decoded
                         == [
                             DecodedInstruction::AtomicLockedCompareExchange {
@@ -1024,31 +1027,25 @@ pub(crate) fn validate_decoded(
                             mov(0, registers[3]),
                         ]
                 }
-                operation @ (selected_instructions::AtomicOperation::FetchAnd
-                | selected_instructions::AtomicOperation::FetchOr
-                | selected_instructions::AtomicOperation::FetchXor) => {
+                operation @ (AtomicOperation::FetchAnd
+                | AtomicOperation::FetchOr
+                | AtomicOperation::FetchXor) => {
                     let source = registers[1];
                     let destination = registers[2];
                     let bitwise = if bits == 64 {
                         match operation {
-                            selected_instructions::AtomicOperation::FetchAnd => {
-                                DecodedInstruction::BitwiseAnd {
-                                    source,
-                                    destination,
-                                }
-                            }
-                            selected_instructions::AtomicOperation::FetchOr => {
-                                DecodedInstruction::Or {
-                                    source,
-                                    destination,
-                                }
-                            }
-                            selected_instructions::AtomicOperation::FetchXor => {
-                                DecodedInstruction::Xor {
-                                    source,
-                                    destination,
-                                }
-                            }
+                            AtomicOperation::FetchAnd => DecodedInstruction::BitwiseAnd {
+                                source,
+                                destination,
+                            },
+                            AtomicOperation::FetchOr => DecodedInstruction::Or {
+                                source,
+                                destination,
+                            },
+                            AtomicOperation::FetchXor => DecodedInstruction::Xor {
+                                source,
+                                destination,
+                            },
                             _ => unreachable!(),
                         }
                     } else {
@@ -1470,7 +1467,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | selected_instructions::exact_shift_i64_pair_pattern!()
+        | exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
             // The count source must resolve to the pinned RCX view; the
             // realization is the unconditional value copy into the result
@@ -1497,8 +1494,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
-        selected_instructions::layout_dependent_selected_transfers!()
-        | selected_instructions::dedicated_selected_forms!() => false,
+        layout_dependent_selected_transfers!() | dedicated_selected_forms!() => false,
     };
     if valid {
         Ok(())
@@ -2095,16 +2091,14 @@ pub(crate) fn footprint(
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![0], vec![], true),
         SelectedInstructionKind::ExactDivideU64 { .. } => (vec![0, 1, 3], vec![2], true),
-        selected_instructions::exact_wrapping_divrem_set_pattern!(..) => {
-            (vec![0, 1], vec![2, 3], true)
-        }
+        exact_wrapping_divrem_set_pattern!(..) => (vec![0, 1], vec![2, 3], true),
         SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::ExactAddI64 { .. } => (vec![0, 1], vec![2], false),
         // `not` never defines flags; only the guarding copy may precede it.
         SelectedInstructionKind::BitwiseNotI64 => (vec![0], vec![1], false),
-        selected_instructions::exact_add_or_sub_pair_pattern!(..) => (vec![0], vec![1], false),
+        exact_add_or_sub_pair_pattern!(..) => (vec![0], vec![1], false),
         SelectedInstructionKind::ExactSubtractI64 { .. }
         | SelectedInstructionKind::WrappingSubtractI64
             if alternative.variant == 0 =>
@@ -2122,7 +2116,7 @@ pub(crate) fn footprint(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | selected_instructions::exact_shift_i64_pair_pattern!()
+        | exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => (vec![0, 1], vec![2], true),
         SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
@@ -2130,9 +2124,10 @@ pub(crate) fn footprint(
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
-        selected_instructions::layout_dependent_selected_transfers!()
-        | selected_instructions::dedicated_selected_forms!() => (vec![], vec![], false),
-        selected_instructions::saturating_add_or_subtract_pattern!()
+        layout_dependent_selected_transfers!() | dedicated_selected_forms!() => {
+            (vec![], vec![], false)
+        }
+        saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }
         | SelectedInstructionKind::SaturatingRemainder { .. }
         | SelectedInstructionKind::SaturatingMultiply { .. } => {
@@ -2216,7 +2211,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingShiftLeftI64
                 | SelectedInstructionKind::WrappingShiftRightI64
                 | SelectedInstructionKind::WrappingShiftRightU64
-                | selected_instructions::exact_shift_i64_pair_pattern!()
+                | exact_shift_i64_pair_pattern!()
                 | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseOrI64
@@ -2241,10 +2236,7 @@ pub(crate) fn footprint(
             effects.implicit_unit_clobbers.dedup();
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
-        if matches!(
-            kind,
-            selected_instructions::exact_wrapping_divrem_set_pattern!(..)
-        ) {
+        if matches!(kind, exact_wrapping_divrem_set_pattern!(..)) {
             effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
