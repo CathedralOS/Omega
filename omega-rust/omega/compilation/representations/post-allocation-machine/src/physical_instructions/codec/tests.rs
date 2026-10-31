@@ -26,7 +26,7 @@ use crate::{
     PostAllocationMachineInstruction, PostAllocationMachinePlan, post_allocation_machine_identity,
 };
 
-use super::PostAllocationMachineDecodeError;
+use super::PostAllocationMachineDecodeError as DecodeError;
 
 const HEADER_IDENTITY_OFFSET: usize = 12;
 const SELECTED_OFFSET: usize = 44;
@@ -186,10 +186,12 @@ fn assert_round_trip(plan: &PostAllocationMachinePlan) {
 /// Content that changed after the identity was stamped is refused by the
 /// artifact's own authentication, not silently re-authenticated.
 fn assert_content_mismatch(changed: &PostAllocationMachinePlan) {
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&changed.encode()),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity)
-    );
+    assert_rejected(&changed.encode(), DecodeError::InvalidIdentity);
+}
+
+/// The framing refusal every byte-level probe expects for its own field.
+fn assert_rejected(encoded: &[u8], error: DecodeError) {
+    assert_eq!(PostAllocationMachinePlan::decode(encoded), Err(error));
 }
 
 fn assert_content_rejected(
@@ -207,9 +209,7 @@ fn assert_version_rejected(encoded: &[u8], version: u32) {
     crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
     assert_eq!(
         PostAllocationMachinePlan::decode(&stale),
-        Err(PostAllocationMachineDecodeError::UnsupportedVersion(
-            version
-        ))
+        Err(DecodeError::UnsupportedVersion(version))
     );
 }
 
@@ -414,10 +414,7 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                 .unwrap();
             let mut unknown_role = encoded;
             unknown_role[offset + slot_bytes.len() - 1] = 2;
-            assert_eq!(
-                PostAllocationMachinePlan::decode(&unknown_role),
-                Err(PostAllocationMachineDecodeError::InvalidField)
-            );
+            assert_rejected(&unknown_role, DecodeError::InvalidField);
         }
     }
 }
@@ -460,20 +457,14 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         assert_eq!(encoded[slot_offset], 4);
         let mut absent = encoded;
         absent[slot_offset + 1..slot_offset + 9].fill(0);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&absent),
-            Err(PostAllocationMachineDecodeError::InvalidField)
-        );
+        assert_rejected(&absent, DecodeError::InvalidField);
 
         let mut substituted = source.clone();
         substituted.functions[0].local_storage_slots[0].id = LocalStorageSlotId::Structural {
             operation: OperationId::new(137).unwrap(),
             place,
         };
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&substituted.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
+        assert_content_mismatch(&substituted);
     }
 }
 
@@ -489,10 +480,7 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
 
     let mut wrong_magic = encoded.clone();
     wrong_magic[0] ^= 0xff;
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&wrong_magic),
-        Err(PostAllocationMachineDecodeError::WrongMagic)
-    );
+    assert_rejected(&wrong_magic, DecodeError::WrongMagic);
 
     let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
     for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
@@ -510,45 +498,30 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
         invalid[offset] = 0xff;
         assert_eq!(
             PostAllocationMachinePlan::decode(&invalid),
-            Err(PostAllocationMachineDecodeError::InvalidField),
+            Err(DecodeError::InvalidField),
             "closed field at byte {offset} was accepted"
         );
     }
     let mut unknown_family = encoded.clone();
     unknown_family[ALTERNATIVE_FAMILY_OFFSET..ALTERNATIVE_FAMILY_OFFSET + 2]
         .copy_from_slice(&u16::MAX.to_le_bytes());
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&unknown_family),
-        Err(PostAllocationMachineDecodeError::InvalidField)
-    );
+    assert_rejected(&unknown_family, DecodeError::InvalidField);
     // 255 is an assigned family, not a malformed tag. Changing the payload
     // to another valid family must still fail content authentication.
     let mut substituted_family = encoded.clone();
     substituted_family[ALTERNATIVE_FAMILY_OFFSET..ALTERNATIVE_FAMILY_OFFSET + 2]
         .copy_from_slice(&255_u16.to_le_bytes());
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&substituted_family),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity)
-    );
+    assert_rejected(&substituted_family, DecodeError::InvalidIdentity);
 
     let mut zero_machine = encoded.clone();
     zero_machine[MACHINE_OFFSET..MACHINE_OFFSET + 8].fill(0);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&zero_machine),
-        Err(PostAllocationMachineDecodeError::InvalidField)
-    );
+    assert_rejected(&zero_machine, DecodeError::InvalidField);
 
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&encoded[..encoded.len() - 1]),
-        Err(PostAllocationMachineDecodeError::Truncated)
-    );
+    assert_rejected(&encoded[..encoded.len() - 1], DecodeError::Truncated);
 
     let mut trailing = encoded;
     trailing.push(0);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&trailing),
-        Err(PostAllocationMachineDecodeError::TrailingBytes)
-    );
+    assert_rejected(&trailing, DecodeError::TrailingBytes);
 }
 
 #[test]
@@ -563,7 +536,7 @@ fn post_allocation_codec_authenticates_header_and_all_content_roots() {
         corrupted[offset] ^= 0x80;
         assert_eq!(
             PostAllocationMachinePlan::decode(&corrupted),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity),
+            Err(DecodeError::InvalidIdentity),
             "identity-bearing bytes at offset {offset} were accepted"
         );
     }
@@ -822,10 +795,7 @@ fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
             byte_size,
         });
         invalid.identity = post_allocation_machine_identity(&invalid);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&invalid.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidField)
-        );
+        assert_rejected(&invalid.encode(), DecodeError::InvalidField);
     }
 }
 
