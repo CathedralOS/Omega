@@ -230,23 +230,15 @@ impl ProofConstraint {
     ) -> Option<Self> {
         Self::from_node(program, base_type, constraint).or_else(|| match constraint {
             TypeConstraintNode::Domain(domain) => {
-                Self::exact_domain_interval(program, base_type, domain)
+                let (minimum, maximum) = validation::exact_declared_domain_carrier_interval(
+                    program,
+                    program.primitive_type_reference(base_type)?,
+                    domain,
+                )?;
+                Some(Self::IntegerRange { minimum, maximum })
             }
             _ => None,
         })
-    }
-
-    fn exact_domain_interval(
-        program: &dyn ::validation::CheckingInput,
-        base_type: TypeReferenceHandle,
-        domain: &typed_trees::types::DomainConstraint,
-    ) -> Option<Self> {
-        let (minimum, maximum) = validation::exact_declared_domain_carrier_interval(
-            program,
-            program.primitive_type_reference(base_type)?,
-            domain,
-        )?;
-        Some(Self::IntegerRange { minimum, maximum })
     }
 
     fn range_from_expression_handles(
