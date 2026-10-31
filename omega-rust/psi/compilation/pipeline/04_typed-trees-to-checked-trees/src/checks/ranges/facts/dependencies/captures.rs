@@ -1,5 +1,6 @@
 use super::{
-    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, SymbolHandle,
+    EXPRESSION_WALK_DEPTH_BOUND as ND, ExpressionHandle, ExpressionNode, Machine, State,
+    SymbolHandle,
 };
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
@@ -272,7 +273,7 @@ pub(super) fn integer_value_identity(
             let path = program.expression_table.name_path_node(normalized)?;
             Some(path.symbol)
         })?;
-    for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
+    for _ in 0..ND {
         let Some(symbol) = ::validation::single_segment_name_symbol(program, expression) else {
             return None;
         };
@@ -310,9 +311,7 @@ pub(super) fn has_scalar_snapshot_meaning(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= EXPRESSION_WALK_DEPTH_BOUND
-        || !program.expression_table.expression_is_valid(expression)
-    {
+    if depth >= ND || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
     let child =
@@ -352,7 +351,7 @@ pub(super) fn is_integer_value(
     else {
         return false;
     };
-    for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
+    for _ in 0..ND {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {

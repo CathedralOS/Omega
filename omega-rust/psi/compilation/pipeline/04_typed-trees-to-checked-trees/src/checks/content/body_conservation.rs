@@ -21,7 +21,8 @@ use crate::flow::state_exit_parameter_origins;
 use checked_trees::CheckFacts;
 use checked_trees::facts::ContentBodyConservationFact;
 use language_semantics::content::{
-    ContentConservationOwnerKind, ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion,
+    ContentConservationOwnerKind, ContentConservationTerm as ConservationTerm, ContentPlaceRoot,
+    ContentPlaceVersion,
 };
 
 pub(crate) fn observe_body_completion(
@@ -223,17 +224,17 @@ fn plan_at_state(
     let flow = facts.flow.control.state(plan.owner, state.symbol)?;
     let origins = state_exit_parameter_origins(facts, flow);
     fn rebase(
-        term: &mut ContentConservationTerm,
+        term: &mut ConservationTerm,
         origins: &[&checked_trees::FlowExitParameterOrigin],
         parameters: &[typed_trees::signature::StateParameter],
     ) -> Option<()> {
         match term {
-            ContentConservationTerm::Separate(children) => {
+            ConservationTerm::Separate(children) => {
                 for child in children {
                     rebase(child, origins, parameters)?;
                 }
             }
-            ContentConservationTerm::Projection { subject, .. } => {
+            ConservationTerm::Projection { subject, .. } => {
                 if let ContentPlaceRoot::Parameter {
                     position,
                     symbol,
@@ -309,9 +310,9 @@ fn completed_producers(
     completed
 }
 
-fn side_has_role(term: &ContentConservationTerm, entry: bool) -> bool {
+fn side_has_role(term: &ConservationTerm, entry: bool) -> bool {
     match term {
-        ContentConservationTerm::Projection { subject, .. } => {
+        ConservationTerm::Projection { subject, .. } => {
             if entry {
                 subject.version == ContentPlaceVersion::Entry
                     && matches!(subject.root, ContentPlaceRoot::Parameter { .. })
@@ -320,7 +321,7 @@ fn side_has_role(term: &ContentConservationTerm, entry: bool) -> bool {
                     && subject.root == ContentPlaceRoot::Result
             }
         }
-        ContentConservationTerm::Separate(children) => {
+        ConservationTerm::Separate(children) => {
             !children.is_empty() && children.iter().all(|child| side_has_role(child, entry))
         }
     }
@@ -330,12 +331,9 @@ fn side_has_role(term: &ContentConservationTerm, entry: bool) -> bool {
 /// exact root/revision, not spelling or serialized side order. Empty separate
 /// terms provide no owned input or returned occurrence.
 pub(super) fn owned_return_sides<'term>(
-    left: &'term ContentConservationTerm,
-    right: &'term ContentConservationTerm,
-) -> Option<(
-    &'term ContentConservationTerm,
-    &'term ContentConservationTerm,
-)> {
+    left: &'term ConservationTerm,
+    right: &'term ConservationTerm,
+) -> Option<(&'term ConservationTerm, &'term ConservationTerm)> {
     if side_has_role(left, true) && side_has_role(right, false) {
         Some((left, right))
     } else if side_has_role(right, true) && side_has_role(left, false) {

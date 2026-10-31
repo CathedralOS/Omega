@@ -18,10 +18,10 @@ use crate::checks::multiplicity::linear_validation::{
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
 use crate::places::place_at;
-use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact};
+use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact as EventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity as ClaimIdentity, PermissionEventKind,
     PermissionEventSource,
 };
 use symbols::SymbolHandle;
@@ -34,7 +34,7 @@ pub(crate) fn owned_permission_events(
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Vec<&FlowPermissionEventFact> {
+) -> Vec<&EventFact> {
     let handles = facts
         .flow
         .ownership
@@ -130,7 +130,7 @@ pub(crate) fn prepare_permission_events(
                 .ownership
                 .segments
                 .insert_many(place.path.iter().copied());
-            permission_events.push(FlowPermissionEventFact {
+            permission_events.push(EventFact {
                 expression: Default::default(),
                 evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                 machine_symbol: state_flow.machine_symbol,
@@ -736,7 +736,7 @@ pub(crate) fn prepare_permission_events(
             .binary_search(&event_index)
             .is_ok()
             && !event.obligation_live
-            && event.claim_identity == PermissionClaimIdentity::Unknown;
+            && event.claim_identity == ClaimIdentity::Unknown;
         event_index += 1;
         !absent_carrier_transfer
     });
@@ -811,7 +811,7 @@ struct DerivedCrashFrontier {
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_ordinal: u32,
-    claims: Vec<PermissionClaimIdentity>,
+    claims: Vec<ClaimIdentity>,
 }
 
 /// Retain the machine-local claims that are definitely live at each explicit
@@ -920,7 +920,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
                                             proven_conditional_claims.contains(&identity)
                                         })))
                                 .then_some(place.claim_identity?)
-                                .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+                                .filter(|identity| *identity != ClaimIdentity::Unknown)
                             })
                             .collect();
                         derived.push(DerivedCrashFrontier {
@@ -990,7 +990,7 @@ fn proven_conditional_entry_claims(
     state: &typed_trees::state::State,
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     places: &[LinearPlace],
-) -> Vec<PermissionClaimIdentity> {
+) -> Vec<ClaimIdentity> {
     let parameters = program.state_parameters(state).iter().collect::<Vec<_>>();
     let mut memberships = Vec::new();
 
@@ -1042,7 +1042,7 @@ fn proven_conditional_entry_claims(
         });
         if all_cases_proven
             && let Some(identity) = place.claim_identity
-            && identity != PermissionClaimIdentity::Unknown
+            && identity != ClaimIdentity::Unknown
             && !proven.contains(&identity)
         {
             proven.push(identity);
@@ -1245,7 +1245,7 @@ fn reconcile_state_call_result_origins(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     ownership: &mut checked_trees::FlowOwnershipFacts,
-    permission_events: &mut [FlowPermissionEventFact],
+    permission_events: &mut [EventFact],
 ) -> Result<Vec<CheckedClaimOutcomeMap>, &'static str> {
     let iteration_limit = permission_events.len().saturating_add(1);
     for _ in 0..iteration_limit {
@@ -1270,7 +1270,7 @@ fn reconcile_state_call_result_origins(
 fn apply_statically_inactive_call_results(
     program: &dyn ::validation::CheckingInput,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &mut [FlowPermissionEventFact],
+    permission_events: &mut [EventFact],
     maps: &[CheckedClaimOutcomeMap],
 ) -> bool {
     if maps.is_empty() {
@@ -1300,7 +1300,7 @@ fn apply_statically_inactive_call_results(
                 .any(|entry| entry.output_path == receiving_path))
             .then_some(event.claim_identity)
         })
-        .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+        .filter(|identity| *identity != ClaimIdentity::Unknown)
         .collect::<Vec<_>>();
     if inactive_identities.is_empty() {
         return false;
@@ -1310,10 +1310,9 @@ fn apply_statically_inactive_call_results(
         event.access == PermissionAccess::Owned
             && inactive_identities.contains(&event.claim_identity)
     }) {
-        changed |=
-            event.obligation_live || event.claim_identity != PermissionClaimIdentity::Unknown;
+        changed |= event.obligation_live || event.claim_identity != ClaimIdentity::Unknown;
         event.obligation_live = false;
-        event.claim_identity = PermissionClaimIdentity::Unknown;
+        event.claim_identity = ClaimIdentity::Unknown;
     }
     changed
 }

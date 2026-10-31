@@ -8,16 +8,16 @@
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
 use crate::flow::call_permission_evaluation;
-use checked_trees::{CheckFacts, FlowPermissionEventFact};
+use checked_trees::{CheckFacts, FlowPermissionEventFact as EventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity as ClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
 
 pub(crate) fn apply_recorded_state_entry_events(
-    events: &[&FlowPermissionEventFact],
+    events: &[&EventFact],
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     places: &mut [LinearPlace],
 ) {
@@ -47,7 +47,7 @@ pub(crate) fn apply_recorded_statement_events(
     state: &typed_trees::state::State,
     statement_index: usize,
     evaluation: checked_trees::FlowPermissionEvaluation,
-    events: &[&FlowPermissionEventFact],
+    events: &[&EventFact],
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -169,7 +169,7 @@ pub(crate) fn apply_recorded_statement_events(
 }
 
 fn apply_recorded_consumption(
-    event: &FlowPermissionEventFact,
+    event: &EventFact,
     place: &mut LinearPlace,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -188,10 +188,7 @@ fn apply_recorded_consumption(
             "{ownership} value `{}` was already transferred or consumed; it cannot be moved here",
             place.name
         )));
-    } else if place
-        .claim_identity
-        .unwrap_or(PermissionClaimIdentity::Unknown)
-        != event.claim_identity
+    } else if place.claim_identity.unwrap_or(ClaimIdentity::Unknown) != event.claim_identity
         || place.provenance.unwrap_or(PermissionProvenance::Unknown) != event.provenance
     {
         // Reconciliation rewrites an entire occurrence, including
@@ -213,7 +210,7 @@ pub(crate) fn apply_recorded_exit_dispositions(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     coordinate: checked_trees::FlowClaimJoinExit,
-    events: &[&FlowPermissionEventFact],
+    events: &[&EventFact],
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -260,7 +257,7 @@ pub(crate) fn permission_event_statement_index(source: PermissionEventSource) ->
 pub(crate) fn append_borrow_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-    permission_events: &mut Vec<FlowPermissionEventFact>,
+    permission_events: &mut Vec<EventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
 ) {
     // Clone only the small state/span index so the ownership-segment arena can
@@ -336,7 +333,7 @@ pub(crate) fn append_borrow_permission_events(
                     (claim.loan == weakening.loan).then_some(claim.claim_identity)
                 })
                 .last()
-                .unwrap_or(PermissionClaimIdentity::Unknown);
+                .unwrap_or(ClaimIdentity::Unknown);
             append_borrow_permission_event(
                 program,
                 facts,
@@ -355,13 +352,13 @@ pub(crate) fn append_borrow_permission_events(
 fn append_borrow_permission_event(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-    permission_events: &mut Vec<FlowPermissionEventFact>,
+    permission_events: &mut Vec<EventFact>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
     source: PermissionEventSource,
     kind: PermissionEventKind,
-    claim_identity: PermissionClaimIdentity,
+    claim_identity: ClaimIdentity,
 ) {
     let loan = facts.borrow.loans.get(loan_handle).clone();
     let segments = facts
@@ -397,7 +394,7 @@ fn append_borrow_permission_event(
             .unwrap_or(checked_trees::FlowPermissionEvaluation::Unknown),
         _ => checked_trees::FlowPermissionEvaluation::Statement,
     };
-    permission_events.push(FlowPermissionEventFact {
+    permission_events.push(EventFact {
         expression: Default::default(),
         evaluation,
         machine_symbol,

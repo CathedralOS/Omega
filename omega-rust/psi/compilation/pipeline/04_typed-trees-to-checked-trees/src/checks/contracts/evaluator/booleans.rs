@@ -4,17 +4,17 @@ use crate::checks::contracts::prover::evaluate_scalar;
 use crate::checks::contracts::prover::has_builtin_operators;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
-use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
+use super::{BooleanExpressionOwner as ExpressionOwner, ContractExpressionEvaluator};
 
 impl ContractExpressionEvaluator<'_, '_> {
     pub(super) fn boolean_value(&mut self, expression: ExpressionHandle) -> Option<bool> {
-        self.boolean_value_in_owner(expression, BooleanExpressionOwner::Contract)
+        self.boolean_value_in_owner(expression, ExpressionOwner::Contract)
     }
 
     fn boolean_value_in_owner(
         &mut self,
         expression: ExpressionHandle,
-        owner: BooleanExpressionOwner,
+        owner: ExpressionOwner,
     ) -> Option<bool> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),
@@ -138,7 +138,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     fn checked_boolean_comparison_value(
         &mut self,
         expression: ExpressionHandle,
-        owner: BooleanExpressionOwner,
+        owner: ExpressionOwner,
     ) -> Option<bool> {
         self.guarding_cycles(super::ExpressionWork::Evaluation, expression, |evaluator| {
             evaluator.checked_boolean_comparison_value_without_cycle(expression, owner)
@@ -148,7 +148,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     fn checked_boolean_comparison_value_without_cycle(
         &mut self,
         expression: ExpressionHandle,
-        owner: BooleanExpressionOwner,
+        owner: ExpressionOwner,
     ) -> Option<bool> {
         let operators = self.operators?;
         if !has_builtin_operators(self.program, operators, expression)
@@ -178,7 +178,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     fn builtin_boolean_meaning(
         &mut self,
         expression: ExpressionHandle,
-        owner: BooleanExpressionOwner,
+        owner: ExpressionOwner,
     ) -> bool {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(_) => true,
@@ -201,8 +201,8 @@ impl ContractExpressionEvaluator<'_, '_> {
                             return false;
                         };
                         let owner_symbol = match owner {
-                            BooleanExpressionOwner::Caller => self.caller_machine.symbol,
-                            BooleanExpressionOwner::Contract => {
+                            ExpressionOwner::Caller => self.caller_machine.symbol,
+                            ExpressionOwner::Contract => {
                                 let Some((target_machine, _)) =
                                     validation::find_state(self.program, self.target_symbol)
                                 else {
@@ -236,7 +236,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     fn boolean_operand_type(
         &mut self,
         expression: ExpressionHandle,
-        owner: BooleanExpressionOwner,
+        owner: ExpressionOwner,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         use typed_trees::types::{PrimitiveType, TypeReferenceNode};
         let reference = match self.program.expression_table.expression(expression) {
@@ -249,18 +249,16 @@ impl ContractExpressionEvaluator<'_, '_> {
                     return None;
                 }
                 let parameters = match owner {
-                    BooleanExpressionOwner::Contract => self.target_parameters,
-                    BooleanExpressionOwner::Caller => {
-                        self.program.state_parameters(self.caller_state)
-                    }
+                    ExpressionOwner::Contract => self.target_parameters,
+                    ExpressionOwner::Caller => self.program.state_parameters(self.caller_state),
                 };
                 parameters
                     .iter()
                     .find(|parameter| parameter.symbol == path.symbol)
                     .map(|parameter| parameter.type_reference)
                     .or_else(|| match owner {
-                        BooleanExpressionOwner::Contract => None,
-                        BooleanExpressionOwner::Caller => self
+                        ExpressionOwner::Contract => None,
+                        ExpressionOwner::Caller => self
                             .program
                             .state_local_declaration(self.caller_state, path.symbol)
                             .filter(|&(ordinal, _)| ordinal < self.statement_index)
