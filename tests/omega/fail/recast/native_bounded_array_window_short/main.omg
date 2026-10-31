@@ -4,23 +4,10 @@ public boundary trait NativeFill {
     machine check(left: &[u8; 256], right: &[u8; 256], count: u64) -> i32 reaches;
     machine fill(output: &mut [u8; 144], value: i32, count: u64) -> u64 reaches;
 }
-macos_arm64 machine fill_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset"
-    } }
-}
-macos_arm64 machine native_fill(output: &mut [u8; 144], value: i32, count: u64) -> u64
-    satisfies NativeFill::fill via fill_binding();
-macos_arm64 machine check_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp"
-    } }
-}
-macos_arm64 machine native_check(left: &[u8; 256], right: &[u8; 256], count: u64) -> i32
-    satisfies NativeFill::check via check_binding();
+
 machine fill(output: &mut [u8]) -> u64 requires output.len >= 144 reaches NativeFill {
     let whole: &mut [u8; 144] = &mut output[0] as &mut [u8; 144];
-    native_fill(whole, 17, 144)
+    NativeFill::fill(whole, 17, 144)
 }
 machine main() reaches NativeFill crashes Trap {
     let mut bytes: [u8; 256];
@@ -28,7 +15,7 @@ machine main() reaches NativeFill crashes Trap {
     bytes[152] = 37;
     // A shared whole-array observation establishes both canaries in the same
     // original native home. Later out-of-window native writes become visible.
-    let observed: i32 = native_check(&bytes, &bytes, 256);
+    let observed: i32 = NativeFill::check(&bytes, &bytes, 256);
     let first: u64 = fill(&mut bytes[8..151]);
     let snapshot: [u8; 256] = bytes;
     bytes[8] = 29;
