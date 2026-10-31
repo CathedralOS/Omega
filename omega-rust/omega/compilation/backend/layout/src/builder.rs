@@ -453,6 +453,10 @@ impl<'program> LayoutBuilder<'program> {
                 base_symbol,
                 base_name,
                 ..
+            }
+            | TypeReferenceNode::Named {
+                symbol: base_symbol,
+                name: base_name,
             } => {
                 if let Some(binding) = binding_for_type(*base_symbol, base_name, bindings) {
                     return self.type_descriptor(binding.argument, bindings);
@@ -460,15 +464,6 @@ impl<'program> LayoutBuilder<'program> {
                 TypeLayoutDescriptor::Named {
                     symbol: *base_symbol,
                     name: base_name.clone(),
-                }
-            }
-            TypeReferenceNode::Named { symbol, name } => {
-                if let Some(binding) = binding_for_type(*symbol, name, bindings) {
-                    return self.type_descriptor(binding.argument, bindings);
-                }
-                TypeLayoutDescriptor::Named {
-                    symbol: *symbol,
-                    name: name.clone(),
                 }
             }
             TypeReferenceNode::ConstExpression(_) => TypeLayoutDescriptor::Unit,
