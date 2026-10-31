@@ -2339,6 +2339,14 @@ impl<'program> StructuralJudge<'program> {
             owner_symbol(&owner),
             typed_trees::references::StaticArgumentCall::Expression(expression, call),
         ) {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-capture refused expression={expression:?} caller={:?} scope={:?} owner={:?} stage=contract-dependencies",
+                    self.machine_symbol,
+                    scope.0.symbol,
+                    owner_symbol(&owner),
+                );
+            }
             return None;
         }
         let leading_operands = owner_leading_operands(&owner);
@@ -2398,7 +2406,15 @@ impl<'program> StructuralJudge<'program> {
             |subject| {
                 self.completed_scalar_subject(subject, site, completed_arguments, scope.0, scope.1)
             },
-        )?;
+        ).or_else(|| {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-capture refused expression={expression:?} caller={:?} owner={:?} constants={} runtime_parameters={} stage=scalar-substitution",
+                    scope.0.symbol, owner_symbol(&owner), application.constants.len(), application.runtime_parameters.len(),
+                );
+            }
+            None
+        })?;
         for (parameter, value) in static_bindings {
             if !entry_bindings
                 .iter()
@@ -2537,7 +2553,16 @@ impl<'program> StructuralJudge<'program> {
             None
         } else {
             let observed_type =
-                crate::expression_result_type_reference(program, scope.0, scope.1, expression)?;
+                crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                    .or_else(|| {
+                        if super::super::struct_trace() {
+                            eprintln!(
+                                "STRUCT normal-capture refused expression={expression:?} caller={:?} owner={:?} stage=result-type",
+                                scope.0.symbol, owner_symbol(&owner),
+                            );
+                        }
+                        None
+                    })?;
             Some(application.runtime_result_presentation(
                 program,
                 &owner,
@@ -2548,7 +2573,15 @@ impl<'program> StructuralJudge<'program> {
                 callable,
                 parameters,
                 &bindings,
-            )?)
+            ).or_else(|| {
+                if super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT normal-capture refused expression={expression:?} caller={:?} owner={:?} observed_type={observed_type:?} declared_type={:?} parameters={} stage=result-presentation",
+                        scope.0.symbol, owner_symbol(&owner), owner_return_type(&owner), parameters.len(),
+                    );
+                }
+                None
+            })?)
         };
         let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
         let captured = result_presentation.as_ref().map(|presentation| {

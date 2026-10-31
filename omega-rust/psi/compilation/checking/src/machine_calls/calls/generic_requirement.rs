@@ -90,7 +90,7 @@ pub fn requirement_contract_signature<'program>(
     } else {
         target
     };
-    let (declaration, selected) = selected_requirement_signature(program, public_target)?;
+    let selected = selected_requirement_signature(program, public_target);
     let exact = match site {
         super::CallSite::Expression { call, .. } => {
             program.requirement_call_signature(caller, call)
@@ -100,8 +100,28 @@ pub fn requirement_contract_signature<'program>(
         }
         super::CallSite::TransitionNamed { .. } => None,
     };
+    if crate::proof_contracts::contract_entailment::struct_trace() {
+        eprintln!(
+            "STRUCT requirement-contract view caller={caller:?} target={public_target:?} exact={:?} selected={:?}",
+            exact.map(|signature| signature.symbol),
+            selected.map(|(_, signature)| signature.symbol),
+        );
+    }
     if let Some(signature) = exact {
-        return (signature.symbol == selected.symbol).then_some((declaration, signature));
+        let (declaration, template) = program.requirement_signature_source(signature)?;
+        let (selected_declaration, selected_signature) = selected?;
+        let (source_declaration, source_template) =
+            program.requirement_signature_source(selected_signature)?;
+        if crate::proof_contracts::contract_entailment::struct_trace() {
+            eprintln!(
+                "STRUCT requirement-contract caller={caller:?} target={public_target:?} exact={:?} selected={:?} template={template:?} selected_template={source_template:?}",
+                signature.symbol, selected_signature.symbol,
+            );
+        }
+        return (declaration.symbol == selected_declaration.symbol
+            && declaration.symbol == source_declaration.symbol
+            && template == source_template)
+            .then_some((declaration, signature));
     }
     let requires_exact_application = match site {
         super::CallSite::Expression { call, .. } => {
@@ -113,7 +133,7 @@ pub fn requirement_contract_signature<'program>(
     if requires_exact_application {
         return None;
     }
-    Some((declaration, selected))
+    selected
 }
 
 /// The requirement already selected its trait telescope. Raw signature handles
