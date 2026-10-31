@@ -79,24 +79,6 @@ pub fn resolve_product_path(
     )
 }
 
-/// Resolve a completed dependency Build's captured lexical package, without
-/// importing its Build code or inventing a source occurrence in this Product.
-/// The caller must carry the original package output/source custody.
-pub fn resolve_captured_product_path(
-    typed: &TypedTrees,
-    scope: &language_semantics::declaration_selection::CapturedNativeDeclaration,
-    kind: ProductOperandKind,
-) -> Option<SymbolHandle> {
-    let program = typed.product_declarations();
-    let candidates = product_candidates(program, kind)?;
-    program.symbols.find_captured_product_declaration(
-        &scope.requirement_path,
-        scope.producer.package,
-        scope.resolution_stratum,
-        candidates,
-    )
-}
-
 fn product_candidates(
     program: &TypedTrees,
     kind: ProductOperandKind,

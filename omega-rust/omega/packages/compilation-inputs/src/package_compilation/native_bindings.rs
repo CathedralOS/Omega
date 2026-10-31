@@ -35,10 +35,18 @@ impl NativeBuildOutputs {
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
         if declarations.iter().any(|declaration| {
-            declaration.producer.package != package
-                || declaration.producer.declaration_path.is_empty()
-                || declaration.producer.callable_identity.is_empty()
-                || declaration.requirement_path.is_empty()
+            declaration.source.producer.package != package
+                || declaration.source.producer.declaration_path.is_empty()
+                || declaration.source.producer.callable_identity.is_empty()
+                || declaration.source.requirement_path.is_empty()
+                || declaration.requirement_identity.is_empty()
+                || declaration.requirement.kind() != symbols::SymbolKind::State
+                || declaration.requirement.source().dependency_scope
+                    != source::DependencyScope::Product
+                || declaration
+                    .dependency_alias
+                    .as_ref()
+                    .is_some_and(|alias| alias.is_empty())
         }) {
             return Err(
                 "native output changes its exact checked package or source declaration".into(),
@@ -74,33 +82,23 @@ impl NativeBuildOutputs {
 }
 
 impl super::PackageCompilationInputs {
-    /// A dependency's Build may name requirements outside the module imported
-    /// by its consumer. Reconstruct the supplier's ordinary Product catalogue
-    /// before Psi admits every captured formation, including unused bindings.
-    /// Loading these roots grants neither private nameability to the consumer
-    /// nor Build visibility; exact declaration admission remains independent.
-    pub(crate) fn native_binding_source_seeds(
+    /// Admit native declaration anchors by the same immutable source operation
+    /// as retained provider choices. Psi independently rejoins exact symbols
+    /// and checks the original direct dependency and temporal scope afterward.
+    pub fn admit_package_native_declarations(
         &self,
-    ) -> Result<Vec<std::path::PathBuf>, Vec<diagnostics::Diagnostic>> {
-        let mut sources = Vec::new();
-        for handoff in self.product_dependency_native_handoffs() {
-            if handoff.native_declarations().is_empty() {
-                continue;
-            }
-            let root = self.package_root(handoff.package()).ok_or_else(|| {
-                vec![diagnostics::Diagnostic::error(
-                    "captured native declarations have no admitted Product source supplier",
-                )]
-            })?;
-            let project = crate::source_imports::project_roots(root, self.source_filesystem());
-            // Module-only packages need not declare a Product entry root.
-            // Their imported modules still owe every captured declaration to
-            // the same admission query; absence here skips no binding check.
-            sources.extend(project.sources.into_iter().filter(|source| {
-                Some(source) != project.build.as_ref() && self.source_filesystem().is_file(source)
-            }));
-        }
-        Ok(sources)
+        handoff: &PackageBuildHandoff,
+    ) -> Result<Vec<CapturedNativeDeclaration>, Vec<diagnostics::Diagnostic>> {
+        handoff
+            .native_declarations()
+            .iter()
+            .map(|declaration| {
+                let mut admitted = declaration.clone();
+                admitted.requirement =
+                    self.admit_retained_product_declaration(handoff, &declaration.requirement)?;
+                Ok(admitted)
+            })
+            .collect()
     }
 
     /// Relative import purpose, rather than the producer's own purpose, decides

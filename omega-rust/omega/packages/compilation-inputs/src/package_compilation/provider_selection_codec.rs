@@ -156,32 +156,78 @@ impl SelectionSources {
     }
 }
 
+/// Native requirements and named choices carry the same immutable declaration
+/// custody. Only these codec helpers share their source pool; admission remains
+/// with each operation's original Product selection owner.
+pub(super) fn encode_retained_declarations(anchors: &[&RetainedDeclaration]) -> Vec<u8> {
+    let mut pool = SelectionSources {
+        sources: Vec::new(),
+    };
+    for anchor in anchors {
+        pool.intern_source(anchor.source());
+    }
+    let mut output = Vec::new();
+    encode_sources(&pool.sources, &mut output);
+    integer(&mut output, anchors.len() as u64);
+    for anchor in anchors {
+        pool.anchor(anchor, &mut output);
+    }
+    output
+}
+
+pub(super) fn decode_retained_declarations(bytes: &[u8]) -> Option<Vec<RetainedDeclaration>> {
+    let mut cursor = ObservationCursor::new(bytes);
+    let sources = decode_sources(&mut cursor)?;
+    let mut anchors = Vec::new();
+    for _ in 0..sequence_length(&mut cursor)? {
+        anchors.push(decode_anchor(&mut cursor, &sources)?);
+    }
+    cursor.exhausted().then_some(anchors)
+}
+
+pub(super) fn retained_declarations_digest(anchors: &[&RetainedDeclaration]) -> [u8; 32] {
+    let mut pool = SelectionSources {
+        sources: Vec::new(),
+    };
+    for anchor in anchors {
+        pool.intern_source(anchor.source());
+    }
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-retained-declarations-v1\0");
+    digest_sources(&pool.sources, &mut digest);
+    let mut rows = Vec::new();
+    integer(&mut rows, anchors.len() as u64);
+    for anchor in anchors {
+        pool.anchor(anchor, &mut rows);
+    }
+    digest.bytes(&rows);
+    digest.finish()
+}
+
+fn encode_sources(sources: &[SourceFile], output: &mut Vec<u8>) {
+    integer(output, sources.len() as u64);
+    for source in sources {
+        encode_path(&source.package_root, output);
+        encode_path(&source.path, output);
+        source_owner(source, output);
+        push_framed(output, source.source.as_bytes());
+    }
+}
+
 pub fn encode_package_provider_selections(
     rows: &[RetainedProviderSelection],
     observation: Option<[u8; 32]>,
 ) -> Vec<u8> {
     let pool = SelectionSources::collect(rows);
     let mut output = MAGIC.to_vec();
-    integer(&mut output, pool.sources.len() as u64);
-    for source in &pool.sources {
-        encode_path(&source.package_root, &mut output);
-        encode_path(&source.path, &mut output);
-        source_owner(source, &mut output);
-        push_framed(&mut output, source.source.as_bytes());
-    }
+    encode_sources(&pool.sources, &mut output);
     output.extend_from_slice(&pool.rows(rows, observation));
     output
 }
 
-pub fn package_provider_selections_digest(
-    rows: &[RetainedProviderSelection],
-    observation: Option<[u8; 32]>,
-) -> [u8; 32] {
-    let pool = SelectionSources::collect(rows);
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v2\0");
-    digest.u64(pool.sources.len() as u64);
-    for source in &pool.sources {
+fn digest_sources(sources: &[SourceFile], digest: &mut crate::digest_encoder::DomainDigestEncoder) {
+    digest.u64(sources.len() as u64);
+    for source in sources {
         let relative = source
             .path
             .strip_prefix(&source.package_root)
@@ -194,6 +240,16 @@ pub fn package_provider_selections_digest(
             source.source.as_bytes(),
         ));
     }
+}
+
+pub fn package_provider_selections_digest(
+    rows: &[RetainedProviderSelection],
+    observation: Option<[u8; 32]>,
+) -> [u8; 32] {
+    let pool = SelectionSources::collect(rows);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v2\0");
+    digest_sources(&pool.sources, &mut digest);
     digest.bytes(&pool.rows(rows, observation));
     digest.finish()
 }
@@ -205,46 +261,7 @@ pub fn decode_package_provider_selections(
     if cursor.bytes(MAGIC.len())? != MAGIC {
         return None;
     }
-    let count = sequence_length(&mut cursor)?;
-    let mut sources = Vec::with_capacity(count);
-    for _ in 0..count {
-        let package_root = decode_path(&mut cursor)?;
-        let path = decode_path(&mut cursor)?;
-        let package_identity = match cursor.u8()? {
-            0 => None,
-            1 => Some(PackageKeyIdentity::from_digest(
-                cursor.bytes(32)?.try_into().ok()?,
-            )?),
-            _ => return None,
-        };
-        let dependency_scope = match cursor.u8()? {
-            0 => DependencyScope::Product,
-            1 => DependencyScope::Build,
-            _ => return None,
-        };
-        let origin = match cursor.u8()? {
-            0 => SourceOrigin::User,
-            1 => SourceOrigin::Toolchain,
-            _ => return None,
-        };
-        let resolution_stratum = match cursor.u8()? {
-            0 => SourceResolutionStratum::Base,
-            1 => SourceResolutionStratum::CurrentActivationExtension,
-            2 => SourceResolutionStratum::DependencyActivationExtension,
-            _ => return None,
-        };
-        let source = Arc::from(std::str::from_utf8(cursor.framed()?).ok()?);
-        sources.push(SourceFile {
-            source_id: SourceId(0),
-            package_root,
-            path,
-            package_identity,
-            dependency_scope,
-            origin,
-            resolution_stratum,
-            source,
-        });
-    }
+    let sources = decode_sources(&mut cursor)?;
     let application_sources = Arc::new(source::SourceMap::from_files(
         sources
             .iter()
@@ -300,6 +317,50 @@ pub fn decode_package_provider_selections(
         });
     }
     cursor.exhausted().then_some((rows, observation))
+}
+
+fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>> {
+    let count = sequence_length(cursor)?;
+    let mut sources = Vec::with_capacity(count);
+    for _ in 0..count {
+        let package_root = decode_path(cursor)?;
+        let path = decode_path(cursor)?;
+        let package_identity = match cursor.u8()? {
+            0 => None,
+            1 => Some(PackageKeyIdentity::from_digest(
+                cursor.bytes(32)?.try_into().ok()?,
+            )?),
+            _ => return None,
+        };
+        let dependency_scope = match cursor.u8()? {
+            0 => DependencyScope::Product,
+            1 => DependencyScope::Build,
+            _ => return None,
+        };
+        let origin = match cursor.u8()? {
+            0 => SourceOrigin::User,
+            1 => SourceOrigin::Toolchain,
+            _ => return None,
+        };
+        let resolution_stratum = match cursor.u8()? {
+            0 => SourceResolutionStratum::Base,
+            1 => SourceResolutionStratum::CurrentActivationExtension,
+            2 => SourceResolutionStratum::DependencyActivationExtension,
+            _ => return None,
+        };
+        let source = Arc::from(std::str::from_utf8(cursor.framed()?).ok()?);
+        sources.push(SourceFile {
+            source_id: SourceId(0),
+            package_root,
+            path,
+            package_identity,
+            dependency_scope,
+            origin,
+            resolution_stratum,
+            source,
+        });
+    }
+    Some(sources)
 }
 
 fn decode_application(
@@ -365,6 +426,7 @@ fn decode_anchor(
         2 => SymbolKind::Conformance,
         3 => SymbolKind::Data,
         4 => SymbolKind::Operator,
+        5 => SymbolKind::State,
         _ => return None,
     };
     RetainedDeclaration::from_retained_parts(source, span, kind).ok()
@@ -376,6 +438,7 @@ fn kind_tag(kind: SymbolKind) -> u8 {
         SymbolKind::Conformance => 2,
         SymbolKind::Data => 3,
         SymbolKind::Operator => 4,
+        SymbolKind::State => 5,
         _ => unreachable!("provider selection anchors are admitted declaration roles"),
     }
 }

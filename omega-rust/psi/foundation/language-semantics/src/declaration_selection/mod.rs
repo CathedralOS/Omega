@@ -1072,4 +1072,5 @@ mod tests;
 
 pub use product::{
     CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingFormation, NativeBindingProducer,
+    NativeBindingSource,
 };

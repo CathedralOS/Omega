@@ -15,12 +15,19 @@ use symbols::RetainedDeclaration;
 
 impl PackageCompilationInputs {
     pub(crate) fn product_selection_source_seeds(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let mut paths = self.native_binding_source_seeds()?;
+        let mut paths = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
             if scope != DependencyPurpose::Product {
                 continue;
             }
             self.admit_provider_activation(bundle)?;
+            for declaration in bundle.native_declarations() {
+                let anchor =
+                    self.admit_retained_product_declaration(bundle, &declaration.requirement)?;
+                if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
+                    paths.push(anchor.source().path.clone());
+                }
+            }
             for selection in bundle.provider_selections() {
                 for anchor in [&selection.subject, &selection.provider] {
                     let anchor = self.admit_retained_product_declaration(bundle, anchor)?;

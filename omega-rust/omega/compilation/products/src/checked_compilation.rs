@@ -248,6 +248,7 @@ impl CheckedCompilation {
             )?;
         let (declarations, intents) =
             build_time_evaluation::native_bindings::capture_package_intents(
+                &self.typed,
                 handoff.package(),
                 &self.build().native_formations,
                 &self.build().native_binding_requests,
