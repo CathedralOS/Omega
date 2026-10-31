@@ -15,8 +15,8 @@ use omega::language::core::process_exit;
 use omega_language_std::process_exit;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
-use wav_output::wav_output;
-use audio_playback::audio_playback;
+use wav_output::wav_output::WavOutput;
+use audio_playback::audio_playback::AudioPlayback;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
@@ -33,7 +33,7 @@ data Main {
     byte: u8;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
+machine render(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
     Console::write_line("sine_tone: 440 Hz sine wave, 8-bit unsigned mono PCM at 8000 Hz, 1 s");
 
     // Canonical 44-byte WAV header, little-endian fields.
@@ -84,10 +84,10 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
 
     main.i = 0;
     main.phase = 0;
-    transition { _ -> fill(main) }
+    transition { _ -> block fill(main) }
 
     machine fill(main: &mut Main) {
-        transition main.i >= 0 && main.i < 8000 { true -> sample(main) _ -> write_file(main) }
+        transition main.i >= 0 && main.i < 8000 { true -> block sample(main) _ -> block write_file(main) }
     }
     machine sample(main: &mut Main) {
         main.phase = main.phase + 115343;
@@ -129,12 +129,12 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
         };
         main.buffer[main.i + 44] = main.byte;
         main.i = main.i + 1;
-        transition { _ -> fill(main) }
+        transition { _ -> block fill(main) }
     }
 
     machine write_file(main: &mut Main) {
         main.n = block WavOutput::write_wav("sine_tone.wav", &main.buffer);
-        transition main.n == 8044 { true -> play_it(main) _ -> bad(main) }
+        transition main.n == 8044 { true -> block play_it(main) _ -> bad(main) }
     }
     machine play_it(main: &mut Main) {
         main.rc = block AudioPlayback::play(&main.buffer[0], 8044, &main.buffer[44], 8000);
@@ -184,5 +184,5 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block render(&mut entry_storage);
 }

@@ -361,10 +361,6 @@ pub(crate) fn close_typed_cohort(
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    crate::expressions::build_selections::normalize_native_locators(
-        &mut lowerer.typed_trees,
-        cohort.typed_expressions,
-    )?;
     crate::type_reference::normalize_const_argument_carriers(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
