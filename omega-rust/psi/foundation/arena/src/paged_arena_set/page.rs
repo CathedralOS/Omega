@@ -69,6 +69,17 @@ impl<T: Default + Clone> ArenaPage<T> {
         }
     }
 }
+impl<T> ArenaPage<T> {
+    pub(super) fn shares_allocation(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Shared { arena: left, .. }, Self::Shared { arena: right, .. }) => {
+                std::sync::Arc::ptr_eq(left, right)
+            }
+            _ => false,
+        }
+    }
+}
+
 impl<T: Clone> Clone for ArenaPage<T> {
     fn clone(&self) -> Self {
         match self {

@@ -43,11 +43,7 @@ pub(crate) fn evaluate(
     }
     let mut visited = Vec::new();
     let mut ranges = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
+    while let Some(reference) = crate::worklist::unvisited(&mut pending, &mut visited) {
         match syntax.type_references.type_reference(reference) {
             TypeReferenceNode::Generic { arguments, .. } => {
                 pending.extend(syntax.type_references.type_reference_handles(*arguments));
@@ -255,11 +251,7 @@ pub(crate) fn evaluate(
     for root in &folded_roots {
         let mut pending = vec![*root];
         let mut visited = Vec::new();
-        while let Some(expression) = pending.pop() {
-            if visited.contains(&expression) {
-                continue;
-            }
-            visited.push(expression);
+        while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
             if matches!(
                 typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::Call(_)

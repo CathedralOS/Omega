@@ -8,6 +8,10 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
+	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
+	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
 	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
@@ -72,6 +76,24 @@ fail/calls/retired_where_machine_requirement rejected 5ms expected @45fb2a705c96
 	tests/omega/fail/calls/retired_where_machine_requirement/main.omg:3:1: `where machine` is retired; write `requires machine` with its complete contract and terminating semicolon
 fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431042
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/facts/nested_machine_joint_rank_indexed_payload_call_result_rejected rejected 764ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_const_name_rejected rejected 767ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_field_rejected rejected 787ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_local_rejected rejected 832ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_match_join_rejected rejected 852ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_other_machine_rejected rejected 772ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_other_state_rejected rejected 810ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_parameter_rejected rejected 876ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_payload_target_body_rejected rejected 747ms expected @00e93f641615+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
@@ -81,6 +103,8 @@ fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms 
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
@@ -704,10 +728,8 @@ pass/borrows/runtime_reference_record_array_field_read_exit checked 17276ms chec
 pass/borrows/runtime_reference_record_call_completion_exit checked 16574ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 15873ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit checked 17437ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_reference_result_alias_case_payload_exit rejected 309ms @ccdb99ca2214
-	source adapter failed for product dependency row 0 of package `alias_transport`: cannot establish canonical external source path `/Users/zcanann/Documents/Projects/Omega/source/library/std`: No such file or directory (os error 2)
-pass/borrows/runtime_reference_result_case_payload_exit rejected 388ms @ccdb99ca2214
-	source adapter failed for product dependency row 0 of package `predicate_reference_result_case_payload`: cannot establish canonical external source path `/Users/zcanann/Documents/Projects/Omega/source/library/std`: No such file or directory (os error 2)
+pass/borrows/runtime_reference_result_alias_case_payload_exit checked 7024ms check-target:macos_arm64 @00e93f641615+wt
+pass/borrows/runtime_reference_result_case_payload_exit checked 7024ms check-target:macos_arm64 @00e93f641615+wt
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 17426ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_replaced_reference_record_return_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_result_element_call_selector_capture_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
@@ -6271,6 +6293,15 @@ pass/facts/nested_machine_joint_rank_field_exit checked 3282ms check-target:maco
 pass/facts/nested_machine_joint_rank_increasing_to_overshoot_exit checked 949ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_indexed_copied_selector_exit checked 1657ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_equivalent_selector_exit checked 1639ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_payload_call_result_exit checked 1124ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_const_name_exit checked 1069ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_field_exit checked 1094ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_local_exit checked 1037ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_match_join_exit checked 1146ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_other_machine_exit checked 1070ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_other_state_exit checked 1125ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_parameter_exit checked 1051ms check-target:macos_arm64 @00e93f641615+wt
+pass/facts/nested_machine_joint_rank_indexed_payload_target_body_exit checked 1060ms check-target:macos_arm64 @00e93f641615+wt
 pass/facts/nested_machine_joint_rank_indexed_selector_actual_result_exit checked 1112ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_value_call_result_exit checked 1145ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_value_const_name_exit checked 1105ms check-target:macos_arm64 @ed258e523481
@@ -11764,6 +11795,7 @@ pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-tar
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_binding_field_telescopes_exit rejected 731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	compiler-derived copies of one authored Call selection resolved inconsistently: `Main::main::done::entry` versus `Main<u64>::main::done::entry`
+pass/providers/applied_calling_surface_exit checked 8862ms check-target:macos_arm64 @d9073fc2214b
 pass/providers/applied_entry_nested_binding_context_exit checked 3583ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_header_dependent_const_carrier_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	const parameter `Count` of `Parent` requires an integer literal argument
@@ -14720,8 +14752,9 @@ fail/borrows/reference_record_index_predicate_invalid_store rejected 841ms expec
 fail/borrows/reference_record_mutable_shared_overlap rejected 13129ms expected @ccdb99ca2214
 	statement 4 borrows `main.first.value` while local borrow `view` is still active (borrowed at statement 4; its last use is at statement 5)
 	`view` holds `main.first` as both mutable and read-only
-fail/borrows/reference_result_case_payload_missing_premise rejected 307ms unexpected @ccdb99ca2214
-	source adapter failed for product dependency row 0 of package `predicate_reference_result_case_payload`: cannot establish canonical external source path `/Users/zcanann/Documents/Projects/Omega/source/library/std`: No such file or directory (os error 2)
+fail/borrows/reference_result_case_payload_missing_premise rejected 5767ms expected @00e93f641615+wt
+	cannot prove requires contract for call relay from main: choice == constructor:80:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Choice9:name:Some && choice.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/region_store_live_sibling_reference checked 2393ms @ccdb99ca2214
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)

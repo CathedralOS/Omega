@@ -18,6 +18,17 @@ use selected_instructions::{
     SelectedValueTransport, VirtualRegisterId, terminator_instruction,
 };
 
+/// Whether every virtual register's identifier is its own position in the
+/// roster: the dense-id precondition an index-arithmetic rewrite states before
+/// it counts, indexes or renumbers registers.
+pub(super) fn virtual_register_ids_are_dense(function: &SelectedFunction) -> bool {
+    function
+        .virtual_registers
+        .iter()
+        .enumerate()
+        .all(|(index, register)| usize::try_from(register.id.0) == Ok(index))
+}
+
 /// The function a plan-level rewrite entrypoint resolves — every
 /// admission and audit begins by naming the index its member recorded.
 /// The `(block_index, member_index)` of the instruction `member` names.

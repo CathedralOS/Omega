@@ -7,8 +7,7 @@ use validation::CanonicalPlace;
 
 use super::{
     ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
-    FlowSemanticContextRef, HandleSpan, PlaceHandle, ProgramPoint, QualificationEvidence,
-    StatementNode, SymbolHandle,
+    FlowSemanticContextRef, HandleSpan, PlaceHandle, ProgramPoint, StatementNode, SymbolHandle,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -81,10 +80,7 @@ pub(super) fn establish(
                 statement_index,
             },
             origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::from_origin(
-                language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                state_symbol,
-            ),
+            evidence: crate::facts::checked_validation_evidence(state_symbol),
             payload: FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),

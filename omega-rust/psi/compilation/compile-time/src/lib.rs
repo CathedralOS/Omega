@@ -48,6 +48,7 @@ pub use scalar_applications::{
 };
 mod syntax_probes;
 mod unique;
+mod worklist;
 
 pub use language_semantics::wire::WireCompatibilityDemand;
 

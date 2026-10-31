@@ -156,9 +156,7 @@ retired-syntax deletions to completion.
     obligations, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
-    restoration, cleanup, linear custody, and private helper coordinates for
-    case projections behind additional independently captured index
-    loads, and declared-view or
+    restoration, cleanup, linear custody, and declared-view or
     dependent-distance joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -405,7 +403,7 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 84 std raw platform, 2 interrupt, and 126 float rows
+  - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
     plus 78 test files to boundary traits with explicit reach clauses, lift stage
     04's template-dependent result borrow-elision fence for `core/task.omg`'s
     generic `request_cancel` and `finish`, and preserve source-selected trait
@@ -453,14 +451,12 @@ retired-syntax deletions to completion.
   stage 04 scalar checking, stage 05 expression preparation, and
   `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
   with its interpreter and native consumers.
-  - Qualify the 16 `pass/core/numeric_*` fixtures reaching all 170 public
-    machines of `source/library/core/numeric_conversion.omg` on Linux x86-64.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
     in maintained pass fixtures, samples (**SAMPLE-CORPUS**), bundled libraries,
-    and `source/omega/main.omg` with `source/psi/{lex,parse,source}` to explicit
-    conversions (`as` requires unchanged denotation and representability;
-    wrapping/clamping use `core/numeric_conversion.omg`), producing one
-    actionable diagnostic per authored conversion error.
+    and `source/omega/main.omg` to explicit conversions (`as` requires unchanged
+    denotation and representability; wrapping/clamping use
+    `core/numeric_conversion.omg`), producing one actionable diagnostic per
+    authored conversion error.
   Acceptance: comparisons, conversions, and policy-explicit stores agree between
   the interpreter and matching-host native execution across all six relations,
   operand orientations, widths, signedness, and extrema above `i64::MAX`
@@ -473,15 +469,6 @@ retired-syntax deletions to completion.
   through compiler-private checked package reuse bound to exact source,
   dependency, and compiler identities (`std` is checked once at package review
   and reused in dependents at the same precision).
-  - Share immutable declaration pages and their fact-context index across
-    independent flow groups while keeping local facts, fixed-point joins, and
-    unknown-input fallback per-group; require matching typed input and complete
-    preparation admission for whole-program reuse.
-  - Keep frozen dependency bodies available to `CallFrameResolver`
-    (returned-reference origins and binding stability), denotational admission
-    (observation freedom), and `return_ranges::infer_return_interval` (captured
-    arrivals under the caller's actual intervals) over one
-    declaration/state/expression correspondence.
   - Complete cross-consumer checked dependency admission bound to full producer
     dependency context. Exact-program source/check graphs and native Terminal
     products persist across invocations with fresh source, dependency, compiler

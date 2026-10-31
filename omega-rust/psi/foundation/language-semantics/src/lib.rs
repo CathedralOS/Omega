@@ -38,6 +38,7 @@ pub mod quotient_correspondence;
 mod semantic_domains;
 mod semantic_identities;
 mod service_reach;
+pub mod service_surface;
 #[cfg(test)]
 mod tests;
 pub mod type_identity;

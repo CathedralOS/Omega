@@ -60,7 +60,7 @@ pub(super) fn rejoin_system_call(
         || external.trait_name
             != selected_plan
                 .schema
-                .identity_text(selected_plan.schema.trait_name)
+                .identity_text(selected_plan.schema.declaration.trait_name)
         || external.method != selected_row.method
         || external.table_type != selected_plan.provider_type
     {
@@ -75,7 +75,7 @@ pub(super) fn rejoin_system_call(
             selected_plan.target,
             selected_plan
                 .schema
-                .identity_text(selected_plan.schema.trait_name),
+                .identity_text(selected_plan.schema.declaration.trait_name),
             selected_row.method,
             selected_plan.provider_type,
         )));

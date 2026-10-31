@@ -399,6 +399,17 @@ impl StructuralJudge<'_> {
                         .collect::<Option<Vec<_>>>()?,
                 })
             }
+            StructuralTerm::RepeatedArray { length, element } => {
+                Some(StructuralTerm::RepeatedArray {
+                    length,
+                    element: match element {
+                        Some(element) => {
+                            Some(Box::new(self.resolve_case_subject(*element, depth + 1)?))
+                        }
+                        None => None,
+                    },
+                })
+            }
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::ScalarRepresentation { .. }

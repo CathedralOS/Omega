@@ -4,7 +4,6 @@
 use super::super::overlap::StatedOrderingPremise;
 use super::captures::HeldLeaf;
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep, routes_compatible};
-use arena::Handle;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -47,10 +46,9 @@ pub(super) fn check<'program>(
             continue;
         }
         let moved = CapturedPlace {
-            incoming_reference: Handle::invalid(),
-            incoming_owner_path: Default::default(),
             root: event.root,
             segments: segments.to_vec(),
+            ..Default::default()
         };
         for held in leaves.iter().filter(|held| {
             held.copied

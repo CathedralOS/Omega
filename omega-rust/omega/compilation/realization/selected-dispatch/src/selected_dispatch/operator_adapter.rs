@@ -31,7 +31,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
         )));
     }
 
-    let [method] = plan.schema.methods.as_slice() else {
+    let [method] = plan.schema.declaration.methods.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected checked-operator ProviderPlan `{}` must retain exactly one schema method",
             plan.name,
@@ -47,8 +47,11 @@ pub(super) fn resolve_checked_adapter_for_operator(
         .typed
         .symbols
         .symbol_package_identity(operator.symbol);
-    if plan.schema.identity_text(plan.schema.trait_name) != overload_identity
-        || plan.schema.trait_package_identity != operator_package
+    if plan
+        .schema
+        .identity_text(plan.schema.declaration.trait_name)
+        != overload_identity
+        || plan.schema.declaration.trait_package_identity != operator_package
         || method.name != "realize"
         || method.requirement_owner != overload_identity
         || method.requirement_owner_package_identity != operator_package

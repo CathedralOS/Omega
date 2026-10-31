@@ -38,13 +38,19 @@ pub fn validate_qualification_grants<'issuer>(
         let matches = granted_plans
             .iter()
             .filter(|grant| {
-                grant.selected_plan.schema.methods.iter().any(|method| {
-                    grant
-                        .selected_plan
-                        .schema
-                        .identity_text(method.requirement_identity)
-                        == requirement_identity.as_str()
-                })
+                grant
+                    .selected_plan
+                    .schema
+                    .declaration
+                    .methods
+                    .iter()
+                    .any(|method| {
+                        grant
+                            .selected_plan
+                            .schema
+                            .identity_text(method.requirement_identity)
+                            == requirement_identity.as_str()
+                    })
             })
             .collect::<Vec<_>>();
         // A shared requirement identity — an inherited requirement carried
@@ -61,9 +67,14 @@ pub fn validate_qualification_grants<'issuer>(
                     && grant
                         .selected_plan
                         .schema
-                        .identity_text(grant.selected_plan.schema.trait_name)
+                        .identity_text(grant.selected_plan.schema.declaration.trait_name)
                         == issuer.boundary_path
-                    && grant.selected_plan.schema.trait_package_identity == issuer.boundary_package
+                    && grant
+                        .selected_plan
+                        .schema
+                        .declaration
+                        .trait_package_identity
+                        == issuer.boundary_package
             })
             .collect::<Vec<_>>();
         let matches = if owner_matches.is_empty() {

@@ -1863,10 +1863,13 @@ fn term_has_complete_substitution(
     let term = term.semantic_value();
     match term {
         StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
+        StructuralTerm::RepeatedArray { length, element } => match element {
+            Some(element) => *length > 0 && term_has_complete_substitution(program, element),
+            None => *length == 0,
+        },
         StructuralTerm::BoundValue(_)
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
-        | StructuralTerm::IndexedValue { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::Opaque(_) => false,
@@ -1968,6 +1971,15 @@ fn term_has_complete_substitution(
             // Term formation retains a selected field or collection measure;
             // its complete subject, not the display path alone, owns identity.
             term_has_complete_substitution(program, subject)
+        }
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => {
+            // Typed builtin selection already authenticates this observation.
+            // Substitution retains both operands; ordered formation separately
+            // owes bounds and active-case evidence before a payload is read.
+            term_has_complete_substitution(program, collection)
+                && term_has_complete_substitution(program, index)
         }
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_has_complete_substitution(program, left)

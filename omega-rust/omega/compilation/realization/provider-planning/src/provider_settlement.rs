@@ -74,7 +74,7 @@ fn resolve_canonical_host_binding<'trees>(
                 calling_plans,
                 definition,
             )?;
-            (schema.trait_package_identity == Some(binding.package())
+            (schema.declaration.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
                     == binding.normalized_schema_digest())
             .then_some((definition, schema))
@@ -140,8 +140,9 @@ fn mint_toolchain_settled_plan(
         .map_err(|error| vec![error])?;
     let signatures = typed.trait_machine_signatures(definition);
     if already_selected.iter().any(|selected| {
-        selected.schema.trait_package_identity == schema.trait_package_identity
-            && selected.schema.trait_name == schema.trait_name
+        selected.schema.declaration.trait_package_identity
+            == schema.declaration.trait_package_identity
+            && selected.schema.declaration.trait_name == schema.declaration.trait_name
     }) {
         return Ok(None);
     }
@@ -150,6 +151,7 @@ fn mint_toolchain_settled_plan(
     let mut identities = ProviderIdentityTable::default();
     for leaf in leaves {
         let Some(method) = schema
+            .declaration
             .methods
             .iter()
             .find(|method| method.name == leaf.method)
@@ -185,7 +187,7 @@ fn mint_toolchain_settled_plan(
     let plan = ProviderPlan {
         name: crate::satisfies_plan_name(
             target_name,
-            schema.identity_text(schema.trait_name),
+            schema.identity_text(schema.declaration.trait_name),
             provider,
         ),
         provider_type: provider.to_owned(),

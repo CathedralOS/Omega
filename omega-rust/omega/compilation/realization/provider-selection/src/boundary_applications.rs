@@ -58,8 +58,10 @@ pub fn select_boundary_applications(
     for demand in demands.rows() {
         let requirement = demand.requirement();
         let mut matching = selected_rows.iter().filter(|(plan, row, _, _)| {
-            plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
-                && plan.schema.trait_package_identity == requirement.package()
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name)
+                == requirement.overload()
+                && plan.schema.declaration.trait_package_identity == requirement.package()
                 && plan.identities.text(row.requirement_identity) == requirement.overload()
         });
         let (Some((plan, row, execution, external_realization)), None) =

@@ -308,6 +308,10 @@ pub(crate) fn diagnostic_shape_match(
 /// Render a term back into citation-argument spelling.
 pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
     match term.semantic_value() {
+        StructuralTerm::RepeatedArray { length, element } => match element {
+            Some(element) => format!("[{}; {length}]", display_structural_term(element)),
+            None => "[]".to_owned(),
+        },
         StructuralTerm::CollectionMeasure {
             measure,
             collection,

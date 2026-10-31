@@ -4,13 +4,10 @@
 // A machine carries exactly one target scope, so a body cannot be shared
 // across two targets; `console_impl.omg` and `core`'s `float_impl.omg` are
 // already duplicated between the two Darwin targets for that reason. What is
-// NOT duplicated here is the requirement carrier: `boundary requirement`
-// declarations are target-neutral, so re-declaring `TimeHostNativeProvider::
-// clock_nanoseconds` would collide with the arm64 file. This file owns its
-// own `DarwinX64TimeRead` carrier instead, which is the shape
-// `targets/linux_x86_64/clock_impl.omg` (`LinuxClockWait`) and
-// `targets/linux_arm64/clock_impl.omg` (`LinuxArmClockWait`) already use to
-// keep two targets' per-OS seams apart.
+// NOT duplicated here is the raw seam, so re-declaring `DarwinTimeRead`
+// would collide with the arm64 file. This file owns `DarwinX64TimeRead`.
+// `LinuxClockWait` and `LinuxArmClockWait` are the one-member boundary traits
+// that keep the two Linux clock waits apart the same way.
 //
 // `_clock_gettime_nsec_np` is confirmed present for BOTH Darwin targets, not
 // assumed from the arm64 provider: the SDK's `usr/lib/libSystem.tbd` lists it
@@ -28,14 +25,13 @@ use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use time_host;
 
-data DarwinX64TimeRead { }
-
-boundary requirement DarwinX64TimeRead::clock_nanoseconds(clock_id: u32) -> u64
-reaches TimeHost;
-
-boundary requirement DarwinX64TimeRead::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-reaches TimeHost
-blocks;
+boundary trait DarwinX64TimeRead {
+    machine clock_nanoseconds(clock_id: u32) -> u64
+    reaches TimeHost;
+    machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
+    reaches TimeHost
+    blocks;
+}
 
 data DarwinX64TimeImports { }
 
@@ -146,6 +142,5 @@ blocks;
 
 macos_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
     TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
-    TimeHostNativeProvider::select_provider<DarwinX64TimeRead::clock_nanoseconds, DarwinX64TimeImports>(defaults);
-    TimeHostNativeProvider::select_provider<DarwinX64TimeRead::poll, DarwinX64TimeImports>(defaults);
+    TimeHostNativeProvider::select_provider<DarwinX64TimeRead, DarwinX64TimeImports>(defaults);
 }

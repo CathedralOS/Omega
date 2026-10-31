@@ -135,7 +135,7 @@ pub(super) fn derive(
             let mut plan = ProviderPlan {
                 name: satisfies_plan_name(
                     &target,
-                    schema.identity_text(schema.trait_name),
+                    schema.identity_text(schema.declaration.trait_name),
                     &provider_type,
                 ),
                 provider_type,

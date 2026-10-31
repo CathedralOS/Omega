@@ -202,6 +202,7 @@ fn settled_host_cohort_row(
 ) -> Option<TerminalAuthorityPolicyRow> {
     let method = provider_plan
         .schema
+        .declaration
         .methods
         .iter()
         .find(|method| method.name == row.method)?;
@@ -391,6 +392,7 @@ fn authenticate_callback_application(
         .ok_or("callback registrar has no unique selected external provider")?;
     let mut methods = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| method.name == row.method);
@@ -405,7 +407,11 @@ fn authenticate_callback_application(
         requirement,
         &application.requirement_identity,
         plan.report_fingerprint(),
-    ) || method.calling_plan_report_fingerprint != Some(application.report_fingerprint)
+    ) || plan
+        .schema
+        .calling_plan(method.requirement_identity)
+        .map(|plan| plan.report_fingerprint)
+        != Some(application.report_fingerprint)
         || callback.registrar_application_commitment != application.commitment
         || callback.registrar_boundary_entry_plan != *application.plan.plan()
     {
@@ -413,8 +419,10 @@ fn authenticate_callback_application(
             "callback application changed its exact selected registrar contract".to_owned(),
         );
     }
-    let expected = method
-        .calling_plan_commitment
+    let expected = plan
+        .schema
+        .calling_plan(method.requirement_identity)
+        .map(|plan| plan.commitment)
         .ok_or("callback selected method has no admitted calling application")?
         .as_bytes();
     let offset = application.authenticated_callback_offset(

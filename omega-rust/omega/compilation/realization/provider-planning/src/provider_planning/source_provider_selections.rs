@@ -65,6 +65,7 @@ pub fn selected_requirement_plan<'a>(
             crate::service_schema::schema_binds_exact_boundary_trait(context, &plan.schema, owner)
                 && plan
                     .schema
+                    .declaration
                     .methods
                     .iter()
                     .filter(|candidate| {
@@ -89,8 +90,10 @@ pub fn selected_requirement_plan<'a>(
                 .iter()
                 .enumerate()
                 .filter(|(_, plan)| {
-                    plan.schema.identity_text(plan.schema.trait_name) == slot
-                        && plan.schema.trait_package_identity == package
+                    plan.schema
+                        .identity_text(plan.schema.declaration.trait_name)
+                        == slot
+                        && plan.schema.declaration.trait_package_identity == package
                 })
                 .collect()
         }

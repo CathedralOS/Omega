@@ -128,6 +128,17 @@ pub(crate) fn construction_predicate_judgments(
     {
         return visitor.judgments;
     }
+    // A private nested machine receives the caller's checked actuals, including
+    // case-selected payload facts. Use the same complete arrival roster as
+    // calls and stored-predicate restoration; lexical containment alone is not
+    // a premise. Failed trials must not contaminate the universal accumulator.
+    let mut private = incoming.clone();
+    if super::structural_prefix::observe_private_arrivals(program, machine, &mut private, false)
+        == Some(true)
+        && private.has_positive_proof()
+    {
+        return private.judgments;
+    }
     // A local proof is sufficient, but an unknown local parameter may have a
     // stronger fact on every acyclic arrival. The same operation-entry observer
     // consumes those paths; no scalar source recognizer supplies a fallback.
@@ -393,6 +404,14 @@ impl ConstructionPredicates<'_> {
 }
 
 impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
+    fn has_positive_proof(&self) -> bool {
+        self.observed
+            && self
+                .judgments
+                .iter()
+                .all(|judgment| matches!(judgment, StructuralJudgment::Proven))
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }

@@ -327,6 +327,19 @@ impl Scope<'_> {
         }
     }
 
+    /// A call whose arguments all write no completed path is inert: every
+    /// substitution stays at its current home instead of a projected one.
+    fn arguments_inert(&self, arguments: &[ExpressionHandle]) -> bool {
+        arguments.iter().all(|argument| {
+            self.frames.is_some_and(|frames| {
+                frames
+                    .expression_write_frame(self.machine, *argument)
+                    .complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            })
+        })
+    }
+
     fn argument_substitutions(
         &self,
         parameters: &[typed_trees::signature::StateParameter],
@@ -335,14 +348,7 @@ impl Scope<'_> {
         Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
         Vec<(SymbolHandle, Option<ExpressionHandle>)>,
     ) {
-        let inert = arguments.iter().all(|argument| {
-            self.frames.is_some_and(|frames| {
-                frames
-                    .expression_write_frame(self.machine, *argument)
-                    .complete_paths()
-                    .is_some_and(|paths| paths.is_empty())
-            })
-        });
+        let inert = self.arguments_inert(arguments);
         let values = self.values(self.statement);
         parameters
             .iter()
@@ -395,14 +401,7 @@ impl Scope<'_> {
                     .expression_handles(call.arguments);
                 let (mut substitutions, captured_arguments) =
                     self.argument_substitutions(parameters, arguments);
-                let inert = arguments.iter().all(|argument| {
-                    self.frames.is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(self.machine, *argument)
-                            .complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
-                    })
-                });
+                let inert = self.arguments_inert(arguments);
                 if let Some(signature) = self
                     .program
                     .dynamic_slot_by_symbol(call.target_symbol)
@@ -441,14 +440,7 @@ impl Scope<'_> {
                     // Generic value coordinates share the ordinary call's
                     // substitution. Effectful operands require the completed
                     // operand projection rather than a current-home read.
-                    let inert = arguments.iter().all(|argument| {
-                        self.frames.is_some_and(|frames| {
-                            frames
-                                .expression_write_frame(self.machine, *argument)
-                                .complete_paths()
-                                .is_some_and(|paths| paths.is_empty())
-                        })
-                    });
+                    let inert = self.arguments_inert(arguments);
                     substitutions.extend(
                         bindings
                             .into_iter()

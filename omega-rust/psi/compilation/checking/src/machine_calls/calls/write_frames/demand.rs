@@ -851,6 +851,13 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         state: SymbolHandle,
     ) -> Option<Vec<LocalWriteSource>> {
+        if let Some(machine) = self.program.machine_holding_state(state) {
+            crate::note_dependency_body_read(
+                self.program,
+                machine.symbol,
+                crate::DependencyBodyRead::ReturnOrigin,
+            );
+        }
         memoized(&self.caches.reference_result_origins, state, || {
             let state = self.program.state_by_symbol(state)?;
             let machine = self.program.machine_holding_state(state.symbol)?;
@@ -900,6 +907,11 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         expression: ExpressionHandle,
     ) -> bool {
+        crate::note_dependency_body_read(
+            self.program,
+            machine.symbol,
+            crate::DependencyBodyRead::BindingStability,
+        );
         memoized(
             &self.caches.stable_expression_bindings,
             (machine.symbol, expression),
@@ -917,6 +929,11 @@ impl<'program> CallFrameResolver<'program> {
     }
 
     pub fn call_reference_bindings_are_stable(&self, machine: &Machine, call: &TableCall) -> bool {
+        crate::note_dependency_body_read(
+            self.program,
+            machine.symbol,
+            crate::DependencyBodyRead::BindingStability,
+        );
         memoized(
             &self.caches.stable_call_bindings,
             (machine.symbol, std::ptr::from_ref(call).addr()),

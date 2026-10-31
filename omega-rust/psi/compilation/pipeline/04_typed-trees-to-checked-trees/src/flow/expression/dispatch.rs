@@ -463,10 +463,7 @@ impl Execution<'_, '_, '_> {
                 place: facts::FactPlace::Place(place),
                 point,
                 origin: facts::FactOrigin::StatementTransfer,
-                evidence: facts::QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::AssignedScalarValue { value },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -476,10 +473,7 @@ impl Execution<'_, '_, '_> {
                 place: facts::FactPlace::Place(place),
                 point,
                 origin: facts::FactOrigin::StatementTransfer,
-                evidence: facts::QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: domain.payload(expression),
             });
             self.semantic.append_ref(&mut refs, fact);

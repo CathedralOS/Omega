@@ -23,10 +23,14 @@ pub(super) fn selected_task_runtime_provider(
         .iter()
         .filter(|plan| {
             demand.requirement_in_scope
-                && plan.schema.identity_text(plan.schema.trait_name) == requirement_owner_path
-                && plan.schema.trait_package_identity == requirement_owner_package
                 && plan
                     .schema
+                    .identity_text(plan.schema.declaration.trait_name)
+                    == requirement_owner_path
+                && plan.schema.declaration.trait_package_identity == requirement_owner_package
+                && plan
+                    .schema
+                    .declaration
                     .methods
                     .iter()
                     .any(|method| binds_authored_requirement(&plan.schema, method))
@@ -46,6 +50,7 @@ pub(super) fn selected_task_runtime_provider(
     };
     let requirements = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| binds_authored_requirement(&plan.schema, method))

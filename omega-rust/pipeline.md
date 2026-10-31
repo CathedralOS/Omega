@@ -198,6 +198,16 @@ family coordinates remain complete and unavailable targets retain refusal rows.
 Preparation is application-local: a source cohort does not establish equality of
 Build defaults, overrides or assumptions. This removes late source reconstruction
 from publication, not all source dependencies from provider planning.
+Psi owns the target-neutral service surface: inherited applications, signatures,
+completion, claims, reach and progress premises. Its projection consumes the
+original simultaneous type/region scopes and retains exact ordered requirement
+correspondence and supplying ownership. Omega's
+`ServiceSchema` shares that declaration and attaches paired calling-report and
+commitment evidence by requirement coordinate; inherited receiver comparison
+still includes the complete target calling contract. Catalog custody keeps its
+separate, lazy trait-requirement-closure checks in Psi. The service/application
+census is not yet frozen before target selection, and selected-calling replay,
+default ABI signature materialization and review still have source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;

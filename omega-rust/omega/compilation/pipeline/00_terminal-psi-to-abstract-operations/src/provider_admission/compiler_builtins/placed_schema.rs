@@ -18,7 +18,7 @@ pub(super) fn validate(
     let invalid = || {
         "placed scalar selected schema does not match its Terminal signature and effects".to_owned()
     };
-    let [method] = schema.methods.as_slice() else {
+    let [method] = schema.declaration.methods.as_slice() else {
         return Err(invalid());
     };
     let requirement = module
@@ -49,23 +49,34 @@ pub(super) fn validate(
     // These declarations are the closed, synchronous, caller-RAM operations.
     // Extra effect/claim/calling surfaces need a different authenticated catalog;
     // an equal byte codec does not license treating them as this implementation.
-    if schema.identities.text(method.requirement_identity) != requirement
+    if schema
+        .declaration
+        .identities
+        .text(method.requirement_identity)
+        != requirement
         || method.name != name
-        || schema.identities.text(schema.trait_name)
+        || schema
+            .declaration
+            .identities
+            .text(schema.declaration.trait_name)
             != format!("{}::{name}", method.requirement_owner)
-        || schema.trait_package_identity != plan.origin_package_identity
-        || method.requirement_owner_package_identity != schema.trait_package_identity
-        || !schema.receiver_applications.is_empty()
+        || schema.declaration.trait_package_identity != plan.origin_package_identity
+        || method.requirement_owner_package_identity != schema.declaration.trait_package_identity
+        || !schema.declaration.receiver_applications.is_empty()
         || method.parameter_count != parameters.len()
         || method.parameter_type_identities.len() != parameters.len()
         || !method
             .parameter_type_identities
             .iter()
             .zip(&parameters)
-            .all(|(actual, expected)| schema.identities.text(*actual) == expected)
+            .all(|(actual, expected)| schema.declaration.identities.text(*actual) == expected)
         || method.has_result != has_result
         || if has_result {
-            schema.identities.text(method.result_type_identity) != scalar
+            schema
+                .declaration
+                .identities
+                .text(method.result_type_identity)
+                != scalar
         } else {
             method.result_type_identity != Default::default()
         }
@@ -88,8 +99,14 @@ pub(super) fn validate(
         || boundary.owning_service.is_some()
         || method.may_suspend
         || method.may_block
-        || method.calling_plan_report_fingerprint.is_some()
-        || method.calling_plan_commitment.is_some()
+        || schema
+            .calling_plan(method.requirement_identity)
+            .map(|plan| plan.report_fingerprint)
+            .is_some()
+        || schema
+            .calling_plan(method.requirement_identity)
+            .map(|plan| plan.commitment)
+            .is_some()
     {
         return Err(invalid());
     }

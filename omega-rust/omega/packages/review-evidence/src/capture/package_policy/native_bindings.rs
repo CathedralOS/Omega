@@ -25,6 +25,7 @@ pub(super) fn project(
             let method = candidate
                 .plan
                 .schema
+                .declaration
                 .methods
                 .iter()
                 .find(|method| {
@@ -46,7 +47,7 @@ pub(super) fn project(
                 None,
                 native.requirement,
                 method,
-                &candidate.plan.schema.identities,
+                &candidate.plan.schema.declaration.identities,
             )?;
             for production in
                 std::iter::once(&native.origin.primary).chain(&native.origin.equivalents)

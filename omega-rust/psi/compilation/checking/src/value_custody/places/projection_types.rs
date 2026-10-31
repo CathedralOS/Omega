@@ -3,6 +3,7 @@
 
 use super::canonical_projection::CanonicalPlace;
 use super::canonical_projection::canonical_place_from_expression_in_state;
+use crate::value_custody::type_references::substituted_identity;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -97,10 +98,7 @@ pub fn observed_storage_type_references(
     let mut references = vec![(source_type, 0)];
     for (ordinal, segment) in path.iter().chain(final_field.iter()).enumerate() {
         let current = cursor.projection.normalize(program);
-        let identity = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-            substitutions: &cursor.projection.substitutions,
-            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(current)
-        });
+        let identity = substituted_identity(program, current, &cursor.projection.substitutions);
         let _ =
             cursor
                 .advance(program, segment)
@@ -353,10 +351,7 @@ fn observation_data_declaration<'program>(
     use typed_trees::types::TypeReferenceNode;
     let exact_application = substitutions.is_empty()
         || program.normalized_type_identity(reference)
-            == program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-            });
+            == substituted_identity(program, reference, substitutions);
     program
         .data_application_definition(reference)
         .filter(|_| exact_application)
@@ -858,10 +853,7 @@ fn field_type_reference(
             // its identity, so that walk must retain its own substitutions.
             let exact_application = substitutions.is_empty()
                 || program.normalized_type_identity(type_reference)
-                    == program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                        substitutions,
-                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(type_reference)
-                    });
+                    == substituted_identity(program, type_reference, substitutions);
             if let Some(instance) = program
                 .data_application_definition(type_reference)
                 .filter(|_| exact_application)

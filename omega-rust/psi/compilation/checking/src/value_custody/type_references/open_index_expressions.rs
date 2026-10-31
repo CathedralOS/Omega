@@ -56,12 +56,11 @@ pub(crate) fn validate_indexed_qualification_arguments(
         definition,
         &domain_name,
         arguments,
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: machine.symbol,
-            type_parameters: program.machine_type_parameters(machine),
-            lifetime_parameters: &machine.lifetime_parameters,
-        },
+        TypeParameterScope::authored(
+            machine.symbol,
+            program.machine_type_parameters(machine),
+            &machine.lifetime_parameters,
+        ),
         diagnostics,
         &owner,
     );

@@ -198,9 +198,7 @@ record_fields!(effects::provider_plan::ServiceMethod {
     may_suspend,
     may_block,
     terminates_guarantee,
-    termination_premises,
-    calling_plan_report_fingerprint,
-    calling_plan_commitment
+    termination_premises
 });
 
 record_fields!(effects::provider_plan::ServiceProgressEstablishmentRoute {
@@ -238,13 +236,103 @@ record_fields!(effects::provider_plan::ServiceResultClaim {
     effective_carry
 });
 
-record_fields!(effects::provider_plan::ServiceSchema {
-    trait_name,
-    identities,
-    trait_package_identity,
-    receiver_applications,
-    methods
-});
+// Keep the existing flattened wire order. The in-memory surface and target
+// attachments are separate owners; they are not a new native record format.
+impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema {
+    fn write(
+        &self,
+        output: &mut super::super::value::RecordWriter,
+    ) -> Result<(), super::super::value::RecordError> {
+        self.validate_calling_applications()
+            .map_err(|reason| output.error(reason))?;
+        let effects::provider_plan::ServiceSchema {
+            declaration,
+            calling_applications: _,
+        } = self;
+        let effects::provider_plan::ServiceSurface {
+            trait_name,
+            identities,
+            trait_package_identity,
+            receiver_applications,
+            methods,
+        } = declaration.as_ref();
+        trait_name.write(output)?;
+        identities.write(output)?;
+        trait_package_identity.write(output)?;
+        receiver_applications.write(output)?;
+        output.sequence(methods.len())?;
+        for method in methods {
+            method.write(output)?;
+            let calling = self.calling_plan(method.requirement_identity);
+            calling.map(|plan| plan.report_fingerprint).write(output)?;
+            calling.map(|plan| plan.commitment).write(output)?;
+        }
+        Ok(())
+    }
+
+    fn read(
+        input: &mut super::super::value::RecordReader<'_>,
+    ) -> Result<Self, super::super::value::RecordError> {
+        use super::super::value::RecordValue;
+        use effects::provider_plan::{
+            BoundaryCallingPlanCommitment, ServiceCallingApplication, ServiceCallingPlan,
+            ServiceMethod, ServiceSurface,
+        };
+        input.record(|input| {
+            input.allocate(
+                std::mem::size_of::<ServiceSurface>()
+                    .saturating_add(2 * std::mem::size_of::<usize>()),
+            )?;
+            let trait_name = RecordValue::read(input)?;
+            let identities = RecordValue::read(input)?;
+            let trait_package_identity = RecordValue::read(input)?;
+            let receiver_applications = RecordValue::read(input)?;
+            let (methods, calling_applications) = input.record(|input| {
+                let count = input.sequence::<ServiceMethod>()?;
+                let mut methods = Vec::with_capacity(count.min(1024));
+                let mut calling_applications = Vec::new();
+                for _ in 0..count {
+                    let method = ServiceMethod::read(input)?;
+                    let fingerprint = Option::<u64>::read(input)?;
+                    let commitment = Option::<BoundaryCallingPlanCommitment>::read(input)?;
+                    match (fingerprint, commitment) {
+                        (Some(report_fingerprint), Some(commitment)) => {
+                            input.allocate(std::mem::size_of::<ServiceCallingApplication>())?;
+                            calling_applications.push(ServiceCallingApplication {
+                                requirement: method.requirement_identity,
+                                plan: ServiceCallingPlan {
+                                    report_fingerprint,
+                                    commitment,
+                                },
+                            });
+                        }
+                        (None, None) => {}
+                        _ => {
+                            return Err(input
+                                .error("service calling coordinates must be retained together"));
+                        }
+                    }
+                    methods.push(method);
+                }
+                Ok((methods, calling_applications))
+            })?;
+            let schema = Self {
+                declaration: std::sync::Arc::new(ServiceSurface {
+                    trait_name,
+                    identities,
+                    trait_package_identity,
+                    receiver_applications,
+                    methods,
+                }),
+                calling_applications,
+            };
+            schema
+                .validate_calling_applications()
+                .map_err(|reason| input.error(reason))?;
+            Ok(schema)
+        })
+    }
+}
 
 record_variants!(effects::TerminalAuthorityClass {
     0 => FilesystemContentRead,
