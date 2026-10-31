@@ -10,8 +10,9 @@ returned item reference independently of captured context storage.**
 The public `SelectedApply::apply` requirement and its four ordinary inline
 implementations keep independently named own lifetime and static telescopes.
 Each selected callback returns the item while its context contains a reference
-to different storage. The caller observes item value 42 and context value 17;
-this comparison tests returned storage rather than establishing a static fact.
+to different storage. The caller observes item value 42; context points to independently initialized
+value 17. This comparison tests returned storage rather than establishing a
+static fact.
 Each twin changes only one implementation's callback result to the enclosing
 lifetime. Every supplied implementation must check even when another target's
 Build row selects execution.
