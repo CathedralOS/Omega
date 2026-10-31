@@ -1505,6 +1505,10 @@ mod captured_evidence_retention_tests {
             symbols::SymbolKind::Machine,
             symbols::SymbolNameRef::Static("captured"),
         );
+        let constructor = symbols.insert_root(
+            symbols::SymbolKind::Data,
+            symbols::SymbolNameRef::Static("StorageConstructor"),
+        );
         let mut program = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
@@ -1513,13 +1517,28 @@ mod captured_evidence_retention_tests {
             symbol: instance,
             ..Default::default()
         });
-        let supplying =
-            crate::static_applications::StaticMachineApplicationHandle::from_parts(3, 1);
+        let source_application =
+            program
+                .type_reference_table
+                .insert(crate::types::TypeReferenceNode::Named {
+                    symbol: constructor,
+                    name: crate::name::Identifier::generated("StorageConstructor"),
+                });
+        let supplying = program.expression_table.retain_static_machine_application(
+            constructor,
+            Default::default(),
+            &[],
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(supplying)
+            .lexical_owner = owner;
         let application = super::super::ClosedConformanceApplication {
             trait_arguments: vec!["exact".to_owned()],
             ..Default::default()
         };
         let selected = super::super::DataImplementationApplication {
+            source_application,
             lexical_owner: owner,
             supplying_application: supplying,
             application: application.clone(),
@@ -1560,6 +1579,13 @@ mod captured_evidence_retention_tests {
                 .1,
             &selected
         );
+
+        // The omitted owner's exact type remains a checking dependency of the
+        // capture. Its declaration custody must not retain the runtime body.
+        let references = crate::references::collect_program_references(&program);
+        assert!(references.symbols.contains(&constructor));
+        assert!(references.descriptor_symbols.contains(&owner));
+        assert!(!references.symbols.contains(&owner));
 
         // A stale capture row is not a live body dependency.
         program.roots.machines = Default::default();

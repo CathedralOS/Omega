@@ -2426,6 +2426,20 @@ fn visit_machine_with_sidecars(
                 // It is a checking prerequisite, not a call edge or permission to
                 // execute the supplying owner's body.
                 retained.declaration_description_dependency(source.lexical_owner);
+                // The omitted supplier still owes the constructor graph of its
+                // exact source type. Retaining the receipt alone loses that
+                // graph; traversing its owner's body would demand runtime work.
+                for (_, selected) in
+                    program
+                        .data_implementation_applications
+                        .iter()
+                        .filter(|(_, selected)| {
+                            selected.supplying_application == capture.supplying_application
+                                && selected.application == capture.conformance_application
+                        })
+                {
+                    visit_type_reference(program, retained, selected.source_application);
+                }
                 visit_symbol(retained, capture.conformance_application.declaration);
                 visit_static_machine_bindings(program, retained, capture.binding_application);
                 visit_static_machine_bindings(program, retained, capture.supplying_application);
