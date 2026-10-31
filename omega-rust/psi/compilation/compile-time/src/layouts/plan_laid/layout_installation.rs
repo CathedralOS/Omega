@@ -1,3 +1,4 @@
+use crate::build_time_evaluation::type_reference_table;
 use diagnostics::Diagnostic;
 use layout_plans::LayoutPlacementReport;
 use typed_trees::{
@@ -466,8 +467,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
                                 .then_some(demand.lexical_owner)
                             })
                             .unwrap_or_else(|| {
-                                execution
-                                    .type_reference_table
+                                type_reference_table(&execution)
                                     .operand_lifetime_owner(storage.policy)
                             }),
                     )),
@@ -598,9 +598,7 @@ fn representation_dependencies(
             });
             continue;
         }
-        let reference = typed
-            .type_reference_table
-            .unconstrained_type_reference(reference);
+        let reference = type_reference_table(typed).unconstrained_type_reference(reference);
         match typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray { element_type, .. } => {
                 work.push((*element_type, lexical_owner))

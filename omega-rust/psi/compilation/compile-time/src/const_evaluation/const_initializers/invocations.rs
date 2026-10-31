@@ -20,7 +20,7 @@
 //! Scalar probes keep their exact evaluator rather than acquiring runtime
 //! return-range obligations.
 
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use crate::unique::{extend_unique, push_unique};
 use std::sync::Arc;
 
@@ -876,9 +876,7 @@ impl Invocation<'_> {
             }
             return Ok(());
         }
-        let carrier = typed
-            .type_reference_table
-            .unconstrained_type_reference(destination);
+        let carrier = type_reference_table(typed).unconstrained_type_reference(destination);
         match typed.expression_table.expression(expression) {
             ExpressionNode::ArrayLiteral(elements) => {
                 // Substitution can retain a declared array's carrier on literal
@@ -1139,12 +1137,8 @@ fn result_carriers_match(
             && typed.arithmetic_domain_for_type_reference(actual)
                 == typed.arithmetic_domain_for_type_reference(destination);
     }
-    let actual = typed
-        .type_reference_table
-        .unconstrained_type_reference(actual);
-    let destination = typed
-        .type_reference_table
-        .unconstrained_type_reference(destination);
+    let actual = type_reference_table(typed).unconstrained_type_reference(actual);
+    let destination = type_reference_table(typed).unconstrained_type_reference(destination);
     if let (
         typed_trees::types::TypeReferenceNode::FixedArray {
             element_type: actual_element,

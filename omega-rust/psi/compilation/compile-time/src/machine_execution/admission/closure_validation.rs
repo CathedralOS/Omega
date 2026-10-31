@@ -1,4 +1,4 @@
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use language_semantics::{MachineSupplyMode, TerminationGuarantee};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -170,8 +170,7 @@ fn is_parameter_domain_premise(
                     return false;
                 }
                 visited.push(reference);
-                if program
-                    .type_reference_table
+                if type_reference_table(program)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| {

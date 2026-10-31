@@ -6,7 +6,7 @@
 //! give detached expressions ordinary checking context; they remain in a private
 //! clone and never add a runtime declaration or a portable representation.
 
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use crate::unique::push_unique;
 use std::sync::Arc;
 
@@ -1064,9 +1064,7 @@ fn pair(
     match (
         table.expression(leaf.original),
         table.expression(leaf.materialized),
-        program
-            .type_reference_table
-            .type_reference(leaf.destination),
+        type_reference_table(program).type_reference(leaf.destination),
         &leaf.expected,
     ) {
         (

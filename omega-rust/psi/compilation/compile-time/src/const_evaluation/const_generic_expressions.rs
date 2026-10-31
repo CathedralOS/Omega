@@ -17,7 +17,7 @@ pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls}
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use crate::unique::push_unique;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -329,8 +329,7 @@ pub(super) fn exact_probe_destination(
 ) -> Option<typed_trees::types::PrimitiveType> {
     use symbols::BuiltinTypeAtom;
     use typed_trees::types::PrimitiveType;
-    let symbol = &program
-        .type_reference_table
+    let symbol = &type_reference_table(program)
         .type_reference(destination)
         .as_named_symbol()?;
     Some(match program.symbols.builtin_type_atom(*symbol)? {
@@ -386,8 +385,7 @@ pub(super) fn scalar_probe_destination(
     use symbols::BuiltinTypeAtom;
     use typed_trees::types::PrimitiveType;
     exact_probe_destination(program, destination).or_else(|| {
-        let symbol = &program
-            .type_reference_table
+        let symbol = &type_reference_table(program)
             .type_reference(destination)
             .as_named_symbol()?;
         match program.symbols.builtin_type_atom(*symbol)? {

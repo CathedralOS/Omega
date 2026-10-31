@@ -7,7 +7,7 @@
 //! proof-integer predecessor. Only structured values return to syntax; original
 //! bounds remain available to declaration checking and application custody.
 
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
@@ -315,8 +315,7 @@ pub(crate) fn evaluate(
         {
             let Some(typed_trees::types::TypeConstraintNode::Range {
                 minimum, maximum, ..
-            }) = typed
-                .type_reference_table
+            }) = type_reference_table(&typed)
                 .constraints(constraints)
                 .get(ordinal)
             else {

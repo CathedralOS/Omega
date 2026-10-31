@@ -3,6 +3,7 @@
 //! no target -- build evaluation cannot observe or branch on one
 //! (`wiki/spec/build/configuration.md#multi-target-compilation`).
 
+use crate::build_time_evaluation::type_reference_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -75,9 +76,8 @@ fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, V
             x86_feature_fields.len()
         ))]);
     };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
-        .type_reference_table
-        .type_reference(x86_feature_field.type_reference)
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        type_reference_table(typed).type_reference(x86_feature_field.type_reference)
     else {
         return Err(vec![Diagnostic::error(
             "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
@@ -182,9 +182,7 @@ fn validate_build_activation_integrity(
                         ) =>
                     {
                         if !matches!(
-                            typed
-                                .type_reference_table
-                                .type_reference(local.type_reference),
+                            type_reference_table(typed).type_reference(local.type_reference),
                             typed_trees::types::TypeReferenceNode::Reference { .. }
                         ) {
                             diagnostics.push(Diagnostic::error(format!(

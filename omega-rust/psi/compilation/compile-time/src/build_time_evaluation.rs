@@ -16,6 +16,14 @@ pub(crate) fn expression_table(
     &program.expression_table
 }
 
+/// The type-reference table of `program`, named once for a reader whose
+/// receiver chain would otherwise carry it in the middle.
+pub(crate) fn type_reference_table(
+    program: &typed_trees::TypedTrees,
+) -> &typed_trees::types::TypeReferenceTable {
+    &program.type_reference_table
+}
+
 /// Work ownership is narrower than executable lookup. Product work excludes
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
