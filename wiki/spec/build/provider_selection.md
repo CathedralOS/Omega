@@ -125,8 +125,13 @@ Source-level `via` clauses and one-to-one bodyless realization declarations are
 retired. The package's native rows travel with its selected provider closure;
 application Build need not repeat dependency symbols or name private raw slots.
 Native rows supply exact boundary backing, not whole-trait conformance evidence,
-and complete schema coverage remains mandatory. Build-host readiness stays
-separate from these product rows.
+and complete schema coverage remains mandatory. A native row keyed to the
+selected target is that target's authored supply for its slot: checked
+implementations in scope, including those other targets' rows select, stay
+checked but do not compete with it. Rows keyed to the same target from
+different suppliers conflict and reject, and an explicit selection still
+outranks both.
+Build-host readiness stays separate from these product rows.
 
 Compiler intrinsics are selected from exact declaration, signature, and target.
 The complete binding producer closure and result enter final admission.
