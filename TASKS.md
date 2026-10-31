@@ -453,11 +453,10 @@ retired-syntax deletions to completion.
   `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
   with its interpreter and native consumers.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
-    in maintained pass fixtures, samples (**SAMPLE-CORPUS**), and
-    `source/library/core` to explicit conversions (`as` requires unchanged
-    denotation and representability; wrapping/clamping use
-    `core/numeric_conversion.omg`), producing one actionable diagnostic per
-    authored conversion error.
+    in maintained pass fixtures and samples (**SAMPLE-CORPUS**) to explicit
+    conversions (`as` requires unchanged denotation and representability;
+    wrapping/clamping use `core/numeric_conversion.omg`), producing one
+    actionable diagnostic per authored conversion error.
   Acceptance: comparisons, conversions, and policy-explicit stores agree between
   the interpreter and matching-host native execution across all six relations,
   operand orientations, widths, signedness, and extrema above `i64::MAX`
