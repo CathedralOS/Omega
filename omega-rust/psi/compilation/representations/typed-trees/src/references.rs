@@ -21,7 +21,9 @@ use crate::{
 use symbols::SymbolHandle;
 
 mod source_occurrences;
-pub use source_occurrences::authored_type_occurrences;
+pub use source_occurrences::{
+    authored_type_occurrences, collect_authored_program_type_occurrences,
+};
 
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 

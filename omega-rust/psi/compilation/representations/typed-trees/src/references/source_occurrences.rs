@@ -4,13 +4,22 @@
 
 use super::{
     DeclarationSelection, HashSet, StaticArgumentCall, TypeOccurrence, TypeOccurrences,
-    TypedReferences, visit_declarations, visit_machine,
+    TypedReferences, visit_declarations, visit_machine, visit_program,
 };
 use crate::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
 use symbols::SymbolHandle;
 
 #[cfg(test)]
 use super::{ExpressionNode, TypeReferenceNode, conformance_occurrence_tests};
+
+/// Discover authored type occurrences under the current declaration roots.
+/// Unlike description replay, this never opens an omitted machine body; unlike
+/// the complete dependency census, derived applications cannot create inputs.
+pub fn collect_authored_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
+    let mut source = AuthoredTypeOccurrences(TypeOccurrences::default());
+    visit_program(program, &mut source);
+    source.0.types
+}
 
 /// Re-derive source occurrences for exactly these lexical owners without
 /// making their bodies executable. Current declaration roots supply ordinary
@@ -238,6 +247,26 @@ mod authored_type_occurrence_tests {
             assert!(contains(&program, owner, authored_call));
             assert!(contains(&program, owner, authored_cast));
             assert!(!contains(&program, owner, computed));
+            let current = collect_authored_program_type_occurrences(&program);
+            assert_eq!(
+                current.contains(&TypeOccurrence {
+                    lexical_owner: owner,
+                    reference: authored_call
+                }),
+                !projected,
+            );
+            assert_eq!(
+                current.contains(&TypeOccurrence {
+                    lexical_owner: owner,
+                    reference: authored_cast
+                }),
+                !projected,
+            );
+            assert!(
+                !current
+                    .iter()
+                    .any(|occurrence| occurrence.reference == computed)
+            );
         }
     }
 
@@ -331,6 +360,18 @@ mod authored_type_occurrence_tests {
             reference
         }));
         assert!(!contains(&program, owner, forged));
+        let current = collect_authored_program_type_occurrences(&program);
+        for lexical_owner in [owner, signature, constant] {
+            assert!(current.contains(&TypeOccurrence {
+                lexical_owner,
+                reference
+            }));
+        }
+        assert!(
+            !current
+                .iter()
+                .any(|occurrence| occurrence.reference == forged)
+        );
         assert!(!contains(&program, missing, reference));
         assert!(!contains(
             &program,
@@ -340,6 +381,13 @@ mod authored_type_occurrence_tests {
 
         program.roots.machines = Default::default();
         assert!(program.machine_by_symbol(owner).is_none());
+        assert!(
+            collect_authored_program_type_occurrences(&program)
+                == vec![TypeOccurrence {
+                    lexical_owner: constant,
+                    reference,
+                }]
+        );
         assert!(contains(&program, owner, reference));
         assert!(contains(&program, signature, reference));
         assert!(!contains(&program, owner, forged));
