@@ -1589,45 +1589,58 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
     }
     // The maps already order the union of keys. Walk each once rather than
     // rebuilding that union and searching both maps again for every slot.
-    let mut left = before.slots.iter().peekable();
-    let mut right = incoming.slots.iter().peekable();
-    while left.peek().is_some() || right.peek().is_some() {
-        let order = match (left.peek(), right.peek()) {
-            (Some((left, _)), Some((right, _))) => left.cmp(right),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => unreachable!(),
-        };
-        let (location, previous, arriving) = match order {
-            std::cmp::Ordering::Less => {
-                let (location, value) = left.next().unwrap();
-                (location, Some(value), None)
+    let mut slot_updates = Vec::new();
+    {
+        let mut left = before.slots.iter().peekable();
+        let mut right = incoming.slots.iter().peekable();
+        while left.peek().is_some() || right.peek().is_some() {
+            let order = match (left.peek(), right.peek()) {
+                (Some((left, _)), Some((right, _))) => left.cmp(right),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => unreachable!(),
+            };
+            let (location, previous, arriving) = match order {
+                std::cmp::Ordering::Less => {
+                    let (location, value) = left.next().unwrap();
+                    (location, Some(value), None)
+                }
+                std::cmp::Ordering::Greater => {
+                    let (location, value) = right.next().unwrap();
+                    (location, None, Some(value))
+                }
+                std::cmp::Ordering::Equal => {
+                    let (location, previous) = left.next().unwrap();
+                    let (_, arriving) = right.next().unwrap();
+                    (location, Some(previous), Some(arriving))
+                }
+            };
+            // Raw slot unions are idempotent; symbolic contents joins above are
+            // not. Missing and present-unknown entries must remain distinct.
+            if previous == arriving {
+                continue;
             }
-            std::cmp::Ordering::Greater => {
-                let (location, value) = right.next().unwrap();
-                (location, None, Some(value))
+            let value = match (
+                previous.and_then(Option::as_ref),
+                arriving.and_then(Option::as_ref),
+            ) {
+                (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
+                _ => None,
+            };
+            if previous != Some(&value) {
+                slot_updates.push((location.clone(), value));
+                changed = true;
             }
-            std::cmp::Ordering::Equal => {
-                let (location, previous) = left.next().unwrap();
-                let (_, arriving) = right.next().unwrap();
-                (location, Some(previous), Some(arriving))
-            }
-        };
-        // Raw slot unions are idempotent; symbolic contents joins above are
-        // not. Missing and present-unknown entries must remain distinct.
-        if previous == arriving {
-            continue;
         }
-        let value = match (
-            previous.and_then(Option::as_ref),
-            arriving.and_then(Option::as_ref),
-        ) {
-            (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
-            _ => None,
-        };
-        if previous != Some(&value) {
-            existing.slots_mut().insert(location.clone(), value);
-            changed = true;
+    }
+    // Finish every read of the original maps before releasing this scratch
+    // snapshot. A uniquely owned slot map then needs no whole-map COW clone;
+    // genuine external snapshots still keep their independent old contents.
+    drop(before);
+    if !slot_updates.is_empty() {
+        let slots = existing.slots_mut();
+        for (location, value) in slot_updates {
+            slots.insert(location, value);
         }
     }
     changed
@@ -1813,5 +1826,65 @@ mod snapshot_tests {
                 }
             }
         }
+    }
+    #[test]
+    fn join_slot_updates_release_only_the_scratch_snapshot_before_writing() {
+        let mut existing = State::default();
+        for index in 1..=64 {
+            existing.slots_mut().insert(
+                location(index),
+                Some(BTreeSet::from([Origin::Storage(location(100 + index))])),
+            );
+        }
+        // A deep input copy supplies a different value without manufacturing
+        // another owner of the existing map under test.
+        let mut incoming = State {
+            slots: Arc::new((*existing.slots).clone()),
+            ..State::default()
+        };
+        incoming.slots_mut().insert(
+            location(64),
+            Some(BTreeSet::from([Origin::Storage(location(200))])),
+        );
+        assert_eq!(Arc::strong_count(&existing.slots), 1);
+        assert_eq!(Arc::weak_count(&existing.slots), 0);
+        let unique_map = Arc::as_ptr(&existing.slots);
+        assert!(merge_state(&mut existing, &incoming));
+        assert_eq!(Arc::as_ptr(&existing.slots), unique_map);
+        assert_eq!(
+            existing.slots.get(&location(64)),
+            Some(&Some(BTreeSet::from([
+                Origin::Storage(location(164)),
+                Origin::Storage(location(200)),
+            ]))),
+        );
+        // A real retained snapshot keeps the old map; no-op writes must not
+        // detach, while a changed union must leave that snapshot untouched.
+        let retained = existing.clone();
+        incoming.slots = Arc::new((*existing.slots).clone());
+        assert!(!merge_state(&mut existing, &incoming));
+        assert!(Arc::ptr_eq(&existing.slots, &retained.slots));
+        let original_slots = (*retained.slots).clone();
+        incoming.slots_mut().insert(
+            location(64),
+            Some(BTreeSet::from([Origin::Storage(location(201))])),
+        );
+        assert!(merge_state(&mut existing, &incoming));
+        assert!(!Arc::ptr_eq(&existing.slots, &retained.slots));
+        assert_eq!(*retained.slots, original_slots);
+        assert_eq!(
+            existing.slots.get(&location(1)),
+            retained.slots.get(&location(1))
+        );
+        assert_eq!(
+            existing
+                .slots
+                .get(&location(64))
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .len(),
+            3
+        );
     }
 }
