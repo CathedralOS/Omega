@@ -28,6 +28,7 @@
 //! ordinary call admission still checks the full signature, bounds and custody.
 
 use crate::lowerer::Lowerer;
+use crate::tables::resolved_expressions;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -460,12 +461,8 @@ fn static_conformance_requirement_return(
     state: &resolved::state::State,
     call: &resolved::expression::TableCallExpression,
 ) -> Option<TypeReference> {
-    let ExpressionNode::Name(receiver) = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(call.receiver)
+    let ExpressionNode::Name(receiver) =
+        resolved_expressions(lowerer.source_trees).expression(call.receiver)
     else {
         return None;
     };
@@ -563,11 +560,7 @@ fn instantiate_declared_call_result(
         substitutions.push((parameter.symbol, concrete));
     }
     let formal_parameters = declared_call_parameters(lowerer.source_trees, target).to_vec();
-    let arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
+    let arguments = resolved_expressions(lowerer.source_trees)
         .expression_handles(call.arguments)
         .to_vec();
     for (formal, argument) in formal_parameters.iter().zip(arguments) {

@@ -23,6 +23,7 @@ mod root_bindings;
 mod transitions;
 
 use crate::lowerer::Lowerer;
+use crate::tables::expression_table_mut;
 use crate::type_reference::lower_type_reference_handle_from_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -130,13 +131,9 @@ fn lower_statement_node(
                     operational_acknowledgement: call.operational_acknowledgement,
                 }),
             );
-            lowerer
-                .typed_trees
-                .expression_table
+            expression_table_mut(&mut lowerer.typed_trees)
                 .set_constructed_value_type_reference(expression, result);
-            lowerer
-                .typed_trees
-                .expression_table
+            expression_table_mut(&mut lowerer.typed_trees)
                 .set_source_span(expression, call.target.source_span());
             Ok(typed::statement::StatementNode::Expression(expression))
         }

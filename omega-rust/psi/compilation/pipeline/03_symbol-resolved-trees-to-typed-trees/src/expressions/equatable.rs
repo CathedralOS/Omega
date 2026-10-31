@@ -31,6 +31,7 @@
 //! by one Equatable implementation; recursive types are rejected (inline
 //! expansion would not terminate).
 
+use crate::tables::resolved_statements;
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};
@@ -582,12 +583,7 @@ impl EqualityScope {
         state: &resolved::state::State,
     ) -> Self {
         let mut scope = Self::for_state_interface(program, machine, state);
-        for statement in program
-            .tables
-            .bodies
-            .statements
-            .statements(state.statement_nodes)
-        {
+        for statement in resolved_statements(program).statements(state.statement_nodes) {
             if let resolved::statement::StatementNode::LocalData(local) = statement
                 && let Some(base) = table_type_base_name(program, local.type_reference)
             {
