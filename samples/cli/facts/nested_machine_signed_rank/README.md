@@ -108,48 +108,77 @@ imports its result, and selected-path premises stay local. This establishes
 exact-actual formation and composition without changing captured storage
 identity, arithmetic safety, authority or termination obligations.
 
-The applicable downstream obligations remain this row's ordinary call and
-rank lowering, explicit-reference layout/ABI, counter and neighbor preservation,
-and native image/interpreter agreement. The new sources are pinned as
-`nested_machine_signed_rank_negated_requirement_<place>_{exit,rejected}`.
-Candidate execution and the intended strict-nondescent refusals remain to be
-measured. The wider parent outcome and other-host qualification remain open.
+Three productions exercise the same fact in every transport place. The first
+uses negation; the second uses
+`value >= 4 && value <= 7 && (value == 4 || 8 / (value - 4) <= 8)`;
+the third explicitly qualifies the division operands as Wrapping and erases
+that policy from its result. At four the selected left alternative skips the
+zero divisor; at five through seven the right alternative forms independently.
+Every linked directory contains `main.omg` and its increment-zero
+`invalid/main.omg` twin:
 
-A second production, `<place>/negated_requirement/guarded_divisor/`, keeps the
-same fact, inputs, ranks, updates and oracle. Its helper additionally requires
-`value >= 4 && value <= 7 && (value == 4 || 8 / (value - 4) <= 8)`.
-At value four the left alternative protects division by zero; at five through
-seven the right alternative must form independently. Every place has the same
-increment-zero twin and pinned corpus inputs. Producer `88684c4ca48c` admits the
-source but refuses Terminal production because the header's independently
-checked arithmetic formation was discarded before predicate lowering.
+| Place | Negation | Guarded division | Wrapping division |
+| --- | --- | --- | --- |
+| local | [pair](local/negated_requirement/) | [pair](local/negated_requirement/guarded_divisor/) | [pair](local/negated_requirement/guarded_divisor/wrapping/) |
+| field | [pair](field/negated_requirement/) | [pair](field/negated_requirement/guarded_divisor/) | [pair](field/negated_requirement/guarded_divisor/wrapping/) |
+| parameter | [pair](parameter/negated_requirement/) | [pair](parameter/negated_requirement/guarded_divisor/) | [pair](parameter/negated_requirement/guarded_divisor/wrapping/) |
+| call_result | [pair](call_result/negated_requirement/) | [pair](call_result/negated_requirement/guarded_divisor/) | [pair](call_result/negated_requirement/guarded_divisor/wrapping/) |
+| match_join | [pair](match_join/negated_requirement/) | [pair](match_join/negated_requirement/guarded_divisor/) | [pair](match_join/negated_requirement/guarded_divisor/wrapping/) |
+| const_name | [pair](const_name/negated_requirement/) | [pair](const_name/negated_requirement/guarded_divisor/) | [pair](const_name/negated_requirement/guarded_divisor/wrapping/) |
+| other_state | [pair](other_state/negated_requirement/) | [pair](other_state/negated_requirement/guarded_divisor/) | [pair](other_state/negated_requirement/guarded_divisor/wrapping/) |
+| other_machine | [pair](other_machine/negated_requirement/) | [pair](other_machine/negated_requirement/guarded_divisor/) | [pair](other_machine/negated_requirement/guarded_divisor/wrapping/) |
+| target_body | [pair](target_body/negated_requirement/) | [pair](target_body/negated_requirement/guarded_divisor/) | [pair](target_body/negated_requirement/guarded_divisor/wrapping/) |
 
 Contract checking now publishes its existing arithmetic decisions, including
-exact occurrences under short-circuit paths, and predicate lowering consumes
-the existing `formation_decided` field. A failed formation supplies no decision;
-the proposed condition never licenses its own operands. This also covers the
-same retained decision on shifts, remainder and policy division. Generated terms
-without such a decision keep their explicit evidence obligations. Candidate
-execution for this production remains to be measured.
+occurrences under short-circuit paths, and predicate lowering consumes the
+existing `formation_decided` field. A failed formation supplies no decision;
+the proposed condition never licenses its own operands. Generated terms without
+such a decision retain their explicit safety obligations.
 
-The same guarded production also qualifies the division operands as Wrapping,
-then explicitly erases that policy from its result for comparison. Its nine
-places live under `guarded_divisor/wrapping/`, with unchanged increment-zero
-twins. Source checking must retain the live lower endpoint before excluding
-four; consulting only the declared `u64` range loses that endpoint and cannot
-prove the qualified divisor nonzero. Both refuted equality and positive
-disequality consume the same current integer interval. Interior exclusions
-cannot choose a side, and IEEE values do not admit integer adjacency.
+The qualified division also needs the live lower endpoint before excluding
+four. Both refuted equality and positive disequality consume the current integer
+interval. Interior exclusions cannot choose a side, and IEEE values do not admit
+integer adjacency. Explicit policy selection and erasure independently form
+the operand and target carrier and preserve the payload. Already-typed call
+arguments and measure results must retain their carrier and policy; a fitting
+number cannot authorize an implicit erasure or width change.
 
-Focused controls under `parameter/negated_requirement/controls/` challenge
-nested/disjunctive requirements, short-circuit arithmetic, shifts, remainder,
-policy division, missing public premises, unsafe operands, excluded interior
-values and IEEE adjacency. These extend the same row rather than changing its
-rank, bounds, counter operation or standard transport places.
+The [focused controls](parameter/negated_requirement/controls/) cover nested
+and disjunctive requirements, selected arithmetic, shift, remainder, policy
+division, missing public premises, unsafe operands, interior exclusions and
+IEEE adjacency. Explicit argument/result policy erasures run successfully;
+the corresponding implicit erasures reject.
 
-Explicit numeric policy selection and erasure form their operand and target
-carrier independently, then preserve that payload. The application owner also
-checks an already-typed call argument and measure result's carrier and policy:
-a fitting number alone cannot authorize an implicit policy erasure or width
-change. The explicit argument/result erasure controls must run; their implicit
-twins must reject.
+The eight requirement layers use the existing row's runtime falsifiers:
+
+- Establishment: each helper requirement and partial operand forms before its
+  public result can supply a rank bound.
+- Identity and lifetime: saved input coordinates survive selected updates;
+  requirement-local premises do not escape into later applications.
+- Composition: all three productions preserve the same signed descent and
+  exact-once counter operation across the nine places.
+- Soundness boundaries: all 27 increment-zero twins reject for missing strict
+  descent; nine additional negative controls reject their individual broken
+  premises, safety or type obligations.
+- Checked-to-Terminal Psi (`Psi 05–07`): occurrence-bound arithmetic decisions
+  reach normal predicate lowering; the Terminal interpreter executes the
+  selected and fallback paths and signed rank edges.
+- Provider, layout and ABI (`Omega 00–02`): four-target Build bindings join the
+  ordinary private calls, mutable array projections and explicit counter
+  references. The Linux execution checks both selectors and neighbor canaries.
+- Instruction and frame realization (`Omega 03–06`): caller-visible counter
+  3→6→6, saved signed values and untouched neighbors expose lost updates,
+  incorrect calls and clobbered homes across the complete cycle.
+- Encoding and emission (`Omega 07–09`): direct Linux x86_64 native execution
+  agrees with Terminal at exit 0 for all 36 positives, including the nine
+  composition controls. All 36 intended-invalid samples match authored refusals.
+
+The optimized executable for these observations was built from compiler source
+`ec5a7071628362f00512e7701a79b53c71ad5327`; its SHA-256 is
+`a1a8cdda6c2d383b5031e352533deb94a3953ec0f619e0ef32b63e40856fcac9`.
+The immutable producer and raw results are retained in
+`build/advance-negated/formation-samples.{json,log}` in the owning worktree.
+All 72 sources are pinned under
+`tests/omega/{pass,fail}/facts/nested_machine_signed_rank_negated_requirement_*`.
+The broader parent acceptance, other-host execution and independent proof-kernel
+qualification remain open.

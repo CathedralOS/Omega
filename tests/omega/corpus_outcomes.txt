@@ -504,6 +504,90 @@ fail/facts/nested_machine_signed_rank_local_rejected rejected 2446ms expected @d
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_match_join_rejected rejected 2297ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_call_result_rejected rejected 7467ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_const_name_rejected rejected 7487ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_field_rejected rejected 6117ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_float_exclusion_requirement_rejected rejected 14266ms expected @a7e4d27bd646+wt
+	cannot prove requires contract for call need_five from perform: value >= 5.0 (needs fact `value >= 5.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_call_result_rejected rejected 8000ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_const_name_rejected rejected 11140ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_field_rejected rejected 10268ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_local_rejected rejected 9301ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_match_join_rejected rejected 9397ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_machine_rejected rejected 6363ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_state_rejected rejected 11115ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_parameter_rejected rejected 11500ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_target_body_rejected rejected 7812ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_implicit_policy_erasure_contract_rejected rejected 8189ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_implicit_result_policy_erasure_rejected rejected 9657ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_interior_exclusion_requirement_rejected rejected 2897ms expected @a7e4d27bd646+wt
+	exact arithmetic in machine `rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	partial wrapping division in machine `rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	exact arithmetic in machine `check_rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	partial wrapping division in machine `check_rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/facts/nested_machine_signed_rank_negated_requirement_local_rejected rejected 6106ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_match_join_rejected rejected 7414ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_missing_disjunction_rejected rejected 7198ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_missing_negated_requirement_rejected rejected 7145ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_other_machine_rejected rejected 7121ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_other_state_rejected rejected 7910ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_parameter_rejected rejected 5849ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_target_body_rejected rejected 7315ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_unguarded_divisor_requirement_rejected rejected 3634ms expected @a7e4d27bd646+wt
+	partial exact division in machine `rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `check_rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/facts/nested_machine_signed_rank_negated_requirement_unsafe_requirement_rejected rejected 4485ms expected @a7e4d27bd646+wt
+	exact arithmetic in machine `rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `check_rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_signed_rank_negated_requirement_unsafe_shift_requirement_rejected rejected 2846ms expected @a7e4d27bd646+wt
+	exact arithmetic in machine `rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	shift count in machine `rank` requires contract is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	exact arithmetic in machine `check_rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	shift count in machine `check_rank` requires contract is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_call_result_rejected rejected 7285ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_const_name_rejected rejected 6120ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_field_rejected rejected 5732ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_local_rejected rejected 7190ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_match_join_rejected rejected 8089ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_machine_rejected rejected 8324ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_state_rejected rejected 7507ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_parameter_rejected rejected 6469ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_target_body_rejected rejected 3648ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_other_machine_rejected rejected 3472ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_other_state_rejected rejected 2603ms expected @db757705d687
@@ -7164,6 +7248,42 @@ pass/facts/nested_machine_signed_rank_field_exit checked 3796ms check-target:mac
 pass/facts/nested_machine_signed_rank_local_exit checked 4348ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_lower_endpoint_exit checked 3638ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_match_join_exit checked 5706ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_negated_requirement_call_result_exit checked 7898ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_const_name_exit checked 9538ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_disjunctive_requirement_exit checked 7625ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_explicit_policy_erasure_exit checked 7367ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_explicit_result_policy_erasure_exit checked 7917ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_field_exit checked 7259ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_call_result_exit checked 10377ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_const_name_exit checked 8197ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_field_exit checked 7088ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_local_exit checked 8984ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_match_join_exit checked 9239ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_machine_exit checked 7917ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_state_exit checked 6903ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_parameter_exit checked 7989ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_target_body_exit checked 9727ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_local_exit checked 7476ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_match_join_exit checked 8385ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_nested_requirement_exit checked 6555ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_other_machine_exit checked 8278ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_other_state_exit checked 8523ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_parameter_exit checked 9402ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_positive_disequality_requirement_exit checked 9308ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_remainder_requirement_exit checked 7768ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_shift_requirement_exit checked 7870ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_short_circuit_requirement_exit checked 9762ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_target_body_exit checked 9364ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_call_result_exit checked 6919ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_const_name_exit checked 7503ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_field_exit checked 6132ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_local_exit checked 9594ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_match_join_exit checked 7217ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_machine_exit checked 7830ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_state_exit checked 8578ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_parameter_exit checked 9794ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_requirement_exit checked 7690ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_target_body_exit checked 10273ms check-target:macos_arm64 @a7e4d27bd646+wt
 pass/facts/nested_machine_signed_rank_no_authored_range_exit checked 3914ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_other_machine_exit checked 6236ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_other_state_exit checked 3735ms check-target:macos_arm64 @db757705d687
