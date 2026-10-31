@@ -12,7 +12,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-use super::{TerminalRuntimeError, native_provider::rejection};
+use super::{TerminalRuntimeError, matches_platform_c_symbol, native_provider::rejection};
 use crate::execution::TerminalFilesystemDelegation;
 
 #[derive(Clone)]
@@ -230,12 +230,7 @@ impl FilesystemContext {
         ];
         let mut selected = None;
         for &(symbol, parameters, result, descriptor) in candidates {
-            if super::matches_platform_c_symbol(
-                binding,
-                symbol,
-                &[b"/usr/lib/libSystem.B.dylib"],
-                None,
-            )? {
+            if matches_platform_c_symbol(binding, symbol, &[b"/usr/lib/libSystem.B.dylib"], None)? {
                 selected = Some((Some(parameters), result, descriptor));
                 break;
             }
