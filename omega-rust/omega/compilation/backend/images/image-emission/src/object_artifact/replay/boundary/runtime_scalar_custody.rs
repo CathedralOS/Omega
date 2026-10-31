@@ -1,6 +1,7 @@
 //! Hosted runtime scalar custody replay: selected byte output, hosted read and
 //! write byte roots, and process-exit settlement at native boundaries.
 
+use crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes;
 use calling_conventions::{MachineRegister, ValueLocation, ValueShape};
 use machine_code::{
     BoundaryExecutionRecord, BoundarySettlementRecord, InternalUnitScalarArgumentSourceRecord,
@@ -283,11 +284,7 @@ pub(crate) fn hosted_write_byte_custody_is_exact(
                 && (ordinary_home || inspected_payload)
         }
     };
-    let Some(materialization) =
-        crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
-            target, argument, 0,
-        )
-    else {
+    let Some(materialization) = expected_foreign_scalar_argument_bytes(target, argument, 0) else {
         return false;
     };
     let suffix = match target.architecture {
@@ -463,6 +460,7 @@ mod tests {
         ValueShape, decode_selected_byte_output, hosted_i32_argument,
         hosted_write_byte_custody_is_exact,
     };
+    use crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes;
     use machine_code::{BoundarySettlementRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord};
     use semantic_vocabulary::{BoundaryMachineId, IntegerValue, OperationId, ValueId};
     use target_operations::{
@@ -545,11 +543,7 @@ mod tests {
             Architecture::Aarch64 => MachineRegister::Aarch64X(9),
         };
         let mut argument = hosted_i32_argument(source, register, 0, 0);
-        let materialization =
-            crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
-                target, &argument, 0,
-            )
-            .unwrap();
+        let materialization = expected_foreign_scalar_argument_bytes(target, &argument, 0).unwrap();
         argument.byte_count = materialization.len();
         let suffix = match target.architecture {
             Architecture::X86_64 => isa_x86_64::encode_hosted_write_byte_i32_from_r11(),
@@ -655,13 +649,12 @@ mod tests {
         };
         settlement.runtime_scalar_arguments[0].source =
             InternalUnitScalarArgumentSourceRecord::Home(home);
-        let materialization =
-            crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
-                target,
-                &settlement.runtime_scalar_arguments[0],
-                0,
-            )
-            .unwrap();
+        let materialization = expected_foreign_scalar_argument_bytes(
+            target,
+            &settlement.runtime_scalar_arguments[0],
+            0,
+        )
+        .unwrap();
         settlement.runtime_scalar_arguments[0].byte_count = materialization.len();
         let mut bytes = materialization;
         bytes.extend_from_slice(&isa_x86_64::encode_hosted_write_byte_i32_from_r11());
